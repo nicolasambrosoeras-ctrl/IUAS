@@ -22,10 +22,12 @@ export interface EntradaDePaso {
   readonly procedencia: string
 }
 
+// La salida de un paso reutiliza ValorCalculado: un paso individual
+// puede resultar indeterminado (D25) igual que un resultado final.
+// No usar "number" suelto aca evita reintroducir NaN en la traza.
 export interface SalidaDePaso {
   readonly simbolo: string
-  readonly valor: number
-  readonly unidad: string
+  readonly resultado: ValorCalculado
 }
 
 // Cada operacion del motor deposita uno de estos en la traza (ADR-005).
