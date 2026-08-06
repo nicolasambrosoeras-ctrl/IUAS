@@ -12,8 +12,6 @@ describe('calcularCoeficienteDeSimultaneidad', () => {
     if (!('valor' in resultado)) {
       throw new Error('se esperaba un resultado numerico, no indeterminado')
     }
-    // C-08: comparacion de punto flotante con tolerancia explicita,
-    // nunca por igualdad exacta.
     expect(resultado.valor).toBeCloseTo(0.5774, 4)
     expect(resultado.unidad).toBe('adimensional')
 
@@ -22,11 +20,14 @@ describe('calcularCoeficienteDeSimultaneidad', () => {
       {
         simbolo: 'n',
         valor: 4,
-        unidad: 'adimensional',
+        // 'conteo', no 'adimensional': n es un conteo de artefactos, no
+        // un coeficiente. Corregido en Paso 5 al verificar el PDF real
+        // (n se mostraba como "4,00", con decimales que no corresponden
+        // a una cantidad discreta).
+        unidad: 'conteo',
         procedencia: 'conteo de artefactos computables',
       },
     ])
-    // Misma referencia que "resultado": no pueden divergir por construccion.
     expect(paso.salida.resultado).toBe(resultado)
   })
 
