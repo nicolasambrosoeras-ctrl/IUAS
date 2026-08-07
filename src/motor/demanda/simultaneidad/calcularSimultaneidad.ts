@@ -116,16 +116,51 @@ export function calcularSimultaneidad(
       'quTotal_lps tomado del catálogo normativo.',
   }
 
+  // CRIT-A4 (ERAS-2023 §2.9.2.2 y §2.9.2.3): con n=1 el modelo de
+  // simultaneidad no aplica; Qc = Qmax = qu, sin multiplicar por K ni a.
+  const aplicaModeloDeSimultaneidad = n >= 2
+
+  const qc: ValorCalculado = !aplicaModeloDeSimultaneidad
+    ? salidaQmax
+    : 'estado' in k
+      ? k
+      : { valor: qmax * k.valor, unidad: 'l/s' }
+
+  const pasoQc: Paso = {
+    id: 'qc',
+    titulo: 'Cálculo del caudal de cálculo Qc',
+    formulaId: 'ERAS-2023 §2.9.2.3',
+    entradas: aplicaModeloDeSimultaneidad
+      ? [
+          { simbolo: 'Qmax', valor: qmax, unidad: 'l/s', procedencia: 'paso Qmax' },
+          ...('estado' in k
+            ? []
+            : [{ simbolo: 'K', valor: k.valor, unidad: 'adimensional', procedencia: 'paso K' }]),
+        ]
+      : [{ simbolo: 'qu', valor: qmax, unidad: 'l/s', procedencia: 'paso Qmax' }],
+    salida: { simbolo: 'Qc', resultado: qc },
+    referencias: ['ERAS-2023 §2.9.2.3'],
+    ...(aplicaModeloDeSimultaneidad
+      ? {}
+      : {
+          criterioId: 'CRIT-A4',
+          nota:
+            'n=1: el modelo de simultaneidad no aplica (CRIT-A4); Qc = Qmax = qu del único ' +
+            'artefacto participante. No se aplica el coeficiente de mayoración a.',
+        }),
+  }
+
   return {
     resultados: {
       kc,
       k,
       qmax: salidaQmax,
+      qc,
     },
-    pasos: [pasoKc, pasoK, pasoQmax],
+    pasos: [pasoKc, pasoK, pasoQmax, pasoQc],
     verificaciones: [],
     advertencias: [],
-    referencias: ['ERAS-2023 §2.9.2.2', 'ERAS-2023 §2.10.1'],
+    referencias: ['ERAS-2023 §2.9.2.2', 'ERAS-2023 §2.10.1', 'ERAS-2023 §2.9.2.3'],
     metadatos: {
       versionApp: '0.1.0',
       versionNormativa: entrada.proyecto.metadatos.versionNormativa,

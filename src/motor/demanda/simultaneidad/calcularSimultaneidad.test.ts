@@ -174,3 +174,87 @@ describe('calcularSimultaneidad — K', () => {
     expect(pasoK.entradas.some((entrada) => entrada.simbolo === 'a')).toBe(true)
   })
 })
+
+describe('calcularSimultaneidad — Qc', () => {
+  it('calcula Qc = Qmax × K para n ≥ 2', () => {
+    const proyecto = construirProyecto(
+      'noDomiciliario',
+      [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 4, origen: 'normativo' }],
+      2,
+    )
+
+    const resultado = calcularResultado(proyecto)
+    const qmax = resultado.resultados.qmax
+    const k = resultado.resultados.k
+    const qc = resultado.resultados.qc
+
+    if (!('valor' in qmax) || !('valor' in k) || !('valor' in qc)) {
+      throw new Error('se esperaba un resultado numerico para Qmax, K y Qc')
+    }
+
+    expect(qc.valor).toBeCloseTo(qmax.valor * k.valor, 4)
+    expect(qc.unidad).toBe('l/s')
+  })
+
+  it('para n = 1 adopta Qc = Qmax = qu (CRIT-A4), mientras K permanece indeterminado', () => {
+    const proyecto = construirProyecto(
+      'noDomiciliario',
+      [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
+      2,
+    )
+
+    const resultado = calcularResultado(proyecto)
+    const qmax = resultado.resultados.qmax
+    const k = resultado.resultados.k
+    const qc = resultado.resultados.qc
+
+    if (!('valor' in qmax) || !('valor' in qc)) {
+      throw new Error('se esperaba un resultado numerico para Qmax y Qc')
+    }
+    if (!('estado' in k)) {
+      throw new Error('se esperaba que K siguiera indeterminado')
+    }
+
+    expect(qc.valor).toBeCloseTo(qmax.valor, 4)
+    expect(k.estado).toBe('indeterminado')
+  })
+
+  it('registra el paso Qc para n = 1 con CRIT-A4, sin fabricar una entrada K', () => {
+    const proyecto = construirProyecto(
+      'noDomiciliario',
+      [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
+      2,
+    )
+
+    const resultado = calcularResultado(proyecto)
+
+    const pasoQc = resultado.pasos.find((paso) => paso.id === 'qc')
+    if (!pasoQc) {
+      throw new Error('se esperaba un paso de id "qc" en la traza')
+    }
+
+    expect(pasoQc.criterioId).toBe('CRIT-A4')
+    expect(pasoQc.entradas.some((entrada) => entrada.simbolo === 'K')).toBe(false)
+    expect(pasoQc.nota).toContain('no aplica')
+  })
+
+  it('registra el paso Qc para n ≥ 2 con la referencia ERAS-2023 §2.9.2.3', () => {
+    const proyecto = construirProyecto(
+      'noDomiciliario',
+      [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 4, origen: 'normativo' }],
+      2,
+    )
+
+    const resultado = calcularResultado(proyecto)
+
+    const pasoQc = resultado.pasos.find((paso) => paso.id === 'qc')
+    if (!pasoQc) {
+      throw new Error('se esperaba un paso de id "qc" en la traza')
+    }
+
+    expect(pasoQc.formulaId).toBe('ERAS-2023 §2.9.2.3')
+    expect(pasoQc.referencias).toContain('ERAS-2023 §2.9.2.3')
+    expect(pasoQc.entradas.some((entrada) => entrada.simbolo === 'Qmax')).toBe(true)
+    expect(pasoQc.entradas.some((entrada) => entrada.simbolo === 'K')).toBe(true)
+  })
+})
