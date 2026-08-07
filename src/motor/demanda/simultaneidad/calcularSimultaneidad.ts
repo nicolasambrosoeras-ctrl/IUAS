@@ -42,6 +42,46 @@ export function calcularSimultaneidad(
 
   const { resultado: kc, paso: pasoKc } = calcularCoeficienteDeSimultaneidad(n)
 
+  const a = entrada.proyecto.parametros.coeficienteA
+  const coeficienteMayoracion = entrada.normativa.coeficientesMayoracion.find(
+    (candidato) => candidato.a === a,
+  )
+
+  // D25: si Kc es indeterminado (n=1), K hereda el mismo estado y motivo
+  // sin interpretación adicional; no resuelve A3, solo evita propagar NaN.
+  const k: ValorCalculado = 'estado' in kc ? kc : { valor: kc.valor * a, unidad: 'adimensional' }
+
+  const pasoK: Paso = {
+    id: 'k',
+    titulo: 'Cálculo del coeficiente K',
+    formulaId: 'ERAS-2023 §2.9.2.2',
+    entradas: [
+      ...('estado' in kc
+        ? []
+        : [
+            {
+              simbolo: 'Kc',
+              valor: kc.valor,
+              unidad: 'adimensional',
+              procedencia: 'paso Kc',
+            },
+          ]),
+      {
+        simbolo: 'a',
+        valor: a,
+        unidad: 'adimensional',
+        procedencia: coeficienteMayoracion
+          ? `catálogo de coeficientes de mayoración: ${coeficienteMayoracion.tipoDeProyecto}`
+          : 'parámetros del proyecto: coeficienteA',
+      },
+    ],
+    salida: { simbolo: 'K', resultado: k },
+    referencias: ['ERAS-2023 §2.9.2.2'],
+    ...('estado' in kc
+      ? { nota: 'K hereda el estado indeterminado de Kc (D25); A3 queda pendiente.' }
+      : {}),
+  }
+
   // Módulo 1: Qmax = Σ(cantidad × quTotal_lps) sobre los mismos artefactos
   // participantes que Kc (decisión ya cerrada; quFria/quCaliente quedan
   // para etapas posteriores, sin selector genérico de columna).
@@ -79,9 +119,10 @@ export function calcularSimultaneidad(
   return {
     resultados: {
       kc,
+      k,
       qmax: salidaQmax,
     },
-    pasos: [pasoKc, pasoQmax],
+    pasos: [pasoKc, pasoK, pasoQmax],
     verificaciones: [],
     advertencias: [],
     referencias: ['ERAS-2023 §2.9.2.2', 'ERAS-2023 §2.10.1'],
