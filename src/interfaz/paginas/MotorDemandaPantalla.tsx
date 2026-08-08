@@ -16,6 +16,7 @@ import { calcularSimultaneidad } from '../../motor/demanda/simultaneidad/calcula
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
+import { generarDocumentoPdf } from '../../exportadores/pdf/generarDocumentoPdf'
 import {
   formulaSimbolica,
   sustitucionNumerica,
@@ -589,6 +590,9 @@ function ResultadoDemanda({ proyecto }: { proyecto: Proyecto }) {
     <>
       <Advertencias advertencias={resultado.advertencias} />
       <Resultados resultado={resultado} />
+      <button type="button" onClick={() => generarDocumentoPdf({ proyecto, resultado })}>
+        Generar memoria PDF
+      </button>
       <Pasos pasos={resultado.pasos} />
     </>
   )
