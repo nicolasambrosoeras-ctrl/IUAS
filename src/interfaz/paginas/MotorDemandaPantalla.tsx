@@ -1,5 +1,7 @@
 // Primera pantalla técnica editable del Motor de Demanda (integración,
-// Fase 1). Proyecto inicial = caso Golden G2 (CASOS-GOLDEN.md), pero los
+// Fase 1). Proyecto inicial = vivienda unifamiliar de ejemplo (no un caso
+// Golden -- G1 y G2 siguen existiendo exclusivamente en CASOS-GOLDEN.md y
+// sus tests), pensado para que se reconozca de un vistazo. Todos los
 // campos son editables: coeficiente a, locales y artefactos dentro de la
 // única unidad funcional. Gate de validación antes de calcular, y
 // visualización completa del ResultadoDeCalculo. No recalcula: solo llama
@@ -284,8 +286,8 @@ function ProyectoFormulario({
 
 const proyectoInicial: Proyecto = {
   metadatos: {
-    nombre: 'Caso técnico G2 (Tabla N°2)',
-    obra: 'Integración Motor de Demanda',
+    nombre: 'Vivienda unifamiliar de ejemplo',
+    obra: 'Proyecto de ejemplo',
     comitente: 'IUAS',
     fecha: '2026-08-07',
     schemaVersion: '1.0.0',
@@ -307,11 +309,10 @@ const proyectoInicial: Proyecto = {
           tipo: 'bano',
           regimen: 'domiciliario',
           artefactos: [
-            { id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 2, origen: 'normativo' },
-            { id: 'artefacto-2', artefactoId: 'banera', cantidad: 1, origen: 'normativo' },
-            { id: 'artefacto-3', artefactoId: 'inodoroDeposito', cantidad: 2, origen: 'normativo' },
-            { id: 'artefacto-4', artefactoId: 'bidet', cantidad: 1, origen: 'normativo' },
-            { id: 'artefacto-5', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' },
+            { id: 'artefacto-bano-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
+            { id: 'artefacto-bano-2', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' },
+            { id: 'artefacto-bano-3', artefactoId: 'bidet', cantidad: 1, origen: 'normativo' },
+            { id: 'artefacto-bano-4', artefactoId: 'inodoroDeposito', cantidad: 1, origen: 'normativo' },
           ],
         },
         {
@@ -319,7 +320,8 @@ const proyectoInicial: Proyecto = {
           tipo: 'cocina',
           regimen: 'domiciliario',
           artefactos: [
-            { id: 'artefacto-6', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' },
+            { id: 'artefacto-cocina-1', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' },
+            { id: 'artefacto-cocina-2', artefactoId: 'maquinaLavavajillas', cantidad: 1, origen: 'normativo' },
           ],
         },
         {
@@ -327,7 +329,30 @@ const proyectoInicial: Proyecto = {
           tipo: 'lavadero',
           regimen: 'domiciliario',
           artefactos: [
-            { id: 'artefacto-7', artefactoId: 'piletaDeLavar', cantidad: 1, origen: 'normativo' },
+            { id: 'artefacto-lavadero-1', artefactoId: 'piletaDeLavar', cantidad: 1, origen: 'normativo' },
+            { id: 'artefacto-lavadero-2', artefactoId: 'maquinaLavarropas', cantidad: 1, origen: 'normativo' },
+          ],
+        },
+        {
+          id: 'local-toilette',
+          tipo: 'toilette',
+          regimen: 'domiciliario',
+          artefactos: [
+            { id: 'artefacto-toilette-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
+            { id: 'artefacto-toilette-2', artefactoId: 'inodoroDeposito', cantidad: 1, origen: 'normativo' },
+          ],
+        },
+        {
+          id: 'local-patio',
+          tipo: 'jardin',
+          regimen: 'domiciliario',
+          artefactos: [
+            // Placeholder temporal para representar una canilla de servicio/exterior.
+            // El catálogo ERAS-2023 aún no dispone de un artefacto específico.
+            // Debe reemplazarse cuando exista el artefacto normativo correspondiente.
+            // No representa una equivalencia normativa ni debe interpretarse como
+            // recomendación técnica: solo aporta un qu = 0,20 l/s de referencia.
+            { id: 'artefacto-patio-1', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' },
           ],
         },
       ],
@@ -459,8 +484,11 @@ function Pasos({ pasos }: { pasos: readonly Paso[] }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {paso.entradas.map((entrada) => (
-                    <tr key={entrada.simbolo}>
+                  {paso.entradas.map((entrada, indice) => (
+                    // entrada.simbolo puede repetirse (ej. qu(lavatorio) en
+                    // más de un local); se agrega el índice solo para que la
+                    // key de React sea única -- no altera ningún dato visible.
+                    <tr key={`${entrada.simbolo}-${indice}`}>
                       <td>{entrada.simbolo}</td>
                       <td>{formatearNumero(entrada.valor, entrada.unidad)}</td>
                       <td>{entrada.unidad}</td>
@@ -504,7 +532,11 @@ export function MotorDemandaPantalla() {
   return (
     <div>
       <h1>IUAS — Motor de Demanda</h1>
-      <p>Estado inicial: caso Golden G2 (Tabla N°2, CASOS-GOLDEN.md). Los campos son editables.</p>
+      <h2>Proyecto de ejemplo — Vivienda unifamiliar</h2>
+      <p>
+        Se carga una instalación doméstica típica para facilitar la exploración del Motor de
+        Demanda. Todos los datos pueden modificarse.
+      </p>
       <ProyectoFormulario proyecto={proyecto} onCambiar={setProyecto} />
       {validacion.valido ? (
         <ResultadoDemanda proyecto={proyecto} />
