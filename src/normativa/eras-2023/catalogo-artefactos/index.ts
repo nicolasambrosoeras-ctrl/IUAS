@@ -197,4 +197,27 @@ export const catalogoArtefactos: readonly ArtefactoNormativo[] = [
     origen: 'normativo',
     referenciaArticulo: 'ERAS-2023 §2.9.1.3',
   },
+  // Artefacto incorporado por inferencia de diseño. No figura explícitamente
+  // en la Guía de Instalaciones Internas ERAS-2023: no hay canilla de
+  // jardín, de riego, exterior ni de servicio en ningún artículo del
+  // catálogo transcripto. Se adopta quTotal_lps = 0,20 y
+  // presionMinima_kgcm2 = 0,6 por analogía con los picos de agua
+  // domiciliarios simples ya normados (pileta de cocina, pileta de lavar),
+  // que comparten ambos valores -- no son un dato normativo. quFria_lps
+  // = quTotal_lps y quCaliente_lps = 0 porque es un punto de agua fría, sin
+  // alimentación de agua caliente. Revisar si una futura edición de la
+  // norma incorpora una canilla de servicio específica y reemplazar estos
+  // valores por los normativos en ese caso.
+  {
+    id: 'canillaDeServicio',
+    nombre: 'Canilla de servicio',
+    regimen: 'domiciliario',
+    quTotal_lps: 0.2,
+    quFria_lps: 0.2,
+    quCaliente_lps: 0,
+    presionMinima_kgcm2: 0.6,
+    limpiezaConValvulaAutomatica: false,
+    origen: 'normativo',
+    referenciaArticulo: 'No normativo -- inferencia de diseño (ver comentario)',
+  },
 ] as const;

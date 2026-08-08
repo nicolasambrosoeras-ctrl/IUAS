@@ -348,12 +348,7 @@ const proyectoInicial: Proyecto = {
           tipo: 'jardin',
           regimen: 'domiciliario',
           artefactos: [
-            // Placeholder temporal para representar una canilla de servicio/exterior.
-            // El catálogo ERAS-2023 aún no dispone de un artefacto específico.
-            // Debe reemplazarse cuando exista el artefacto normativo correspondiente.
-            // No representa una equivalencia normativa ni debe interpretarse como
-            // recomendación técnica: solo aporta un qu = 0,20 l/s de referencia.
-            { id: 'artefacto-patio-1', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' },
+            { id: 'artefacto-patio-1', artefactoId: 'canillaDeServicio', cantidad: 1, origen: 'normativo' },
           ],
         },
       ],
