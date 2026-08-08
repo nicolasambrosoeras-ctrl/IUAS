@@ -34,8 +34,10 @@ Registro de interpretaciones normativas.
 K > 1, el valor se conserva sin modificación, y Qc puede resultar mayor que
 Qmax.
 
-**Estado:** Provisorio, sujeto a revisión conjunta con la estrategia de
-agregación D14/A4.
+**Estado:** Firme. Su provisionalidad original estaba vinculada a la
+estrategia de agregación entre unidades funcionales, ya resuelta en
+CRIT-A5 (D14). La advertencia por K > 1 aún no implementada es una deuda
+funcional del código, no una incertidumbre de este criterio normativo.
 
 ## CRIT-A3 — n cuenta unidades de artefactos, no tipos
 
@@ -57,5 +59,39 @@ artefacto participante; no se aplica el coeficiente de mayoración a, y no
 corresponde presentar un valor de K calculado por la fórmula. La excepción se
 documenta con referencia a §2.9.2.3 porque es la ecuación que permite obtener
 Qc cuando el modelo de simultaneidad no aplica.
+
+**Estado:** Firme.
+
+## CRIT-A5 — Agregación de Qc del proyecto entre unidades funcionales (D14)
+
+**Artículo:** ERAS-2023 §2.9.2.1, §2.9.2.2 y §2.9.2.3
+
+**Criterio:** El Qc de proyecto se calcula una sola vez sobre el conjunto
+global de artefactos computables, no como suma de Qc parciales por unidad
+funcional. Procedimiento:
+
+1. Aplicar CRIT-A8 primero, dentro de cada recinto/local.
+2. Reunir todos los artefactos computables resultantes de todas las
+   unidades funcionales y áreas comunes del proyecto en un único conjunto
+   global.
+3. `n` = cantidad total de unidades de artefacto computables de ese
+   conjunto global.
+4. `Qmax` = Σ(cantidad × quTotal) sobre el conjunto global.
+5. `Kc` = 1/√(n−1), calculado una sola vez sobre el total del proyecto.
+6. `a` se aplica una sola vez, según la tipología del proyecto.
+7. `K` = Kc × a, único de proyecto.
+8. `Qc` = Qmax × K, único de proyecto.
+
+No se suman Qc parciales de distintas unidades funcionales bajo ninguna
+circunstancia; la primitiva de simultaneidad se aplica una sola vez por
+elemento a dimensionar.
+
+**Alcance:** este criterio aplica únicamente al Qc de proyecto. No
+resuelve QCunit, Qcaux ni caudales de tramo.
+
+**Limitación declarada:** no existe ningún ejemplo normativo en la Guía
+con N°Viviendas > 1. Este criterio es una decisión de ingeniería
+adoptada ante esa ausencia, no una interpretación de un ejemplo
+existente.
 
 **Estado:** Firme.
