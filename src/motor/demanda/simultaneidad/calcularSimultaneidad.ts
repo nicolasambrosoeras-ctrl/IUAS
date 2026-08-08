@@ -1,5 +1,5 @@
 import { calcularCoeficienteDeSimultaneidad } from './calcularCoeficienteDeSimultaneidad'
-import type { Paso, ResultadoDeCalculo, ValorCalculado } from '../../../modelo/resultado'
+import type { Advertencia, Paso, ResultadoDeCalculo, ValorCalculado } from '../../../modelo/resultado'
 import type { Proyecto } from '../../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../../normativa/eras-2023/catalogo-artefactos'
 import type { CoeficienteMayoracion } from '../../../normativa/eras-2023/coeficientes-mayoracion'
@@ -50,6 +50,19 @@ export function calcularSimultaneidad(
   // D25: si Kc es indeterminado (n=1), K hereda el mismo estado y motivo
   // sin interpretación adicional; no resuelve A3, solo evita propagar NaN.
   const k: ValorCalculado = 'estado' in kc ? kc : { valor: kc.valor * a, unidad: 'adimensional' }
+
+  // CRIT-A2: K = Kc × a se conserva sin tope. Si K > 1, se registra una
+  // advertencia trazable; el valor calculado no se modifica.
+  const advertencias: Advertencia[] = []
+  if (!('estado' in k) && k.valor > 1) {
+    advertencias.push({
+      id: 'k-mayor-a-uno',
+      mensaje:
+        'K = Kc × a resultó mayor a 1 (CRIT-A2): el valor se conserva sin tope, ' +
+        'por lo que Qc puede resultar mayor que Qmax.',
+      referenciaNormativa: 'ERAS-2023 §2.9.2.2 (CRIT-A2)',
+    })
+  }
 
   const pasoK: Paso = {
     id: 'k',
@@ -159,7 +172,7 @@ export function calcularSimultaneidad(
     },
     pasos: [pasoKc, pasoK, pasoQmax, pasoQc],
     verificaciones: [],
-    advertencias: [],
+    advertencias,
     referencias: ['ERAS-2023 §2.9.2.2', 'ERAS-2023 §2.9.2.1', 'ERAS-2023 §2.9.2.3'],
     metadatos: {
       versionApp: '0.1.0',

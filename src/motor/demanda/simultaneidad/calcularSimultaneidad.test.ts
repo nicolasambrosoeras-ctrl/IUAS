@@ -385,3 +385,62 @@ describe('calcularSimultaneidad — Caso Golden G1 (CASOS-GOLDEN.md)', () => {
     expect(qc.unidad).toBe('l/s')
   })
 })
+
+describe('calcularSimultaneidad — Advertencia CRIT-A2 (K > 1)', () => {
+  it('K > 1 genera una advertencia trazable a CRIT-A2, sin alterar Qmax, Kc, K ni Qc', () => {
+    const proyecto = construirProyecto(
+      'noDomiciliario',
+      [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 2, origen: 'normativo' }],
+      2,
+    )
+
+    const resultado = calcularResultado(proyecto)
+    const { kc, k, qmax, qc } = resultado.resultados
+    if (!('valor' in kc) || !('valor' in k) || !('valor' in qmax) || !('valor' in qc)) {
+      throw new Error('se esperaban resultados numericos para Kc, K, Qmax y Qc')
+    }
+
+    expect(kc.valor).toBeCloseTo(1, 9)
+    expect(k.valor).toBeCloseTo(2, 9)
+    expect(qmax.valor).toBeCloseTo(0.4, 4)
+    expect(qc.valor).toBeCloseTo(0.8, 4)
+
+    expect(resultado.advertencias).toHaveLength(1)
+    expect(resultado.advertencias[0].id).toBe('k-mayor-a-uno')
+    expect(resultado.advertencias[0].mensaje).toContain('CRIT-A2')
+    expect(resultado.advertencias[0].referenciaNormativa).toContain('CRIT-A2')
+  })
+
+  it('K = 1 (límite) no genera advertencia', () => {
+    const proyecto = construirProyecto(
+      'noDomiciliario',
+      [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 2, origen: 'normativo' }],
+      1,
+    )
+
+    const resultado = calcularResultado(proyecto)
+    const { k } = resultado.resultados
+    if (!('valor' in k)) {
+      throw new Error('se esperaba un resultado numerico para K')
+    }
+
+    expect(k.valor).toBeCloseTo(1, 9)
+    expect(resultado.advertencias).toHaveLength(0)
+  })
+
+  it('n = 1 (K indeterminado) no genera advertencia ni falla', () => {
+    const proyecto = construirProyecto(
+      'noDomiciliario',
+      [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
+      2,
+    )
+
+    const resultado = calcularResultado(proyecto)
+    const { k } = resultado.resultados
+    if (!('estado' in k)) {
+      throw new Error('se esperaba que K siguiera indeterminado')
+    }
+
+    expect(resultado.advertencias).toHaveLength(0)
+  })
+})
