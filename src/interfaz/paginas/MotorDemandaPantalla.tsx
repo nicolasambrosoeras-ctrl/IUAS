@@ -437,41 +437,45 @@ function Resultados({ resultado }: { resultado: ResultadoDeCalculo }) {
 function Pasos({ pasos }: { pasos: readonly Paso[] }) {
   return (
     <section>
-      <h2>Pasos / trazabilidad</h2>
-      {pasos.map((paso) => (
-        <article key={paso.id}>
-          <h3>{paso.titulo}</h3>
-          <p>
-            formulaId: {paso.formulaId}
-            {paso.criterioId ? ` — ${paso.criterioId}` : ''}
-          </p>
-          <table>
-            <thead>
-              <tr>
-                <th>Símbolo</th>
-                <th>Valor</th>
-                <th>Unidad</th>
-                <th>Procedencia</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paso.entradas.map((entrada) => (
-                <tr key={entrada.simbolo}>
-                  <td>{entrada.simbolo}</td>
-                  <td>{formatearNumero(entrada.valor, entrada.unidad)}</td>
-                  <td>{entrada.unidad}</td>
-                  <td>{entrada.procedencia}</td>
+      <details>
+        {/* Sin "▶" propio: el navegador ya antepone su propio triángulo
+            de disclosure a <summary>; duplicarlo se vería redundante. */}
+        <summary>🔍 Trazabilidad del cálculo ({pasos.length} pasos)</summary>
+        {pasos.map((paso) => (
+          <article key={paso.id}>
+            <h3>{paso.titulo}</h3>
+            <p>
+              formulaId: {paso.formulaId}
+              {paso.criterioId ? ` — ${paso.criterioId}` : ''}
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Símbolo</th>
+                  <th>Valor</th>
+                  <th>Unidad</th>
+                  <th>Procedencia</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <p>
-            {paso.salida.simbolo} = <ValorCalculadoTexto valor={paso.salida.resultado} />
-          </p>
-          <p>Referencias: {paso.referencias.join(', ')}</p>
-          {paso.nota ? <p>Nota: {paso.nota}</p> : null}
-        </article>
-      ))}
+              </thead>
+              <tbody>
+                {paso.entradas.map((entrada) => (
+                  <tr key={entrada.simbolo}>
+                    <td>{entrada.simbolo}</td>
+                    <td>{formatearNumero(entrada.valor, entrada.unidad)}</td>
+                    <td>{entrada.unidad}</td>
+                    <td>{entrada.procedencia}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p>
+              {paso.salida.simbolo} = <ValorCalculadoTexto valor={paso.salida.resultado} />
+            </p>
+            <p>Referencias: {paso.referencias.join(', ')}</p>
+            {paso.nota ? <p>Nota: {paso.nota}</p> : null}
+          </article>
+        ))}
+      </details>
     </section>
   )
 }
