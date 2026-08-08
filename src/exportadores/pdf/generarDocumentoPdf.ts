@@ -7,17 +7,22 @@ import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import type { Content, TDocumentDefinitions } from 'pdfmake/interfaces'
 import type { Local, Proyecto, RegimenLocal, TipoDeLocal, UnidadFuncional } from '../../modelo/proyecto'
-import type { Paso, ResultadoDeCalculo, Verificacion, ValorCalculado } from '../../modelo/resultado'
+import type { Paso, ResultadoDeCalculo, Verificacion } from '../../modelo/resultado'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
+import {
+  formulaSimbolica,
+  sustitucionNumerica,
+  textoValorCalculado,
+} from '../../presentacion/desarrolloDelCalculoDemanda'
 import { formatearNumero } from './formatearNumero'
 
 pdfMake.addVirtualFileSystem(pdfFonts)
 
 // Copiados literalmente de MotorDemandaPantalla.tsx (A2): son mapas de
-// presentación chicos, no infraestructura -- se comparten recién en el
-// Incremento B, junto con fórmulas y sustitución, cuando haya un segundo
-// consumidor real de más piezas a la vez.
+// presentación chicos, no infraestructura. Quedaron fuera del Incremento B
+// a propósito -- B compartió fórmula/sustitución/resultado, no estas
+// etiquetas; se revisan en un incremento aparte si hace falta.
 const ETIQUETA_TIPO_DE_LOCAL: Readonly<Record<TipoDeLocal, string>> = {
   bano: 'Baño',
   toilette: 'Toilette',
@@ -35,13 +40,6 @@ const ETIQUETA_REGIMEN: Readonly<Record<RegimenLocal, string>> = {
 
 function etiquetaRegimen(regimen: RegimenLocal | undefined): string {
   return regimen ? ETIQUETA_REGIMEN[regimen] : 'Sin definir'
-}
-
-// Texto legible por formulaId. Es presentacion, no calculo: traduce un
-// identificador que la traza ya trae, no decide nada. Se amplia cuando
-// aparezca una formula nueva en algun paso real, no antes.
-const TEXTO_DE_FORMULA: Readonly<Record<string, string>> = {
-  'ERAS-2023 Sec.2.9.2.2': 'Kc = 1 / raíz(n - 1)',
 }
 
 export interface EntradaGeneracionPdf {
@@ -66,21 +64,13 @@ function renderizarDatosDelProyecto(proyecto: Proyecto): Content {
 
 // extraerN replica exactamente la misma lógica que ya usa la interfaz
 // (MotorDemandaPantalla.tsx): n no vive en resultado.resultados, solo en
-// la traza del paso 'kc'. Duplicado a propósito hasta el Incremento B
-// (compartir con la interfaz), que es cuando el PDF pasa a ser un segundo
-// consumidor real de este tipo de lógica.
+// la traza del paso 'kc'. Quedó fuera del Incremento B a propósito -- B
+// compartió fórmula, sustitución y texto de resultado; esta duplicación
+// puntual se revisa en otro momento, si hace falta.
 function extraerN(pasos: readonly Paso[]): number | null {
   const pasoKc = pasos.find((paso) => paso.id === 'kc')
   const entradaN = pasoKc?.entradas.find((entrada) => entrada.simbolo === 'n')
   return entradaN?.valor ?? null
-}
-
-function textoValorCalculado(valor: ValorCalculado): string {
-  if ('estado' in valor) {
-    return `Indeterminado: ${valor.motivo}`
-  }
-  const numero = formatearNumero(valor.valor, valor.unidad)
-  return valor.unidad === 'adimensional' ? numero : `${numero} ${valor.unidad}`
 }
 
 function renderizarResumenResultados(resultado: ResultadoDeCalculo): Content[] {
@@ -173,16 +163,16 @@ function renderizarPaso(paso: Paso): Content {
     e.unidad,
     e.procedencia,
   ])
-  const salida = paso.salida.resultado
-  const textoSalida =
-    'estado' in salida
-      ? `Indeterminado: ${salida.motivo}`
-      : `${paso.salida.simbolo} = ${formatearNumero(salida.valor, salida.unidad)}`
+  const sustitucion = sustitucionNumerica(paso)
+  const textoSalida = `${paso.salida.simbolo} = ${textoValorCalculado(paso.salida.resultado)}`
 
   return {
     stack: [
       { text: paso.titulo, style: 'tituloPaso' },
-      { text: TEXTO_DE_FORMULA[paso.formulaId] ?? paso.formulaId, style: 'formula' },
+      { text: `Fórmula: ${formulaSimbolica(paso)}`, style: 'formula' },
+      ...(paso.criterioId ? [{ text: `Criterio: ${paso.criterioId}` } as Content] : []),
+      ...(sustitucion ? [{ text: `Sustitución: ${sustitucion}` } as Content] : []),
+      { text: textoSalida, style: 'resultadoPaso' },
       {
         table: {
           headerRows: 1,
@@ -191,8 +181,8 @@ function renderizarPaso(paso: Paso): Content {
         },
         margin: [0, 4, 0, 4],
       },
-      { text: textoSalida, style: 'resultadoPaso' },
       { text: `Ref.: ${paso.referencias.join(', ')}`, style: 'referencia' },
+      ...(paso.nota ? [{ text: `Nota: ${paso.nota}` } as Content] : []),
     ],
     margin: [0, 0, 0, 12],
   }
