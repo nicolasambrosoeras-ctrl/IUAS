@@ -448,26 +448,28 @@ function Pasos({ pasos }: { pasos: readonly Paso[] }) {
               formulaId: {paso.formulaId}
               {paso.criterioId ? ` — ${paso.criterioId}` : ''}
             </p>
-            <table>
-              <thead>
-                <tr>
-                  <th>Símbolo</th>
-                  <th>Valor</th>
-                  <th>Unidad</th>
-                  <th>Procedencia</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paso.entradas.map((entrada) => (
-                  <tr key={entrada.simbolo}>
-                    <td>{entrada.simbolo}</td>
-                    <td>{formatearNumero(entrada.valor, entrada.unidad)}</td>
-                    <td>{entrada.unidad}</td>
-                    <td>{entrada.procedencia}</td>
+            <div style={{ overflowX: 'auto' }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Símbolo</th>
+                    <th>Valor</th>
+                    <th>Unidad</th>
+                    <th>Procedencia</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {paso.entradas.map((entrada) => (
+                    <tr key={entrada.simbolo}>
+                      <td>{entrada.simbolo}</td>
+                      <td>{formatearNumero(entrada.valor, entrada.unidad)}</td>
+                      <td>{entrada.unidad}</td>
+                      <td>{entrada.procedencia}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
             <p>
               {paso.salida.simbolo} = <ValorCalculadoTexto valor={paso.salida.resultado} />
             </p>
