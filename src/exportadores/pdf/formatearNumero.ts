@@ -13,6 +13,7 @@ const DECIMALES_POR_UNIDAD: Readonly<Record<string, number>> = {
   adimensional: 2, // Kc, K, a -- Tabla N4 los presenta con 2 decimales (0,58)
   conteo: 0, // n -- cantidad discreta de artefactos, sin decimales
   'm/s': 1, // velocidad -- ejemplo de ADR-011 (2,8 m/s)
+  'l/s': 2, // Qmax, Qc, qu -- segundo caso real: MotorDemandaPantalla
 }
 
 export function formatearNumero(valor: number, unidad: string): string {

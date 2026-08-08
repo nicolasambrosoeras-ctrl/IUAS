@@ -13,6 +13,7 @@ import { validarProyecto } from '../../validacion'
 import { calcularSimultaneidad } from '../../motor/demanda/simultaneidad/calcularSimultaneidad'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
+import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 
 const TIPOS_DE_LOCAL: readonly TipoDeLocal[] = [
   'bano',
@@ -25,6 +26,23 @@ const TIPOS_DE_LOCAL: readonly TipoDeLocal[] = [
 ]
 
 const REGIMENES_DE_LOCAL: readonly RegimenLocal[] = ['domiciliario', 'noDomiciliario']
+
+// Solo texto visible: los valores internos (value de cada <option>,
+// local.tipo, local.regimen) siguen siendo los literales del modelo.
+const ETIQUETA_TIPO_DE_LOCAL: Readonly<Record<TipoDeLocal, string>> = {
+  bano: 'Baño',
+  toilette: 'Toilette',
+  cocina: 'Cocina',
+  lavadero: 'Lavadero',
+  cochera: 'Cochera',
+  jardin: 'Jardín',
+  otros: 'Otros',
+}
+
+const ETIQUETA_REGIMEN: Readonly<Record<RegimenLocal, string>> = {
+  domiciliario: 'Domiciliario',
+  noDomiciliario: 'No domiciliario',
+}
 
 // IDs únicos vía crypto.randomUUID() (API nativa del navegador, sin
 // dependencia nueva): un contador de módulo colisionaría con los IDs que
@@ -66,7 +84,7 @@ function ArtefactoFormulario({
         >
           {catalogoArtefactos.map((catalogoItem) => (
             <option key={catalogoItem.id} value={catalogoItem.id}>
-              {catalogoItem.nombre} (qu={catalogoItem.quTotal_lps} l/s)
+              {catalogoItem.nombre} (qu={formatearNumero(catalogoItem.quTotal_lps, 'l/s')} l/s)
             </option>
           ))}
         </select>
@@ -117,7 +135,7 @@ function LocalFormulario({
   return (
     <article>
       <h4>
-        Local: {local.tipo} ({local.id})
+        Local: {ETIQUETA_TIPO_DE_LOCAL[local.tipo]} ({local.id})
       </h4>
       <label>
         Tipo:{' '}
@@ -127,7 +145,7 @@ function LocalFormulario({
         >
           {TIPOS_DE_LOCAL.map((tipo) => (
             <option key={tipo} value={tipo}>
-              {tipo}
+              {ETIQUETA_TIPO_DE_LOCAL[tipo]}
             </option>
           ))}
         </select>
@@ -148,7 +166,7 @@ function LocalFormulario({
           <option value="">— sin definir —</option>
           {REGIMENES_DE_LOCAL.map((regimen) => (
             <option key={regimen} value={regimen}>
-              {regimen}
+              {ETIQUETA_REGIMEN[regimen]}
             </option>
           ))}
         </select>
@@ -302,11 +320,8 @@ function ValorCalculadoTexto({ valor }: { valor: ValorCalculado }) {
   if ('estado' in valor) {
     return <span>Indeterminado — {valor.motivo}</span>
   }
-  return (
-    <span>
-      {valor.valor} {valor.unidad}
-    </span>
-  )
+  const numero = formatearNumero(valor.valor, valor.unidad)
+  return <span>{valor.unidad === 'adimensional' ? numero : `${numero} ${valor.unidad}`}</span>
 }
 
 function ProblemasValidacion({ problemas }: { problemas: readonly ProblemaValidacion[] }) {
@@ -360,7 +375,7 @@ function Resultados({ resultado }: { resultado: ResultadoDeCalculo }) {
       <h2>Resultados</h2>
       <dl>
         <dt>n</dt>
-        <dd>{n ?? '—'}</dd>
+        <dd>{n !== null ? formatearNumero(n, 'conteo') : '—'}</dd>
         <dt>Qmax</dt>
         <dd>
           <ValorCalculadoTexto valor={qmax} />
@@ -406,7 +421,7 @@ function Pasos({ pasos }: { pasos: readonly Paso[] }) {
               {paso.entradas.map((entrada) => (
                 <tr key={entrada.simbolo}>
                   <td>{entrada.simbolo}</td>
-                  <td>{entrada.valor}</td>
+                  <td>{formatearNumero(entrada.valor, entrada.unidad)}</td>
                   <td>{entrada.unidad}</td>
                   <td>{entrada.procedencia}</td>
                 </tr>
