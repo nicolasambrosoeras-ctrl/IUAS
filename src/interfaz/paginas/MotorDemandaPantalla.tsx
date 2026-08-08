@@ -2,11 +2,10 @@
 // Fase 1). Proyecto inicial = vivienda unifamiliar de ejemplo (no un caso
 // Golden -- G1 y G2 siguen existiendo exclusivamente en CASOS-GOLDEN.md y
 // sus tests), pensado para que se reconozca de un vistazo. Todos los
-// campos son editables: coeficiente a, locales y artefactos dentro de la
-// única unidad funcional. Gate de validación antes de calcular, y
-// visualización completa del ResultadoDeCalculo. No recalcula: solo llama
-// a validarProyecto y calcularSimultaneidad y muestra lo que devuelven.
-// Alta/baja de unidades funcionales queda para un incremento posterior.
+// campos son editables: coeficiente a, unidades funcionales, locales y
+// artefactos. Gate de validación antes de calcular, y visualización
+// completa del ResultadoDeCalculo. No recalcula: solo llama a
+// validarProyecto y calcularSimultaneidad y muestra lo que devuelven.
 import { useState } from 'react'
 import type { Proyecto, UnidadFuncional, Local, TipoDeLocal, RegimenLocal, Artefacto } from '../../modelo/proyecto'
 import type { ResultadoDeCalculo, Paso, ValorCalculado } from '../../modelo/resultado'
@@ -428,6 +427,7 @@ const MENSAJES_DE_VALIDACION: Readonly<Record<CodigoValidacion, string>> = {
   proyectoCantidadNoPositiva: 'La cantidad de artefactos debe ser mayor que cero.',
   proyectoUnidadFuncionalSinLocales: 'La unidad funcional no contiene locales.',
   proyectoLocalSinArtefactos: 'El local no contiene artefactos y no participa del cálculo.',
+  proyectoSinArtefactosComputables: 'El proyecto debe contener al menos un artefacto para poder calcular.',
   catalogoArtefactoIdInexistente: 'El artefacto seleccionado no existe en el catálogo normativo vigente.',
   catalogoCoeficienteAInexistente:
     'El coeficiente de mayoración seleccionado no existe en el catálogo normativo vigente.',

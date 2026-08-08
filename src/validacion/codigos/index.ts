@@ -7,6 +7,7 @@ export type CodigoValidacion =
   | 'proyectoCantidadNoPositiva'
   | 'proyectoUnidadFuncionalSinLocales'
   | 'proyectoLocalSinArtefactos'
+  | 'proyectoSinArtefactosComputables'
   | 'catalogoArtefactoIdInexistente'
   | 'catalogoCoeficienteAInexistente';
 
@@ -34,6 +35,11 @@ export const codigosValidacion: Readonly<Record<CodigoValidacion, DescripcionCod
   proyectoLocalSinArtefactos: {
     severidad: 'advertencia',
     descripcion: 'Local sin ningún artefacto cargado aún.',
+  },
+  proyectoSinArtefactosComputables: {
+    severidad: 'error',
+    descripcion:
+      'El proyecto no contiene ningún artefacto computable en ninguna unidad funcional; el motor no puede calcular con n=0.',
   },
   catalogoArtefactoIdInexistente: {
     severidad: 'error',

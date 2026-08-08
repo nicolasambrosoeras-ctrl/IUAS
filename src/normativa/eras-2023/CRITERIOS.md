@@ -36,8 +36,7 @@ Qmax.
 
 **Estado:** Firme. Su provisionalidad original estaba vinculada a la
 estrategia de agregación entre unidades funcionales, ya resuelta en
-CRIT-A5 (D14). La advertencia por K > 1 aún no implementada es una deuda
-funcional del código, no una incertidumbre de este criterio normativo.
+CRIT-A5 (D14). La advertencia por K > 1 ya está implementada en el motor.
 
 ## CRIT-A3 — n cuenta unidades de artefactos, no tipos
 

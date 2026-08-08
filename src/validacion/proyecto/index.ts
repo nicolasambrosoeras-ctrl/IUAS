@@ -44,5 +44,21 @@ export function validarInvariantesDeProyecto(
     });
   });
 
+  // Chequeo global (no por UF/local, para no duplicar el problema): si el
+  // proyecto entero no tiene ningún artefacto computable, el motor recibe
+  // n=0 y lanza una excepción no capturada (defecto de programación, no un
+  // estado del dominio -- ver calcularCoeficienteDeSimultaneidad). Se
+  // bloquea acá, antes de llegar al motor.
+  const totalArtefactosComputables = proyecto.unidadesFuncionales
+    .flatMap((uf) => uf.locales)
+    .flatMap((local) => local.artefactos)
+    .filter((artefacto) => artefacto.origen === 'normativo').length;
+
+  if (totalArtefactosComputables === 0) {
+    problemas.push(
+      crearProblema('proyectoSinArtefactosComputables', 'unidadesFuncionales', totalArtefactosComputables),
+    );
+  }
+
   return problemas;
 }
