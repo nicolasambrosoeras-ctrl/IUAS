@@ -6,12 +6,36 @@
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import type { Content, TDocumentDefinitions } from 'pdfmake/interfaces'
-import type { Proyecto } from '../../modelo/proyecto'
+import type { Local, Proyecto, RegimenLocal, TipoDeLocal, UnidadFuncional } from '../../modelo/proyecto'
 import type { Paso, ResultadoDeCalculo, Verificacion, ValorCalculado } from '../../modelo/resultado'
+import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
 import { formatearNumero } from './formatearNumero'
 
 pdfMake.addVirtualFileSystem(pdfFonts)
+
+// Copiados literalmente de MotorDemandaPantalla.tsx (A2): son mapas de
+// presentación chicos, no infraestructura -- se comparten recién en el
+// Incremento B, junto con fórmulas y sustitución, cuando haya un segundo
+// consumidor real de más piezas a la vez.
+const ETIQUETA_TIPO_DE_LOCAL: Readonly<Record<TipoDeLocal, string>> = {
+  bano: 'Baño',
+  toilette: 'Toilette',
+  cocina: 'Cocina',
+  lavadero: 'Lavadero',
+  cochera: 'Cochera',
+  jardin: 'Jardín',
+  otros: 'Otros',
+}
+
+const ETIQUETA_REGIMEN: Readonly<Record<RegimenLocal, string>> = {
+  domiciliario: 'Domiciliario',
+  noDomiciliario: 'No domiciliario',
+}
+
+function etiquetaRegimen(regimen: RegimenLocal | undefined): string {
+  return regimen ? ETIQUETA_REGIMEN[regimen] : 'Sin definir'
+}
 
 // Texto legible por formulaId. Es presentacion, no calculo: traduce un
 // identificador que la traza ya trae, no decide nada. Se amplia cuando
@@ -95,6 +119,53 @@ function renderizarResumenResultados(resultado: ResultadoDeCalculo): Content[] {
   ]
 }
 
+function renderizarLocal(local: Local): Content {
+  const filasArtefactos = local.artefactos.map((artefacto) => {
+    const catalogoItem = catalogoArtefactos.find((c) => c.id === artefacto.artefactoId)
+    if (!catalogoItem) {
+      // Estructuralmente inalcanzable en el flujo real: validarReferenciasDeCatalogo
+      // ya lo marca error, y sin un Proyecto válido no existe ResultadoDeCalculo
+      // para llegar hasta acá. Si ocurre, es un defecto de programación (el
+      // exportador recibió un proyecto que nunca debió llegar sin validar).
+      throw new Error(
+        `El artefacto "${artefacto.artefactoId}" no existe en el catálogo normativo vigente (proyecto no validado antes de exportar)`,
+      )
+    }
+    return [catalogoItem.nombre, String(artefacto.cantidad), `${formatearNumero(catalogoItem.quTotal_lps, 'l/s')} l/s`]
+  })
+
+  return {
+    stack: [
+      {
+        text: `Local: ${ETIQUETA_TIPO_DE_LOCAL[local.tipo]} — Régimen: ${etiquetaRegimen(local.regimen)}`,
+      },
+      {
+        table: {
+          headerRows: 1,
+          widths: ['*', 'auto', 'auto'],
+          body: [['Artefacto', 'Cantidad', 'qu'], ...filasArtefactos],
+        },
+        margin: [0, 2, 0, 6],
+      },
+    ],
+    margin: [0, 0, 0, 4],
+  }
+}
+
+function renderizarUnidadFuncional(uf: UnidadFuncional): Content {
+  return {
+    stack: [{ text: `Unidad funcional: ${uf.nombre}`, style: 'subseccion' }, ...uf.locales.map(renderizarLocal)],
+    margin: [0, 0, 0, 8],
+  }
+}
+
+function renderizarUnidadesFuncionales(proyecto: Proyecto): Content[] {
+  return [
+    { text: 'Unidades funcionales', style: 'seccion' },
+    ...proyecto.unidadesFuncionales.map(renderizarUnidadFuncional),
+  ]
+}
+
 function renderizarPaso(paso: Paso): Content {
   const filasEntradas = paso.entradas.map((e) => [
     e.simbolo,
@@ -146,13 +217,14 @@ export function generarDocumentoPdf(entrada: EntradaGeneracionPdf): void {
         style: 'metadatos',
       },
       renderizarDatosDelProyecto(proyecto),
+      ...renderizarUnidadesFuncionales(proyecto),
+      ...renderizarResumenResultados(resultado),
       ...(resultado.advertencias.length > 0
         ? [
             { text: 'Advertencias', style: 'seccion' } as Content,
             ...resultado.advertencias.map((a): Content => ({ text: `- ${a.mensaje}`, style: 'advertencia' })),
           ]
         : []),
-      ...renderizarResumenResultados(resultado),
       { text: 'Desarrollo del cálculo', style: 'seccion' },
       ...resultado.pasos.map(renderizarPaso),
       ...(resultado.verificaciones.length > 0
