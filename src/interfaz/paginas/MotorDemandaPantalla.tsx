@@ -494,6 +494,43 @@ function formulaSimbolica(paso: Paso): string {
   return FORMULAS_SIMBOLICAS[paso.id] ?? paso.formulaId
 }
 
+// Sustitución numérica: interpola paso.entradas sobre la plantilla simbólica
+// sin recalcular nada -- el resultado final que se agrega al cierre es
+// paso.salida.resultado, ya calculado por el motor. qmax queda sin plantilla
+// a propósito (PENDIENTES-DE-ARQUITECTURA.md: la traza no expone `cantidad`,
+// por lo que su sustitución no puede reconstruirse fielmente todavía).
+function sustitucionNumerica(paso: Paso): string | null {
+  const entrada = (simbolo: string) => paso.entradas.find((e) => e.simbolo === simbolo)
+  const valorDe = (simbolo: string) => {
+    const encontrada = entrada(simbolo)
+    return encontrada ? formatearNumero(encontrada.valor, encontrada.unidad) : null
+  }
+  const resultado = 'estado' in paso.salida.resultado
+    ? null
+    : formatearNumero(paso.salida.resultado.valor, paso.salida.resultado.unidad)
+  const conResultado = (base: string) => (resultado !== null ? `${base} = ${resultado}` : base)
+
+  if (paso.id === 'kc') {
+    const n = valorDe('n')
+    return n === null ? null : conResultado(`Kc = 1 / raíz(${n} - 1)`)
+  }
+  if (paso.id === 'k') {
+    const kc = valorDe('Kc')
+    const a = valorDe('a')
+    return kc === null || a === null ? null : conResultado(`K = ${kc} × ${a}`)
+  }
+  if (paso.id === 'qc' && paso.criterioId === 'CRIT-A4') {
+    const qu = valorDe('qu')
+    return qu === null ? null : `Qc = qu = ${qu}`
+  }
+  if (paso.id === 'qc') {
+    const qmax = valorDe('Qmax')
+    const k = valorDe('K')
+    return qmax === null || k === null ? null : conResultado(`Qc = ${qmax} × ${k}`)
+  }
+  return null
+}
+
 function Pasos({ pasos }: { pasos: readonly Paso[] }) {
   return (
     <section>
@@ -501,43 +538,47 @@ function Pasos({ pasos }: { pasos: readonly Paso[] }) {
         {/* Sin "▶" propio: el navegador ya antepone su propio triángulo
             de disclosure a <summary>; duplicarlo se vería redundante. */}
         <summary>🔍 Desarrollo del cálculo ({pasos.length} pasos)</summary>
-        {pasos.map((paso) => (
-          <article key={paso.id}>
-            <h3>{paso.titulo}</h3>
-            <p>Fórmula: {formulaSimbolica(paso)}</p>
-            {paso.criterioId ? <p>Criterio: {paso.criterioId}</p> : null}
-            <div style={{ overflowX: 'auto' }}>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Símbolo</th>
-                    <th>Valor</th>
-                    <th>Unidad</th>
-                    <th>Procedencia</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paso.entradas.map((entrada, indice) => (
-                    // entrada.simbolo puede repetirse (ej. qu(lavatorio) en
-                    // más de un local); se agrega el índice solo para que la
-                    // key de React sea única -- no altera ningún dato visible.
-                    <tr key={`${entrada.simbolo}-${indice}`}>
-                      <td>{entrada.simbolo}</td>
-                      <td>{formatearNumero(entrada.valor, entrada.unidad)}</td>
-                      <td>{entrada.unidad}</td>
-                      <td>{entrada.procedencia}</td>
+        {pasos.map((paso) => {
+          const sustitucion = sustitucionNumerica(paso)
+          return (
+            <article key={paso.id}>
+              <h3>{paso.titulo}</h3>
+              <p>Fórmula: {formulaSimbolica(paso)}</p>
+              {paso.criterioId ? <p>Criterio: {paso.criterioId}</p> : null}
+              {sustitucion ? <p>Sustitución: {sustitucion}</p> : null}
+              <p>
+                {paso.salida.simbolo} = <ValorCalculadoTexto valor={paso.salida.resultado} />
+              </p>
+              <div style={{ overflowX: 'auto' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Símbolo</th>
+                      <th>Valor</th>
+                      <th>Unidad</th>
+                      <th>Procedencia</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <p>
-              {paso.salida.simbolo} = <ValorCalculadoTexto valor={paso.salida.resultado} />
-            </p>
-            <p>Referencias: {paso.referencias.join(', ')}</p>
-            {paso.nota ? <p>Nota: {paso.nota}</p> : null}
-          </article>
-        ))}
+                  </thead>
+                  <tbody>
+                    {paso.entradas.map((entrada, indice) => (
+                      // entrada.simbolo puede repetirse (ej. qu(lavatorio) en
+                      // más de un local); se agrega el índice solo para que la
+                      // key de React sea única -- no altera ningún dato visible.
+                      <tr key={`${entrada.simbolo}-${indice}`}>
+                        <td>{entrada.simbolo}</td>
+                        <td>{formatearNumero(entrada.valor, entrada.unidad)}</td>
+                        <td>{entrada.unidad}</td>
+                        <td>{entrada.procedencia}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p>Referencias: {paso.referencias.join(', ')}</p>
+              {paso.nota ? <p>Nota: {paso.nota}</p> : null}
+            </article>
+          )
+        })}
       </details>
     </section>
   )
