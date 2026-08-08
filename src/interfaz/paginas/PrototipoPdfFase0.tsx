@@ -6,7 +6,32 @@
 // Modulo 1 en Fase 1 -- no debe extenderse.
 import { calcularCoeficienteDeSimultaneidad } from '../../motor/demanda/simultaneidad/calcularCoeficienteDeSimultaneidad'
 import { generarDocumentoPdf } from '../../exportadores/pdf/generarDocumentoPdf'
+import type { Proyecto } from '../../modelo/proyecto'
+import { SCHEMA_VERSION_ACTUAL } from '../../modelo/proyecto'
 import type { ResultadoDeCalculo } from '../../modelo/resultado'
+
+// Proyecto de relleno, sin sentido real: este prototipo nunca pasó por
+// validacion/, solo existe para que generarDocumentoPdf siga compilando
+// con su firma actual (A1: {proyecto, resultado}).
+function construirProyectoDePrueba(): Proyecto {
+  return {
+    metadatos: {
+      nombre: 'Proyecto de prueba (Fase 0, Paso 5)',
+      obra: '-',
+      comitente: '-',
+      fecha: '2025-01-01',
+      schemaVersion: SCHEMA_VERSION_ACTUAL,
+      versionNormativa: 'eras-2023',
+    },
+    parametros: {
+      coeficienteA: 1,
+      presionSobreAcera_m: 0,
+      alturaArtefactoMasDesfavorable_m: 0,
+      material: '-',
+    },
+    unidadesFuncionales: [],
+  }
+}
 
 function construirResultadoDePrueba(): ResultadoDeCalculo {
   const { resultado, paso } = calcularCoeficienteDeSimultaneidad(4)
@@ -46,7 +71,11 @@ export function PrototipoPdfFase0() {
   return (
     <div>
       <h1>IUAS -- Prototipo de PDF (Fase 0, Paso 5)</h1>
-      <button onClick={() => generarDocumentoPdf(construirResultadoDePrueba())}>
+      <button
+        onClick={() =>
+          generarDocumentoPdf({ proyecto: construirProyectoDePrueba(), resultado: construirResultadoDePrueba() })
+        }
+      >
         Generar PDF de prueba
       </button>
     </div>
