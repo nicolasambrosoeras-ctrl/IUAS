@@ -466,7 +466,7 @@ function Pasos({ pasos }: { pasos: readonly Paso[] }) {
       <details>
         {/* Sin "▶" propio: el navegador ya antepone su propio triángulo
             de disclosure a <summary>; duplicarlo se vería redundante. */}
-        <summary>🔍 Trazabilidad del cálculo ({pasos.length} pasos)</summary>
+        <summary>🔍 Desarrollo del cálculo ({pasos.length} pasos)</summary>
         {pasos.map((paso) => (
           <article key={paso.id}>
             <h3>{paso.titulo}</h3>
