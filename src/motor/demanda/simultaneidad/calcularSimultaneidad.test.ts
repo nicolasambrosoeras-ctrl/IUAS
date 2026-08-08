@@ -258,3 +258,42 @@ describe('calcularSimultaneidad — Qc', () => {
     expect(pasoQc.entradas.some((entrada) => entrada.simbolo === 'K')).toBe(true)
   })
 })
+
+// Caso Golden G2 (Tabla N°2), documentado en CASOS-GOLDEN.md. Ningún valor
+// de este test puede modificarse sin actualizar antes esa fuente.
+describe('calcularSimultaneidad — Caso Golden G2 (CASOS-GOLDEN.md)', () => {
+  it('reproduce n, Qmax, Kc, K y Qc del caso G2 (Tabla N°2)', () => {
+    const proyecto = construirProyecto('domiciliario', [
+      { id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 2, origen: 'normativo' },
+      { id: 'artefacto-2', artefactoId: 'banera', cantidad: 1, origen: 'normativo' },
+      { id: 'artefacto-3', artefactoId: 'inodoroDeposito', cantidad: 2, origen: 'normativo' },
+      { id: 'artefacto-4', artefactoId: 'bidet', cantidad: 1, origen: 'normativo' },
+      { id: 'artefacto-5', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' },
+      { id: 'artefacto-6', artefactoId: 'piletaDeLavar', cantidad: 1, origen: 'normativo' },
+      { id: 'artefacto-7', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' },
+    ])
+
+    const resultado = calcularResultado(proyecto)
+
+    const pasoKc = resultado.pasos.find((paso) => paso.id === 'kc')
+    const entradaN = pasoKc?.entradas.find((entrada) => entrada.simbolo === 'n')
+    expect(entradaN?.valor).toBe(9)
+
+    const { kc, k, qmax, qc } = resultado.resultados
+    if (!('valor' in kc) || !('valor' in k) || !('valor' in qmax) || !('valor' in qc)) {
+      throw new Error('se esperaban resultados numericos para Kc, K, Qmax y Qc')
+    }
+
+    expect(qmax.valor).toBeCloseTo(2.0, 4)
+    expect(qmax.unidad).toBe('l/s')
+
+    expect(kc.valor).toBeCloseTo(0.3535533906, 9)
+    expect(kc.unidad).toBe('adimensional')
+
+    expect(k.valor).toBeCloseTo(0.3535533906, 9)
+    expect(k.unidad).toBe('adimensional')
+
+    expect(qc.valor).toBeCloseTo(0.7071067812, 9)
+    expect(qc.unidad).toBe('l/s')
+  })
+})
