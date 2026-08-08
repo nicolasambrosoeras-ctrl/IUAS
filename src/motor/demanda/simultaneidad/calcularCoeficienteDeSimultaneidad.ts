@@ -48,7 +48,7 @@ export function calcularCoeficienteDeSimultaneidad(n: number): ResultadoDeKc {
     paso: {
       id: 'kc',
       titulo: 'Cálculo del coeficiente de simultaneidad',
-      formulaId: 'ERAS-2023 Sec.2.9.2.2',
+      formulaId: 'ERAS-2023 §2.9.2.2',
       entradas: [entradaN],
       salida: { simbolo: 'Kc', resultado },
       referencias: ['ERAS-2023 §2.9.2.2'],

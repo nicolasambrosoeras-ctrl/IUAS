@@ -15,7 +15,7 @@ describe('calcularCoeficienteDeSimultaneidad', () => {
     expect(resultado.valor).toBeCloseTo(0.5774, 4)
     expect(resultado.unidad).toBe('adimensional')
 
-    expect(paso.formulaId).toBe('ERAS-2023 Sec.2.9.2.2')
+    expect(paso.formulaId).toBe('ERAS-2023 §2.9.2.2')
     expect(paso.entradas).toEqual([
       {
         simbolo: 'n',
