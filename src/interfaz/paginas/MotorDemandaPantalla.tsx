@@ -1,9 +1,12 @@
-// Primera pantalla técnica del Motor de Demanda (integración, Fase 1).
-// Sin estética ni formulario todavía: Proyecto fijo (caso Golden G2,
-// CASOS-GOLDEN.md), gate de validación antes de calcular, y visualización
-// completa del ResultadoDeCalculo. No recalcula: solo llama a
-// validarProyecto y calcularSimultaneidad y muestra lo que devuelven.
-import type { Proyecto } from '../../modelo/proyecto'
+// Primera pantalla técnica editable del Motor de Demanda (integración,
+// Fase 1). Proyecto inicial = caso Golden G2 (CASOS-GOLDEN.md), pero los
+// campos son editables: coeficiente a, locales y artefactos dentro de la
+// única unidad funcional. Gate de validación antes de calcular, y
+// visualización completa del ResultadoDeCalculo. No recalcula: solo llama
+// a validarProyecto y calcularSimultaneidad y muestra lo que devuelven.
+// Alta/baja de unidades funcionales queda para un incremento posterior.
+import { useState } from 'react'
+import type { Proyecto, Local, TipoDeLocal, RegimenLocal, Artefacto } from '../../modelo/proyecto'
 import type { ResultadoDeCalculo, Paso, ValorCalculado } from '../../modelo/resultado'
 import type { ProblemaValidacion } from '../../validacion'
 import { validarProyecto } from '../../validacion'
@@ -11,7 +14,232 @@ import { calcularSimultaneidad } from '../../motor/demanda/simultaneidad/calcula
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
 
-const proyectoG2: Proyecto = {
+const TIPOS_DE_LOCAL: readonly TipoDeLocal[] = [
+  'bano',
+  'toilette',
+  'cocina',
+  'lavadero',
+  'cochera',
+  'jardin',
+  'otros',
+]
+
+const REGIMENES_DE_LOCAL: readonly RegimenLocal[] = ['domiciliario', 'noDomiciliario']
+
+// IDs únicos vía crypto.randomUUID() (API nativa del navegador, sin
+// dependencia nueva): un contador de módulo colisionaría con los IDs que
+// ya trae el proyecto inicial (local-bano, artefacto-1, etc.).
+function generarId(prefijo: string): string {
+  return `${prefijo}-${crypto.randomUUID()}`
+}
+
+function conCoeficienteA(proyecto: Proyecto, a: 1 | 2 | 3 | 4): Proyecto {
+  return { ...proyecto, parametros: { ...proyecto.parametros, coeficienteA: a } }
+}
+
+function conLocales(proyecto: Proyecto, locales: readonly Local[]): Proyecto {
+  const uf = proyecto.unidadesFuncionales[0]
+  if (!uf) {
+    // Invariante de esta pantalla (una única UF fija), no un estado de
+    // dominio a manejar: si falta, es un defecto de programación.
+    throw new Error('El proyecto debe tener al menos una unidad funcional')
+  }
+  return { ...proyecto, unidadesFuncionales: [{ ...uf, locales }] }
+}
+
+function ArtefactoFormulario({
+  artefacto,
+  onCambiar,
+  onEliminar,
+}: {
+  artefacto: Artefacto
+  onCambiar: (artefacto: Artefacto) => void
+  onEliminar: () => void
+}) {
+  return (
+    <div>
+      <label>
+        Artefacto:{' '}
+        <select
+          value={artefacto.artefactoId}
+          onChange={(evento) => onCambiar({ ...artefacto, artefactoId: evento.target.value })}
+        >
+          {catalogoArtefactos.map((catalogoItem) => (
+            <option key={catalogoItem.id} value={catalogoItem.id}>
+              {catalogoItem.nombre} (qu={catalogoItem.quTotal_lps} l/s)
+            </option>
+          ))}
+        </select>
+      </label>{' '}
+      <label>
+        Cantidad:{' '}
+        <input
+          type="number"
+          value={artefacto.cantidad}
+          onChange={(evento) => {
+            const cantidad = Number(evento.target.value)
+            if (!Number.isNaN(cantidad)) {
+              onCambiar({ ...artefacto, cantidad })
+            }
+          }}
+        />
+      </label>{' '}
+      <button type="button" onClick={onEliminar}>
+        Eliminar artefacto
+      </button>
+    </div>
+  )
+}
+
+function LocalFormulario({
+  local,
+  onCambiar,
+  onEliminar,
+}: {
+  local: Local
+  onCambiar: (local: Local) => void
+  onEliminar: () => void
+}) {
+  function agregarArtefacto() {
+    const primerArtefacto = catalogoArtefactos[0]
+    if (!primerArtefacto) {
+      return
+    }
+    const nuevoArtefacto: Artefacto = {
+      id: generarId('artefacto'),
+      artefactoId: primerArtefacto.id,
+      cantidad: 1,
+      origen: 'normativo',
+    }
+    onCambiar({ ...local, artefactos: [...local.artefactos, nuevoArtefacto] })
+  }
+
+  return (
+    <article>
+      <h4>
+        Local: {local.tipo} ({local.id})
+      </h4>
+      <label>
+        Tipo:{' '}
+        <select
+          value={local.tipo}
+          onChange={(evento) => onCambiar({ ...local, tipo: evento.target.value as TipoDeLocal })}
+        >
+          {TIPOS_DE_LOCAL.map((tipo) => (
+            <option key={tipo} value={tipo}>
+              {tipo}
+            </option>
+          ))}
+        </select>
+      </label>{' '}
+      <label>
+        Régimen:{' '}
+        <select
+          value={local.regimen ?? ''}
+          onChange={(evento) => {
+            if (evento.target.value === '') {
+              const { regimen: _regimen, ...localSinRegimen } = local
+              onCambiar(localSinRegimen)
+              return
+            }
+            onCambiar({ ...local, regimen: evento.target.value as RegimenLocal })
+          }}
+        >
+          <option value="">— sin definir —</option>
+          {REGIMENES_DE_LOCAL.map((regimen) => (
+            <option key={regimen} value={regimen}>
+              {regimen}
+            </option>
+          ))}
+        </select>
+      </label>{' '}
+      <button type="button" onClick={onEliminar}>
+        Eliminar local
+      </button>
+
+      <h5>Artefactos</h5>
+      {local.artefactos.map((artefacto) => (
+        <ArtefactoFormulario
+          key={artefacto.id}
+          artefacto={artefacto}
+          onCambiar={(artefactoActualizado) =>
+            onCambiar({
+              ...local,
+              artefactos: local.artefactos.map((a) => (a.id === artefacto.id ? artefactoActualizado : a)),
+            })
+          }
+          onEliminar={() => onCambiar({ ...local, artefactos: local.artefactos.filter((a) => a.id !== artefacto.id) })}
+        />
+      ))}
+      <button type="button" onClick={agregarArtefacto}>
+        + Agregar artefacto
+      </button>
+    </article>
+  )
+}
+
+function ProyectoFormulario({
+  proyecto,
+  onCambiar,
+}: {
+  proyecto: Proyecto
+  onCambiar: (proyecto: Proyecto) => void
+}) {
+  const uf = proyecto.unidadesFuncionales[0]
+  if (!uf) {
+    throw new Error('El proyecto debe tener al menos una unidad funcional')
+  }
+  const locales = uf.locales
+
+  function cambiarLocales(locales: readonly Local[]) {
+    onCambiar(conLocales(proyecto, locales))
+  }
+
+  function agregarLocal() {
+    const nuevoLocal: Local = {
+      id: generarId('local'),
+      tipo: 'bano',
+      artefactos: [],
+    }
+    cambiarLocales([...locales, nuevoLocal])
+  }
+
+  return (
+    <section>
+      <h2>Datos del proyecto</h2>
+      <label>
+        Coeficiente de mayoración (a):{' '}
+        <select
+          value={proyecto.parametros.coeficienteA}
+          onChange={(evento) => onCambiar(conCoeficienteA(proyecto, Number(evento.target.value) as 1 | 2 | 3 | 4))}
+        >
+          {coeficientesMayoracion.map((coeficiente) => (
+            <option key={coeficiente.a} value={coeficiente.a}>
+              {coeficiente.a} — {coeficiente.tipoDeProyecto}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <h3>Locales</h3>
+      {locales.map((local) => (
+        <LocalFormulario
+          key={local.id}
+          local={local}
+          onCambiar={(localActualizado) =>
+            cambiarLocales(locales.map((l) => (l.id === local.id ? localActualizado : l)))
+          }
+          onEliminar={() => cambiarLocales(locales.filter((l) => l.id !== local.id))}
+        />
+      ))}
+      <button type="button" onClick={agregarLocal}>
+        + Agregar local
+      </button>
+    </section>
+  )
+}
+
+const proyectoInicial: Proyecto = {
   metadatos: {
     nombre: 'Caso técnico G2 (Tabla N°2)',
     obra: 'Integración Motor de Demanda',
@@ -212,14 +440,16 @@ function ResultadoDemanda({ proyecto }: { proyecto: Proyecto }) {
 }
 
 export function MotorDemandaPantalla() {
-  const validacion = validarProyecto(proyectoG2, catalogoArtefactos, coeficientesMayoracion)
+  const [proyecto, setProyecto] = useState<Proyecto>(proyectoInicial)
+  const validacion = validarProyecto(proyecto, catalogoArtefactos, coeficientesMayoracion)
 
   return (
     <div>
       <h1>IUAS — Motor de Demanda</h1>
-      <p>Proyecto técnico de prueba: caso Golden G2 (Tabla N°2, CASOS-GOLDEN.md).</p>
+      <p>Estado inicial: caso Golden G2 (Tabla N°2, CASOS-GOLDEN.md). Los campos son editables.</p>
+      <ProyectoFormulario proyecto={proyecto} onCambiar={setProyecto} />
       {validacion.valido ? (
-        <ResultadoDemanda proyecto={proyectoG2} />
+        <ResultadoDemanda proyecto={proyecto} />
       ) : (
         <ProblemasValidacion problemas={validacion.problemas} />
       )}
