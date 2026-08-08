@@ -95,7 +95,7 @@ export function calcularSimultaneidad(
   const pasoQmax: Paso = {
     id: 'qmax',
     titulo: 'Cálculo del caudal máximo probable',
-    formulaId: 'ERAS-2023 §2.10.1',
+    formulaId: 'ERAS-2023 §2.9.2.1',
     entradas: artefactosParticipantes.map((artefacto) => {
       const artefactoNormativo = buscarArtefactoNormativo(artefacto.artefactoId)
 
@@ -110,7 +110,7 @@ export function calcularSimultaneidad(
       simbolo: 'Qmax',
       resultado: salidaQmax,
     },
-    referencias: ['ERAS-2023 §2.10.1'],
+    referencias: ['ERAS-2023 §2.9.2.1'],
     nota:
       'Qmax = Σ(cantidad × quTotal_lps) sobre los artefactos participantes tras CRIT-A8; ' +
       'quTotal_lps tomado del catálogo normativo.',
@@ -160,7 +160,7 @@ export function calcularSimultaneidad(
     pasos: [pasoKc, pasoK, pasoQmax, pasoQc],
     verificaciones: [],
     advertencias: [],
-    referencias: ['ERAS-2023 §2.9.2.2', 'ERAS-2023 §2.10.1', 'ERAS-2023 §2.9.2.3'],
+    referencias: ['ERAS-2023 §2.9.2.2', 'ERAS-2023 §2.9.2.1', 'ERAS-2023 §2.9.2.3'],
     metadatos: {
       versionApp: '0.1.0',
       versionNormativa: entrada.proyecto.metadatos.versionNormativa,

@@ -113,6 +113,8 @@ describe('calcularSimultaneidad — Qmax', () => {
 
     expect(pasoQmax.nota).toContain('quTotal_lps')
     expect(pasoQmax.entradas.every((entrada) => entrada.procedencia.includes('quTotal_lps'))).toBe(true)
+    expect(pasoQmax.formulaId).toBe('ERAS-2023 §2.9.2.1')
+    expect(pasoQmax.referencias).toContain('ERAS-2023 §2.9.2.1')
   })
 })
 
