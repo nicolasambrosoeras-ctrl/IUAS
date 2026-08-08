@@ -433,6 +433,14 @@ function Resultados({ resultado }: { resultado: ResultadoDeCalculo }) {
   return (
     <section>
       <h2>Resultados</h2>
+
+      <h3>Caudal de cálculo (Qc)</h3>
+      <p>
+        <strong>
+          <ValorCalculadoTexto valor={qc} />
+        </strong>
+      </p>
+
       <table>
         <tbody>
           <tr>
@@ -445,26 +453,28 @@ function Resultados({ resultado }: { resultado: ResultadoDeCalculo }) {
               <ValorCalculadoTexto valor={qmax} />
             </td>
           </tr>
-          <tr>
-            <th>Kc</th>
-            <td>
-              <ValorCalculadoTexto valor={kc} />
-            </td>
-          </tr>
-          <tr>
-            <th>K</th>
-            <td>
-              <ValorCalculadoTexto valor={k} />
-            </td>
-          </tr>
-          <tr>
-            <th>Qc</th>
-            <td>
-              <ValorCalculadoTexto valor={qc} />
-            </td>
-          </tr>
         </tbody>
       </table>
+
+      <details>
+        <summary>Parámetros intermedios</summary>
+        <table>
+          <tbody>
+            <tr>
+              <th>Kc</th>
+              <td>
+                <ValorCalculadoTexto valor={kc} />
+              </td>
+            </tr>
+            <tr>
+              <th>K</th>
+              <td>
+                <ValorCalculadoTexto valor={k} />
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </details>
     </section>
   )
 }
