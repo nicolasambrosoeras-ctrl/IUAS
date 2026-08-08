@@ -171,20 +171,37 @@ presión disponible.
 No se toca el catálogo ni el código de la Canilla de Servicio en este
 incremento.
 
-## Error dimensional en la fórmula de área de expansión (§2.12.1)
+## Error dimensional en la fórmula de sección de escurrimiento (§2.12.1) — CERRADO por P1
 
-**Hallazgo**: la fórmula impresa para `Ae` en §2.12.1 presenta un error
-dimensional (factor 100). Con `Qc` en l/s y `Ve` en m/s, la sección
-correcta en cm² debería ser `Ae = 10 · Qc / Ve`; la fórmula impresa
-produce un valor 100 veces menor.
+**Hallazgo original**: la fórmula impresa para `Ae` en §2.12.1 presenta
+un error dimensional (factor 100). Con `Qc` en l/s y `Ve` en m/s, la
+sección correcta en cm² debería ser `Ae = 10 · Qc / Ve`; la fórmula
+impresa produce un valor 100 veces menor.
 
-**Estado**: pendiente crítico a cerrar antes de implementar el Módulo 2
-(Tuberías). No se convierte todavía en criterio funcional ni se
-modifica ninguna fórmula del motor.
+**Estado**: cerrado. La investigación normativa P1 confirmó el factor
+correcto y satisface la condición de resolución que este pendiente
+exigía. El resultado quedó formalizado como **CRIT-A10** en
+`src/normativa/eras-2023/CRITERIOS.md`. Ya no es un bloqueo conceptual
+abierto para Módulo 2.
 
-**Condición de resolución**: al diseñar el Módulo 2, confirmar el factor
-correcto (con otra fuente o verificación dimensional adicional) antes de
-transcribir la fórmula al código.
+**Resultado de P1**:
+
+- la fórmula impresa en §2.12.1 tiene un error de factor 100 en la
+  sección resultante;
+- la relación dimensionalmente correcta para las unidades declaradas
+  por la propia Guía (Qc en l/s, Ve en m/s, Ae en cm²) es
+  `Ae = 10 · Qc / Ve`;
+- la Tabla N°9 de la propia Guía constituye evidencia interna
+  convergente: aplica correctamente `V = Q/A`, y `Ae = 10 · Q/V`
+  recupera el área geométrica de la tabla (20 celdas verificadas) dentro
+  del margen de redondeo;
+- no se encontró fe de erratas ni versión oficial corregida;
+- clasificación: errata / factor incorrecto altamente probable.
+
+**Condición de resolución (cumplida)**: la futura implementación del
+Módulo 2 debe usar la expresión corregida (`Ae = 10 · Qc / Ve`, ver
+CRIT-A10) y declarar explícitamente, en la memoria de cálculo, la
+divergencia frente a la fórmula impresa en §2.12.1.
 
 ## Contradicción entre Qunit (Fig. 2.8 e) y simultaneidad total para medidores individuales (§2.6)
 
@@ -195,3 +212,26 @@ claramente compatibles.
 
 **Estado**: pendiente a resolver antes de implementar el futuro módulo
 de Medidores. No se resuelve todavía.
+
+## Encabezados de Tabla N°9 inconsistentes con su comportamiento numérico
+
+**Origen**: hallazgo colateral de la investigación P1 (sección de
+escurrimiento `Ae`, §2.12.1). No fue el objeto de esa investigación y
+**no se usó como fundamento de CRIT-A10**; CRIT-A10 se sostiene
+únicamente en la verificación dimensional y en las 20 celdas de Tabla
+N°9 que sí fueron confirmadas.
+
+**Hallazgo**: los encabezados impresos de Tabla N°9 muestran los
+valores `0,03` / `0,04`, pero el comportamiento numérico observado en la
+tabla es compatible con `0,032` / `0,038`.
+
+**Estado**: NO resuelto. Pendiente de doble transcripción y
+verificación independiente antes de tomarse como hallazgo confirmado.
+
+**Relevancia**: puede afectar el uso futuro de tablas normativas en el
+Módulo 2 (Tuberías), que probablemente dependa de otras tablas de la
+misma Guía con el mismo formato de encabezado.
+
+**Condición de resolución**: verificar por doble transcripción
+independiente el valor real de los encabezados de Tabla N°9 antes de
+que el Módulo 2 dependa de tablas con formato equivalente.

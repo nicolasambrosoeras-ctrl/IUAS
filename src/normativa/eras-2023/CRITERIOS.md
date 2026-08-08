@@ -94,3 +94,60 @@ adoptada ante esa ausencia, no una interpretación de un ejemplo
 existente.
 
 **Estado:** Firme.
+
+## CRIT-A10 — Corrección de la sección de escurrimiento `Ae` (§2.12.1)
+
+**Artículo:** ERAS-2023 §2.12.1
+
+**Texto impreso:** la Guía imprime
+
+```
+Ae = (Qc/1000) / (Ve/100)
+```
+
+declarando explícitamente Qc en l/s, Ve en m/s y Ae en cm². Esa expresión
+es algebraicamente equivalente a `Ae = 0,1 · Qc / Ve`.
+
+**Inconsistencia detectada:** para las unidades que la propia Guía
+declara, la relación dimensional correcta derivada de `Q = A · V` es
+`Ae = 10 · Qc / Ve`. La expresión impresa produce, por lo tanto, una
+sección 100 veces menor que la correcta (la discrepancia equivalente en
+diámetro es de factor 10, porque `A ∝ D²`).
+
+**Interpretación adoptada:** el proyecto no transcribe la fórmula
+impresa en §2.12.1 tal cual. Se adopta la relación dimensionalmente
+correcta para las unidades declaradas por la propia Guía. La norma
+imprime `Ae = 0,1 · Qc / Ve`; el proyecto aplica `Ae = 10 · Qc / Ve` por
+inconsistencia dimensional demostrada y evidencia interna de la misma
+Guía.
+
+**Fundamento:** verificación dimensional propia a partir de `Q = A · V`
+con las unidades declaradas en el propio §2.12.1 (Qc en l/s, Ve en m/s,
+Ae en cm²). No se encontró fe de erratas ni versión oficial corregida
+que reconozca el error.
+
+**Evidencia interna de Tabla N°9:** la Tabla N°9 de la propia Guía
+aplica correctamente `V = Q/A`. Se verificaron 20 celdas y la relación
+`Ae = 10 · Q/V` recupera el área geométrica de la tabla dentro del
+margen de redondeo, lo que constituye evidencia interna convergente a
+favor de la fórmula corregida y en contra de la fórmula impresa en
+§2.12.1.
+
+**Fórmula operativa:**
+
+```
+Ae_cm² = 10 · Qc_lps / Ve_mps
+```
+
+**Unidades:** `Ae` en cm², `Qc` en l/s, `Ve` en m/s.
+
+**Terminología:** el nombre normativo correcto es "sección de
+escurrimiento". No usar "área de expansión" ni "sección equivalente".
+
+**Trazabilidad obligatoria:** toda futura memoria de cálculo que use
+esta fórmula debe declarar explícitamente la divergencia frente a la
+expresión impresa en §2.12.1: que la Guía imprime `Ae = 0,1 · Qc / Ve` y
+que el proyecto aplica `Ae = 10 · Qc / Ve` por la razón documentada en
+este criterio.
+
+**Estado:** Firme.
