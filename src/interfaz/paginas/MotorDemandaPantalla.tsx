@@ -8,7 +8,7 @@
 // a validarProyecto y calcularSimultaneidad y muestra lo que devuelven.
 // Alta/baja de unidades funcionales queda para un incremento posterior.
 import { useState } from 'react'
-import type { Proyecto, Local, TipoDeLocal, RegimenLocal, Artefacto } from '../../modelo/proyecto'
+import type { Proyecto, UnidadFuncional, Local, TipoDeLocal, RegimenLocal, Artefacto } from '../../modelo/proyecto'
 import type { ResultadoDeCalculo, Paso, ValorCalculado } from '../../modelo/resultado'
 import type { ProblemaValidacion, CodigoValidacion } from '../../validacion'
 import { validarProyecto } from '../../validacion'
@@ -79,15 +79,6 @@ function conCoeficienteA(proyecto: Proyecto, a: 1 | 2 | 3 | 4): Proyecto {
   return { ...proyecto, parametros: { ...proyecto.parametros, coeficienteA: a } }
 }
 
-function conLocales(proyecto: Proyecto, locales: readonly Local[]): Proyecto {
-  const uf = proyecto.unidadesFuncionales[0]
-  if (!uf) {
-    // Invariante de esta pantalla (una única UF fija), no un estado de
-    // dominio a manejar: si falta, es un defecto de programación.
-    throw new Error('El proyecto debe tener al menos una unidad funcional')
-  }
-  return { ...proyecto, unidadesFuncionales: [{ ...uf, locales }] }
-}
 
 function ArtefactoFormulario({
   artefacto,
@@ -160,7 +151,7 @@ function LocalFormulario({
 
   return (
     <article>
-      <h4>{etiqueta}</h4>
+      <h5>{etiqueta}</h5>
       <label>
         Tipo:{' '}
         <select
@@ -199,7 +190,7 @@ function LocalFormulario({
         Eliminar local
       </button>
 
-      <h5>Artefactos</h5>
+      <h6>Artefactos</h6>
       {local.artefactos.map((artefacto) => (
         <ArtefactoFormulario
           key={artefacto.id}
@@ -220,21 +211,21 @@ function LocalFormulario({
   )
 }
 
-function ProyectoFormulario({
-  proyecto,
+function UnidadFuncionalFormulario({
+  uf,
   onCambiar,
+  onEliminar,
+  mostrarEliminar,
 }: {
-  proyecto: Proyecto
-  onCambiar: (proyecto: Proyecto) => void
+  uf: UnidadFuncional
+  onCambiar: (uf: UnidadFuncional) => void
+  onEliminar: () => void
+  mostrarEliminar: boolean
 }) {
-  const uf = proyecto.unidadesFuncionales[0]
-  if (!uf) {
-    throw new Error('El proyecto debe tener al menos una unidad funcional')
-  }
   const locales = uf.locales
 
   function cambiarLocales(locales: readonly Local[]) {
-    onCambiar(conLocales(proyecto, locales))
+    onCambiar({ ...uf, locales })
   }
 
   function agregarLocal() {
@@ -247,6 +238,63 @@ function ProyectoFormulario({
   }
 
   const etiquetas = etiquetasDeLocales(locales)
+
+  return (
+    <section>
+      <h3>
+        Unidad funcional:{' '}
+        <input
+          type="text"
+          value={uf.nombre}
+          onChange={(evento) => onCambiar({ ...uf, nombre: evento.target.value })}
+        />
+      </h3>
+      {mostrarEliminar ? (
+        <button type="button" onClick={onEliminar}>
+          Eliminar unidad funcional
+        </button>
+      ) : null}
+
+      <h4>Locales</h4>
+      {locales.map((local, indice) => (
+        <LocalFormulario
+          key={local.id}
+          local={local}
+          etiqueta={etiquetas[indice] ?? `Local: ${ETIQUETA_TIPO_DE_LOCAL[local.tipo]}`}
+          onCambiar={(localActualizado) =>
+            cambiarLocales(locales.map((l) => (l.id === local.id ? localActualizado : l)))
+          }
+          onEliminar={() => cambiarLocales(locales.filter((l) => l.id !== local.id))}
+        />
+      ))}
+      <button type="button" onClick={agregarLocal}>
+        + Agregar local
+      </button>
+    </section>
+  )
+}
+
+function ProyectoFormulario({
+  proyecto,
+  onCambiar,
+}: {
+  proyecto: Proyecto
+  onCambiar: (proyecto: Proyecto) => void
+}) {
+  const unidadesFuncionales = proyecto.unidadesFuncionales
+
+  function cambiarUnidadesFuncionales(unidadesFuncionales: readonly UnidadFuncional[]) {
+    onCambiar({ ...proyecto, unidadesFuncionales })
+  }
+
+  function agregarUnidadFuncional() {
+    const nuevaUf: UnidadFuncional = {
+      id: generarId('uf'),
+      nombre: `Unidad funcional ${unidadesFuncionales.length + 1}`,
+      locales: [],
+    }
+    cambiarUnidadesFuncionales([...unidadesFuncionales, nuevaUf])
+  }
 
   return (
     <section>
@@ -266,20 +314,23 @@ function ProyectoFormulario({
         </select>
       </label>
 
-      <h3>Locales</h3>
-      {locales.map((local, indice) => (
-        <LocalFormulario
-          key={local.id}
-          local={local}
-          etiqueta={etiquetas[indice] ?? `Local: ${ETIQUETA_TIPO_DE_LOCAL[local.tipo]}`}
-          onCambiar={(localActualizado) =>
-            cambiarLocales(locales.map((l) => (l.id === local.id ? localActualizado : l)))
+      {unidadesFuncionales.map((uf) => (
+        <UnidadFuncionalFormulario
+          key={uf.id}
+          uf={uf}
+          mostrarEliminar={unidadesFuncionales.length > 1}
+          onCambiar={(ufActualizada) =>
+            cambiarUnidadesFuncionales(
+              unidadesFuncionales.map((u) => (u.id === uf.id ? ufActualizada : u)),
+            )
           }
-          onEliminar={() => cambiarLocales(locales.filter((l) => l.id !== local.id))}
+          onEliminar={() =>
+            cambiarUnidadesFuncionales(unidadesFuncionales.filter((u) => u.id !== uf.id))
+          }
         />
       ))}
-      <button type="button" onClick={agregarLocal}>
-        + Agregar local
+      <button type="button" onClick={agregarUnidadFuncional}>
+        + Agregar unidad funcional
       </button>
     </section>
   )
