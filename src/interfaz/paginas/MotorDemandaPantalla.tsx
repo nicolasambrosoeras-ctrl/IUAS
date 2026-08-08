@@ -10,7 +10,7 @@
 import { useState } from 'react'
 import type { Proyecto, Local, TipoDeLocal, RegimenLocal, Artefacto } from '../../modelo/proyecto'
 import type { ResultadoDeCalculo, Paso, ValorCalculado } from '../../modelo/resultado'
-import type { ProblemaValidacion } from '../../validacion'
+import type { ProblemaValidacion, CodigoValidacion } from '../../validacion'
 import { validarProyecto } from '../../validacion'
 import { calcularSimultaneidad } from '../../motor/demanda/simultaneidad/calcularSimultaneidad'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
@@ -375,6 +375,16 @@ function ValorCalculadoTexto({ valor }: { valor: ValorCalculado }) {
   return <span>{valor.unidad === 'adimensional' ? numero : `${numero} ${valor.unidad}`}</span>
 }
 
+const MENSAJES_DE_VALIDACION: Readonly<Record<CodigoValidacion, string>> = {
+  proyectoRegimenLocalAusente: 'Debe seleccionar el régimen del local.',
+  proyectoCantidadNoPositiva: 'La cantidad de artefactos debe ser mayor que cero.',
+  proyectoUnidadFuncionalSinLocales: 'La unidad funcional no contiene locales.',
+  proyectoLocalSinArtefactos: 'El local no contiene artefactos y no participa del cálculo.',
+  catalogoArtefactoIdInexistente: 'El artefacto seleccionado no existe en el catálogo normativo vigente.',
+  catalogoCoeficienteAInexistente:
+    'El coeficiente de mayoración seleccionado no existe en el catálogo normativo vigente.',
+}
+
 function ProblemasValidacion({ problemas }: { problemas: readonly ProblemaValidacion[] }) {
   return (
     <section>
@@ -383,8 +393,7 @@ function ProblemasValidacion({ problemas }: { problemas: readonly ProblemaValida
       <ul>
         {problemas.map((problema, indice) => (
           <li key={indice}>
-            [{problema.severidad}] {problema.codigo} — campo: {problema.campo} — valor recibido:{' '}
-            {String(problema.valorRecibido)}
+            [{problema.severidad}] {MENSAJES_DE_VALIDACION[problema.codigo]} ({problema.codigo})
           </li>
         ))}
       </ul>
