@@ -479,6 +479,21 @@ function Resultados({ resultado }: { resultado: ResultadoDeCalculo }) {
   )
 }
 
+const FORMULAS_SIMBOLICAS: Readonly<Record<string, string>> = {
+  kc: 'Kc = 1 / raíz(n - 1)',
+  qmax: 'Qmax = Σ (cantidad × qu)',
+  k: 'K = Kc × a',
+  qc: 'Qc = Qmax × K',
+  'qc-critA4': 'Qc = Qmax',
+}
+
+function formulaSimbolica(paso: Paso): string {
+  if (paso.id === 'qc' && paso.criterioId === 'CRIT-A4') {
+    return FORMULAS_SIMBOLICAS['qc-critA4'] ?? paso.formulaId
+  }
+  return FORMULAS_SIMBOLICAS[paso.id] ?? paso.formulaId
+}
+
 function Pasos({ pasos }: { pasos: readonly Paso[] }) {
   return (
     <section>
@@ -489,10 +504,8 @@ function Pasos({ pasos }: { pasos: readonly Paso[] }) {
         {pasos.map((paso) => (
           <article key={paso.id}>
             <h3>{paso.titulo}</h3>
-            <p>
-              formulaId: {paso.formulaId}
-              {paso.criterioId ? ` — ${paso.criterioId}` : ''}
-            </p>
+            <p>Fórmula: {formulaSimbolica(paso)}</p>
+            {paso.criterioId ? <p>Criterio: {paso.criterioId}</p> : null}
             <div style={{ overflowX: 'auto' }}>
               <table>
                 <thead>
