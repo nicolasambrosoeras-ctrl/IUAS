@@ -254,6 +254,7 @@ function ProyectoFormulario({
       <label>
         Coeficiente de mayoración (a):{' '}
         <select
+          style={{ maxWidth: '100%' }}
           value={proyecto.parametros.coeficienteA}
           onChange={(evento) => onCambiar(conCoeficienteA(proyecto, Number(evento.target.value) as 1 | 2 | 3 | 4))}
         >
