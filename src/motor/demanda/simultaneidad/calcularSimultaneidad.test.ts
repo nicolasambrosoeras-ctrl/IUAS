@@ -55,7 +55,7 @@ describe('calcularSimultaneidad — Qmax', () => {
   function obtenerQmax(proyecto: Proyecto) {
     const qmax = calcularResultado(proyecto).resultados.qmax
 
-    if (!('valor' in qmax)) {
+    if (!qmax || !('valor' in qmax)) {
       throw new Error('se esperaba un resultado numerico para Qmax')
     }
 
@@ -130,7 +130,7 @@ describe('calcularSimultaneidad — K', () => {
     const kc = resultado.resultados.kc
     const k = resultado.resultados.k
 
-    if (!('valor' in kc) || !('valor' in k)) {
+    if (!kc || !k || !('valor' in kc) || !('valor' in k)) {
       throw new Error('se esperaba un resultado numerico para Kc y K')
     }
 
@@ -149,7 +149,7 @@ describe('calcularSimultaneidad — K', () => {
     const kc = resultado.resultados.kc
     const k = resultado.resultados.k
 
-    if (!('estado' in kc) || !('estado' in k)) {
+    if (!kc || !k || !('estado' in kc) || !('estado' in k)) {
       throw new Error('se esperaba un resultado indeterminado para Kc y K')
     }
 
@@ -190,7 +190,7 @@ describe('calcularSimultaneidad — Qc', () => {
     const k = resultado.resultados.k
     const qc = resultado.resultados.qc
 
-    if (!('valor' in qmax) || !('valor' in k) || !('valor' in qc)) {
+    if (!qmax || !k || !qc || !('valor' in qmax) || !('valor' in k) || !('valor' in qc)) {
       throw new Error('se esperaba un resultado numerico para Qmax, K y Qc')
     }
 
@@ -210,10 +210,10 @@ describe('calcularSimultaneidad — Qc', () => {
     const k = resultado.resultados.k
     const qc = resultado.resultados.qc
 
-    if (!('valor' in qmax) || !('valor' in qc)) {
+    if (!qmax || !qc || !('valor' in qmax) || !('valor' in qc)) {
       throw new Error('se esperaba un resultado numerico para Qmax y Qc')
     }
-    if (!('estado' in k)) {
+    if (!k || !('estado' in k)) {
       throw new Error('se esperaba que K siguiera indeterminado')
     }
 
@@ -282,7 +282,7 @@ describe('calcularSimultaneidad — Caso Golden G2 (CASOS-GOLDEN.md)', () => {
     expect(entradaN?.valor).toBe(9)
 
     const { kc, k, qmax, qc } = resultado.resultados
-    if (!('valor' in kc) || !('valor' in k) || !('valor' in qmax) || !('valor' in qc)) {
+    if (!kc || !k || !qmax || !qc || !('valor' in kc) || !('valor' in k) || !('valor' in qmax) || !('valor' in qc)) {
       throw new Error('se esperaban resultados numericos para Kc, K, Qmax y Qc')
     }
 
@@ -368,7 +368,7 @@ describe('calcularSimultaneidad — Caso Golden G1 (CASOS-GOLDEN.md)', () => {
     expect(entradaN?.valor).toBe(4)
 
     const { kc, k, qmax, qc } = resultado.resultados
-    if (!('valor' in kc) || !('valor' in k) || !('valor' in qmax) || !('valor' in qc)) {
+    if (!kc || !k || !qmax || !qc || !('valor' in kc) || !('valor' in k) || !('valor' in qmax) || !('valor' in qc)) {
       throw new Error('se esperaban resultados numericos para Kc, K, Qmax y Qc')
     }
 
@@ -396,7 +396,7 @@ describe('calcularSimultaneidad — Advertencia CRIT-A2 (K > 1)', () => {
 
     const resultado = calcularResultado(proyecto)
     const { kc, k, qmax, qc } = resultado.resultados
-    if (!('valor' in kc) || !('valor' in k) || !('valor' in qmax) || !('valor' in qc)) {
+    if (!kc || !k || !qmax || !qc || !('valor' in kc) || !('valor' in k) || !('valor' in qmax) || !('valor' in qc)) {
       throw new Error('se esperaban resultados numericos para Kc, K, Qmax y Qc')
     }
 
@@ -406,9 +406,13 @@ describe('calcularSimultaneidad — Advertencia CRIT-A2 (K > 1)', () => {
     expect(qc.valor).toBeCloseTo(0.8, 4)
 
     expect(resultado.advertencias).toHaveLength(1)
-    expect(resultado.advertencias[0].id).toBe('k-mayor-a-uno')
-    expect(resultado.advertencias[0].mensaje).toContain('CRIT-A2')
-    expect(resultado.advertencias[0].referenciaNormativa).toContain('CRIT-A2')
+    const advertencia = resultado.advertencias[0]
+    if (!advertencia) {
+      throw new Error('se esperaba una advertencia')
+    }
+    expect(advertencia.id).toBe('k-mayor-a-uno')
+    expect(advertencia.mensaje).toContain('CRIT-A2')
+    expect(advertencia.referenciaNormativa).toContain('CRIT-A2')
   })
 
   it('K = 1 (límite) no genera advertencia', () => {
@@ -420,7 +424,7 @@ describe('calcularSimultaneidad — Advertencia CRIT-A2 (K > 1)', () => {
 
     const resultado = calcularResultado(proyecto)
     const { k } = resultado.resultados
-    if (!('valor' in k)) {
+    if (!k || !('valor' in k)) {
       throw new Error('se esperaba un resultado numerico para K')
     }
 
@@ -437,7 +441,7 @@ describe('calcularSimultaneidad — Advertencia CRIT-A2 (K > 1)', () => {
 
     const resultado = calcularResultado(proyecto)
     const { k } = resultado.resultados
-    if (!('estado' in k)) {
+    if (!k || !('estado' in k)) {
       throw new Error('se esperaba que K siguiera indeterminado')
     }
 
