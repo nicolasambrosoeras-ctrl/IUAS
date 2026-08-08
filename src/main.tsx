@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { PrototipoPdfFase0 } from './interfaz/paginas/PrototipoPdfFase0'
+import { MotorDemandaPantalla } from './interfaz/paginas/MotorDemandaPantalla'
 
 const contenedor = document.getElementById('root')
 if (!contenedor) {
@@ -9,6 +9,6 @@ if (!contenedor) {
 
 createRoot(contenedor).render(
   <StrictMode>
-    <PrototipoPdfFase0 />
+    <MotorDemandaPantalla />
   </StrictMode>,
 )
