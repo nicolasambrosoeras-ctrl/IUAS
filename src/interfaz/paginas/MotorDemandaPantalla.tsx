@@ -44,6 +44,28 @@ const ETIQUETA_REGIMEN: Readonly<Record<RegimenLocal, string>> = {
   noDomiciliario: 'No domiciliario',
 }
 
+// Etiqueta de presentación por local: derivada del orden y del tipo, nunca
+// del id interno. No se guarda en ningún lado -- se recalcula en cada
+// render a partir de `locales`.
+function etiquetasDeLocales(locales: readonly Local[]): readonly string[] {
+  const totalPorTipo: Partial<Record<TipoDeLocal, number>> = {}
+  for (const local of locales) {
+    totalPorTipo[local.tipo] = (totalPorTipo[local.tipo] ?? 0) + 1
+  }
+
+  const contadorPorTipo: Partial<Record<TipoDeLocal, number>> = {}
+  return locales.map((local) => {
+    const etiquetaBase = ETIQUETA_TIPO_DE_LOCAL[local.tipo]
+    const total = totalPorTipo[local.tipo] ?? 0
+    if (total <= 1) {
+      return `Local: ${etiquetaBase}`
+    }
+    const siguiente = (contadorPorTipo[local.tipo] ?? 0) + 1
+    contadorPorTipo[local.tipo] = siguiente
+    return `Local: ${etiquetaBase} ${siguiente}`
+  })
+}
+
 // IDs únicos vía crypto.randomUUID() (API nativa del navegador, sin
 // dependencia nueva): un contador de módulo colisionaría con los IDs que
 // ya trae el proyecto inicial (local-bano, artefacto-1, etc.).
@@ -111,10 +133,12 @@ function ArtefactoFormulario({
 
 function LocalFormulario({
   local,
+  etiqueta,
   onCambiar,
   onEliminar,
 }: {
   local: Local
+  etiqueta: string
   onCambiar: (local: Local) => void
   onEliminar: () => void
 }) {
@@ -134,9 +158,7 @@ function LocalFormulario({
 
   return (
     <article>
-      <h4>
-        Local: {ETIQUETA_TIPO_DE_LOCAL[local.tipo]} ({local.id})
-      </h4>
+      <h4>{etiqueta}</h4>
       <label>
         Tipo:{' '}
         <select
@@ -222,6 +244,8 @@ function ProyectoFormulario({
     cambiarLocales([...locales, nuevoLocal])
   }
 
+  const etiquetas = etiquetasDeLocales(locales)
+
   return (
     <section>
       <h2>Datos del proyecto</h2>
@@ -240,10 +264,11 @@ function ProyectoFormulario({
       </label>
 
       <h3>Locales</h3>
-      {locales.map((local) => (
+      {locales.map((local, indice) => (
         <LocalFormulario
           key={local.id}
           local={local}
+          etiqueta={etiquetas[indice] ?? `Local: ${ETIQUETA_TIPO_DE_LOCAL[local.tipo]}`}
           onCambiar={(localActualizado) =>
             cambiarLocales(locales.map((l) => (l.id === local.id ? localActualizado : l)))
           }
@@ -373,26 +398,38 @@ function Resultados({ resultado }: { resultado: ResultadoDeCalculo }) {
   return (
     <section>
       <h2>Resultados</h2>
-      <dl>
-        <dt>n</dt>
-        <dd>{n !== null ? formatearNumero(n, 'conteo') : '—'}</dd>
-        <dt>Qmax</dt>
-        <dd>
-          <ValorCalculadoTexto valor={qmax} />
-        </dd>
-        <dt>Kc</dt>
-        <dd>
-          <ValorCalculadoTexto valor={kc} />
-        </dd>
-        <dt>K</dt>
-        <dd>
-          <ValorCalculadoTexto valor={k} />
-        </dd>
-        <dt>Qc</dt>
-        <dd>
-          <ValorCalculadoTexto valor={qc} />
-        </dd>
-      </dl>
+      <table>
+        <tbody>
+          <tr>
+            <th>n</th>
+            <td>{n !== null ? formatearNumero(n, 'conteo') : '—'}</td>
+          </tr>
+          <tr>
+            <th>Qmax</th>
+            <td>
+              <ValorCalculadoTexto valor={qmax} />
+            </td>
+          </tr>
+          <tr>
+            <th>Kc</th>
+            <td>
+              <ValorCalculadoTexto valor={kc} />
+            </td>
+          </tr>
+          <tr>
+            <th>K</th>
+            <td>
+              <ValorCalculadoTexto valor={k} />
+            </td>
+          </tr>
+          <tr>
+            <th>Qc</th>
+            <td>
+              <ValorCalculadoTexto valor={qc} />
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </section>
   )
 }
