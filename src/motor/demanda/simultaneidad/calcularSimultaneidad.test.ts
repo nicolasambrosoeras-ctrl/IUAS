@@ -297,3 +297,89 @@ describe('calcularSimultaneidad — Caso Golden G2 (CASOS-GOLDEN.md)', () => {
     expect(qc.unidad).toBe('l/s')
   })
 })
+
+// Caso Golden G1 (Tabla N°4), documentado en CASOS-GOLDEN.md. El fixture
+// representa únicamente el conjunto computado publicado (baño principal,
+// baño de servicio, cocina), no una reconstrucción del conjunto instalado
+// previo a CRIT-A8 (esa entrada no está documentada inequívocamente por la
+// Guía). Este test valida n → Qmax → Kc → K → Qc contra Tabla N°4; ejercita
+// la evaluación local de CRIT-A8 pero como no-op sobre los baños
+// declarados (cada uno solo tiene el inodoro de válvula, nada que suprimir)
+// y no constituye prueba end-to-end de la supresión de otros artefactos
+// sanitarios.
+describe('calcularSimultaneidad — Caso Golden G1 (CASOS-GOLDEN.md)', () => {
+  it('reproduce n, Qmax, Kc, K y Qc del caso G1 (Tabla N°4)', () => {
+    const proyecto: Proyecto = {
+      metadatos: {
+        nombre: 'Proyecto de prueba',
+        obra: 'Obra',
+        comitente: 'Comitente',
+        fecha: '2026-08-07',
+        schemaVersion: '1.0.0',
+        versionNormativa: 'eras-2023',
+      },
+      parametros: {
+        coeficienteA: 1,
+        presionSobreAcera_m: 2,
+        alturaArtefactoMasDesfavorable_m: 3,
+        material: 'PVC',
+      },
+      unidadesFuncionales: [
+        {
+          id: 'uf-1',
+          nombre: 'Unidad funcional 1',
+          locales: [
+            {
+              id: 'local-bano-principal',
+              tipo: 'bano',
+              regimen: 'domiciliario',
+              artefactos: [
+                { id: 'artefacto-1', artefactoId: 'inodoroValvula', cantidad: 1, origen: 'normativo' },
+              ],
+            },
+            {
+              id: 'local-bano-servicio',
+              tipo: 'toilette',
+              regimen: 'domiciliario',
+              artefactos: [
+                { id: 'artefacto-2', artefactoId: 'inodoroValvula', cantidad: 1, origen: 'normativo' },
+              ],
+            },
+            {
+              id: 'local-cocina',
+              tipo: 'cocina',
+              regimen: 'domiciliario',
+              artefactos: [
+                { id: 'artefacto-3', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' },
+                { id: 'artefacto-4', artefactoId: 'maquinaLavavajillas', cantidad: 1, origen: 'normativo' },
+              ],
+            },
+          ],
+        },
+      ],
+    }
+
+    const resultado = calcularResultado(proyecto)
+
+    const pasoKc = resultado.pasos.find((paso) => paso.id === 'kc')
+    const entradaN = pasoKc?.entradas.find((entrada) => entrada.simbolo === 'n')
+    expect(entradaN?.valor).toBe(4)
+
+    const { kc, k, qmax, qc } = resultado.resultados
+    if (!('valor' in kc) || !('valor' in k) || !('valor' in qmax) || !('valor' in qc)) {
+      throw new Error('se esperaban resultados numericos para Kc, K, Qmax y Qc')
+    }
+
+    expect(qmax.valor).toBeCloseTo(3.4, 4)
+    expect(qmax.unidad).toBe('l/s')
+
+    expect(kc.valor).toBeCloseTo(0.5773502692, 9)
+    expect(kc.unidad).toBe('adimensional')
+
+    expect(k.valor).toBeCloseTo(0.5773502692, 9)
+    expect(k.unidad).toBe('adimensional')
+
+    expect(qc.valor).toBeCloseTo(1.9629909153, 9)
+    expect(qc.unidad).toBe('l/s')
+  })
+})
