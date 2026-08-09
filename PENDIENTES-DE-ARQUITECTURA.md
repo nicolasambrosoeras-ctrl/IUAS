@@ -357,3 +357,166 @@ tienen ninguna referencia verificable (`009`, `013`) no se reconstruyen
 por conjetura; si llegan a necesitarse, se redactan como decisiones
 nuevas en el momento en que corresponda, no como recuperación de algo
 preexistente.
+
+## D-δ — Topología hidráulica, estados de demanda AF/AC y producción ACS
+
+Esta sección registra conclusiones de un análisis conceptual previo al
+modelado real de `Nodo`/`Tramo` en Módulo 2. Nada de lo aquí descripto
+está implementado. Cada punto distingue explícitamente su naturaleza:
+evidencia normativa, principio físico, decisión arquitectónica, o
+hipótesis de diseño.
+
+### D-δ.1 — Topología hidráulica preferida (decisión arquitectónica)
+
+Base suficientemente madura para el diseño de Módulo 2: todo `Tramo`
+hidráulico conecta `Nodo → Tramo → Nodo`; `Nodo` y `Tramo` son conceptos
+específicos del dominio hidráulico, no un grafo genérico de propósito
+general. La jerarquía funcional `Proyecto → UnidadFuncional → Local →
+Artefacto` se conserva sin cambios. Pertenencia funcional (jerarquía) y
+conectividad hidráulica (red) son relaciones ortogonales: una responde
+"¿de qué parte del proyecto es esto?"; la otra, "¿cómo llega el agua
+hasta acá?".
+
+### D-δ.2 — Una sola topología física (decisión arquitectónica)
+
+AF y AC comparten el mismo modelo conceptual de red. No se crean
+topologías distintas para mezcla, 100% AF o 100% AC. La topología
+permanece fija; lo que varía es la condición de demanda evaluada sobre
+ella (D-δ.9).
+
+### D-δ.3 — Artefacto mixto sin duplicación (decisión arquitectónica)
+
+Un artefacto mixto (por ejemplo, una ducha con conexión AF y AC) existe
+una única vez en el modelo funcional, dentro de su `Local`. Puede ser
+referenciado por un nodo terminal AF y por un nodo terminal AC, ambos
+apuntando al mismo `Artefacto` por id. No se crean entidades
+funcionales duplicadas del tipo "DuchaAF"/"DuchaAC".
+
+### D-δ.4 — `quTotal` vs. magnitudes derivadas (decisión arquitectónica)
+
+`quTotal` (dato de catálogo) es el consumo unitario estable de un
+artefacto. Debe distinguirse de las magnitudes derivadas de cálculo
+`qu_AF,térmico`, `qu_AC,térmico`, `qu_AF,potencial`, `qu_AC,potencial`,
+que dependen de la condición de demanda evaluada (D-δ.9) y no son
+atributos persistentes del `Artefacto`.
+
+### D-δ.5 — Procedencia de `quFria_lps`/`quCaliente_lps` (evidencia normativa + pendiente)
+
+Evidencia normativa (investigación P4): ERAS §2.9.1.2 publica
+literalmente columnas `qu Total`, `qu (A. Fría)` y `qu (A. Cal.)`. La
+procedencia normativa de estas columnas queda, por tanto,
+**confirmada** — no debe documentarse como desconocida.
+
+Queda **abierto**: el significado físico definitivo del reparto 40/60
+(la ecuación de mezcla impresa por ERAS presenta una inconsistencia
+editorial: la expresión rotulada "% A. Fría" calcula físicamente la
+fracción caliente); si los encabezados de columna arrastran o no esa
+misma inversión; y el uso de estos valores como `qu` térmico definitivo
+en IUAS. ERAS permite expresamente recalcular el reparto para otras
+temperaturas mediante una ecuación de mezcla. No se adopta ninguna
+corrección del 40/60 en este incremento.
+
+### D-δ.6 — Conservación de masa en ACS (principio físico)
+
+`Q_entrada_equipo_ACS ≈ Q_salida_AC`, despreciando diferencias
+volumétricas por densidad. El equipo agrega energía y puede modificar
+presión/temperatura, pero no crea ni destruye agua; no tiene `qu`
+propio.
+
+### D-δ.7 — Producción ACS como punto de paso (decisión arquitectónica)
+
+`AF → producción ACS → AC` es continuidad hidráulica: el equipo no es
+un terminal de consumo y no corta el recorrido topológico; es un punto
+de paso/transformación. El tipo de producción (calentador
+instantáneo/calefón, termotanque/acumulación, sistema central, u otro)
+podrá cambiar sin alterar necesariamente la conectividad de la red. No
+se diseñan aquí enumeraciones ni estructuras concretas — son solo
+ejemplos ilustrativos de tipos futuros.
+
+### D-δ.8 — Identidad del consumo y prohibición de doble conteo (decisión arquitectónica)
+
+Un mismo artefacto puede propagarse por caminos hidráulicos distintos
+según la condición de demanda, pero su identidad debe conservarse: en
+100% AF, AF directa = `quTotal` y AF hacia ACS = 0; en mezcla, AF
+directa + AF hacia ACS ≈ `quTotal`; en 100% AC, AF directa = 0 y AF
+hacia ACS ≈ `quTotal`. En el tramo común aguas arriba, el mismo
+artefacto participa **una sola vez** — nunca `quTotal` por AF directa
+más `quTotal` por alimentación a ACS para el mismo consumo bajo la
+misma condición. La identidad del participante debe sobrevivir al
+recorrido topológico para impedir el doble conteo al reencontrarse
+caminos aguas arriba.
+
+### D-δ.9 — Condición de demanda (decisión arquitectónica)
+
+Sin crear infraestructura genérica de escenarios: `Topología +
+condición de demanda + red/tramo evaluado → participantes aguas abajo →
+qu efectivo por participante → simultaneidad → Qc`. La condición de
+demanda determina qué participantes actúan y qué `qu` efectivo aporta
+cada uno; la topología no cambia.
+
+### D-δ.10 — Reutilización del pipeline de simultaneidad (decisión arquitectónica)
+
+El pipeline conceptual existente `n → Qmax → Kc → K → Qc` puede
+reutilizarse para distintas condiciones de demanda, cambiando
+únicamente el conjunto de participantes y el `qu` efectivo. Esto no
+cierra D-β.2 (`a` efectivo, ver más arriba en este documento) ni el
+ámbito futuro de `K > 1` en tramos (CRIT-A2) — ambas deudas permanecen
+exactamente como están registradas.
+
+### D-δ.11 — Estrategia preferida AF/AC (hipótesis de diseño)
+
+No como criterio numérico cerrado: dimensionamiento base con un
+`Qc_térmico` bajo una condición térmica/operativa; verificación de
+capacidad evaluando 100% AF y 100% AC, manteniendo siempre simultaneidad
+en tramos compartidos. Nunca `ΣquTotal` sin simultaneidad.
+
+### D-δ.12 — Montantes AC (hipótesis de diseño)
+
+No se considera suficiente dimensionar una montante AC únicamente con
+la fracción térmica, ni se adopta suma instalada sin simultaneidad.
+Estrategia preferida: `Qc_térmico` para el dimensionamiento base, y
+`Qc_capacidad_AC` (con `quTotal` de los artefactos conectados a AC,
+aplicando simultaneidad) como verificación hidráulica posterior. No se
+define aquí qué verificaciones exactas serán obligatorias.
+
+### D-δ.13 — Alimentación AF al sistema ACS (principio físico + decisión arquitectónica)
+
+Por conservación de masa (D-δ.6), el tramo AF que alimenta la
+producción ACS refleja la demanda de la red AC servida:
+`Qc_AF_hacia_ACS ≈ Qc_AC_servida` para la misma condición de demanda. El
+equipo no tiene `qu` propio. No deben calcularse dos `Qc` parciales por
+separado y sumarlos: CRIT-A5 sigue aplicando en su totalidad, y aguas
+arriba debe calcularse una única simultaneidad sobre el conjunto
+correcto de participantes.
+
+### D-δ.14 — Pipeline comercial preferido (hipótesis de diseño)
+
+Estrategia conceptual preferida, sin valores cerrados: `Qc_térmico →
+velocidad adoptada → Ae → diámetro teórico → diámetro comercial →
+recálculo → Qc_capacidad → verificación → si falla, siguiente producto
+comercial`. La selección del siguiente producto comercial es una
+búsqueda discreta y determinística, no una iteración numérica continua.
+
+### D-δ.15 — Explícitamente abierto, no resuelto en este incremento
+
+- `Ve_objetivo` (incluyendo el candidato 2,0 m/s, no adoptado);
+- `T_AF`, `T_ACS`, `T_uso` y sus valores por defecto;
+- fórmula exacta que usará IUAS para el reparto térmico;
+- interpretación definitiva del reparto 40/60 (D-δ.5);
+- D-β.2 (`a` efectivo) y el ámbito futuro de `K > 1` en tramos;
+- `Qcaux`;
+- `Qunit`/`Qcunit`;
+- punto físico exacto de `Pmin`;
+- pérdida hidráulica propia del calefón/termotanque;
+- composición normativa de `Pmin` del calentador con `Pmin` del
+  terminal;
+- obligatoriedad de verificar velocidad mínima fuera del estado de
+  diseño;
+- obligatoriedad de verificar presión en condiciones de capacidad
+  (100%);
+- recirculación de ACS;
+- catálogo de equipos ACS;
+- catálogo comercial definitivo de tuberías.
+
+Ninguno de estos puntos se convierte en criterio de `CRITERIOS.md` en
+este incremento.
