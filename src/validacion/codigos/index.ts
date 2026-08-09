@@ -9,7 +9,12 @@ export type CodigoValidacion =
   | 'proyectoLocalSinArtefactos'
   | 'proyectoSinArtefactosComputables'
   | 'catalogoArtefactoIdInexistente'
-  | 'catalogoCoeficienteAInexistente';
+  | 'catalogoCoeficienteAInexistente'
+  | 'redHidraulicaNodoIdDuplicado'
+  | 'redHidraulicaTramoIdDuplicado'
+  | 'redHidraulicaTramoNodoInexistente'
+  | 'redHidraulicaTramoOrigenIgualDestino'
+  | 'redHidraulicaReferenciaArtefactoInvalida';
 
 export type Severidad = 'error' | 'advertencia';
 
@@ -48,6 +53,27 @@ export const codigosValidacion: Readonly<Record<CodigoValidacion, DescripcionCod
   catalogoCoeficienteAInexistente: {
     severidad: 'error',
     descripcion: 'coeficienteA no corresponde a ningún valor del catálogo de mayoración vigente.',
+  },
+  redHidraulicaNodoIdDuplicado: {
+    severidad: 'error',
+    descripcion: 'Dos o más nodos de la red hidráulica comparten el mismo id.',
+  },
+  redHidraulicaTramoIdDuplicado: {
+    severidad: 'error',
+    descripcion: 'Dos o más tramos de la red hidráulica comparten el mismo id.',
+  },
+  redHidraulicaTramoNodoInexistente: {
+    severidad: 'error',
+    descripcion: 'Un tramo referencia un nodoOrigenId o nodoDestinoId que no existe en la red.',
+  },
+  redHidraulicaTramoOrigenIgualDestino: {
+    severidad: 'error',
+    descripcion: 'Un tramo tiene el mismo nodo como origen y como destino.',
+  },
+  redHidraulicaReferenciaArtefactoInvalida: {
+    severidad: 'error',
+    descripcion:
+      'La referencia de un nodo a un artefacto no resuelve la cadena unidadFuncionalId → localId → artefactoId dentro del proyecto.',
   },
 } as const;
 

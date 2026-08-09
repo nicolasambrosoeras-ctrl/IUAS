@@ -431,6 +431,13 @@ const MENSAJES_DE_VALIDACION: Readonly<Record<CodigoValidacion, string>> = {
   catalogoArtefactoIdInexistente: 'El artefacto seleccionado no existe en el catálogo normativo vigente.',
   catalogoCoeficienteAInexistente:
     'El coeficiente de mayoración seleccionado no existe en el catálogo normativo vigente.',
+  redHidraulicaNodoIdDuplicado: 'Nodo de red hidráulica con identificador duplicado.',
+  redHidraulicaTramoIdDuplicado: 'Tramo de red hidráulica con identificador duplicado.',
+  redHidraulicaTramoNodoInexistente: 'Un tramo de red hidráulica referencia un nodo inexistente.',
+  redHidraulicaTramoOrigenIgualDestino:
+    'Un tramo de red hidráulica no puede tener el mismo nodo como origen y destino.',
+  redHidraulicaReferenciaArtefactoInvalida:
+    'Una referencia de red hidráulica apunta a un artefacto inexistente o fuera de la ubicación indicada.',
 }
 
 function ProblemasValidacion({ problemas }: { problemas: readonly ProblemaValidacion[] }) {

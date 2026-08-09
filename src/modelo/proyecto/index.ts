@@ -1,6 +1,8 @@
 // Modelo de proyecto: lo que el usuario declara y referencia del catálogo.
 // Esta capa no calcula; solo define la estructura del dominio persistible.
 
+import type { RedHidraulica } from '../redHidraulica';
+
 export const SCHEMA_VERSION_ACTUAL = '1.0.0' as const;
 
 export type RegimenLocal = 'domiciliario' | 'noDomiciliario';
@@ -54,4 +56,6 @@ export type Proyecto = {
   metadatos: MetadatosProyecto;
   parametros: ParametrosProyecto;
   unidadesFuncionales: readonly UnidadFuncional[];
+  // Ausente = proyecto sin red topológica modelada todavía (D-δ).
+  redHidraulica?: RedHidraulica;
 };

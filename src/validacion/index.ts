@@ -7,6 +7,7 @@ import type { CoeficienteMayoracion } from '../normativa/eras-2023/coeficientes-
 import type { ResultadoValidacion } from './codigos';
 import { validarInvariantesDeProyecto } from './proyecto';
 import { validarReferenciasDeCatalogo } from './catalogo';
+import { validarRedHidraulica } from './redHidraulica';
 
 export function validarProyecto(
   proyecto: Proyecto,
@@ -16,6 +17,7 @@ export function validarProyecto(
   const problemas = [
     ...validarInvariantesDeProyecto(proyecto),
     ...validarReferenciasDeCatalogo(proyecto, catalogoArtefactos, coeficientesMayoracion),
+    ...validarRedHidraulica(proyecto),
   ];
 
   return {
