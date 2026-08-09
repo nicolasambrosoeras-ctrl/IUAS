@@ -134,10 +134,87 @@ proyecto. La posición provisional más conservadora pasa a ser:
 - no se deriva `a` automáticamente del subconjunto local de artefactos;
 - no se mueve todavía `coeficienteA` de `Proyecto.parametros`.
 
-**La arquitectura no se modifica todavía.** Esto no cierra D-β ni D-γ.
-Siguen pendientes: edificios mixtos, resolución de tipologías ambiguas,
-la contradicción de medidores individuales, y el alcance preciso en
-`Qcaux` y distribución interna.
+**La arquitectura no se modifica todavía.** D-β se desdobla en D-β.1 y
+D-β.2 (ver abajo); D-γ sigue abierta. Siguen pendientes: edificios
+mixtos, resolución de tipologías ambiguas, la contradicción de medidores
+individuales, y el alcance preciso en `Qcaux` y distribución interna.
+
+### D-β.1 — Dónde se registra conceptualmente `a` — CERRADO
+
+La pregunta de dónde vive la clasificación base de `a` (a qué tipología
+corresponde el proyecto y qué valor de `a` le corresponde por esa
+tipología) queda cerrada: pertenece conceptualmente al Proyecto. El
+resultado quedó formalizado como **CRIT-A12** en
+`src/normativa/eras-2023/CRITERIOS.md`.
+
+Esto **no** determina que ese mismo valor sea el `a` efectivo a aplicar
+en cada subconjunto o tramo cuando se reaplique el modelo de §2.9.2 —
+esa pregunta es D-β.2 y sigue abierta.
+
+### D-β.2 — Qué `a` efectivo corresponde a cada invocación de §2.9.2 — ABIERTO
+
+**No se adopta como premisa** que "el mismo `a` global del proyecto se
+reutiliza necesariamente en todos los tramos". Esa lectura es una de dos
+hipótesis en pie de igualdad, ninguna adoptada todavía como regla
+operativa.
+
+**Lectura global:**
+
+- `a_efectivo = a_proyecto` en todos los conjuntos/tramos.
+- Compatible con una lectura literal por defecto (el proyecto ya tiene
+  un `a` fijado por CRIT-A12, y `K = Kc · a` no distingue de dónde viene
+  `a`).
+- ERAS nunca lo dice expresamente para el caso de tramos; es una
+  extensión por defecto, no una disposición textual.
+- Confianza reducida frente a la evidencia de conjunto.
+
+**Lectura por conjunto (eje residencial):**
+
+- Para un edificio multifamiliar: tramos comunes que agregan varias
+  viviendas → candidato `a = 2`; dentro de una única unidad funcional →
+  candidato `a = 1`.
+- Apoyos: la semántica de "vivienda individual" frente a "viviendas
+  multifamiliares" en la tabla de tipologías; las planillas normativas
+  usan "UNIDAD DE VIVIENDA TIPO" junto con "N° Viviendas"; coincide con
+  que `Viv. Única` tenga `a = 1`; fundamento probabilístico: la
+  pluralidad de viviendas introduce superposición de consumo entre
+  hogares distintos, pero no altera la simultaneidad interna de un baño
+  dentro de una única unidad funcional.
+- Contrapeso: el método histórico de la misma familia técnica (ver nota
+  más abajo) sí aplica una corrección tipológica dentro de la vivienda,
+  aunque con efecto pequeño y coeficiente final acotado — lo que matiza,
+  sin eliminar, el apoyo a la lectura por conjunto.
+- Ausencia declarada: no existe una regla ERAS explícita que resuelva
+  cuál de las dos lecturas corresponde. La lectura por conjunto es
+  defendible como criterio de proyecto, pero no es texto literal de
+  ERAS.
+
+**Nota sobre el método histórico:** se evitan afirmaciones fuertes de
+filiación directa (p. ej. "es el ancestro de ERAS"). Se documenta solo
+como "familia histórica/técnica del mismo método" o "método de
+estructura fuertemente coincidente", con evidencia histórica de carácter
+interpretativo, no como norma aplicable: existe una corrección
+tipológica intra-vivienda, existe un coeficiente separado entre
+viviendas, y el coeficiente final está acotado — pero ERAS no reprodujo
+esa estructura completa. Sirve como fundamento interpretativo para
+sopesar la lectura por conjunto, no como fuente normativa.
+
+**No se cierra D-β.2 en este incremento.** Ninguna de las dos lecturas
+se adopta como regla operativa. La decisión, cuando se tome, deberá
+formalizarse como criterio de proyecto antes de su implementación en el
+Módulo 2; la arquitectura deberá permitir representarla sin convertirla
+en una decisión irreversible.
+
+### D-γ — Proyectos mixtos — ABIERTA
+
+Una eventual adopción de la lectura por conjunto (si D-β.2 se resolviera
+en ese sentido) podría reducir la superficie de la ambigüedad en tramos
+de tipología pura (tramo residencial puro, tramo comercial puro,
+montante residencial pura, que podrían clasificarse con mayor claridad).
+Esto **no resuelve** el caso de un nodo que agrega usos distintos
+(residencial + comercial, por ejemplo), que sigue sin regla ERAS. No se
+inventa regla de combinación ni se adopta "máximo `a`" por defecto. D-γ
+permanece completamente abierta.
 
 ## Nota normativa — corrección sobre Canilla de Servicio y presión disponible
 
@@ -235,3 +312,48 @@ misma Guía con el mismo formato de encabezado.
 **Condición de resolución**: verificar por doble transcripción
 independiente el valor real de los encabezados de Tabla N°9 antes de
 que el Módulo 2 dependa de tablas con formato equivalente.
+
+## Nota arquitectónica — "Local" y "área sanitaria" (Secuencias f)
+
+Esta nota no es un pendiente ni un criterio normativo: registra una
+observación terminológica para que no se pierda de cara al diseño del
+Módulo 2.
+
+**Hallazgo**: las Secuencias f) de ERAS hablan de "caudales de consumo a
+cada área sanitaria". El nivel `Local` del modelo actual (`modelo/`) es
+terminológicamente compatible con esa noción de "área sanitaria".
+
+**Esto NO implica** que el cálculo hidráulico del Módulo 2 deba
+detenerse necesariamente en `Local`: un tramo real puede alimentar más
+de un `Local`, o solo una fracción de la red interna de un `Local`. No
+se introduce ninguna restricción topológica a partir de esta nota.
+
+No se convierte en criterio de `CRITERIOS.md`: es una aclaración
+arquitectónica de vocabulario, no una interpretación normativa que fije
+un procedimiento de cálculo.
+
+## Deuda documental — documentos ADR no materializados en el HEAD
+
+**Hallazgo**: existen referencias a decisiones de arquitectura numeradas
+como ADR (`ADR-003`, `ADR-005`, `ADR-007`, `ADR-011`, `ADR-012`,
+`ADR-014`) como comentarios sueltos en el código (`tsconfig.*.json`,
+`src/modelo/resultado/index.ts`,
+`src/motor/demanda/simultaneidad/calcularCoeficienteDeSimultaneidad.ts`,
+`src/exportadores/pdf/*`). `docs/adr/` no contiene ningún documento ADR
+real, solo un `.gitkeep`. **No existe ninguna referencia verificable a
+`ADR-009` ni a `ADR-013` en ningún archivo del repo.**
+
+**Consecuencia**: no puede confirmarse desde el HEAD actual el contenido
+de ninguna decisión citada como `ADR-009` o `ADR-013`. No debe
+inferirse ni darse por supuesto su contenido a partir de la numeración,
+ni a partir de investigaciones externas que las den por conocidas.
+
+**Condición de resolución**: antes de formalizar la arquitectura del
+Módulo 2, evaluar si corresponde recuperar o reconstruir —únicamente a
+partir de evidencia verificable en el repo (comentarios existentes,
+historial de git, código real)— las decisiones que sí tienen referencia
+concreta (`ADR-003`, `005`, `007`, `011`, `012`, `014`). Las que no
+tienen ninguna referencia verificable (`009`, `013`) no se reconstruyen
+por conjetura; si llegan a necesitarse, se redactan como decisiones
+nuevas en el momento en que corresponda, no como recuperación de algo
+preexistente.

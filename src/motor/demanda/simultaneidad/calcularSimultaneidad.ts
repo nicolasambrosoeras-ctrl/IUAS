@@ -20,7 +20,7 @@ export function calcularSimultaneidad(
       (catalogoArtefacto) => catalogoArtefacto.id === artefactoId,
     )
 
-  // CRIT-A8 (ERAS-2023 art. 2.10.1): en recintos domiciliarios con limpieza
+  // CRIT-A8 (ERAS-2023 §2.10.2): en recintos domiciliarios con limpieza
   // de inodoro por válvula automática, solo ese artefacto participa; en
   // cualquier otro caso (incluye noDomiciliario) participan todos.
   const artefactosParticipantes = entrada.proyecto.unidadesFuncionales

@@ -8,7 +8,7 @@ un caso Golden que no esté documentado aquí primero.
 
 ## G1 — Tabla N°4 (caso con CRIT-A8 / válvula automática)
 
-**Origen normativo:** ERAS-2023, art. 2.10.1, Tabla N°4 (Cap. 2, pág. 26/182).
+**Origen normativo:** ERAS-2023, §2.10.2, Tabla N°4 (Cap. 2, pág. 26/182).
 **Clase:** Semi-normativo. El conjunto de artefactos computado y todos los
 resultados numéricos están publicados. Su interpretación como conjunto
 resultante de aplicar CRIT-A8 es una inferencia fuerte sustentada por el
@@ -66,7 +66,7 @@ suprimida no es un dato de la Guía).
 
 ## G2 — Tabla N°2 (caso base normativo sin supresión)
 
-**Origen normativo:** ERAS-2023, art. 2.10.1, Tabla N°2 (Cap. 2, pág. 25/182).
+**Origen normativo:** ERAS-2023, §2.10.2, Tabla N°2 (Cap. 2, pág. 25/182).
 **Clase:** Normativo. Las cantidades de artefactos están íntegramente
 declaradas en la planilla; el coeficiente `a` es la única excepción (ver
 más abajo).
