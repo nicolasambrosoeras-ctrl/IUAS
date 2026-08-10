@@ -643,3 +643,118 @@ operativo, sin profundizar esa comparación en este criterio.
 **Estado:** Firme como criterio técnico operativo del proyecto. No
 implica todavía implementación en motor/tests (ver incremento funcional
 correspondiente).
+
+## CRIT-A18 — Darcy-Weisbach para régimen turbulento
+
+**Naturaleza — decisión técnica del proyecto, no prescripción de ERAS:**
+a diferencia de CRIT-A17, este criterio **no transcribe ni interpreta
+ningún texto de ERAS-2023**. Es una decisión de ingeniería del proyecto,
+fundada en mecánica de fluidos general (ecuación de Darcy-Weisbach,
+número de Reynolds, correlación de Haaland), independiente de cualquier
+fórmula que ERAS-2023 pudiera o no reproducir. La trazabilidad normativa
+de CRIT-A17 (Hazen-Williams, con texto de ERAS §2.12.1 citado) y la de
+este criterio se mantienen conceptualmente separadas: este criterio no
+reclama respaldo textual de la Guía.
+
+**Ecuación adoptada:**
+
+```
+hf = f · (L/D) · (V²/(2·g))
+```
+
+con `hf` pérdida de carga distribuida [m]; `f` factor de fricción de
+Darcy, adimensional; `L` longitud de cañería [m]; `D` diámetro interior
+hidráulico [m], suministrado como dato de entrada al cálculo — **no se
+identifica necesariamente con el `Di` mínimo de predimensionamiento**
+(CRIT-A10/CRIT-A16); en el cálculo real futuro deberá emplearse el
+diámetro interior efectivo del sistema/diámetro comercial evaluado; `V`
+velocidad media [m/s]; `g = 9,81 m/s²`.
+
+**Velocidad:**
+
+```
+Q_m3s = Qc_lps / 1000
+D_m   = Di_mm / 1000
+A     = π · D_m² / 4
+V     = Q_m3s / A
+```
+
+La API del proyecto mantiene `Qc` en l/s y diámetro interior en mm; las
+conversiones a las unidades de la fórmula (m³/s, m) se hacen explícitas.
+
+**Número de Reynolds:**
+
+```
+Re = V · D_m / ν
+```
+
+`Re` adimensional; `ν` viscosidad cinemática [m²/s], parámetro explícito.
+No se fija todavía una temperatura de diseño del agua ni se crea un
+catálogo de propiedades: `ν` se suministra en cada cálculo.
+
+**Alcance exclusivamente turbulento:** el modelo Darcy-Weisbach de esta
+plataforma se aplica únicamente cuando `Re ≥ 4000`. No se implementa
+régimen laminar (`f = 64/Re`), zona de transición, ni interpolación
+entre regímenes. Para `Re < 4000`, la primitiva de factor de fricción
+rechaza el cálculo explícitamente como fuera del alcance de este modelo.
+Esta restricción responde al alcance de la plataforma para instalaciones
+domiciliarias presurizadas — donde el régimen turbulento es la condición
+de diseño esperada — y no constituye una afirmación de que la ecuación
+de Darcy-Weisbach sea físicamente inaplicable a otros regímenes.
+
+**Factor de fricción — correlación de Haaland:**
+
+```
+1/√f = -1,8 · log10[ (ε/(3,7·D))^1,11 + 6,9/Re ]
+```
+
+con `ε` rugosidad absoluta y `D` diámetro interior, expresados de forma
+dimensionalmente equivalente (relación `ε/D`); `f` factor de fricción de
+Darcy resultante. La implementación recibe `rugosidadAbsoluta_mm` y
+convierte explícitamente a metros antes de calcular `ε/D`.
+**`ε = 0` es un valor válido** y representa el caso hidráulicamente liso.
+
+**Justificación de Haaland:** Colebrook-White es la referencia clásica
+implícita para flujo turbulento, pero exige resolución iterativa.
+Haaland es una aproximación explícita ampliamente aceptada de
+Colebrook-White que, para el alcance y la precisión que requiere esta
+plataforma, evita la complejidad de una resolución iterativa
+innecesaria: es determinística, reproducible y fácilmente testeable. El
+proyecto adopta Haaland como cálculo operativo del factor `f`. No se
+afirma que Haaland sea "exacta" — es una aproximación, no la referencia.
+No se implementan Colebrook-White ni Swamee-Jain en esta etapa.
+
+**Rugosidad:** `ε` (`rugosidadAbsoluta_mm`) es parámetro explícito. No
+se asocian todavía valores a PPR, PEAD, PVC, cobre, acero, hierro ni
+ningún material; el catálogo real de rugosidades por material es un
+incremento posterior.
+
+**Viscosidad:** `ν` es parámetro explícito. Los tests podrán usar, por
+ejemplo, `ν = 1×10⁻⁶ m²/s` como valor controlado de laboratorio, sin
+convertirlo en constante productiva ni asociarlo todavía a una
+temperatura de diseño.
+
+**Secuencia conceptual (modular, cada paso una primitiva independiente):**
+
+```
+Qc + Di            → V
+V + Di + ν         → Re
+Re + ε + Di        → f   (Haaland, solo si Re ≥ 4000)
+f + L + Di + V     → hf
+```
+
+**Alcance — qué NO resuelve este criterio:**
+
+- No implementa régimen laminar ni zona de transición.
+- No incorpora materiales reales ni catálogo de `ε` por material.
+- No fija temperatura del agua.
+- No decide diámetro comercial.
+- No resuelve pérdidas singulares/localizadas ni accesorios.
+- No calcula ni verifica presión residual.
+- No resuelve rutas hidráulicas completas.
+- No realiza la comparación productiva Hazen-Williams vs. Darcy-Weisbach
+  (queda para un incremento posterior, una vez ambos modelos existan
+  como primitivas).
+
+**Estado:** Firme como criterio técnico operativo del proyecto.
+Pendiente de implementación en motor/tests.
