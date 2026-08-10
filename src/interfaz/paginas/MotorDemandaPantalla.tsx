@@ -672,13 +672,17 @@ function ResultadoDemanda({ proyecto }: { proyecto: Proyecto }) {
 
   return (
     <>
-      <Advertencias advertencias={resultado.advertencias} />
-      <Resultados resultado={resultado} />
+      <section>
+        <h2>Módulo 1 — Demanda</h2>
+        <Advertencias advertencias={resultado.advertencias} />
+        <Resultados resultado={resultado} />
+        <button type="button" onClick={() => generarDocumentoPdf({ proyecto, resultado })}>
+          Generar memoria PDF
+        </button>
+        <Pasos pasos={resultado.pasos} />
+      </section>
+
       <ResultadoHidraulicoDeTramo proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} />
-      <button type="button" onClick={() => generarDocumentoPdf({ proyecto, resultado })}>
-        Generar memoria PDF
-      </button>
-      <Pasos pasos={resultado.pasos} />
     </>
   )
 }
