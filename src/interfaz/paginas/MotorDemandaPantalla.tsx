@@ -22,6 +22,7 @@ import {
   textoValorCalculado,
 } from '../../presentacion/desarrolloDelCalculoDemanda'
 import { duplicarUnidadFuncionalEnProyecto, generarId } from './duplicarUnidadFuncional'
+import { ResultadoHidraulicoDeTramo } from './ResultadoHidraulicoDeTramo'
 
 const TIPOS_DE_LOCAL: readonly TipoDeLocal[] = [
   'bano',
@@ -416,6 +417,76 @@ const proyectoInicial: Proyecto = {
       ],
     },
   ],
+  // Red hidraulica de ejemplo (Modulo 2, primera prueba de usuario). Unica
+  // incorporacion de datos de este incremento: no agrega ninguna UF/Local/
+  // Artefacto -- reutiliza exclusivamente los 4 artefactos ya existentes de
+  // local-bano, asi que Modulo 1 (demanda) no cambia.
+  //
+  // Dos ramas desde la misma fuente n-0, cada una con un nodo de
+  // bifurcacion para alcanzar los 4 artefactos (un nodo con referencia es
+  // terminal en el traversal, ver obtenerArtefactosAguasAbajo):
+  //   AF -- t-af-bano: rama fria directa a los 4 artefactos de local-bano.
+  //   ACS -- t-af-acs (AF) alimenta n-acs (produccionACS, D-delta.7); desde
+  //   ahi t-ac-bano (AC) alcanza los mismos 4 artefactos por sus terminales
+  //   de agua caliente. Conservacion de masa AF->ACS, D-delta.13: el tramo
+  //   AF que alimenta el equipo es distinto del tramo AF que alimenta las
+  //   canillas frias.
+  // Los nodos AF y los nodos AC referencian la misma cadena UF/Local/
+  // Artefacto por diseño (terminal fria y terminal caliente del mismo
+  // artefacto mixto); validarRedHidraulica lo admite explicitamente.
+  redHidraulica: {
+    nodos: [
+      { id: 'n-0' },
+      { id: 'n-af-1' },
+      {
+        id: 'n-af-lavatorio',
+        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-bano', artefactoId: 'artefacto-bano-1' },
+      },
+      {
+        id: 'n-af-ducha',
+        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-bano', artefactoId: 'artefacto-bano-2' },
+      },
+      {
+        id: 'n-af-bidet',
+        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-bano', artefactoId: 'artefacto-bano-3' },
+      },
+      {
+        id: 'n-af-inodoro',
+        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-bano', artefactoId: 'artefacto-bano-4' },
+      },
+      { id: 'n-acs', referencia: { tipo: 'produccionACS' } },
+      { id: 'n-ac-1' },
+      {
+        id: 'n-ac-lavatorio',
+        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-bano', artefactoId: 'artefacto-bano-1' },
+      },
+      {
+        id: 'n-ac-ducha',
+        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-bano', artefactoId: 'artefacto-bano-2' },
+      },
+      {
+        id: 'n-ac-bidet',
+        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-bano', artefactoId: 'artefacto-bano-3' },
+      },
+      {
+        id: 'n-ac-inodoro',
+        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-bano', artefactoId: 'artefacto-bano-4' },
+      },
+    ],
+    tramos: [
+      { id: 't-af-bano', nodoOrigenId: 'n-0', nodoDestinoId: 'n-af-1', red: 'AF' },
+      { id: 't-af-acs', nodoOrigenId: 'n-0', nodoDestinoId: 'n-acs', red: 'AF' },
+      { id: 't-af-lavatorio', nodoOrigenId: 'n-af-1', nodoDestinoId: 'n-af-lavatorio', red: 'AF' },
+      { id: 't-af-ducha', nodoOrigenId: 'n-af-1', nodoDestinoId: 'n-af-ducha', red: 'AF' },
+      { id: 't-af-bidet', nodoOrigenId: 'n-af-1', nodoDestinoId: 'n-af-bidet', red: 'AF' },
+      { id: 't-af-inodoro', nodoOrigenId: 'n-af-1', nodoDestinoId: 'n-af-inodoro', red: 'AF' },
+      { id: 't-ac-bano', nodoOrigenId: 'n-acs', nodoDestinoId: 'n-ac-1', red: 'AC' },
+      { id: 't-ac-lavatorio', nodoOrigenId: 'n-ac-1', nodoDestinoId: 'n-ac-lavatorio', red: 'AC' },
+      { id: 't-ac-ducha', nodoOrigenId: 'n-ac-1', nodoDestinoId: 'n-ac-ducha', red: 'AC' },
+      { id: 't-ac-bidet', nodoOrigenId: 'n-ac-1', nodoDestinoId: 'n-ac-bidet', red: 'AC' },
+      { id: 't-ac-inodoro', nodoOrigenId: 'n-ac-1', nodoDestinoId: 'n-ac-inodoro', red: 'AC' },
+    ],
+  },
 }
 
 function extraerN(pasos: readonly Paso[]): number | null {
@@ -603,6 +674,7 @@ function ResultadoDemanda({ proyecto }: { proyecto: Proyecto }) {
     <>
       <Advertencias advertencias={resultado.advertencias} />
       <Resultados resultado={resultado} />
+      <ResultadoHidraulicoDeTramo proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} />
       <button type="button" onClick={() => generarDocumentoPdf({ proyecto, resultado })}>
         Generar memoria PDF
       </button>
