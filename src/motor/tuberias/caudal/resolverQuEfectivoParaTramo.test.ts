@@ -139,3 +139,71 @@ describe('resolverQuEfectivoParaTramo — otros casos de composición', () => {
     expect(lavatorioNormativo).toEqual(copiaArtefactoNormativo)
   })
 })
+
+describe('resolverQuEfectivoParaTramo — CRIT-A15 (conectividad física exclusiva)', () => {
+  it('9. lavatorio conectado físicamente solo a AF: qu_lps = quTotal_lps, no quFria_lps', () => {
+    const lavatorioNormativo = buscarEnCatalogo('lavatorio')
+    const referencia = referenciaDe('uf-1', 'local-bano', 'inst-lavatorio')
+    const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n1', referencia }]
+    const tramos: Tramo[] = [{ id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF' }]
+    const red: RedHidraulica = { nodos, tramos }
+
+    const resultado = resolverQuEfectivoParaTramo(red, 't0', referencia, lavatorioNormativo)
+
+    expect(resultado.condicion).toBe('aguaFria')
+    expect(resultado.qu_lps).toBe(lavatorioNormativo.quTotal_lps)
+    expect(resultado.qu_lps).toBe(0.2)
+  })
+
+  it('10. lavatorio conectado físicamente solo a AC (simétrico): qu_lps = quTotal_lps, no quCaliente_lps', () => {
+    const lavatorioNormativo = buscarEnCatalogo('lavatorio')
+    const referencia = referenciaDe('uf-1', 'local-bano', 'inst-lavatorio')
+    const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n1', referencia }]
+    const tramos: Tramo[] = [{ id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AC' }]
+    const red: RedHidraulica = { nodos, tramos }
+
+    const resultado = resolverQuEfectivoParaTramo(red, 't0', referencia, lavatorioNormativo)
+
+    expect(resultado.condicion).toBe('aguaCaliente')
+    expect(resultado.qu_lps).toBe(lavatorioNormativo.quTotal_lps)
+    expect(resultado.qu_lps).toBe(0.2)
+  })
+
+  it('11. lavatorio conectado físicamente a AF y a AC (twin): cada rama conserva su fracción, sin override', () => {
+    const lavatorioNormativo = buscarEnCatalogo('lavatorio')
+    const referencia = referenciaDe('uf-1', 'local-bano', 'inst-lavatorio')
+    const nodos: Nodo[] = [
+      { id: 'n0' },
+      { id: 'n1', referencia },
+      { id: 'n2', referencia: { tipo: 'produccionACS' } },
+      { id: 'n3', referencia },
+    ]
+    const tramos: Tramo[] = [
+      { id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF' },
+      { id: 't1', nodoOrigenId: 'n0', nodoDestinoId: 'n2', red: 'AF' },
+      { id: 't2', nodoOrigenId: 'n2', nodoDestinoId: 'n3', red: 'AC' },
+    ]
+    const red: RedHidraulica = { nodos, tramos }
+
+    const resultadoAF = resolverQuEfectivoParaTramo(red, 't0', referencia, lavatorioNormativo)
+    const resultadoAC = resolverQuEfectivoParaTramo(red, 't2', referencia, lavatorioNormativo)
+
+    expect(resultadoAF.condicion).toBe('aguaFria')
+    expect(resultadoAF.qu_lps).toBe(0.08)
+    expect(resultadoAC.condicion).toBe('aguaCaliente')
+    expect(resultadoAC.qu_lps).toBe(0.12)
+  })
+
+  it('12. lavavajillas (CRIT-A7) conectado solo a AF: sigue dando quTotal_lps, sin que CRIT-A15 rompa CRIT-A7', () => {
+    const lavavajillasNormativo = buscarEnCatalogo('maquinaLavavajillas')
+    const referencia = referenciaDe('uf-1', 'local-cocina', 'inst-lavavajillas')
+    const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n1', referencia }]
+    const tramos: Tramo[] = [{ id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF' }]
+    const red: RedHidraulica = { nodos, tramos }
+
+    const resultado = resolverQuEfectivoParaTramo(red, 't0', referencia, lavavajillasNormativo)
+
+    expect(resultado.condicion).toBe('aguaFria')
+    expect(resultado.qu_lps).toBe(0.2)
+  })
+})

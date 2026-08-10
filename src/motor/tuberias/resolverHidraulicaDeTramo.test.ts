@@ -89,6 +89,8 @@ describe('resolverHidraulicaDeTramo', () => {
   })
 
   it('2. n=1: conDemanda, qc_lps=qmax efectivo, kc/k indeterminados (CRIT-A4), sin recalcular la fórmula', () => {
+    // bidet conectado físicamente solo a AF, sin ningún terminal AC en toda
+    // la red -> CRIT-A15: qu efectivo = quTotal_lps (0.20), no quFria_lps.
     const bidet = artefacto('inst-bidet', 'bidet')
     const uf = unidadFuncionalCon('uf-1', 'local-1', [bidet])
     const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n1', referencia: referenciaDe('uf-1', 'local-1', 'inst-bidet') }]
@@ -100,12 +102,16 @@ describe('resolverHidraulicaDeTramo', () => {
     if (resultado.tipo !== 'conDemanda') {
       throw new Error('se esperaba conDemanda')
     }
-    expect(resultado.qc_lps).toBe(0.08)
+    expect(resultado.qc_lps).toBe(0.2)
     expect('estado' in resultado.simultaneidad.kc && resultado.simultaneidad.kc.estado).toBe('indeterminado')
     expect('estado' in resultado.simultaneidad.k && resultado.simultaneidad.k.estado).toBe('indeterminado')
   })
 
   it('3. CRIT-A13 revisado (caso crítico): Local con inodoroValvula+lavatorio en aguaCaliente preserva la demanda del lavatorio', () => {
+    // El lavatorio tiene un twin AF (n4/t3), no alcanzable desde t0, para
+    // que su conectividad física sea AF+AC (CRIT-A15) y la condicion
+    // aguaCaliente evaluada en t0 siga representando la fracción de mezcla
+    // (quCaliente_lps), no una conexión física exclusivamente caliente.
     const inodoro = artefacto('inst-inodoro', 'inodoroValvula')
     const lavatorio = artefacto('inst-lavatorio', 'lavatorio')
     const uf = unidadFuncionalCon('uf-1', 'local-bano', [inodoro, lavatorio])
@@ -114,11 +120,13 @@ describe('resolverHidraulicaDeTramo', () => {
       { id: 'n1' },
       { id: 'n2', referencia: referenciaDe('uf-1', 'local-bano', 'inst-inodoro') },
       { id: 'n3', referencia: referenciaDe('uf-1', 'local-bano', 'inst-lavatorio') },
+      { id: 'n4', referencia: referenciaDe('uf-1', 'local-bano', 'inst-lavatorio') },
     ]
     const tramos: Tramo[] = [
       { id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AC' },
       { id: 't1', nodoOrigenId: 'n1', nodoDestinoId: 'n2', red: 'AC' },
       { id: 't2', nodoOrigenId: 'n1', nodoDestinoId: 'n3', red: 'AC' },
+      { id: 't3', nodoOrigenId: 'n0', nodoDestinoId: 'n4', red: 'AF' },
     ]
     const proyecto = proyectoCon('oficinaPrivada', [uf], { nodos, tramos })
 
