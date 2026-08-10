@@ -385,8 +385,24 @@ participación.
 **Pregunta pendiente**: ¿un artefacto no computable puede activar CRIT-A8 y
 modificar la participación de artefactos computables del mismo Local?
 
-**Estado**: no resuelto. No se corrige `calcularSimultaneidad.ts` en este
-incremento (documental).
+**Conclusión de la investigación histórica**: `origen: 'usuario'` apareció
+en `6aff06d` sin semántica documentada, nunca fue producido por la UI,
+migraciones ni importadores, y nunca fue ejercitado por ningún test
+histórico. Hoy es un estado reservado/no operativo: todo Artefacto que la
+aplicación crea es `origen: 'normativo'`. No se modificará validación ni
+motor únicamente para acomodar este estado hipotético; su semántica
+deberá definirse explícitamente si alguna funcionalidad futura empieza a
+producirlo.
+
+**Estado**: cerrado para el alcance actual / diferido hasta que
+`origen: 'usuario'` tenga semántica y consumidor real. No se afirma que
+las alternativas B o C evaluadas sean correctas, ni que el orden actual
+`CRIT-A8 → origen` sería normativamente correcto si `origen: 'usuario'`
+se volviera operativo — ambas preguntas quedan abiertas para cuando exista
+un caso real. Este cierre elimina `origen:'usuario'` como bloqueante
+actual, pero NO resuelve D-δ.16 (universo de CRIT-A8 sobre subconjuntos
+parciales de un Local); Slice 5 sigue pospuesto exclusivamente por
+D-δ.16, no por la semántica de `origen`.
 
 ## D-δ — Topología hidráulica, estados de demanda AF/AC y producción ACS
 
