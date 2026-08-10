@@ -419,3 +419,99 @@ pareja normativa interna equivalente para `a=3`/`a=4`.
 - No define `K>1`/cap de `K` en tramos pequeños (sigue ligado a CRIT-A2).
 
 **Estado:** Firme, con el alcance explícitamente limitado arriba.
+
+## CRIT-A15 — Caudal efectivo bajo conectividad física exclusiva
+
+**Artículo:** ERAS-2023 §2.9.1.2 (columnas `qu Total`, `qu (A. Fría)`, `qu
+(A. Cal.)`) y §2.9.2.1/§2.9.2.2/§2.9.2.3 (modelo de simultaneidad
+reaplicado por CRIT-A11).
+
+**Criterio adoptado:** la `redHidraulica` de un Proyecto es la
+representación física autoritativa de las conexiones existentes en ese
+Proyecto: la ausencia de un nodo terminal AC (o AF) para un Artefacto no
+significa "esa conexión todavía no fue modelada", sino "esa conexión
+física no existe en la red evaluada". En consecuencia, el `qu` efectivo
+de una rama surge de combinar el catálogo normativo con la
+conectividad física declarada:
+
+```text
+Artefacto conectado físicamente a AF + AC:
+  rama AF                            → quFria_lps
+  rama AC                            → quCaliente_lps
+  tramo común aguas arriba de ambas  → quTotal_lps
+
+Artefacto conectado físicamente solo a AF:
+  rama AF                            → quTotal_lps
+
+Artefacto conectado físicamente solo a AC:
+  rama AC                            → quTotal_lps
+```
+
+**Fundamento:** cuando ambas alimentaciones físicas existen,
+`quFria_lps`/`quCaliente_lps` representan la fracción de mezcla de cada
+rama por separado, y su suma reconstruye `quTotal_lps` en el tramo donde
+ambas reconvergen (comportamiento ya vigente hoy, sin cambios). Cuando
+una sola alimentación física existe, no hay mezcla posible: esa única
+cañería es la que efectivamente entrega, en el momento de máximo uso del
+artefacto, la totalidad de su caudal de diseño — no la fracción que le
+correspondería si existiera una segunda cañería complementaria que, en
+este Proyecto, no existe.
+
+**Relación con CRIT-A7:** CRIT-A7 resuelve una propiedad normativa/
+general del tipo de artefacto — algunos artefactos son exclusivamente
+fríos en cualquier Proyecto, por definición del artefacto mismo
+(`quFria_lps = quTotal_lps`, `quCaliente_lps = 0`, ya así en el
+catálogo). CRIT-A15 resuelve un caso distinto: un artefacto
+normativamente capaz de AF+AC (ambos campos del catálogo mayores a
+cero) que, en un Proyecto concreto, está conectado físicamente a una
+sola red. CRIT-A7 no se amplía ni se modifica. Para los artefactos que
+CRIT-A7 ya resuelve, CRIT-A15 no cambia ningún resultado numérico:
+`quFria_lps` (o `quCaliente_lps`, según corresponda) ya coincide con
+`quTotal_lps` en el catálogo, así que da igual cuál de los dos criterios
+se atribuya el valor seleccionado.
+
+**Relación con CRIT-A13:** CRIT-A13 continúa aplicándose después de
+determinar el `qu` efectivo bajo este criterio. El filtro de
+participación hidráulica (`qu_lps > 0` en la condición evaluada) y la
+agrupación por Local para CRIT-A8 operan sobre el valor de `qu` que
+resulte de aplicar CRIT-A15 — nunca sobre `quFria_lps`/`quCaliente_lps`
+leídos directamente del catálogo sin considerar la conectividad física
+real.
+
+**No modifica el catálogo:** `quTotal_lps`, `quFria_lps` y
+`quCaliente_lps` permanecen exactamente como están adoptados en
+`catalogo-artefactos`. Este criterio decide cuál de esos tres valores ya
+existentes corresponde usar según la conectividad física; no cambia
+ninguno de ellos.
+
+**No implica doble conteo:** el artefacto sigue identificándose y
+contándose una sola vez según su identidad completa (`unidadFuncionalId`
++ `localId` + `artefactoId`), exactamente como ya garantiza la
+deduplicación existente del recorrido topológico (D-δ.8 en
+`PENDIENTES-DE-ARQUITECTURA.md`). Este criterio decide únicamente qué
+campo del catálogo corresponde a cada rama ya identificada una sola vez,
+nunca cuántas veces participa.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- No define cómo determinar, en la implementación, si un Artefacto está
+  conectado físicamente a AF, a AC o a ambos; esa determinación queda
+  para el incremento funcional que implemente este criterio.
+- No revisa todavía las expectativas de los golden existentes
+  (`resolverHidraulicaDeTramo.golden.test.ts`, Golden 1/2/3), escritos
+  antes de esta decisión bajo una lectura distinta de redes mínimas sin
+  producción ACS. Pendiente registrada en `PENDIENTES-DE-ARQUITECTURA.md`,
+  sección D-δ.19.
+- No decide cómo se representaría, de forma robusta, la conectividad
+  física exclusiva en el modelo (`RedHidraulica`/`Nodo`), ni si hace
+  falta algún dato nuevo para distinguirla de una red todavía incompleta
+  en edición; ver D-δ.19.
+- No resuelve la identidad de "Local simple" (D-δ.17) ni la
+  presentación de Módulo 2 (D-δ.20, D-δ.21).
+
+**Naturaleza:** inferencia/adopción IUAS fuertemente sustentada por el
+principio físico de conservación de masa (mismo estatus epistémico que
+CRIT-A11/CRIT-A13), no una disposición textual de ERAS.
+
+**Estado:** Adoptado conceptualmente. Pendiente de implementación en
+motor/tests (ver D-δ.19 en `PENDIENTES-DE-ARQUITECTURA.md`).

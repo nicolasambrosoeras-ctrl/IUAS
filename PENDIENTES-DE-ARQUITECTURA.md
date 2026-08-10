@@ -657,3 +657,94 @@ sin aplicar CRIT-A8. D-δ.16 ya no bloquea Slice 5: el próximo incremento
 funcional puede implementar la etapa de participación contextual (CRIT-A8)
 sobre el conjunto recibido, agrupando por Local según D-δ.16. No se
 define todavía API detallada.
+
+### D-δ.19 — Consecuencia de CRIT-A15 sobre Golden 1/2/3 de Módulo 2 (pendiente, no resuelto en este incremento)
+
+CRIT-A15 (`CRITERIOS.md`) formaliza que `redHidraulica` es la
+representación física autoritativa de las conexiones existentes en el
+Proyecto: la ausencia de un terminal AC (o AF) para un Artefacto
+significa que esa conexión no existe, no que todavía no fue modelada.
+
+Los tres golden existentes de `resolverHidraulicaDeTramo.golden.test.ts`
+fueron escritos, antes de esta decisión, interpretando redes mínimas
+(sin ningún nodo `produccionACS`) como topologías parciales, y esperan
+por eso `quFria_lps`/`quCaliente_lps` en vez de `quTotal_lps` para
+artefactos con una sola conexión física en esa red:
+
+- **Golden 1** — un lavatorio con una única conexión AF (`quFria_lps
+  =0.08`, `quCaliente_lps=0.12`, `quTotal_lps=0.20`): bajo CRIT-A15, esa
+  conexión representa AF-only real → `Qc` debería ser `0.20`, no `0.08`.
+- **Golden 2** — dos lavatorios, cada uno AF-only por el mismo motivo:
+  `Qmax` debería ser `2×0.20=0.40`, no `2×0.08=0.16`. La simultaneidad
+  resultante (`Kc`/`K`/`Qc`) no se recalcula en este documento — queda
+  para el incremento de tests que revise estos goldens.
+- **Golden 3** — un lavatorio conectado solo por AC (sin twin AF en esa
+  red aislada) junto a un inodoro de válvula (`quAC=0`, CRIT-A7). Una
+  lectura literal de CRIT-A15 implicaría `qu efectivo = quTotal = 0.20`
+  para el lavatorio, en vez de `quCaliente_lps=0.12`. Pero antes de
+  tocar este golden hace falta resolver una ambigüedad de intención, sin
+  resolver todavía: no está determinado si esa red mínima pretendía
+  representar una conexión física AC-only real, o si solo aislaba
+  deliberadamente el comportamiento de CRIT-A13/CRIT-A8 sin intención de
+  representar conectividad física completa.
+
+Este documento **no autoriza a modificar los tests todavía**. La
+revisión de Golden 1/2/3 y la implementación de CRIT-A15 en
+`resolverQuEfectivoParaTramo` (o la capa que corresponda) quedan como
+incremento funcional futuro, explícitamente separado de este cierre
+conceptual/documental.
+
+### D-δ.20 — Topología hidráulica interna ≠ tabla de dimensionamiento de Módulo 2 (dirección preferida, no cerrada)
+
+La `redHidraulica` conserva nodos y tramos terminales hasta cada
+Artefacto porque el motor los necesita para: determinar conectividad
+física (CRIT-A15), resolver condición AF/AC/total (CRIT-A13),
+identificar participantes y calcular Qc. Esa granularidad es una
+necesidad de cálculo, no una obligación de presentación.
+
+La tabla principal de Módulo 2 en la interfaz no tiene por qué mostrar
+cada tramo terminal individual: puede, y en la dirección preferida
+debe, agregar los tramos terminales de un mismo Local/red en una única
+fila de presentación, siempre que el Qc/aEfectivo mostrados sigan
+proviniendo íntegramente del motor real sobre la topología completa —
+nunca recalculados ni aproximados en la capa de presentación.
+
+No se define en este incremento la regla exacta de agregación (qué
+tramos se consideran "del mismo Local/red" a efectos de una fila), ni
+se implementa ningún cambio de UI. Ver D-δ.21 para la dirección
+preferida de presentación, y D-δ.17 para la noción de "Local simple"
+todavía pendiente de cierre.
+
+### D-δ.21 — Presentación futura de Módulo 2: tablas por Unidad Funcional y distribución general (dirección preferida, no cerrada)
+
+Dirección de presentación preferida para incrementos futuros de UI, sin
+cerrar todavía ninguna implementación:
+
+- **Una tabla por Unidad Funcional**, no una única tabla global de
+  Tramos. Columnas: `Local | Red | Artefactos | Qc [l/s] | a efectivo |
+  Di mínimo [mm]`.
+- **Numeración de Locales dentro de cada UF por tipo** (`Baño 1`,
+  `Baño 2`, `Cocina 1`, `Toilette 1`, ...), derivada en cada render —
+  mismo criterio ya usado para las etiquetas de Local en Módulo 1
+  (`etiquetasDeLocales` en `MotorDemandaPantalla.tsx`), sin agregar
+  todavía ningún ordinal/nombre persistente al modelo.
+- **Una fila por Local simple y red** (máximo una fila AF y una fila AC
+  por Local), aunque internamente existan ramales terminales hacia cada
+  Artefacto — ver D-δ.20. Queda **pendiente** definir el criterio exacto
+  de qué Local puede tratarse como "simple" a efectos de esta fila única
+  y de diámetro constante; no se resuelve en este incremento (mismo
+  pendiente ya abierto en D-δ.17).
+- **Columna `Artefactos`**: cantidad de Artefactos hidráulicamente
+  atendidos por esa fila (Local+red). No se define todavía cómo obtener
+  ese número (agregación de los tramos terminales agrupados, conteo de
+  participantes hidráulicamente activos, u otra fuente).
+- **Tabla separada de "Distribución general"**, independiente de las
+  tablas por UF/Local: colectores, montantes y alimentaciones generales
+  (incluida la alimentación a producción ACS) no se mezclan con las
+  filas de Locales. Mismas columnas que las tablas por UF. Ninguna fila
+  de esta tabla se implementa todavía.
+
+Ninguno de estos puntos se convierte en criterio de `CRITERIOS.md` en
+este incremento: son decisiones de presentación de UI, no
+interpretación normativa. Quedan registradas acá para que el próximo
+incremento de UI de Módulo 2 no las redescubra desde cero.
