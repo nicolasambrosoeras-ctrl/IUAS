@@ -5,6 +5,20 @@ import type { RedHidraulica } from '../redHidraulica';
 
 export const SCHEMA_VERSION_ACTUAL = '1.0.0' as const;
 
+export type TipoDeProyecto =
+  | 'oficinaPrivada'
+  | 'viviendaIndividual'
+  | 'viviendaMultifamiliar'
+  | 'oficinaPublica'
+  | 'centroEducativo'
+  | 'edificioPublico'
+  | 'aeropuerto'
+  | 'centroDeSalud'
+  | 'centroDeDetencion'
+  | 'centroDeportivo'
+  | 'centroComercial'
+  | 'terminalDePasajeros';
+
 export type RegimenLocal = 'domiciliario' | 'noDomiciliario';
 
 export type TipoDeLocal =
@@ -37,7 +51,7 @@ export type UnidadFuncional = {
 };
 
 export type ParametrosProyecto = {
-  coeficienteA: 1 | 2 | 3 | 4;
+  tipoDeProyecto: TipoDeProyecto;
   presionSobreAcera_m: number;
   alturaArtefactoMasDesfavorable_m: number;
   material: string;

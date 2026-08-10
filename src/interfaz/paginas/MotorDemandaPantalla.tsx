@@ -13,7 +13,7 @@ import type { ProblemaValidacion, CodigoValidacion } from '../../validacion'
 import { validarProyecto } from '../../validacion'
 import { calcularSimultaneidad } from '../../motor/demanda/simultaneidad/calcularSimultaneidad'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
-import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
+import { coeficientesMayoracion, type TipoDeProyecto } from '../../normativa/eras-2023/coeficientes-mayoracion'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 import { generarDocumentoPdf } from '../../exportadores/pdf/generarDocumentoPdf'
 import {
@@ -74,8 +74,8 @@ function etiquetasDeLocales(locales: readonly Local[]): readonly string[] {
   })
 }
 
-function conCoeficienteA(proyecto: Proyecto, a: 1 | 2 | 3 | 4): Proyecto {
-  return { ...proyecto, parametros: { ...proyecto.parametros, coeficienteA: a } }
+function conTipoDeProyecto(proyecto: Proyecto, tipoDeProyecto: TipoDeProyecto): Proyecto {
+  return { ...proyecto, parametros: { ...proyecto.parametros, tipoDeProyecto } }
 }
 
 
@@ -308,15 +308,15 @@ function ProyectoFormulario({
     <section>
       <h2>Datos del proyecto</h2>
       <label>
-        Coeficiente de mayoración (a):{' '}
+        Tipología de proyecto:{' '}
         <select
           style={{ maxWidth: '100%' }}
-          value={proyecto.parametros.coeficienteA}
-          onChange={(evento) => onCambiar(conCoeficienteA(proyecto, Number(evento.target.value) as 1 | 2 | 3 | 4))}
+          value={proyecto.parametros.tipoDeProyecto}
+          onChange={(evento) => onCambiar(conTipoDeProyecto(proyecto, evento.target.value as TipoDeProyecto))}
         >
-          {coeficientesMayoracion.map((coeficiente) => (
-            <option key={coeficiente.a} value={coeficiente.a}>
-              {coeficiente.a} — {coeficiente.tipoDeProyecto}
+          {coeficientesMayoracion.map((entrada) => (
+            <option key={entrada.id} value={entrada.id}>
+              {entrada.nombre} — a = {entrada.a}
             </option>
           ))}
         </select>
@@ -357,7 +357,7 @@ const proyectoInicial: Proyecto = {
     versionNormativa: 'eras-2023',
   },
   parametros: {
-    coeficienteA: 1,
+    tipoDeProyecto: 'viviendaIndividual',
     presionSobreAcera_m: 2,
     alturaArtefactoMasDesfavorable_m: 3,
     material: 'PVC',
@@ -435,8 +435,8 @@ const MENSAJES_DE_VALIDACION: Readonly<Record<CodigoValidacion, string>> = {
   proyectoLocalSinArtefactos: 'El local no contiene artefactos y no participa del cálculo.',
   proyectoSinArtefactosComputables: 'El proyecto debe contener al menos un artefacto para poder calcular.',
   catalogoArtefactoIdInexistente: 'El artefacto seleccionado no existe en el catálogo normativo vigente.',
-  catalogoCoeficienteAInexistente:
-    'El coeficiente de mayoración seleccionado no existe en el catálogo normativo vigente.',
+  catalogoTipoDeProyectoInexistente:
+    'La tipología de proyecto seleccionada no existe en el catálogo normativo vigente.',
   redHidraulicaNodoIdDuplicado: 'Nodo de red hidráulica con identificador duplicado.',
   redHidraulicaTramoIdDuplicado: 'Tramo de red hidráulica con identificador duplicado.',
   redHidraulicaTramoNodoInexistente: 'Un tramo de red hidráulica referencia un nodo inexistente.',

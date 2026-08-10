@@ -3,26 +3,26 @@
 
 import type { Proyecto } from '../../modelo/proyecto';
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos';
-import type { CoeficienteMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion';
+import type { TipoProyectoNormativo } from '../../normativa/eras-2023/coeficientes-mayoracion';
 import { crearProblema, type ProblemaValidacion } from '../codigos';
 
 export function validarReferenciasDeCatalogo(
   proyecto: Proyecto,
   catalogoArtefactos: readonly ArtefactoNormativo[],
-  coeficientesMayoracion: readonly CoeficienteMayoracion[],
+  coeficientesMayoracion: readonly TipoProyectoNormativo[],
 ): readonly ProblemaValidacion[] {
   const problemas: ProblemaValidacion[] = [];
 
   const idsDeCatalogo = new Set(catalogoArtefactos.map((artefacto) => artefacto.id));
-  const valoresDeA = new Set(coeficientesMayoracion.map((coeficiente) => coeficiente.a));
+  const idsDeTipoDeProyecto = new Set(coeficientesMayoracion.map((entrada) => entrada.id));
 
-  if (!valoresDeA.has(proyecto.parametros.coeficienteA)) {
+  if (!idsDeTipoDeProyecto.has(proyecto.parametros.tipoDeProyecto)) {
     problemas.push(
       crearProblema(
-        'catalogoCoeficienteAInexistente',
-        'parametros.coeficienteA',
-        proyecto.parametros.coeficienteA,
-        [...valoresDeA],
+        'catalogoTipoDeProyectoInexistente',
+        'parametros.tipoDeProyecto',
+        proyecto.parametros.tipoDeProyecto,
+        [...idsDeTipoDeProyecto],
       ),
     );
   }

@@ -17,7 +17,7 @@ function proyectoCon(
       versionNormativa: 'eras-2023',
     },
     parametros: {
-      coeficienteA: 1,
+      tipoDeProyecto: 'oficinaPrivada',
       presionSobreAcera_m: 0,
       alturaArtefactoMasDesfavorable_m: 0,
       material: 'PVC',

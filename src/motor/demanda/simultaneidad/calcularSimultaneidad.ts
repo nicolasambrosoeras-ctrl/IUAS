@@ -2,13 +2,13 @@ import { calcularCoeficienteDeSimultaneidad } from './calcularCoeficienteDeSimul
 import type { Advertencia, Paso, ResultadoDeCalculo, ValorCalculado } from '../../../modelo/resultado'
 import type { Proyecto } from '../../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../../normativa/eras-2023/catalogo-artefactos'
-import type { CoeficienteMayoracion } from '../../../normativa/eras-2023/coeficientes-mayoracion'
+import type { TipoProyectoNormativo } from '../../../normativa/eras-2023/coeficientes-mayoracion'
 
 export interface EntradaCalculoSimultaneidad {
   readonly proyecto: Proyecto
   readonly normativa: {
     readonly catalogoArtefactos: readonly ArtefactoNormativo[]
-    readonly coeficientesMayoracion: readonly CoeficienteMayoracion[]
+    readonly coeficientesMayoracion: readonly TipoProyectoNormativo[]
   }
 }
 
@@ -42,10 +42,22 @@ export function calcularSimultaneidad(
 
   const { resultado: kc, paso: pasoKc } = calcularCoeficienteDeSimultaneidad(n)
 
-  const a = entrada.proyecto.parametros.coeficienteA
+  const tipoDeProyecto = entrada.proyecto.parametros.tipoDeProyecto
   const coeficienteMayoracion = entrada.normativa.coeficientesMayoracion.find(
-    (candidato) => candidato.a === a,
+    (candidato) => candidato.id === tipoDeProyecto,
   )
+
+  // Precondicion imposible si tipoDeProyecto proviene de TipoDeProyecto real
+  // y la tabla recibida esta completa (mismo criterio que otras
+  // "precondicion imposible" del proyecto): error explicito, no un `a`
+  // por defecto silencioso.
+  if (coeficienteMayoracion === undefined) {
+    throw new Error(
+      `calcularSimultaneidad: no existe ninguna entrada normativa de coeficiente de mayoración para la tipología "${tipoDeProyecto}"`,
+    )
+  }
+
+  const a = coeficienteMayoracion.a
 
   // D25: si Kc es indeterminado (n=1), K hereda el mismo estado y motivo
   // sin interpretación adicional; no resuelve A3, solo evita propagar NaN.
@@ -83,9 +95,7 @@ export function calcularSimultaneidad(
         simbolo: 'a',
         valor: a,
         unidad: 'adimensional',
-        procedencia: coeficienteMayoracion
-          ? `catálogo de coeficientes de mayoración: ${coeficienteMayoracion.tipoDeProyecto}`
-          : 'parámetros del proyecto: coeficienteA',
+        procedencia: `catálogo de coeficientes de mayoración: ${coeficienteMayoracion.nombre}`,
       },
     ],
     salida: { simbolo: 'K', resultado: k },

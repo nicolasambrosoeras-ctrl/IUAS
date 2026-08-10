@@ -3,7 +3,7 @@
 
 import type { Proyecto } from '../modelo/proyecto';
 import type { ArtefactoNormativo } from '../normativa/eras-2023/catalogo-artefactos';
-import type { CoeficienteMayoracion } from '../normativa/eras-2023/coeficientes-mayoracion';
+import type { TipoProyectoNormativo } from '../normativa/eras-2023/coeficientes-mayoracion';
 import type { ResultadoValidacion } from './codigos';
 import { validarInvariantesDeProyecto } from './proyecto';
 import { validarReferenciasDeCatalogo } from './catalogo';
@@ -12,7 +12,7 @@ import { validarRedHidraulica } from './redHidraulica';
 export function validarProyecto(
   proyecto: Proyecto,
   catalogoArtefactos: readonly ArtefactoNormativo[],
-  coeficientesMayoracion: readonly CoeficienteMayoracion[],
+  coeficientesMayoracion: readonly TipoProyectoNormativo[],
 ): ResultadoValidacion {
   const problemas = [
     ...validarInvariantesDeProyecto(proyecto),

@@ -9,7 +9,7 @@ export type CodigoValidacion =
   | 'proyectoLocalSinArtefactos'
   | 'proyectoSinArtefactosComputables'
   | 'catalogoArtefactoIdInexistente'
-  | 'catalogoCoeficienteAInexistente'
+  | 'catalogoTipoDeProyectoInexistente'
   | 'redHidraulicaNodoIdDuplicado'
   | 'redHidraulicaTramoIdDuplicado'
   | 'redHidraulicaTramoNodoInexistente'
@@ -50,9 +50,9 @@ export const codigosValidacion: Readonly<Record<CodigoValidacion, DescripcionCod
     severidad: 'error',
     descripcion: 'artefactoId no existe en el catálogo normativo vigente del proyecto.',
   },
-  catalogoCoeficienteAInexistente: {
+  catalogoTipoDeProyectoInexistente: {
     severidad: 'error',
-    descripcion: 'coeficienteA no corresponde a ningún valor del catálogo de mayoración vigente.',
+    descripcion: 'tipoDeProyecto no corresponde a ninguna tipología del catálogo de mayoración vigente.',
   },
   redHidraulicaNodoIdDuplicado: {
     severidad: 'error',

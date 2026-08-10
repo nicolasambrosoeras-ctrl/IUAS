@@ -48,10 +48,10 @@ export interface EntradaGeneracionPdf {
 }
 
 function renderizarDatosDelProyecto(proyecto: Proyecto): Content {
-  const coeficiente = coeficientesMayoracion.find((c) => c.a === proyecto.parametros.coeficienteA)
+  const coeficiente = coeficientesMayoracion.find((c) => c.id === proyecto.parametros.tipoDeProyecto)
   const textoCoeficiente = coeficiente
-    ? `${coeficiente.a} — ${coeficiente.tipoDeProyecto}`
-    : String(proyecto.parametros.coeficienteA)
+    ? `${coeficiente.a} — ${coeficiente.nombre}`
+    : proyecto.parametros.tipoDeProyecto
 
   return {
     stack: [

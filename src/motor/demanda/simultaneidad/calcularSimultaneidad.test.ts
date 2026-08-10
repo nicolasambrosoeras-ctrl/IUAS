@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { calcularSimultaneidad } from './calcularSimultaneidad'
 import type { Proyecto, RegimenLocal, Artefacto } from '../../../modelo/proyecto'
+import type { TipoDeProyecto } from '../../../normativa/eras-2023/coeficientes-mayoracion'
 import { catalogoArtefactos } from '../../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion } from '../../../normativa/eras-2023/coeficientes-mayoracion'
 
 function construirProyecto(
   regimen: RegimenLocal,
   artefactos: readonly Artefacto[],
-  coeficienteA: 1 | 2 | 3 | 4 = 1,
+  tipoDeProyecto: TipoDeProyecto = 'viviendaIndividual',
 ): Proyecto {
   return {
     metadatos: {
@@ -19,7 +20,7 @@ function construirProyecto(
       versionNormativa: 'eras-2023',
     },
     parametros: {
-      coeficienteA,
+      tipoDeProyecto,
       presionSobreAcera_m: 2,
       alturaArtefactoMasDesfavorable_m: 3,
       material: 'PVC',
@@ -123,7 +124,7 @@ describe('calcularSimultaneidad — K', () => {
     const proyecto = construirProyecto(
       'noDomiciliario',
       [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 4, origen: 'normativo' }],
-      2,
+      'oficinaPublica',
     )
 
     const resultado = calcularResultado(proyecto)
@@ -142,7 +143,7 @@ describe('calcularSimultaneidad — K', () => {
     const proyecto = construirProyecto(
       'noDomiciliario',
       [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
-      2,
+      'oficinaPublica',
     )
 
     const resultado = calcularResultado(proyecto)
@@ -161,7 +162,7 @@ describe('calcularSimultaneidad — K', () => {
     const proyecto = construirProyecto(
       'noDomiciliario',
       [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 4, origen: 'normativo' }],
-      2,
+      'oficinaPublica',
     )
 
     const resultado = calcularResultado(proyecto)
@@ -182,7 +183,7 @@ describe('calcularSimultaneidad — Qc', () => {
     const proyecto = construirProyecto(
       'noDomiciliario',
       [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 4, origen: 'normativo' }],
-      2,
+      'oficinaPublica',
     )
 
     const resultado = calcularResultado(proyecto)
@@ -202,7 +203,7 @@ describe('calcularSimultaneidad — Qc', () => {
     const proyecto = construirProyecto(
       'noDomiciliario',
       [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
-      2,
+      'oficinaPublica',
     )
 
     const resultado = calcularResultado(proyecto)
@@ -225,7 +226,7 @@ describe('calcularSimultaneidad — Qc', () => {
     const proyecto = construirProyecto(
       'noDomiciliario',
       [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
-      2,
+      'oficinaPublica',
     )
 
     const resultado = calcularResultado(proyecto)
@@ -244,7 +245,7 @@ describe('calcularSimultaneidad — Qc', () => {
     const proyecto = construirProyecto(
       'noDomiciliario',
       [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 4, origen: 'normativo' }],
-      2,
+      'oficinaPublica',
     )
 
     const resultado = calcularResultado(proyecto)
@@ -262,7 +263,10 @@ describe('calcularSimultaneidad — Qc', () => {
 })
 
 // Caso Golden G2 (Tabla N°2), documentado en CASOS-GOLDEN.md. Ningún valor
-// de este test puede modificarse sin actualizar antes esa fuente.
+// de este test puede modificarse sin actualizar antes esa fuente. Régimen
+// documentado: "Vivienda unifamiliar, vivienda única, 1 unidad funcional"
+// -- de ahí 'viviendaIndividual' (a=1, el valor por defecto de
+// construirProyecto).
 describe('calcularSimultaneidad — Caso Golden G2 (CASOS-GOLDEN.md)', () => {
   it('reproduce n, Qmax, Kc, K y Qc del caso G2 (Tabla N°2)', () => {
     const proyecto = construirProyecto('domiciliario', [
@@ -308,7 +312,8 @@ describe('calcularSimultaneidad — Caso Golden G2 (CASOS-GOLDEN.md)', () => {
 // la evaluación local de CRIT-A8 pero como no-op sobre los baños
 // declarados (cada uno solo tiene el inodoro de válvula, nada que suprimir)
 // y no constituye prueba end-to-end de la supresión de otros artefactos
-// sanitarios.
+// sanitarios. Régimen documentado: "Vivienda unifamiliar, vivienda única, 1
+// unidad funcional" -- de ahí 'viviendaIndividual' (a=1).
 describe('calcularSimultaneidad — Caso Golden G1 (CASOS-GOLDEN.md)', () => {
   it('reproduce n, Qmax, Kc, K y Qc del caso G1 (Tabla N°4)', () => {
     const proyecto: Proyecto = {
@@ -321,7 +326,7 @@ describe('calcularSimultaneidad — Caso Golden G1 (CASOS-GOLDEN.md)', () => {
         versionNormativa: 'eras-2023',
       },
       parametros: {
-        coeficienteA: 1,
+        tipoDeProyecto: 'viviendaIndividual',
         presionSobreAcera_m: 2,
         alturaArtefactoMasDesfavorable_m: 3,
         material: 'PVC',
@@ -391,7 +396,7 @@ describe('calcularSimultaneidad — Advertencia CRIT-A2 (K > 1)', () => {
     const proyecto = construirProyecto(
       'noDomiciliario',
       [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 2, origen: 'normativo' }],
-      2,
+      'oficinaPublica',
     )
 
     const resultado = calcularResultado(proyecto)
@@ -419,7 +424,7 @@ describe('calcularSimultaneidad — Advertencia CRIT-A2 (K > 1)', () => {
     const proyecto = construirProyecto(
       'noDomiciliario',
       [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 2, origen: 'normativo' }],
-      1,
+      'oficinaPrivada',
     )
 
     const resultado = calcularResultado(proyecto)
@@ -436,7 +441,7 @@ describe('calcularSimultaneidad — Advertencia CRIT-A2 (K > 1)', () => {
     const proyecto = construirProyecto(
       'noDomiciliario',
       [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
-      2,
+      'oficinaPublica',
     )
 
     const resultado = calcularResultado(proyecto)
