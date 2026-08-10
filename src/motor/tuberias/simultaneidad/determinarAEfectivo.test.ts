@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import type { Artefacto, Local, TipoDeProyecto, UnidadFuncional } from '../../../modelo/proyecto'
 import type { ArtefactoResuelto } from '../topologia/resolverArtefactosReferenciados'
 import type { AporteDeDemanda } from '../aporte/resolverAportesDeDemanda'
+import type { AporteHidraulicoDeTramo } from '../aporte/resolverAportesHidraulicosDeTramo'
+import type { CondicionHidraulicaDeCaudal } from '../caudal/resolverQuEfectivo'
 import { determinarAEfectivo } from './determinarAEfectivo'
 
 function aporteCon(
@@ -22,6 +24,26 @@ function aporteCon(
   }
 
   return { artefactoResuelto, cantidad, quTotal_lps: 0.2 }
+}
+
+function aporteHidraulicoCon(
+  unidadFuncionalId: string,
+  localId: string,
+  idInstancia: string,
+  condicion: CondicionHidraulicaDeCaudal,
+): AporteHidraulicoDeTramo {
+  const artefacto: Artefacto = { id: idInstancia, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }
+  const local: Local = { id: localId, tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
+  const unidadFuncional: UnidadFuncional = { id: unidadFuncionalId, nombre: unidadFuncionalId, locales: [local] }
+
+  const artefactoResuelto: ArtefactoResuelto = {
+    referencia: { tipo: 'artefacto', unidadFuncionalId, localId, artefactoId: idInstancia },
+    unidadFuncional,
+    local,
+    artefacto,
+  }
+
+  return { artefactoResuelto, cantidad: 1, condicion, qu_lps: 0.2 }
 }
 
 describe('determinarAEfectivo — viviendaMultifamiliar', () => {
@@ -130,5 +152,25 @@ describe('determinarAEfectivo — no mutación', () => {
 
     expect(aportes).toEqual(copiaSuperficial)
     expect(aportes[0]).toBe(primerAporteOriginal)
+  })
+})
+
+describe('determinarAEfectivo — compatibilidad estructural con AporteHidraulicoDeTramo', () => {
+  it('hidráulico, una UF con condiciones distintas: aEfectivo = 1 (condicion no interviene)', () => {
+    const aportes = [
+      aporteHidraulicoCon('uf-1', 'local-1', 'a-1', 'aguaFria'),
+      aporteHidraulicoCon('uf-1', 'local-1', 'a-2', 'aguaCaliente'),
+    ]
+
+    expect(determinarAEfectivo('viviendaMultifamiliar', aportes)).toBe(1)
+  })
+
+  it('hidráulico, dos UF con condiciones mixtas: aEfectivo = 2', () => {
+    const aportes = [
+      aporteHidraulicoCon('uf-1', 'local-1', 'a-1', 'total'),
+      aporteHidraulicoCon('uf-2', 'local-1', 'a-2', 'aguaCaliente'),
+    ]
+
+    expect(determinarAEfectivo('viviendaMultifamiliar', aportes)).toBe(2)
   })
 })

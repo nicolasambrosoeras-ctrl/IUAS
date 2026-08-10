@@ -1,17 +1,25 @@
 // Determinacion de aEfectivo por Tramo (CRIT-A14 / cierre de D-beta.2).
 // Depende exclusivamente de la tipologia del Proyecto y de las UF distintas
-// presentes en el conjunto ya resuelto/computable/posterior a CRIT-A8 (los
-// AporteDeDemanda recibidos) -- no consulta Proyecto.unidadesFuncionales,
-// Locales ni cantidad. No decide nada sobre Kc, K, Qc ni sobre n=1
-// (CRIT-A4): esa es responsabilidad de una etapa posterior, todavia no
-// implementada.
+// presentes en el conjunto ya resuelto/computable/posterior a CRIT-A8 --
+// no consulta Proyecto.unidadesFuncionales, Locales ni cantidad. No decide
+// nada sobre Kc, K, Qc ni sobre n=1 (CRIT-A4): esa es responsabilidad de
+// una etapa posterior, todavia no implementada.
+// La dependencia real de cada aporte es unicamente artefactoResuelto: ni
+// AporteDeDemanda (quTotal_lps) ni AporteHidraulicoDeTramo (condicion,
+// qu_lps) aportan nada a esta regla -- por eso la entrada es el tipo
+// estructural minimo que ambos satisfacen, en vez de acoplarse a uno de
+// los dos tipos concretos de aporte.
 import type { TipoDeProyecto } from '../../../modelo/proyecto'
-import type { AporteDeDemanda } from '../aporte/resolverAportesDeDemanda'
+import type { ArtefactoResuelto } from '../topologia/resolverArtefactosReferenciados'
 import { obtenerCoeficienteABase } from '../../../normativa/eras-2023/coeficientes-mayoracion'
+
+type AporteConArtefactoResuelto = {
+  readonly artefactoResuelto: ArtefactoResuelto
+}
 
 export function determinarAEfectivo(
   tipoDeProyecto: TipoDeProyecto,
-  aportes: readonly AporteDeDemanda[],
+  aportes: readonly AporteConArtefactoResuelto[],
 ): 1 | 2 | 3 | 4 {
   if (tipoDeProyecto !== 'viviendaMultifamiliar') {
     return obtenerCoeficienteABase(tipoDeProyecto)
