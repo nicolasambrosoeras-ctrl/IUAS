@@ -1,0 +1,124 @@
+// Tests de composicion: no repiten exhaustivamente la cobertura de
+// agregarAportesHidraulicosDeTramo, determinarAEfectivo ni
+// calcularSimultaneidadDeTramo (ya cubiertas en sus propios archivos) --
+// verifican que la orquestacion las encadena correctamente sobre el mismo
+// conjunto de aportes. Fixtures construidas directamente, sin topologia
+// real, catalogo ni resolverAportesHidraulicosDeTramo.
+import { describe, it, expect } from 'vitest'
+import type { Artefacto, Local, UnidadFuncional } from '../../../modelo/proyecto'
+import type { ArtefactoResuelto } from '../topologia/resolverArtefactosReferenciados'
+import type { AporteHidraulicoDeTramo } from '../aporte/resolverAportesHidraulicosDeTramo'
+import { resolverSimultaneidadHidraulicaDeTramo } from './resolverSimultaneidadHidraulicaDeTramo'
+
+function aporteCon(
+  unidadFuncionalId: string,
+  idInstancia: string,
+  cantidad: number,
+  condicion: AporteHidraulicoDeTramo['condicion'],
+  qu_lps: number,
+): AporteHidraulicoDeTramo {
+  const artefacto: Artefacto = { id: idInstancia, artefactoId: 'lavatorio', cantidad, origen: 'normativo' }
+  const local: Local = { id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
+  const unidadFuncional: UnidadFuncional = { id: unidadFuncionalId, nombre: unidadFuncionalId, locales: [local] }
+
+  const artefactoResuelto: ArtefactoResuelto = {
+    referencia: { tipo: 'artefacto', unidadFuncionalId, localId: local.id, artefactoId: idInstancia },
+    unidadFuncional,
+    local,
+    artefacto,
+  }
+
+  return { artefactoResuelto, cantidad, condicion, qu_lps }
+}
+
+describe('resolverSimultaneidadHidraulicaDeTramo', () => {
+  it('1. n=1: aEfectivo correcto, kc/k indeterminados, qc_lps=qmax_lps (CRIT-A4)', () => {
+    const aportes = [aporteCon('uf-1', 'a-1', 1, 'total', 0.3)]
+
+    const resultado = resolverSimultaneidadHidraulicaDeTramo('oficinaPrivada', aportes)
+
+    expect(resultado.aEfectivo).toBe(1)
+    expect('estado' in resultado.kc && resultado.kc.estado).toBe('indeterminado')
+    expect('estado' in resultado.k && resultado.k.estado).toBe('indeterminado')
+    expect(resultado.qc_lps).toBe(0.3)
+  })
+
+  it('2. viviendaMultifamiliar, una UF, n>=2: aEfectivo=1, kc=1, k=kc, qc_lps=qmax_lps×k', () => {
+    const aportes = [
+      aporteCon('uf-1', 'a-1', 1, 'total', 0.2),
+      aporteCon('uf-1', 'a-2', 1, 'aguaFria', 0.3),
+    ]
+
+    const resultado = resolverSimultaneidadHidraulicaDeTramo('viviendaMultifamiliar', aportes)
+
+    if ('estado' in resultado.kc || 'estado' in resultado.k) {
+      throw new Error('se esperaba Kc y K numéricos, no indeterminados')
+    }
+    expect(resultado.aEfectivo).toBe(1)
+    expect(resultado.kc.valor).toBe(1)
+    expect(resultado.k.valor).toBe(1)
+    expect(resultado.qc_lps).toBeCloseTo(0.5, 10)
+  })
+
+  it('3. viviendaMultifamiliar, más de una UF: aEfectivo=2, K>1 se conserva sin cap', () => {
+    const aportes = [
+      aporteCon('uf-1', 'a-1', 1, 'total', 0.2),
+      aporteCon('uf-2', 'a-2', 1, 'aguaFria', 0.3),
+    ]
+
+    const resultado = resolverSimultaneidadHidraulicaDeTramo('viviendaMultifamiliar', aportes)
+
+    if ('estado' in resultado.kc || 'estado' in resultado.k) {
+      throw new Error('se esperaba Kc y K numéricos, no indeterminados')
+    }
+    expect(resultado.aEfectivo).toBe(2)
+    expect(resultado.kc.valor).toBe(1)
+    expect(resultado.k.valor).toBe(2)
+    expect(resultado.k.valor).toBeGreaterThan(1)
+    expect(resultado.qc_lps).toBeCloseTo(1.0, 10)
+  })
+
+  it('4. condiciones mixtas en el mismo conjunto: qmax_lps=Σ(cantidad×qu_lps) sin tratamiento por condicion, aEfectivo solo por UF', () => {
+    const aportes = [
+      aporteCon('uf-1', 'a-1', 1, 'total', 0.2),
+      aporteCon('uf-1', 'a-2', 2, 'aguaFria', 0.08),
+      aporteCon('uf-1', 'a-3', 1, 'aguaCaliente', 0.12),
+    ]
+
+    const resultado = resolverSimultaneidadHidraulicaDeTramo('viviendaMultifamiliar', aportes)
+
+    if ('estado' in resultado.kc || 'estado' in resultado.k) {
+      throw new Error('se esperaba Kc y K numéricos, no indeterminados')
+    }
+    const qmaxEsperado = 1 * 0.2 + 2 * 0.08 + 1 * 0.12
+    const kcEsperado = 1 / Math.sqrt(4 - 1)
+
+    expect(resultado.aEfectivo).toBe(1)
+    expect(resultado.kc.valor).toBeCloseTo(kcEsperado, 10)
+    expect(resultado.qc_lps).toBeCloseTo(qmaxEsperado * kcEsperado, 10)
+  })
+
+  it('5. vacío + viviendaMultifamiliar: propaga el error existente de determinarAEfectivo (ausencia de UF)', () => {
+    expect(() => resolverSimultaneidadHidraulicaDeTramo('viviendaMultifamiliar', [])).toThrow(
+      /UnidadFuncional/,
+    )
+  })
+
+  it('6. vacío + otra tipología: propaga el error existente de Kc por n=0, sin validación propia', () => {
+    expect(() => resolverSimultaneidadHidraulicaDeTramo('viviendaIndividual', [])).toThrow(/n debe ser/)
+  })
+
+  it('7. no muta el array de aportes ni sus objetos', () => {
+    const aportes = [
+      aporteCon('uf-1', 'a-1', 1, 'total', 0.2),
+      aporteCon('uf-2', 'a-2', 1, 'aguaCaliente', 0.12),
+    ]
+    const copiaSuperficial = [...aportes]
+
+    resolverSimultaneidadHidraulicaDeTramo('viviendaMultifamiliar', aportes)
+
+    expect(aportes).toEqual(copiaSuperficial)
+    expect(aportes[0]).toBe(copiaSuperficial[0])
+    expect(aportes[1]).toBe(copiaSuperficial[1])
+  })
+})
