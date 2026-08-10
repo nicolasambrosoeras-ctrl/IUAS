@@ -294,3 +294,55 @@ disposición textual de ERAS — mismo estatus epistémico que CRIT-A11.
 - No define la implementación concreta de agrupación por Local.
 
 **Estado:** Firme, con el alcance explícitamente limitado arriba.
+
+## CRIT-A14 — Determinación del coeficiente `a` efectivo por tramo (cierre de D-β.2)
+
+**Artículo:** ERAS-2023 §2.9.2.2 (tabla de coeficientes de mayoración).
+
+**Criterio adoptado:**
+
+```text
+si tipología del Proyecto = vivienda multifamiliar:
+    >1 UF residencial distinta aguas abajo → a efectivo = 2
+     1 UF residencial aguas abajo          → a efectivo = 1
+
+en cualquier otra tipología:
+    a efectivo = a base del Proyecto (CRIT-A12)
+```
+
+La identidad relevante es la cantidad de `unidadFuncionalId` residenciales
+distintas presentes en el conjunto efectivamente evaluado aguas abajo del
+Tramo. No depende de cantidad de Artefactos, cantidad de Locales, ni de
+diámetro/longitud/tamaño geométrico. `n=1` permanece regido por CRIT-A4
+(`Qc = Qmax`, sin `Kc`/`a`/`K`), sin intervención de este criterio.
+
+**Fundamento:** ERAS reconoce expresamente `vivienda individual → a=1` y
+`vivienda multifamiliar → a=2` como categorías publicadas, y exige
+analizar el Qc de los distintos tramos de la instalación (CRIT-A11), pero
+no especifica literalmente qué `a` corresponde a un tramo cuyo conjunto
+aguas abajo pertenece exclusivamente a una única vivienda dentro de un
+Proyecto multifamiliar. Ante esa ambigüedad, se adopta la transición
+`>1 UF → a=2` / `1 UF → a=1` por ser semánticamente consistente con las
+dos categorías residenciales publicadas, hidráulicamente coherente,
+determinística y auditable.
+
+**Naturaleza:** adopción interpretativa IUAS frente a una ambigüedad no
+resuelta expresamente por ERAS — no es texto literal de la Guía.
+
+**No generaliza por valor numérico:** la excepción corresponde
+semánticamente a `tipoDeProyecto = viviendaMultifamiliar`, no a
+`aBase === 2`. `Oficinas públicas` y `centros educativos` comparten
+numéricamente `a=2` pero no reciben esta excepción; no se identificó
+pareja normativa interna equivalente para `a=3`/`a=4`.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- No resuelve D-γ (proyectos de tipología mixta).
+- No implementa por sí solo la regla: el modelo actual de `Proyecto`
+  no conserva la tipología normativa necesaria para aplicarlo (solo
+  persiste `coeficienteA`, que no distingue vivienda multifamiliar de
+  oficina pública o centro educativo) — ver
+  `PENDIENTES-DE-ARQUITECTURA.md`, sección D-β.2.
+- No define `K>1`/cap de `K` en tramos pequeños (sigue ligado a CRIT-A2).
+
+**Estado:** Firme, con el alcance explícitamente limitado arriba.

@@ -151,103 +151,90 @@ Esto **no** determina que ese mismo valor sea el `a` efectivo a aplicar
 en cada subconjunto o tramo cuando se reaplique el modelo de §2.9.2 —
 esa pregunta es D-β.2 y sigue abierta.
 
-### D-β.2 — Qué `a` efectivo corresponde a cada invocación de §2.9.2 — ABIERTO
+### D-β.2 — Qué `a` efectivo corresponde a cada invocación de §2.9.2 — CERRADO
 
-**No se adopta como premisa** que "el mismo `a` global del proyecto se
-reutiliza necesariamente en todos los tramos". Esa lectura es una de dos
-hipótesis en pie de igualdad, ninguna adoptada todavía como regla
-operativa.
-
-**Lectura global:**
-
-- `a_efectivo = a_proyecto` en todos los conjuntos/tramos.
-- Compatible con una lectura literal por defecto (el proyecto ya tiene
-  un `a` fijado por CRIT-A12, y `K = Kc · a` no distingue de dónde viene
-  `a`).
-- ERAS nunca lo dice expresamente para el caso de tramos; es una
-  extensión por defecto, no una disposición textual.
-- Confianza reducida frente a la evidencia de conjunto.
-
-**Lectura por conjunto (eje residencial) — hipótesis actualmente mejor
-sustentada, todavía no adoptada:**
+**Decisión adoptada** (formalizada como **CRIT-A14** en
+`src/normativa/eras-2023/CRITERIOS.md`):
 
 ```text
-Proyecto vivienda multifamiliar:
+si tipología del Proyecto = vivienda multifamiliar:
+    >1 UF residencial distinta aguas abajo → a efectivo = 2
+     1 UF residencial aguas abajo          → a efectivo = 1
 
-más de una UF residencial distinta aguas abajo → candidato a efectivo = 2
-exactamente una UF residencial aguas abajo     → candidato a efectivo = 1
+en cualquier otra tipología:
+    a efectivo = a base del Proyecto (CRIT-A12)
 ```
 
-La frontera es exclusivamente funcional — set de `unidadFuncionalId`
-distintas aguas abajo del tramo — **no** una regla por cantidad de
-Artefactos, por cantidad de Locales, ni por diámetro/longitud/tamaño
-geométrico del tramo.
+La identidad relevante es la cantidad de `unidadFuncionalId` residenciales
+distintas presentes en el conjunto efectivamente evaluado aguas abajo del
+Tramo — no cantidad de Artefactos, no cantidad de Locales, no
+diámetro/longitud/tamaño geométrico. La frontera es funcional:
+distribución colectiva de varias viviendas vs. distribución exclusiva de
+una vivienda. La lectura global (`a_efectivo = a_proyecto` sin excepción,
+considerada y descartada) queda reemplazada por esta regla.
 
-- **Evidencia normativa**: la tabla de `coeficientes-mayoracion` es el
-  único eje de toda la tabla que presenta explícitamente un par
-  individual/colectivo ("vivienda individual" → `a=1`, "viviendas
-  multifamiliares" → `a=2`).
-- **Inferencia fuerte**: un tramo cuyo universo aguas abajo pertenece
-  exclusivamente a una única UF residencial podría interpretarse, desde
-  ese punto hidráulico hacia abajo, como una vivienda individual a
-  efectos de `a`.
-- **No demostrado**: ERAS no dice explícitamente que una UF dentro de un
-  Proyecto multifamiliar deba reclasificarse de esta manera. Por eso la
-  hipótesis no se adopta todavía.
-- **No generaliza a otros tipos**: no significa que todo Proyecto con
-  `a=2` pueda bajar a `a=1`. `Oficinas públicas` y `centros educativos`
-  comparten numéricamente `a=2` pero no tienen ninguna categoría interna
-  "individual" análoga en la tabla. Para `a=3` y `a=4` tampoco se
-  identificó una pareja normativa interna equivalente. Hasta nueva
-  evidencia, no hay fundamento para excepciones análogas en esos tipos.
-- **`n=1`**: CRIT-A4 vuelve esta pregunta irrelevante cuando `n=1`
-  (`Qc = Qmax`, sin `Kc`/`a`/`K`). El problema real queda acotado a
-  conjuntos con `n ≥ 2`.
+**Naturaleza de la decisión:**
 
-**Nota sobre el método histórico:** se evitan afirmaciones fuertes de
-filiación directa (p. ej. "es el ancestro de ERAS"). Se documenta solo
-como "familia histórica/técnica del mismo método" o "método de
-estructura fuertemente coincidente", con evidencia histórica de carácter
-interpretativo, no como norma aplicable: existe una corrección
-tipológica intra-vivienda, existe un coeficiente separado entre
-viviendas, y el coeficiente final está acotado — pero ERAS no reprodujo
-esa estructura completa. Verificación posterior (read-only): el repo no
-conserva nombre de fuente, norma/institución, país, fecha, fórmula ni
-valores numéricos de este antecedente — solo la referencia cualitativa
-ya citada. Por tanto se mantiene únicamente como contexto interpretativo
-no trazable desde el repositorio actual, y no debe usarse como evidencia
-matemática o normativa verificable para cerrar D-β.2 hasta recuperar la
-fuente original.
+- **Evidencia normativa**: ERAS reconoce expresamente `vivienda
+  individual → a=1` y `vivienda multifamiliar → a=2`, y exige analizar
+  el Qc de los distintos tramos de la instalación.
+- **Ambigüedad normativa**: ERAS no especifica literalmente qué `a`
+  corresponde a un tramo de un Proyecto multifamiliar cuando todo su
+  conjunto aguas abajo pertenece a una única vivienda.
+- **Decisión IUAS**: la transición `>1 UF → a=2` / `1 UF → a=1` es una
+  interpretación/adopción IUAS para resolver esa ambigüedad —
+  semánticamente consistente con las dos categorías residenciales
+  publicadas, hidráulicamente coherente, determinística y auditable —,
+  no texto literal de ERAS.
+
+**No generaliza por valor numérico**: la excepción corresponde
+semánticamente a `tipoDeProyecto = viviendaMultifamiliar`, no a
+`aBase === 2`. `Oficinas públicas` y `centros educativos` comparten
+numéricamente `a=2` pero no reciben esta excepción; tampoco se
+identificó pareja normativa interna equivalente para `a=3`/`a=4`.
+
+**`n=1`**: CRIT-A4 permanece por encima de esta decisión — `Qc = Qmax`
+sin intervención de `Kc`/`a`/`K`.
+
+**Antecedente histórico**: se mantiene únicamente como contexto
+interpretativo no trazable desde el repositorio actual (sin fuente,
+fórmula ni valores numéricos recuperables) — no se usó como fundamento
+decisorio de este cierre.
+
+**Problema de modelo descubierto (no reabre D-β.2)**: el modelo actual
+de `Proyecto` no conserva la tipología normativa — solo persiste
+`coeficienteA: 1|2|3|4`, que no distingue vivienda multifamiliar de
+oficina pública o centro educativo (los tres comparten `a=2`). La regla
+queda cerrada conceptualmente, pero **su implementación queda
+bloqueada** hasta que el modelo conserve explícitamente la tipología
+normativa del Proyecto y `aBase` sea derivable de ella — evitando dos
+fuentes de verdad que puedan contradecirse.
 
 **Estado resultante:**
 
 ```text
-Estado: ABIERTO
+D-β.2: CERRADO
 
-Hipótesis preferida:
-  multifamiliar: >1 UF → a=2 ; 1 UF → a=1
+Regla de a efectivo: definida (CRIT-A14).
 
-Confianza: inferencia fuerte, insuficiente para criterio firme.
+Implementación: BLOQUEADA temporalmente por insuficiencia semántica
+del modelo Proyecto.
 
-Bloquea: a efectivo / K / Qc definitivo por tramo.
-No bloquea: cálculo independiente de Kc.
+Próximo incremento:
+conservar tipoDeProyecto explícito y derivar aBase desde la tabla normativa.
 ```
-
-Ninguna de las lecturas se adopta como regla operativa. La decisión,
-cuando se tome, deberá formalizarse como criterio de proyecto antes de
-su implementación en el Módulo 2; la arquitectura deberá permitir
-representarla sin convertirla en una decisión irreversible.
 
 ### D-γ — Proyectos mixtos — ABIERTA
 
-Una eventual adopción de la lectura por conjunto (si D-β.2 se resolviera
-en ese sentido) podría reducir la superficie de la ambigüedad en tramos
-de tipología pura (tramo residencial puro, tramo comercial puro,
-montante residencial pura, que podrían clasificarse con mayor claridad).
-Esto **no resuelve** el caso de un nodo que agrega usos distintos
-(residencial + comercial, por ejemplo), que sigue sin regla ERAS. No se
-inventa regla de combinación ni se adopta "máximo `a`" por defecto. D-γ
-permanece completamente abierta.
+D-β.2 (CRIT-A14) ya resuelve el `a` efectivo para Proyectos de una sola
+tipología dentro de su alcance, reduciendo la superficie de la
+ambigüedad en tramos de tipología pura (tramo residencial puro, tramo
+comercial puro, montante residencial pura, que quedan clasificados con
+claridad). Esto **no resuelve** el caso de un nodo que agrega usos
+distintos dentro del mismo Proyecto (residencial + comercial, por
+ejemplo), que sigue sin regla ERAS. No se inventa regla de combinación
+ni se adopta "máximo `a`" por defecto. D-γ permanece completamente
+abierta.
 
 ## Nota normativa — corrección sobre Canilla de Servicio y presión disponible
 
