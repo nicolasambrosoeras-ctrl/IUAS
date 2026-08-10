@@ -758,3 +758,142 @@ f + L + Di + V     → hf
 
 **Estado:** Firme como criterio técnico operativo del proyecto.
 Pendiente de implementación en motor/tests.
+
+## CRIT-A19 — Verificación de velocidad con diámetro interior comercial
+
+**Artículo:** ERAS-2023 §2.12.1.
+
+**Texto oficial confirmado:**
+
+```
+"Ve en cañerías de 0,013 m a 0,060 m = 1 m/s a 3 m/s"
+"Ve en cañerías de 0,075 a 0,200 = 1,5 m/s a 2 m/s"
+```
+
+y, en el mismo apartado:
+
+```
+"Con los caudales Qc, y las velocidades Ve a adoptar, se determina
+una sección de escurrimiento Ae"
+"Con el valor de Ae se adopta un diámetro interior comercial igual
+o mayor a la sección de cálculo."
+```
+
+### 1. Rangos normativos adoptados
+
+```
+13 mm ≤ D ≤ 60 mm    →  1 m/s ≤ Ve ≤ 3 m/s
+75 mm ≤ D ≤ 200 mm   →  1,5 m/s ≤ Ve ≤ 2 m/s
+```
+
+Los extremos `13`, `60`, `75` y `200` mm se interpretan como incluidos
+en su rango respectivo, conforme a la redacción "de ... a ...".
+
+### 2. Hueco normativo — 60 mm < D < 75 mm
+
+Ninguno de los dos rangos publicados en §2.12.1 cubre el intervalo
+`60 mm < D < 75 mm`. El texto disponible no ofrece ninguna tabla o
+frase adicional que lo cierre. **No se interpola, no se extrapola y no
+se asigna silenciosamente ninguno de los dos rangos publicados a este
+intervalo.** La futura implementación deberá representar este caso
+explícitamente como fuera del dominio normativo cubierto por esta
+regla (`fueraDeDominioNormativo` o semántica equivalente), nunca como
+"admisible" ni "no admisible" — ambas calificaciones exigirían un rango
+de referencia que, para este intervalo, no existe en el texto.
+
+### 3. Diámetro utilizado para la verificación
+
+El propio §2.12.1 determina primero `Ae` a partir de `Qc` y `Ve`, y
+luego indica adoptar un **"diámetro interior comercial igual o mayor"**
+a esa sección de cálculo. La verificación de velocidad, por lo tanto,
+debe realizarse con el diámetro interior efectivo/comercial
+efectivamente empleado, no con ninguna otra magnitud:
+
+- **no** con `DN`;
+- **no** con diámetro exterior;
+- **no** con la denominación comercial nominal;
+- **no** con el `Di` mínimo de predimensionamiento una vez seleccionado
+  el producto real (CRIT-A10/CRIT-A16 quedan superados por el diámetro
+  comercial adoptado en esta etapa).
+
+La verificación final utiliza: `Qc` del tramo + `diametroInteriorEfectivo_mm`
+del candidato comercial seleccionado.
+
+### 4. Relación con CRIT-A16 — Ve=2,0 m/s no es la velocidad a verificar
+
+CRIT-A16 adopta `Ve=2,0 m/s` únicamente como criterio de
+predimensionamiento inicial, para obtener `Ae` mínima y `Di` mínimo. No
+debe confundirse esa velocidad de diseño inicial con la velocidad real
+resultante del diámetro comercial finalmente seleccionado, que es la
+que efectivamente debe verificarse contra los rangos de este criterio.
+
+Secuencia completa:
+
+```
+Qc
+→ Di mínimo con Ve=2,0 m/s              (CRIT-A10/CRIT-A16)
+→ diámetro interior comercial ≥ Di mínimo
+→ recalcular Ve real con el diámetro comercial
+→ verificar Ve real contra §2.12.1      (este criterio)
+```
+
+### 5. Propiedad derivada — Ve_real ≤ 2,0 m/s
+
+**Esto es una consecuencia matemática de la estrategia de selección
+adoptada por el proyecto, no una prescripción adicional de ERAS.** Si
+`diametroInteriorEfectivo ≥ Di mínimo` y ambos se evalúan con el mismo
+`Qc`, entonces `Ve_real ≤ 2,0 m/s` (`V=Q/A` es estrictamente decreciente
+en `D` para `Q` fijo, y `Di mínimo` es por construcción el diámetro en
+el que `V=2,0 m/s` para ese `Qc`).
+
+Consecuencias:
+
+- para `13 mm ≤ D ≤ 60 mm`, bajo esta estrategia no puede superarse el
+  máximo normativo de `3 m/s`;
+- para `75 mm ≤ D ≤ 200 mm`, no puede superarse el máximo normativo de
+  `2 m/s`;
+- el eventual incumplimiento de velocidad tras la selección comercial
+  solo puede producirse **por debajo** del mínimo admisible, nunca por
+  encima del máximo.
+
+Esta propiedad depende de que el predimensionamiento y la verificación
+usen el **mismo** `Qc`; no se garantiza si se mezclan `Qc` de distintas
+condiciones hidráulicas del mismo tramo.
+
+### 6. Consecuencia para la selección futura de diámetro
+
+Si el primer candidato comercial suficiente ya produce una velocidad
+menor al mínimo normativo admisible, **aumentar el diámetro no puede
+corregir ese incumplimiento**: `V` decrece monótonamente con `D` para
+`Qc` fijo, así que un diámetro mayor solo empeora la velocidad. Esto
+queda documentado como consecuencia de diseño para un futuro algoritmo
+de selección; no se implementa ningún loop en este criterio. Por el
+contrario, aumentar el diámetro comercial sí podrá ser una herramienta
+válida en un incremento posterior para reducir pérdidas de carga y
+mejorar la presión residual — un problema distinto al de velocidad
+mínima.
+
+### 7. Semántica futura sugerida (no implementada)
+
+Una futura verificación debería distinguir al menos tres resultados:
+admisible; no admisible; fuera del dominio normativo cubierto por esta
+regla. No se fijan tipos ni firmas de TypeScript en este criterio.
+
+### 8. Fuera del dominio publicado
+
+`D < 13 mm` y `D > 200 mm` también quedan fuera del dominio que cubren
+estos rangos. Esto no implica que una cañería de esas dimensiones sea
+físicamente inviable — implica únicamente que esta regla específica de
+§2.12.1 no aporta, con el texto disponible, un rango de velocidad
+aplicable para esos diámetros.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- No implementa selección automática de candidato comercial.
+- No implementa el loop de diámetros (subir de diámetro ante fallo).
+- No resuelve pérdidas distribuidas ni localizadas.
+- No calcula ni verifica presión residual.
+- No incorpora materiales ni catálogos reales.
+
+**Estado:** Firme como interpretación normativa y criterio operativo
+del proyecto. Pendiente de implementación en motor/tests.
