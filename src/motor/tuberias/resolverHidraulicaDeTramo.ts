@@ -14,6 +14,8 @@ import { aplicarParticipacionCritA8 } from './participacion/aplicarParticipacion
 import { resolverAportesHidraulicosDeTramo } from './aporte/resolverAportesHidraulicosDeTramo'
 import { resolverSimultaneidadHidraulicaDeTramo } from './simultaneidad/resolverSimultaneidadHidraulicaDeTramo'
 import type { ResultadoSimultaneidadDeTramo } from './simultaneidad/calcularSimultaneidadDeTramo'
+import { calcularPredimensionamientoDeTramo } from './predimensionamiento/calcularPredimensionamientoDeTramo'
+import type { PredimensionamientoDeTramo } from './predimensionamiento/calcularPredimensionamientoDeTramo'
 
 export type ResultadoHidraulicoDeTramo =
   | {
@@ -24,6 +26,7 @@ export type ResultadoHidraulicoDeTramo =
       readonly tipo: 'conDemanda'
       readonly qc_lps: number
       readonly simultaneidad: ResultadoSimultaneidadDeTramo
+      readonly predimensionamiento: PredimensionamientoDeTramo
     }
 
 export function resolverHidraulicaDeTramo(
@@ -56,6 +59,7 @@ export function resolverHidraulicaDeTramo(
 
   const aportes = resolverAportesHidraulicosDeTramo(participantes, redHidraulica, tramoId, catalogoArtefactos)
   const simultaneidad = resolverSimultaneidadHidraulicaDeTramo(proyecto.parametros.tipoDeProyecto, aportes)
+  const predimensionamiento = calcularPredimensionamientoDeTramo(simultaneidad.qc_lps)
 
-  return { tipo: 'conDemanda', qc_lps: simultaneidad.qc_lps, simultaneidad }
+  return { tipo: 'conDemanda', qc_lps: simultaneidad.qc_lps, simultaneidad, predimensionamiento }
 }

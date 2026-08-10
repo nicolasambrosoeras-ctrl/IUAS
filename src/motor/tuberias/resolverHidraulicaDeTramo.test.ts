@@ -17,6 +17,7 @@ import type {
 import type { Nodo, RedHidraulica, ReferenciaDeArtefacto, Tramo } from '../../modelo/redHidraulica'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { resolverHidraulicaDeTramo } from './resolverHidraulicaDeTramo'
+import { calcularSeccionEscurrimiento, calcularDiametroInteriorMinimo } from '../../normativa/eras-2023/seccion-escurrimiento'
 
 function metadatos(): MetadatosProyecto {
   return {
@@ -336,5 +337,37 @@ describe('resolverHidraulicaDeTramo', () => {
 
     expect(proyecto).toEqual(copiaProyecto)
     expect(catalogoArtefactos).toEqual(copiaCatalogo)
+  })
+
+  it('14. conDemanda incluye predimensionamiento con Ve=2.0 m/s (CRIT-A16) y Ae/Di derivados del Qc del tramo', () => {
+    const lavatorio = artefacto('inst-lavatorio', 'lavatorio')
+    const uf = unidadFuncionalCon('uf-1', 'local-1', [lavatorio])
+    const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n1', referencia: referenciaDe('uf-1', 'local-1', 'inst-lavatorio') }]
+    const tramos: Tramo[] = [{ id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF' }]
+    const proyecto = proyectoCon('oficinaPrivada', [uf], { nodos, tramos })
+
+    const resultado = resolverHidraulicaDeTramo(proyecto, 't0', catalogoArtefactos)
+
+    if (resultado.tipo !== 'conDemanda') {
+      throw new Error('se esperaba conDemanda')
+    }
+    expect(resultado.predimensionamiento.ve_mps).toBe(2.0)
+    expect(resultado.predimensionamiento.ae_cm2).toBe(calcularSeccionEscurrimiento(resultado.qc_lps, 2.0))
+    expect(resultado.predimensionamiento.di_min_mm).toBe(
+      calcularDiametroInteriorMinimo(resultado.predimensionamiento.ae_cm2),
+    )
+  })
+
+  it('15. sinDemanda no calcula predimensionamiento ni inventa Ae/Di sintéticos', () => {
+    const inodoro = artefacto('inst-inodoro', 'inodoroValvula')
+    const uf = unidadFuncionalCon('uf-1', 'local-bano', [inodoro])
+    const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n1', referencia: referenciaDe('uf-1', 'local-bano', 'inst-inodoro') }]
+    const tramos: Tramo[] = [{ id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AC' }]
+    const proyecto = proyectoCon('oficinaPrivada', [uf], { nodos, tramos })
+
+    const resultado = resolverHidraulicaDeTramo(proyecto, 't0', catalogoArtefactos)
+
+    expect(resultado).toEqual({ tipo: 'sinDemanda', qc_lps: 0 })
+    expect('predimensionamiento' in resultado).toBe(false)
   })
 })

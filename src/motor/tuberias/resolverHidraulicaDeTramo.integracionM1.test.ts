@@ -197,5 +197,14 @@ describe('resolverHidraulicaDeTramo — consistencia M1 ↔ M2 sobre t-general',
     // Valor conocido, solo como referencia adicional de claridad -- la
     // aserción de arriba es la que sostiene la propiedad real.
     expect(resultadoM2.qc_lps).toBe(0.7273238618387272)
+
+    // Predimensionamiento (CRIT-A10 + CRIT-A16) sobre el Qc real de
+    // t-general: valores derivados por las primitivas normativas, no
+    // copiados -- ver seccion-escurrimiento/index.test.ts y
+    // calcularPredimensionamientoDeTramo.test.ts para la verificación
+    // matemática de estos mismos números.
+    expect(resultadoM2.predimensionamiento.ve_mps).toBe(2.0)
+    expect(resultadoM2.predimensionamiento.ae_cm2).toBeCloseTo(3.636619309193636, 9)
+    expect(resultadoM2.predimensionamiento.di_min_mm).toBeCloseTo(21.518102875515787, 9)
   })
 })
