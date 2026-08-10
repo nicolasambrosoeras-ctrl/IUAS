@@ -255,7 +255,7 @@ un subconjunto de consumos. Esto cierra la pregunta D-β.1 registrada en
 **Estado:** Firme, limitado a la ubicación conceptual de la
 clasificación base; no se extiende a la cuestión del `a` efectivo.
 
-## CRIT-A13 — Alcance de las reglas de participación en cálculo por tramo (cierre de D-δ.16)
+## CRIT-A13 — Alcance de las reglas de participación en cálculo por tramo (cierre de D-δ.16; revisión: extensión a condición hidráulica)
 
 **Artículo:** ERAS-2023 §2.10.2 (CRIT-A8) y §2.9.2.1/§2.9.2.2/§2.9.2.3
 (CRIT-A11).
@@ -264,10 +264,21 @@ clasificación base; no se extiende a la cuestión del `a` efectivo.
 
 ```text
 conjunto computable aguas abajo del Tramo
+→ para la condición hidráulica evaluada (total / aguaFria / aguaCaliente),
+  retener únicamente los artefactos con qu_lps > 0 en esa condición
+  (conjunto hidráulicamente activo)
 → separar por Local
 → aplicar CRIT-A8 dentro de cada subconjunto de ese Local
 → reunir participantes
 ```
+
+Un artefacto con `qu_lps = 0` en la condición evaluada (valor explícito de
+catálogo, no ausencia de dato) no integra el conjunto sobre el que CRIT-A8
+decide participación en esa condición. Un `qu` requerido `= null` sigue
+siendo un dato no resuelto y produce error, sin relación con esta regla de
+participación (ver CRIT-A7 para el único grupo de artefactos ya resuelto,
+y D-δ.5 en `PENDIENTES-DE-ARQUITECTURA.md` para los `null` restantes,
+fuera de este alcance).
 
 No se utiliza el inventario físico completo de un Local cuando parte de
 sus artefactos no está aguas abajo del Tramo. Si el conjunto aguas abajo
@@ -283,17 +294,76 @@ Cuando el conjunto evaluado coincide con el Local completo, este criterio
 se reduce al comportamiento actual de CRIT-A8 en el Qc global de Módulo 1
 (CRIT-A5).
 
+**Revisión — extensión a condición hidráulica:** el fundamento anterior se
+adoptó antes de que existiera el modelo de condición hidráulica por Tramo
+(total/aguaFria/aguaCaliente). El mismo principio —no introducir en
+CRIT-A8 artefactos ajenos al universo hidráulicamente relevante, porque
+puede producir demanda cero en una cañería que sí alimenta consumos
+reales— se extiende ahora también al eje de condición: un artefacto cuyo
+`qu_lps` es explícitamente `0` para la condición evaluada (por ejemplo, un
+inodoro con válvula automática, cuya demanda de agua caliente es
+normativamente cero desde CRIT-A7) no pertenece al universo
+hidráulicamente relevante de esa condición, y su presencia en el Local no
+debe suprimir la demanda real de otros artefactos mixtos del mismo Local
+en esa misma condición.
+
+**Caso representativo:** Local domiciliario con `inodoroValvula`
+(`quTotal=1.50`, `quFria=1.50`, `quCaliente=0`, resuelto por CRIT-A7) y
+`lavatorio` (`quTotal=0.20`, `quFria=0.08`, `quCaliente=0.12`).
+
+- `total`: ambos artefactos activos (`quTotal>0`) → CRIT-A8 → solo
+  `inodoroValvula` participa. Sin cambio respecto del comportamiento
+  anterior.
+- `aguaFria`: ambos activos (`quFria>0`) → CRIT-A8 → solo `inodoroValvula`
+  participa. Sin cambio práctico.
+- `aguaCaliente`: `inodoroValvula` (`quCaliente=0`) queda fuera del
+  conjunto hidráulicamente activo antes de aplicar CRIT-A8; `lavatorio`
+  (`quCaliente=0.12`) es el único artefacto activo del Local → CRIT-A8 se
+  aplica sobre ese conjunto (sin válvula presente) → participan todos los
+  activos → la demanda de agua caliente del Local (0,12 l/s) se preserva,
+  en vez de resultar incorrectamente en cero.
+
+**Relación con CRIT-A11:** esta revisión es compatible con CRIT-A11 sin
+excepción: `n`, `Qmax`, `aEfectivo`, `Kc`, `K` y `Qc` siguen
+recalculándose íntegramente sobre el conjunto hidráulicamente relevante de
+cada Tramo/condición. No se fracciona ningún `Qc` total, no se suman `Qc`
+parciales ni se reutilizan resultados de otra condición.
+
+**Relación con CRIT-A14:** `aEfectivo` debe calcularse sobre el mismo
+conjunto final de participantes hidráulicos que alimenta `n`/`Qmax` de esa
+condición. Una `UnidadFuncional` cuyos únicos consumos aguas abajo tengan
+`qu_lps=0` en la condición evaluada no cuenta como UF hidráulicamente
+atendida para ese cálculo específico.
+
+**Conjunto vacío tras el filtro:** si, para una condición dada, ningún
+artefacto del Tramo conserva `qu_lps>0` tras aplicar esta regla (con o sin
+intervención adicional de CRIT-A8), el Tramo no tiene demanda hidráulica
+en esa condición; `Qc=0` es un estado válido del dominio, no un error.
+Este documento no define todavía la representación/API de ese estado.
+
 **Naturaleza:** inferencia/adopción IUAS fuertemente sustentada, no una
-disposición textual de ERAS — mismo estatus epistémico que CRIT-A11.
+disposición textual de ERAS — mismo estatus epistémico que CRIT-A11. La
+extensión a condición hidráulica es, en sí misma, adopción interpretativa
+IUAS (no texto literal de ERAS), con la misma naturaleza epistémica que el
+criterio original.
 
 **Alcance — qué NO resuelve este criterio:**
 
-- No modifica CRIT-A8 para el cálculo global actual de Módulo 1.
+- No modifica CRIT-A8 para el cálculo global actual de Módulo 1 (ese
+  cálculo no distingue condición hidráulica).
 - No decide la identidad de "Local simple" ni ningún umbral
   simple/complejo (ver D-δ.17 en `PENDIENTES-DE-ARQUITECTURA.md`).
-- No define la implementación concreta de agrupación por Local.
+- No define la implementación concreta de agrupación por Local, ni la del
+  filtro de `qu_lps>0` por condición.
+- No reabre la semántica de `qu = null` (sigue siendo dato no resuelto;
+  ver CRIT-A7 y D-δ.5 en `PENDIENTES-DE-ARQUITECTURA.md` para los
+  artefactos no domiciliarios pendientes).
+- No define la representación/API del estado "Tramo sin demanda en una
+  condición" (`Qc=0` sin participantes).
 
-**Estado:** Firme, con el alcance explícitamente limitado arriba.
+**Estado:** Firme, con el alcance ampliado explícitamente a la condición
+hidráulica por Tramo (total/aguaFria/aguaCaliente); el resto del alcance
+permanece limitado como arriba.
 
 ## CRIT-A14 — Determinación del coeficiente `a` efectivo por tramo (cierre de D-β.2)
 
