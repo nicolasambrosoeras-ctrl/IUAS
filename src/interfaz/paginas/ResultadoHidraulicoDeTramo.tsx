@@ -124,15 +124,19 @@ function FilaDeTramo({
   let errorDelMotor: string | null = null
   let qcTexto: string
   let aEfectivoTexto: string | number
+  let diMinimoTexto: string
 
   try {
     const resultado = resolverHidraulicaDeTramo(proyecto, tramo.id, catalogoArtefactos)
     qcTexto = formatearNumero(resultado.qc_lps, 'l/s')
     aEfectivoTexto = resultado.tipo === 'conDemanda' ? resultado.simultaneidad.aEfectivo : '—'
+    diMinimoTexto =
+      resultado.tipo === 'conDemanda' ? formatearNumero(resultado.predimensionamiento.di_min_mm, 'mm') : '—'
   } catch (motivo) {
     errorDelMotor = motivo instanceof Error ? motivo.message : String(motivo)
     qcTexto = 'Error'
     aEfectivoTexto = '—'
+    diMinimoTexto = '—'
   }
 
   return (
@@ -150,7 +154,7 @@ function FilaDeTramo({
         ) : null}
       </td>
       <td style={estiloCelda('right')}>{aEfectivoTexto}</td>
-      <td style={estiloCelda('right')}>—</td>
+      <td style={estiloCelda('right')}>{diMinimoTexto}</td>
     </tr>
   )
 }

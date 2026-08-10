@@ -14,6 +14,7 @@ const DECIMALES_POR_UNIDAD: Readonly<Record<string, number>> = {
   conteo: 0, // n -- cantidad discreta de artefactos, sin decimales
   'm/s': 1, // velocidad -- ejemplo de ADR-011 (2,8 m/s)
   'l/s': 2, // Qmax, Qc, qu -- segundo caso real: MotorDemandaPantalla
+  mm: 2, // Di mínimo -- predimensionamiento hidráulico (CRIT-A10/CRIT-A16), ResultadoHidraulicoDeTramo
 }
 
 export function formatearNumero(valor: number, unidad: string): string {
