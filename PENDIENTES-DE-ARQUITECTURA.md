@@ -42,9 +42,11 @@ considerando ambos casos reales.
 
 ## Ubicación conceptual del coeficiente de mayoración `a`
 
-**Ubicación actual**: `coeficienteA` vive actualmente en
-`Proyecto.parametros` (`src/modelo/proyecto/index.ts`) y se aplica de forma
-global al cálculo de Demanda.
+**Ubicación en ese momento**: `coeficienteA` vivía en
+`Proyecto.parametros` (`src/modelo/proyecto/index.ts`) y se aplicaba de
+forma global al cálculo de Demanda. (Superado: ver D-β.2/CRIT-A14 más
+abajo — el modelo ahora persiste `tipoDeProyecto`, del cual se deriva
+`aBase`.)
 
 **Hallazgo**: durante el diseño conceptual del futuro Módulo 2 (Tuberías)
 surgió una duda arquitectónica sobre la ubicación conceptual del
@@ -66,9 +68,9 @@ No afirmar todavía ninguna de estas alternativas como solución correcta.
 
 **Postergado a propósito**: no se modifica todavía el modelo.
 
-El Módulo 1 continúa trabajando con un único `coeficienteA` global y ese
-comportamiento debe mantenerse mientras no exista el modelo real de
-red/tramos del Módulo 2.
+En ese momento, Módulo 1 trabajaba con un único `coeficienteA` global y
+ese comportamiento debía mantenerse mientras no existiera el modelo real
+de red/tramos del Módulo 2 — condición ya cumplida (ver D-β.2/CRIT-A14).
 
 La ubicación definitiva del coeficiente no debe decidirse anticipadamente.
 Se aplica la regla general de arquitectura adoptada en el proyecto:
@@ -201,27 +203,33 @@ interpretativo no trazable desde el repositorio actual (sin fuente,
 fórmula ni valores numéricos recuperables) — no se usó como fundamento
 decisorio de este cierre.
 
-**Problema de modelo descubierto (no reabre D-β.2)**: el modelo actual
-de `Proyecto` no conserva la tipología normativa — solo persiste
-`coeficienteA: 1|2|3|4`, que no distingue vivienda multifamiliar de
-oficina pública o centro educativo (los tres comparten `a=2`). La regla
-queda cerrada conceptualmente, pero **su implementación queda
-bloqueada** hasta que el modelo conserve explícitamente la tipología
-normativa del Proyecto y `aBase` sea derivable de ella — evitando dos
-fuentes de verdad que puedan contradecirse.
+**Problema de modelo descubierto (no reabre D-β.2) — RESUELTO**: al
+cerrar D-β.2, el modelo de `Proyecto` no conservaba la tipología
+normativa — solo persistía `coeficienteA: 1|2|3|4`, que no distinguía
+vivienda multifamiliar de oficina pública o centro educativo (los tres
+compartían `a=2`). Eso bloqueaba la implementación de la regla, aunque
+no su cierre conceptual.
+
+**Estado**: RESUELTO en el commit `bfda05bf8c3fc6008afa0b897f0df1bb553fceb7`
+(`refactor: derivar coeficiente a desde tipologia de proyecto`).
+
+**Solución aplicada**: `Proyecto.parametros.tipoDeProyecto` conserva
+ahora la tipología normativa explícita (12 valores); `aBase` se deriva
+de ella vía `obtenerCoeficienteABase` sobre la tabla normativa — una
+única fuente de verdad, sin `coeficienteA` persistido.
 
 **Estado resultante:**
 
 ```text
-D-β.2: CERRADO
+D-β.2 / CRIT-A14: CERRADO
 
-Regla de a efectivo: definida (CRIT-A14).
+Tipología semántica de Proyecto: IMPLEMENTADA
+aBase derivado: IMPLEMENTADO
 
-Implementación: BLOQUEADA temporalmente por insuficiencia semántica
-del modelo Proyecto.
+aEfectivo por tramo: PENDIENTE DE IMPLEMENTACIÓN
+K / Qc por tramo: PENDIENTE
 
-Próximo incremento:
-conservar tipoDeProyecto explícito y derivar aBase desde la tabla normativa.
+La implementación de aEfectivo ya no está bloqueada por el modelo.
 ```
 
 ### D-γ — Proyectos mixtos — ABIERTA

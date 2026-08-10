@@ -338,11 +338,14 @@ pareja normativa interna equivalente para `a=3`/`a=4`.
 **Alcance — qué NO resuelve este criterio:**
 
 - No resuelve D-γ (proyectos de tipología mixta).
-- No implementa por sí solo la regla: el modelo actual de `Proyecto`
-  no conserva la tipología normativa necesaria para aplicarlo (solo
-  persiste `coeficienteA`, que no distingue vivienda multifamiliar de
-  oficina pública o centro educativo) — ver
-  `PENDIENTES-DE-ARQUITECTURA.md`, sección D-β.2.
+- No implementa por sí solo la regla: es la interpretación normativa
+  adoptada, no el código que la aplica por tramo. El modelo ya tiene la
+  semántica necesaria (`Proyecto.parametros.tipoDeProyecto`, `aBase`
+  derivado vía `obtenerCoeficienteABase`; ver
+  `PENDIENTES-DE-ARQUITECTURA.md`, sección D-β.2) — la insuficiencia
+  semántica que antes bloqueaba esta implementación quedó resuelta.
+  Falta todavía implementar la función que aplique esta regla por tramo
+  (`aEfectivo` o equivalente).
 - No define `K>1`/cap de `K` en tramos pequeños (sigue ligado a CRIT-A2).
 
 **Estado:** Firme, con el alcance explícitamente limitado arriba.
