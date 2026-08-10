@@ -21,6 +21,7 @@ import {
   sustitucionNumerica,
   textoValorCalculado,
 } from '../../presentacion/desarrolloDelCalculoDemanda'
+import { duplicarUnidadFuncionalEnProyecto, generarId } from './duplicarUnidadFuncional'
 
 const TIPOS_DE_LOCAL: readonly TipoDeLocal[] = [
   'bano',
@@ -71,13 +72,6 @@ function etiquetasDeLocales(locales: readonly Local[]): readonly string[] {
     contadorPorTipo[local.tipo] = siguiente
     return `Local: ${etiquetaBase} ${siguiente}`
   })
-}
-
-// IDs únicos vía crypto.randomUUID() (API nativa del navegador, sin
-// dependencia nueva): un contador de módulo colisionaría con los IDs que
-// ya trae el proyecto inicial (local-bano, artefacto-1, etc.).
-function generarId(prefijo: string): string {
-  return `${prefijo}-${crypto.randomUUID()}`
 }
 
 function conCoeficienteA(proyecto: Proyecto, a: 1 | 2 | 3 | 4): Proyecto {
@@ -220,11 +214,13 @@ function UnidadFuncionalFormulario({
   uf,
   onCambiar,
   onEliminar,
+  onDuplicar,
   mostrarEliminar,
 }: {
   uf: UnidadFuncional
   onCambiar: (uf: UnidadFuncional) => void
   onEliminar: () => void
+  onDuplicar: () => void
   mostrarEliminar: boolean
 }) {
   const locales = uf.locales
@@ -254,6 +250,9 @@ function UnidadFuncionalFormulario({
           onChange={(evento) => onCambiar({ ...uf, nombre: evento.target.value })}
         />
       </h3>
+      <button type="button" onClick={onDuplicar}>
+        Duplicar unidad funcional
+      </button>{' '}
       {mostrarEliminar ? (
         <button type="button" onClick={onEliminar}>
           Eliminar unidad funcional
@@ -301,6 +300,10 @@ function ProyectoFormulario({
     cambiarUnidadesFuncionales([...unidadesFuncionales, nuevaUf])
   }
 
+  function duplicarUnidadFuncional(unidadFuncionalId: string) {
+    onCambiar(duplicarUnidadFuncionalEnProyecto(proyecto, unidadFuncionalId))
+  }
+
   return (
     <section>
       <h2>Datos del proyecto</h2>
@@ -319,6 +322,8 @@ function ProyectoFormulario({
         </select>
       </label>
 
+      <p>Total de unidades funcionales: {unidadesFuncionales.length}</p>
+
       {unidadesFuncionales.map((uf) => (
         <UnidadFuncionalFormulario
           key={uf.id}
@@ -332,6 +337,7 @@ function ProyectoFormulario({
           onEliminar={() =>
             cambiarUnidadesFuncionales(unidadesFuncionales.filter((u) => u.id !== uf.id))
           }
+          onDuplicar={() => duplicarUnidadFuncional(uf.id)}
         />
       ))}
       <button type="button" onClick={agregarUnidadFuncional}>
