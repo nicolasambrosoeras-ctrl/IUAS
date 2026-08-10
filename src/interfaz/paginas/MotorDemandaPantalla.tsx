@@ -417,26 +417,36 @@ const proyectoInicial: Proyecto = {
       ],
     },
   ],
-  // Red hidraulica de ejemplo (Modulo 2, primera prueba de usuario). Unica
-  // incorporacion de datos de este incremento: no agrega ninguna UF/Local/
-  // Artefacto -- reutiliza exclusivamente los 4 artefactos ya existentes de
-  // local-bano, asi que Modulo 1 (demanda) no cambia.
+  // Red hidraulica de ejemplo (Modulo 2). Unica incorporacion de datos de
+  // este incremento: no agrega ninguna UF/Local/Artefacto -- reutiliza
+  // exclusivamente los 11 artefactos ya existentes del proyecto, asi que
+  // Modulo 1 (demanda) no cambia.
   //
-  // Dos ramas desde la misma fuente n-0, cada una con un nodo de
-  // bifurcacion (un nodo con referencia es terminal en el traversal, ver
-  // obtenerArtefactosAguasAbajo):
-  //   AF -- t-af-bano: rama fria directa a los 4 artefactos de local-bano.
-  //   ACS -- t-af-acs (AF) alimenta n-acs (produccionACS, D-delta.7); desde
-  //   ahi t-ac-bano (AC) alcanza solo lavatorio/ducha/bidet por sus
-  //   terminales de agua caliente. El inodoro a deposito NO tiene terminal
-  //   AC en este ejemplo: fisicamente es exclusivamente frio, aunque el
-  //   catalogo conserve su quCaliente_lps normativo (CRIT-A7/A13 sin
-  //   tocar). Conservacion de masa AF->ACS, D-delta.13: el tramo AF que
-  //   alimenta el equipo es distinto del tramo AF que alimenta las
-  //   canillas frias.
+  // Raiz unica n-0 (AF) y produccionACS unico n-acs (D-delta.7),
+  // compartidos por todo el proyecto: cada Local aporta una rama AF
+  // hermana desde n-0 y, si corresponde, una rama AC hermana desde n-acs
+  // (Conservacion de masa AF->ACS, D-delta.13). Topologia plana y
+  // explicita, sin colector/montante/sectores todavia. Cada rama AF con
+  // mas de un Artefacto usa un nodo de bifurcacion intermedio (un nodo con
+  // referencia es terminal en el traversal, ver obtenerArtefactosAguasAbajo);
+  // las ramas de un solo Artefacto van directas, sin bifurcacion artificial.
+  //
+  // Decision fisica por artefacto (D-delta.5, CRIT-A15): los artefactos
+  // declarados AF+AC tienen terminal AF y terminal AC reales (fracciones de
+  // mezcla via CRIT-A15). Los declarados AF-only NO tienen ningun terminal
+  // AC en esta red -- fisicamente exclusivos de agua fria en este proyecto
+  // de ejemplo, aunque el catalogo conserve su quCaliente_lps normativo
+  // (CRIT-A7/A13 sin tocar); bajo CRIT-A15 su unica rama AF aporta
+  // quTotal_lps, no quFria_lps.
+  //   Baño:     lavatorio/ducha/bidet AF+AC; inodoroDeposito AF-only.
+  //   Toilette: lavatorio AF+AC; inodoroDeposito AF-only.
+  //   Cocina:   piletaDeCocina AF+AC; maquinaLavavajillas AF-only.
+  //   Lavadero: piletaDeLavar AF+AC; maquinaLavarropas AF-only.
+  //   Patio:    canillaDeServicio AF-only (terminal directo, sin bifurcacion).
   // Los nodos AF y los nodos AC referencian la misma cadena UF/Local/
   // Artefacto por diseño (terminal fria y terminal caliente del mismo
-  // artefacto mixto); validarRedHidraulica lo admite explicitamente.
+  // artefacto mixto, D-delta.3); validarRedHidraulica lo admite
+  // explicitamente.
   redHidraulica: {
     nodos: [
       { id: 'n-0' },
@@ -476,6 +486,62 @@ const proyectoInicial: Proyecto = {
       // exclusivamente fría (t-af-inodoro). El catálogo conserva su
       // quCaliente_lps normativo (CRIT-A7/A13 no se tocan); simplemente no se
       // materializa una conexión física AC para este artefacto en esta red.
+
+      { id: 'n-af-toilette-1' },
+      {
+        id: 'n-af-toilette-lavatorio',
+        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-toilette', artefactoId: 'artefacto-toilette-1' },
+      },
+      {
+        id: 'n-af-toilette-inodoro',
+        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-toilette', artefactoId: 'artefacto-toilette-2' },
+      },
+      {
+        id: 'n-ac-toilette-lavatorio',
+        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-toilette', artefactoId: 'artefacto-toilette-1' },
+      },
+      // Sin terminal AC para artefacto-toilette-2 (inodoro a depósito):
+      // misma decisión física que en local-bano.
+
+      { id: 'n-af-cocina-1' },
+      {
+        id: 'n-af-cocina-pileta',
+        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-cocina', artefactoId: 'artefacto-cocina-1' },
+      },
+      {
+        id: 'n-af-cocina-lavavajillas',
+        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-cocina', artefactoId: 'artefacto-cocina-2' },
+      },
+      {
+        id: 'n-ac-cocina-pileta',
+        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-cocina', artefactoId: 'artefacto-cocina-1' },
+      },
+      // Sin terminal AC para artefacto-cocina-2 (lavavajillas): quCaliente_lps=0
+      // por CRIT-A7, sin conexión física AC en esta red.
+
+      { id: 'n-af-lavadero-1' },
+      {
+        id: 'n-af-lavadero-pileta',
+        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-lavadero', artefactoId: 'artefacto-lavadero-1' },
+      },
+      {
+        id: 'n-af-lavadero-lavarropas',
+        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-lavadero', artefactoId: 'artefacto-lavadero-2' },
+      },
+      {
+        id: 'n-ac-lavadero-pileta',
+        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-lavadero', artefactoId: 'artefacto-lavadero-1' },
+      },
+      // Sin terminal AC para artefacto-lavadero-2 (lavarropas): quCaliente_lps=0
+      // por CRIT-A7, sin conexión física AC en esta red.
+
+      {
+        id: 'n-af-patio-canilla',
+        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-patio', artefactoId: 'artefacto-patio-1' },
+      },
+      // Sin rama AC: canillaDeServicio es exclusivamente fría (quCaliente_lps=0,
+      // no normativo). Terminal directo desde n-0, sin nodo de bifurcación:
+      // un único Artefacto en todo el Local.
     ],
     tramos: [
       { id: 't-af-bano', nodoOrigenId: 'n-0', nodoDestinoId: 'n-af-1', red: 'AF' },
@@ -488,6 +554,23 @@ const proyectoInicial: Proyecto = {
       { id: 't-ac-lavatorio', nodoOrigenId: 'n-ac-1', nodoDestinoId: 'n-ac-lavatorio', red: 'AC' },
       { id: 't-ac-ducha', nodoOrigenId: 'n-ac-1', nodoDestinoId: 'n-ac-ducha', red: 'AC' },
       { id: 't-ac-bidet', nodoOrigenId: 'n-ac-1', nodoDestinoId: 'n-ac-bidet', red: 'AC' },
+
+      { id: 't-af-toilette', nodoOrigenId: 'n-0', nodoDestinoId: 'n-af-toilette-1', red: 'AF' },
+      { id: 't-af-toilette-lavatorio', nodoOrigenId: 'n-af-toilette-1', nodoDestinoId: 'n-af-toilette-lavatorio', red: 'AF' },
+      { id: 't-af-toilette-inodoro', nodoOrigenId: 'n-af-toilette-1', nodoDestinoId: 'n-af-toilette-inodoro', red: 'AF' },
+      { id: 't-ac-toilette', nodoOrigenId: 'n-acs', nodoDestinoId: 'n-ac-toilette-lavatorio', red: 'AC' },
+
+      { id: 't-af-cocina', nodoOrigenId: 'n-0', nodoDestinoId: 'n-af-cocina-1', red: 'AF' },
+      { id: 't-af-cocina-pileta', nodoOrigenId: 'n-af-cocina-1', nodoDestinoId: 'n-af-cocina-pileta', red: 'AF' },
+      { id: 't-af-cocina-lavavajillas', nodoOrigenId: 'n-af-cocina-1', nodoDestinoId: 'n-af-cocina-lavavajillas', red: 'AF' },
+      { id: 't-ac-cocina', nodoOrigenId: 'n-acs', nodoDestinoId: 'n-ac-cocina-pileta', red: 'AC' },
+
+      { id: 't-af-lavadero', nodoOrigenId: 'n-0', nodoDestinoId: 'n-af-lavadero-1', red: 'AF' },
+      { id: 't-af-lavadero-pileta', nodoOrigenId: 'n-af-lavadero-1', nodoDestinoId: 'n-af-lavadero-pileta', red: 'AF' },
+      { id: 't-af-lavadero-lavarropas', nodoOrigenId: 'n-af-lavadero-1', nodoDestinoId: 'n-af-lavadero-lavarropas', red: 'AF' },
+      { id: 't-ac-lavadero', nodoOrigenId: 'n-acs', nodoDestinoId: 'n-ac-lavadero-pileta', red: 'AC' },
+
+      { id: 't-af-patio', nodoOrigenId: 'n-0', nodoDestinoId: 'n-af-patio-canilla', red: 'AF' },
     ],
   },
 }
