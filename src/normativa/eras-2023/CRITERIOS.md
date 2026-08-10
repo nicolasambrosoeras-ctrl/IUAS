@@ -569,3 +569,77 @@ de `Ve` que se inyecta en ella durante la etapa de predimensionamiento.
 
 **Estado:** Firme para la etapa de predimensionamiento. No implica
 implementación en motor/tests todavía.
+
+## CRIT-A17 — Pérdida de carga distribuida por Hazen-Williams
+
+**Artículo:** ERAS-2023 §2.12.1, que admite/emplea la fórmula de
+Hazen-Williams (junto con otras fórmulas admitidas) para determinar
+pérdidas de carga en cañerías, con un coeficiente `C` según los
+materiales adoptados.
+
+**Criterio adoptado:** el proyecto adopta como forma operativa la
+expresión SI estándar de Hazen-Williams, ampliamente utilizada en la
+práctica técnica internacional y consistente con la estructura de la
+fórmula que reproduce ERAS-2023 §2.12.1:
+
+```
+J = 10,67 · Q_m3s^1,852 / (C^1,852 · D_m^4,87)
+```
+
+con `Q` en m³/s, `D` en m, `C` adimensional y `J` en m/m (pérdida de
+carga unitaria, es decir, pérdida de carga por metro de cañería).
+
+**Pérdida de carga total:**
+
+```
+hf = J · L
+```
+
+con `L` en m y `hf` en m (metros de columna de agua).
+
+**Unidades y conversión:** la API interna del proyecto sigue trabajando
+normalmente con `Qc` en l/s y `Di` en mm, igual que en el resto de
+Módulo 2. Antes de aplicar la fórmula de Hazen-Williams, se convierten
+explícitamente:
+
+```
+Q_m3s = Qc_lps / 1000
+D_m   = Di_mm / 1000
+```
+
+Esta conversión debe quedar explícita y comentada en la implementación,
+sin colapsar en una constante combinada que oculte el origen dimensional
+de cada factor.
+
+**Coeficiente C:** en esta etapa, `C` es un parámetro explícito de la
+primitiva de cálculo. El proyecto no fija todavía ningún valor real de
+`C` por material; los materiales y sus coeficientes se incorporarán en
+un incremento posterior, mediante un catálogo aún no implementado.
+
+**No se abre discusión sobre variantes de redondeo:** existen en la
+bibliografía distintas versiones publicadas de la constante numérica
+(10,67 / 10,65 / 10,643) y del exponente de `D` (4,87 / 4,8704), producto
+de redondeos históricos distintos de la misma fórmula empírica. El
+proyecto adopta la forma `10,67` / `1,852` / `4,87` como criterio técnico
+operativo, sin profundizar esa comparación en este criterio.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- Aplica exclusivamente a pérdida de carga **distribuida** (por fricción
+  a lo largo de la cañería). No resuelve pérdidas **singulares/
+  localizadas** (accesorios), que ERAS-2023 §2.12.1 vincula a una fórmula
+  distinta (`Js = Ks · V²/(2g)`, con `Ks` según Tabla N°7).
+- No fija diámetro comercial ni prescribe qué diámetro debe adoptarse.
+  La fórmula utiliza como entrada el diámetro interior hidráulico `D`
+  del tramo. En los cálculos reales posteriores deberá emplearse el
+  diámetro interior efectivo correspondiente al diámetro comercial/
+  sistema adoptado; el `Di` mínimo de CRIT-A10/CRIT-A16 constituye
+  únicamente un predimensionamiento previo, no el diámetro a usar
+  necesariamente en este cálculo.
+- No calcula velocidad real de escurrimiento.
+- No calcula ni verifica presión residual.
+- No incorpora materiales ni catálogo de coeficientes `C`.
+
+**Estado:** Firme como criterio técnico operativo del proyecto. No
+implica todavía implementación en motor/tests (ver incremento funcional
+correspondiente).
