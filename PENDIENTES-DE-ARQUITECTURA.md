@@ -358,6 +358,36 @@ por conjetura; si llegan a necesitarse, se redactan como decisiones
 nuevas en el momento en que corresponda, no como recuperación de algo
 preexistente.
 
+## Interacción no resuelta entre CRIT-A8 y computabilidad (`origen`) en Módulo 1
+
+**Hallazgo verificado** (reproducido contra `calcularSimultaneidad.ts`, sin
+modificarlo): CRIT-A8 se evalúa sobre `local.artefactos` completo, sin
+distinguir `origen`; el filtro `origen === 'normativo'` se aplica recién
+después, sobre el resultado de CRIT-A8:
+
+```text
+todos los Artefactos del Local → CRIT-A8 → filtro origen === 'normativo' → n / Qmax
+```
+
+**Caso reproducido**: Local domiciliario con inodoro de válvula automática
+`origen: 'usuario'` + lavatorio `origen: 'normativo'`. CRIT-A8 deja solo la
+válvula como participante; el filtro de `origen` la elimina por no ser
+normativa; el conjunto queda vacío → `n = 0` → excepción. La validación
+global `proyectoSinArtefactosComputables` no detecta el caso: cuenta
+artefactos normativos de todo el proyecto (encuentra el lavatorio) sin
+simular esta interacción por Local.
+
+**No se adopta todavía ninguna corrección ni cambio de orden.** Se registra
+una incompatibilidad no resuelta entre la noción de artefacto computable
+(`origen === 'normativo'`) y el universo que observa CRIT-A8 al decidir
+participación.
+
+**Pregunta pendiente**: ¿un artefacto no computable puede activar CRIT-A8 y
+modificar la participación de artefactos computables del mismo Local?
+
+**Estado**: no resuelto. No se corrige `calcularSimultaneidad.ts` en este
+incremento (documental).
+
 ## D-δ — Topología hidráulica, estados de demanda AF/AC y producción ACS
 
 Esta sección registra conclusiones de un análisis conceptual previo al
@@ -520,3 +550,44 @@ búsqueda discreta y determinística, no una iteración numérica continua.
 
 Ninguno de estos puntos se convierte en criterio de `CRITERIOS.md` en
 este incremento.
+
+### D-δ.16 — Universo de CRIT-A8 sobre subconjuntos de Módulo 2 (pendiente, no resuelto)
+
+Módulo 1 evalúa CRIT-A8 siempre sobre el Local completo. Módulo 2 puede
+recibir un `ArtefactoResuelto[]` correspondiente solo al subconjunto aguas
+abajo de un `Tramo` (`obtenerArtefactosAguasAbajo`,
+`resolverArtefactosReferenciados`), que puede ser una fracción de un
+Local.
+
+Queda pendiente si, ante ese subconjunto parcial, CRIT-A8 debe observar
+solamente los artefactos del Local presentes en el conjunto evaluado, o
+todos los artefactos instalados en el Local (consultando
+`ArtefactoResuelto.local.artefactos` completo), o alguna otra
+interpretación normativa. No se adopta ninguna todavía.
+
+Bloquea una función genérica de participación CRIT-A8 sobre tuberías
+(D-δ.18); no bloquea el resto del motor.
+
+### D-δ.17 — Local simple como unidad hidráulica de distribución (dirección arquitectónica preferida, no cerrada)
+
+**Dirección preferida, no implementada ni cerrada**: para Locales simples
+no debería exigirse representar la ramificación hidráulica interna exacta
+cuando no modifica la solución constructiva.
+
+```text
+alimentación al Local → demanda del Local → sección uniforme interna → verificación de presión de sus artefactos
+```
+
+Locales complejos o extensos (baterías numerosas de duchas, gimnasios,
+vestuarios, sanitarios públicos grandes) podrían justificar topología
+interna explícita.
+
+No se cierra ningún umbral numérico de artefactos, definición formal de
+Local simple/complejo, `ReferenciaDeLocal`, `UnidadDeDimensionamiento`,
+reglas de diámetro ni geometría interna.
+
+### D-δ.18 — Estado del pipeline de participación en tuberías (Slice 5, pospuesto)
+
+Slice 4 cerró la computabilidad intrínseca (`origen === 'normativo'`),
+sin aplicar CRIT-A8. La etapa de participación contextual queda pospuesta
+hasta resolver D-δ.16. No hay API aprobada todavía.
