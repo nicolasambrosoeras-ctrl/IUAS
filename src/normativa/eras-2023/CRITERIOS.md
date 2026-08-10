@@ -515,3 +515,57 @@ CRIT-A11/CRIT-A13), no una disposición textual de ERAS.
 
 **Estado:** Adoptado conceptualmente. Pendiente de implementación en
 motor/tests (ver D-δ.19 en `PENDIENTES-DE-ARQUITECTURA.md`).
+
+## CRIT-A16 — Velocidad de escurrimiento adoptada para el predimensionamiento inicial
+
+**Artículo:** ERAS-2023 §2.12.1 (rangos de velocidad admisible por rango de
+diámetro).
+
+**Criterio adoptado:** para el predimensionamiento hidráulico inicial de
+cañerías, el proyecto adopta `Ve = 2,0 m/s` para todos los tramos,
+independientemente del rango de diámetro. Este valor se utiliza junto con
+la fórmula de sección de escurrimiento de CRIT-A10
+(`Ae_cm² = 10 · Qc_lps / Ve_mps`) para obtener, a partir del `Qc` de cada
+tramo, una `Ae` mínima y un `Di` mínimo iniciales.
+
+**Naturaleza del valor — decisión de proyecto, no dato normativo:**
+`Ve = 2,0 m/s` **no** es un valor que ERAS-2023 imponga como tal para el
+predimensionamiento; es una decisión de ingeniería adoptada por el
+proyecto, elegida por ser conservadora dentro de los rangos admisibles que
+la propia Guía publica en §2.12.1 (`0,013–0,060 m` → `1–3 m/s`;
+`0,075–0,200 m` → `1,5–2 m/s`). Usar un único valor fijo para todos los
+tramos en esta etapa simplifica el predimensionamiento inicial sin
+necesitar todavía un diámetro comercial/real sobre el cual iterar.
+
+**No reemplaza los rangos admisibles de §2.12.1:** este criterio no deroga
+ni sustituye los rangos de velocidad admisible que la Guía fija por rango
+de diámetro en §2.12.1. Esos rangos permanecen como el criterio normativo
+de verificación; `Ve = 2,0 m/s` es únicamente el valor de entrada elegido
+para la etapa de predimensionamiento, antes de que exista un diámetro
+comercial/adoptado real.
+
+**Secuencia prevista — verificación posterior obligatoria:** una vez que
+el `Di` mínimo obtenido con este criterio se redondee a un diámetro
+interior comercial o adoptado, el proyecto deberá recalcular la velocidad
+real de escurrimiento con ese diámetro efectivo (`Ve_real = Q / A_real`) y
+verificar ese valor contra los rangos admisibles de §2.12.1 según el rango
+de diámetro correspondiente. Ese recálculo y esa verificación no están
+resueltos por este criterio ni por este incremento.
+
+**Relación con CRIT-A10:** este criterio no modifica ni reinterpreta la
+fórmula de sección de escurrimiento de CRIT-A10; únicamente fija el valor
+de `Ve` que se inyecta en ella durante la etapa de predimensionamiento.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- No fija el diámetro comercial ni el material de la cañería.
+- No calcula la velocidad real de escurrimiento ni la verifica contra
+  §2.12.1; eso queda para el incremento que incorpore diámetro
+  comercial/adoptado.
+- No define si, en el futuro, distintos tramos o materiales podrían
+  ameritar un `Ve` de predimensionamiento distinto de 2,0 m/s; con la
+  información actual del proyecto no hay elementos para justificar esa
+  distinción, y no se adopta aquí.
+
+**Estado:** Firme para la etapa de predimensionamiento. No implica
+implementación en motor/tests todavía.
