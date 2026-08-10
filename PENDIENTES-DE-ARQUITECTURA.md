@@ -168,26 +168,41 @@ operativa.
   extensión por defecto, no una disposición textual.
 - Confianza reducida frente a la evidencia de conjunto.
 
-**Lectura por conjunto (eje residencial):**
+**Lectura por conjunto (eje residencial) — hipótesis actualmente mejor
+sustentada, todavía no adoptada:**
 
-- Para un edificio multifamiliar: tramos comunes que agregan varias
-  viviendas → candidato `a = 2`; dentro de una única unidad funcional →
-  candidato `a = 1`.
-- Apoyos: la semántica de "vivienda individual" frente a "viviendas
-  multifamiliares" en la tabla de tipologías; las planillas normativas
-  usan "UNIDAD DE VIVIENDA TIPO" junto con "N° Viviendas"; coincide con
-  que `Viv. Única` tenga `a = 1`; fundamento probabilístico: la
-  pluralidad de viviendas introduce superposición de consumo entre
-  hogares distintos, pero no altera la simultaneidad interna de un baño
-  dentro de una única unidad funcional.
-- Contrapeso: el método histórico de la misma familia técnica (ver nota
-  más abajo) sí aplica una corrección tipológica dentro de la vivienda,
-  aunque con efecto pequeño y coeficiente final acotado — lo que matiza,
-  sin eliminar, el apoyo a la lectura por conjunto.
-- Ausencia declarada: no existe una regla ERAS explícita que resuelva
-  cuál de las dos lecturas corresponde. La lectura por conjunto es
-  defendible como criterio de proyecto, pero no es texto literal de
-  ERAS.
+```text
+Proyecto vivienda multifamiliar:
+
+más de una UF residencial distinta aguas abajo → candidato a efectivo = 2
+exactamente una UF residencial aguas abajo     → candidato a efectivo = 1
+```
+
+La frontera es exclusivamente funcional — set de `unidadFuncionalId`
+distintas aguas abajo del tramo — **no** una regla por cantidad de
+Artefactos, por cantidad de Locales, ni por diámetro/longitud/tamaño
+geométrico del tramo.
+
+- **Evidencia normativa**: la tabla de `coeficientes-mayoracion` es el
+  único eje de toda la tabla que presenta explícitamente un par
+  individual/colectivo ("vivienda individual" → `a=1`, "viviendas
+  multifamiliares" → `a=2`).
+- **Inferencia fuerte**: un tramo cuyo universo aguas abajo pertenece
+  exclusivamente a una única UF residencial podría interpretarse, desde
+  ese punto hidráulico hacia abajo, como una vivienda individual a
+  efectos de `a`.
+- **No demostrado**: ERAS no dice explícitamente que una UF dentro de un
+  Proyecto multifamiliar deba reclasificarse de esta manera. Por eso la
+  hipótesis no se adopta todavía.
+- **No generaliza a otros tipos**: no significa que todo Proyecto con
+  `a=2` pueda bajar a `a=1`. `Oficinas públicas` y `centros educativos`
+  comparten numéricamente `a=2` pero no tienen ninguna categoría interna
+  "individual" análoga en la tabla. Para `a=3` y `a=4` tampoco se
+  identificó una pareja normativa interna equivalente. Hasta nueva
+  evidencia, no hay fundamento para excepciones análogas en esos tipos.
+- **`n=1`**: CRIT-A4 vuelve esta pregunta irrelevante cuando `n=1`
+  (`Qc = Qmax`, sin `Kc`/`a`/`K`). El problema real queda acotado a
+  conjuntos con `n ≥ 2`.
 
 **Nota sobre el método histórico:** se evitan afirmaciones fuertes de
 filiación directa (p. ej. "es el ancestro de ERAS"). Se documenta solo
@@ -196,14 +211,32 @@ estructura fuertemente coincidente", con evidencia histórica de carácter
 interpretativo, no como norma aplicable: existe una corrección
 tipológica intra-vivienda, existe un coeficiente separado entre
 viviendas, y el coeficiente final está acotado — pero ERAS no reprodujo
-esa estructura completa. Sirve como fundamento interpretativo para
-sopesar la lectura por conjunto, no como fuente normativa.
+esa estructura completa. Verificación posterior (read-only): el repo no
+conserva nombre de fuente, norma/institución, país, fecha, fórmula ni
+valores numéricos de este antecedente — solo la referencia cualitativa
+ya citada. Por tanto se mantiene únicamente como contexto interpretativo
+no trazable desde el repositorio actual, y no debe usarse como evidencia
+matemática o normativa verificable para cerrar D-β.2 hasta recuperar la
+fuente original.
 
-**No se cierra D-β.2 en este incremento.** Ninguna de las dos lecturas
-se adopta como regla operativa. La decisión, cuando se tome, deberá
-formalizarse como criterio de proyecto antes de su implementación en el
-Módulo 2; la arquitectura deberá permitir representarla sin convertirla
-en una decisión irreversible.
+**Estado resultante:**
+
+```text
+Estado: ABIERTO
+
+Hipótesis preferida:
+  multifamiliar: >1 UF → a=2 ; 1 UF → a=1
+
+Confianza: inferencia fuerte, insuficiente para criterio firme.
+
+Bloquea: a efectivo / K / Qc definitivo por tramo.
+No bloquea: cálculo independiente de Kc.
+```
+
+Ninguna de las lecturas se adopta como regla operativa. La decisión,
+cuando se tome, deberá formalizarse como criterio de proyecto antes de
+su implementación en el Módulo 2; la arquitectura deberá permitir
+representarla sin convertirla en una decisión irreversible.
 
 ### D-γ — Proyectos mixtos — ABIERTA
 
