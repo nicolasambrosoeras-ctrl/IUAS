@@ -423,13 +423,16 @@ const proyectoInicial: Proyecto = {
   // local-bano, asi que Modulo 1 (demanda) no cambia.
   //
   // Dos ramas desde la misma fuente n-0, cada una con un nodo de
-  // bifurcacion para alcanzar los 4 artefactos (un nodo con referencia es
-  // terminal en el traversal, ver obtenerArtefactosAguasAbajo):
+  // bifurcacion (un nodo con referencia es terminal en el traversal, ver
+  // obtenerArtefactosAguasAbajo):
   //   AF -- t-af-bano: rama fria directa a los 4 artefactos de local-bano.
   //   ACS -- t-af-acs (AF) alimenta n-acs (produccionACS, D-delta.7); desde
-  //   ahi t-ac-bano (AC) alcanza los mismos 4 artefactos por sus terminales
-  //   de agua caliente. Conservacion de masa AF->ACS, D-delta.13: el tramo
-  //   AF que alimenta el equipo es distinto del tramo AF que alimenta las
+  //   ahi t-ac-bano (AC) alcanza solo lavatorio/ducha/bidet por sus
+  //   terminales de agua caliente. El inodoro a deposito NO tiene terminal
+  //   AC en este ejemplo: fisicamente es exclusivamente frio, aunque el
+  //   catalogo conserve su quCaliente_lps normativo (CRIT-A7/A13 sin
+  //   tocar). Conservacion de masa AF->ACS, D-delta.13: el tramo AF que
+  //   alimenta el equipo es distinto del tramo AF que alimenta las
   //   canillas frias.
   // Los nodos AF y los nodos AC referencian la misma cadena UF/Local/
   // Artefacto por diseño (terminal fria y terminal caliente del mismo
@@ -468,10 +471,11 @@ const proyectoInicial: Proyecto = {
         id: 'n-ac-bidet',
         referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-bano', artefactoId: 'artefacto-bano-3' },
       },
-      {
-        id: 'n-ac-inodoro',
-        referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-bano', artefactoId: 'artefacto-bano-4' },
-      },
+      // Sin terminal AC para artefacto-bano-4 (inodoro a depósito) a propósito:
+      // en este proyecto de ejemplo el inodoro a depósito tiene alimentación
+      // exclusivamente fría (t-af-inodoro). El catálogo conserva su
+      // quCaliente_lps normativo (CRIT-A7/A13 no se tocan); simplemente no se
+      // materializa una conexión física AC para este artefacto en esta red.
     ],
     tramos: [
       { id: 't-af-bano', nodoOrigenId: 'n-0', nodoDestinoId: 'n-af-1', red: 'AF' },
@@ -484,7 +488,6 @@ const proyectoInicial: Proyecto = {
       { id: 't-ac-lavatorio', nodoOrigenId: 'n-ac-1', nodoDestinoId: 'n-ac-lavatorio', red: 'AC' },
       { id: 't-ac-ducha', nodoOrigenId: 'n-ac-1', nodoDestinoId: 'n-ac-ducha', red: 'AC' },
       { id: 't-ac-bidet', nodoOrigenId: 'n-ac-1', nodoDestinoId: 'n-ac-bidet', red: 'AC' },
-      { id: 't-ac-inodoro', nodoOrigenId: 'n-ac-1', nodoDestinoId: 'n-ac-inodoro', red: 'AC' },
     ],
   },
 }
