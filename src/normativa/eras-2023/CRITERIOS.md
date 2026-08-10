@@ -254,3 +254,43 @@ un subconjunto de consumos. Esto cierra la pregunta D-β.1 registrada en
 
 **Estado:** Firme, limitado a la ubicación conceptual de la
 clasificación base; no se extiende a la cuestión del `a` efectivo.
+
+## CRIT-A13 — Alcance de las reglas de participación en cálculo por tramo (cierre de D-δ.16)
+
+**Artículo:** ERAS-2023 §2.10.2 (CRIT-A8) y §2.9.2.1/§2.9.2.2/§2.9.2.3
+(CRIT-A11).
+
+**Criterio adoptado:**
+
+```text
+conjunto computable aguas abajo del Tramo
+→ separar por Local
+→ aplicar CRIT-A8 dentro de cada subconjunto de ese Local
+→ reunir participantes
+```
+
+No se utiliza el inventario físico completo de un Local cuando parte de
+sus artefactos no está aguas abajo del Tramo. Si el conjunto aguas abajo
+contiene artefactos de distintos Locales, CRIT-A8 se evalúa
+independientemente dentro de cada uno.
+
+**Fundamento:** CRIT-A11 ya fija el universo del cálculo de tramo como
+"el conjunto de artefactos computables aguas abajo de ese tramo";
+introducir artefactos fuera de ese universo solo para activar CRIT-A8
+sería inconsistente con CRIT-A11. Consultar el Local completo puede
+producir demanda cero en una cañería que sí alimenta consumos reales.
+Cuando el conjunto evaluado coincide con el Local completo, este criterio
+se reduce al comportamiento actual de CRIT-A8 en el Qc global de Módulo 1
+(CRIT-A5).
+
+**Naturaleza:** inferencia/adopción IUAS fuertemente sustentada, no una
+disposición textual de ERAS — mismo estatus epistémico que CRIT-A11.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- No modifica CRIT-A8 para el cálculo global actual de Módulo 1.
+- No decide la identidad de "Local simple" ni ningún umbral
+  simple/complejo (ver D-δ.17 en `PENDIENTES-DE-ARQUITECTURA.md`).
+- No define la implementación concreta de agrupación por Local.
+
+**Estado:** Firme, con el alcance explícitamente limitado arriba.

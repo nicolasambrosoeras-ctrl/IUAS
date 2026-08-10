@@ -567,22 +567,36 @@ búsqueda discreta y determinística, no una iteración numérica continua.
 Ninguno de estos puntos se convierte en criterio de `CRITERIOS.md` en
 este incremento.
 
-### D-δ.16 — Universo de CRIT-A8 sobre subconjuntos de Módulo 2 (pendiente, no resuelto)
+### D-δ.16 — Universo de CRIT-A8 sobre subconjuntos de Módulo 2 (CERRADO)
 
-Módulo 1 evalúa CRIT-A8 siempre sobre el Local completo. Módulo 2 puede
-recibir un `ArtefactoResuelto[]` correspondiente solo al subconjunto aguas
-abajo de un `Tramo` (`obtenerArtefactosAguasAbajo`,
-`resolverArtefactosReferenciados`), que puede ser una fracción de un
-Local.
+**Decisión adoptada**: para el cálculo de un Tramo, CRIT-A8 opera
+únicamente sobre los Artefactos computables aguas abajo de ese Tramo. Si
+el conjunto contiene Artefactos pertenecientes a distintos Locales, la
+regla se evalúa independientemente dentro de cada Local. No se consultan
+Artefactos del Local que no pertenezcan al conjunto evaluado para activar
+CRIT-A8.
 
-Queda pendiente si, ante ese subconjunto parcial, CRIT-A8 debe observar
-solamente los artefactos del Local presentes en el conjunto evaluado, o
-todos los artefactos instalados en el Local (consultando
-`ArtefactoResuelto.local.artefactos` completo), o alguna otra
-interpretación normativa. No se adopta ninguna todavía.
+**Fundamentos**: (1) CRIT-A11 ya fija como universo del cálculo del tramo
+los consumos computables aguas abajo; (2) introducir consumos fuera de
+ese universo solo para activar CRIT-A8 sería inconsistente con CRIT-A11;
+(3) consultar el Local completo puede producir demanda cero en una
+cañería que sí alimenta consumos reales; (4) cuando el conjunto evaluado
+coincide con el Local completo, el criterio se reduce al comportamiento
+actual de Módulo 1.
 
-Bloquea una función genérica de participación CRIT-A8 sobre tuberías
-(D-δ.18); no bloquea el resto del motor.
+**Naturaleza**: inferencia/adopción IUAS fuertemente sustentada, no una
+frase literal de ERAS — mismo estatus epistémico que CRIT-A11. Formalizada
+como **CRIT-A13** en `src/normativa/eras-2023/CRITERIOS.md`.
+
+**Precisión de identidad**: al agrupar por Local, la identidad relevante
+es `unidadFuncionalId + localId`, nunca `localId` solo — los ids de Local
+no son globalmente únicos (dos Locales de UF distintas pueden compartir
+`localId`, p. ej. `UF 1 / local-bano` y `UF 2 / local-bano`), y CRIT-A8
+nunca debe mezclarlos. No se diseña aquí la implementación concreta
+(estructura de agrupación, claves, helper).
+
+Ya no bloquea la etapa de participación contextual del pipeline de
+tuberías (ver D-δ.18).
 
 ### D-δ.17 — Local simple como unidad hidráulica de distribución (dirección arquitectónica preferida, no cerrada)
 
@@ -602,8 +616,16 @@ No se cierra ningún umbral numérico de artefactos, definición formal de
 Local simple/complejo, `ReferenciaDeLocal`, `UnidadDeDimensionamiento`,
 reglas de diámetro ni geometría interna.
 
-### D-δ.18 — Estado del pipeline de participación en tuberías (Slice 5, pospuesto)
+**Relación con D-δ.16 (cerrado)**: con un Local simple, el conjunto
+aguas abajo del tramo coincide con el Local completo, así que CRIT-A8 lo
+verá entero sin necesitar ninguna excepción. Con un Local complejo, CRIT-A8
+opera correctamente sobre cada subconjunto aguas abajo. D-δ.17 reduce la
+frecuencia del caso parcial pero no era necesaria para resolver D-δ.16.
+
+### D-δ.18 — Estado del pipeline de participación en tuberías (Slice 5)
 
 Slice 4 cerró la computabilidad intrínseca (`origen === 'normativo'`),
-sin aplicar CRIT-A8. La etapa de participación contextual queda pospuesta
-hasta resolver D-δ.16. No hay API aprobada todavía.
+sin aplicar CRIT-A8. D-δ.16 ya no bloquea Slice 5: el próximo incremento
+funcional puede implementar la etapa de participación contextual (CRIT-A8)
+sobre el conjunto recibido, agrupando por Local según D-δ.16. No se
+define todavía API detallada.
