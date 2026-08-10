@@ -447,8 +447,19 @@ const proyectoInicial: Proyecto = {
   // Artefacto por diseño (terminal fria y terminal caliente del mismo
   // artefacto mixto, D-delta.3); validarRedHidraulica lo admite
   // explicitamente.
+  //
+  // t-general (AF): alimentacion general del proyecto, aguas arriba de
+  // n-0 -- distribuidor ya existente, sin tocar nada aguas abajo de el.
+  // Red 'AF' porque, igual que t-af-acs un nivel mas abajo, es agua
+  // fria de ingreso antes de cualquier separacion AF/ACS (no existe una
+  // tercera red para "tramo comun previo al split": el propio t-af-acs ya
+  // establecio ese mismo principio). Al evaluarlo, todos los artefactos
+  // AF+AC resuelven 'total' (alcanzables via ambas ramas desde n-0) y los
+  // AF-only resuelven 'aguaFria' + CRIT-A15 (unica conexion) -> quTotal_lps
+  // en ambos casos, sin excepcion por tipo de artefacto.
   redHidraulica: {
     nodos: [
+      { id: 'n-general' },
       { id: 'n-0' },
       { id: 'n-af-1' },
       {
@@ -544,6 +555,7 @@ const proyectoInicial: Proyecto = {
       // un único Artefacto en todo el Local.
     ],
     tramos: [
+      { id: 't-general', nodoOrigenId: 'n-general', nodoDestinoId: 'n-0', red: 'AF' },
       { id: 't-af-bano', nodoOrigenId: 'n-0', nodoDestinoId: 'n-af-1', red: 'AF' },
       { id: 't-af-acs', nodoOrigenId: 'n-0', nodoDestinoId: 'n-acs', red: 'AF' },
       { id: 't-af-lavatorio', nodoOrigenId: 'n-af-1', nodoDestinoId: 'n-af-lavatorio', red: 'AF' },
