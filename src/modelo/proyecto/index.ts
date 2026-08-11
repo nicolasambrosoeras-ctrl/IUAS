@@ -84,6 +84,15 @@ export type MaterialTuberiaId =
 export type ConfiguracionHidraulica = {
   metodoPerdidaDistribuida: MetodoPerdidaDistribuida;
   materialTuberiaId: MaterialTuberiaId;
+  // Sistema comercial real adoptado (id contra catalogoSistemasDeTuberia,
+  // motor/tuberias/sistemaDeTuberia) -- distinto de materialTuberiaId
+  // (propiedad hidráulica del material, C/epsilon). Obligatorio: sin esto
+  // resolverDiametroComercialDeTramo no puede resolver Di comercial
+  // adoptado, así que un Proyecto válido siempre debe declararlo. No es
+  // una unión cerrada (a diferencia de MaterialTuberiaId): el catálogo de
+  // sistemas está pensado para crecer (más series/fabricantes) sin volver
+  // a tocar este tipo.
+  sistemaDeTuberiaId: string;
 };
 
 export type Proyecto = {

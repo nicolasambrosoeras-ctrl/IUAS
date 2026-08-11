@@ -16,7 +16,9 @@ export type CodigoValidacion =
   | 'redHidraulicaTramoOrigenIgualDestino'
   | 'redHidraulicaReferenciaArtefactoInvalida'
   | 'redHidraulicaTramoLongitudNoPositiva'
-  | 'redHidraulicaTramoLongitudIncompatibleConCota';
+  | 'redHidraulicaTramoLongitudIncompatibleConCota'
+  | 'configuracionHidraulicaSistemaDeTuberiaIdInexistente'
+  | 'configuracionHidraulicaSistemaMaterialIncompatible';
 
 export type Severidad = 'error' | 'advertencia';
 
@@ -85,6 +87,15 @@ export const codigosValidacion: Readonly<Record<CodigoValidacion, DescripcionCod
     severidad: 'error',
     descripcion:
       'Tramo con longitud_m menor a la diferencia de cota (en valor absoluto) entre su nodo origen y su nodo destino (CRIT-A20).',
+  },
+  configuracionHidraulicaSistemaDeTuberiaIdInexistente: {
+    severidad: 'error',
+    descripcion: 'configuracionHidraulica.sistemaDeTuberiaId no existe en el catálogo de sistemas de tubería vigente.',
+  },
+  configuracionHidraulicaSistemaMaterialIncompatible: {
+    severidad: 'error',
+    descripcion:
+      'El sistema de tubería seleccionado pertenece a un materialTuberiaId distinto del configurado en el Proyecto.',
   },
 } as const;
 

@@ -21,7 +21,7 @@ function proyectoDePrueba(
       alturaArtefactoMasDesfavorable_m: 3,
     },
     unidadesFuncionales: [{ id: 'uf-1', nombre: 'UF 1', locales: [] }],
-    configuracionHidraulica: { metodoPerdidaDistribuida: metodo, materialTuberiaId },
+    configuracionHidraulica: { metodoPerdidaDistribuida: metodo, materialTuberiaId, sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
   }
 }
 

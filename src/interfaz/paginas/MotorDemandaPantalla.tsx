@@ -14,6 +14,7 @@ import { validarProyecto } from '../../validacion'
 import { calcularSimultaneidad } from '../../motor/demanda/simultaneidad/calcularSimultaneidad'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion, type TipoDeProyecto } from '../../normativa/eras-2023/coeficientes-mayoracion'
+import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 import { generarDocumentoPdf } from '../../exportadores/pdf/generarDocumentoPdf'
 import {
@@ -585,13 +586,16 @@ const proyectoInicial: Proyecto = {
       { id: 't-af-patio', nodoOrigenId: 'n-0', nodoDestinoId: 'n-af-patio-canilla', red: 'AF' },
     ],
   },
-  // Método y material iniciales explícitos del proyecto de ejemplo -- no un
-  // default oculto del motor: es la elección de laboratorio de este punto
-  // de creación productiva concreto, tal como exige el modelo
-  // (configuracionHidraulica es obligatoria en Proyecto).
+  // Método, material y sistema comercial iniciales explícitos del proyecto
+  // de ejemplo -- no un default oculto del motor: es la elección de
+  // laboratorio de este punto de creación productiva concreto, tal como
+  // exige el modelo (configuracionHidraulica es obligatoria en Proyecto,
+  // sistemaDeTuberiaId incluido). acquaSystemMagnumPn20 es del material
+  // ppr, coherente con materialTuberiaId.
   configuracionHidraulica: {
     metodoPerdidaDistribuida: 'hazenWilliams',
     materialTuberiaId: 'ppr',
+    sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
   },
 }
 
@@ -624,6 +628,10 @@ const MENSAJES_DE_VALIDACION: Readonly<Record<CodigoValidacion, string>> = {
   redHidraulicaTramoLongitudNoPositiva: 'Un tramo de red hidráulica tiene una longitud menor o igual a cero.',
   redHidraulicaTramoLongitudIncompatibleConCota:
     'Un tramo de red hidráulica tiene una longitud menor a la diferencia de cota entre sus nodos.',
+  configuracionHidraulicaSistemaDeTuberiaIdInexistente:
+    'El sistema de tubería seleccionado no existe en el catálogo de sistemas comerciales vigente.',
+  configuracionHidraulicaSistemaMaterialIncompatible:
+    'El sistema de tubería seleccionado pertenece a un material distinto del material configurado en el proyecto.',
 }
 
 function ProblemasValidacion({ problemas }: { problemas: readonly ProblemaValidacion[] }) {
@@ -806,7 +814,7 @@ function ResultadoDemanda({
 
 export function MotorDemandaPantalla() {
   const [proyecto, setProyecto] = useState<Proyecto>(proyectoInicial)
-  const validacion = validarProyecto(proyecto, catalogoArtefactos, coeficientesMayoracion)
+  const validacion = validarProyecto(proyecto, catalogoArtefactos, coeficientesMayoracion, catalogoSistemasDeTuberia)
 
   return (
     <div>

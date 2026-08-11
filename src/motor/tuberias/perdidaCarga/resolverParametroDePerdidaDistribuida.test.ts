@@ -19,7 +19,7 @@ function proyectoDePrueba(metodo: MetodoPerdidaDistribuida, materialTuberiaId: M
       alturaArtefactoMasDesfavorable_m: 3,
     },
     unidadesFuncionales: [],
-    configuracionHidraulica: { metodoPerdidaDistribuida: metodo, materialTuberiaId },
+    configuracionHidraulica: { metodoPerdidaDistribuida: metodo, materialTuberiaId, sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
   }
 }
 

@@ -91,7 +91,7 @@ const proyecto: Proyecto = {
   parametros: parametros(),
   unidadesFuncionales,
   redHidraulica,
-  configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', materialTuberiaId: 'ppr' },
+  configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
 }
 
 describe('identificarFilasDistribucionGeneral', () => {
@@ -114,7 +114,7 @@ describe('identificarFilasDistribucionGeneral', () => {
       metadatos: metadatos(),
       parametros: parametros(),
       unidadesFuncionales,
-      configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', materialTuberiaId: 'ppr' },
+      configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
     }
     expect(identificarFilasDistribucionGeneral(sinRed)).toEqual([])
   })
@@ -304,7 +304,7 @@ const proyectoDemo: Proyecto = {
   parametros: parametros(),
   unidadesFuncionales: unidadesFuncionalesDemo,
   redHidraulica: redHidraulicaDemo,
-  configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', materialTuberiaId: 'ppr' },
+  configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
 }
 
 describe('topología demo real (MotorDemandaPantalla.proyectoInicial): validación end-to-end del algoritmo', () => {
