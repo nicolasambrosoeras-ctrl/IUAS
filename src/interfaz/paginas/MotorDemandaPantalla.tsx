@@ -23,6 +23,7 @@ import {
 } from '../../presentacion/desarrolloDelCalculoDemanda'
 import { duplicarUnidadFuncionalEnProyecto, generarId } from './duplicarUnidadFuncional'
 import { ResultadoHidraulicoDeTramo } from './ResultadoHidraulicoDeTramo'
+import { MetodologiaYFuentesTecnicas } from './MetodologiaYFuentesTecnicas'
 
 const TIPOS_DE_LOCAL: readonly TipoDeLocal[] = [
   'bano',
@@ -816,6 +817,7 @@ export function MotorDemandaPantalla() {
       ) : (
         <ProblemasValidacion problemas={validacion.problemas} />
       )}
+      <MetodologiaYFuentesTecnicas />
     </div>
   )
 }
