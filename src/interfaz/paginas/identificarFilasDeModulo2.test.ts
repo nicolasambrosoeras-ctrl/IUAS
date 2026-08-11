@@ -24,7 +24,6 @@ function parametros(): ParametrosProyecto {
     tipoDeProyecto: 'viviendaIndividual',
     presionSobreAcera_m: 0,
     alturaArtefactoMasDesfavorable_m: 0,
-    material: 'PVC',
   }
 }
 

@@ -23,7 +23,6 @@ function construirProyecto(
       tipoDeProyecto,
       presionSobreAcera_m: 2,
       alturaArtefactoMasDesfavorable_m: 3,
-      material: 'PVC',
     },
     unidadesFuncionales: [
       {
@@ -330,7 +329,6 @@ describe('calcularSimultaneidad — Caso Golden G1 (CASOS-GOLDEN.md)', () => {
         tipoDeProyecto: 'viviendaIndividual',
         presionSobreAcera_m: 2,
         alturaArtefactoMasDesfavorable_m: 3,
-        material: 'PVC',
       },
       unidadesFuncionales: [
         {

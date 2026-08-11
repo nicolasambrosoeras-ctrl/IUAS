@@ -35,7 +35,6 @@ function parametros(tipoDeProyecto: TipoDeProyecto): ParametrosProyecto {
     tipoDeProyecto,
     presionSobreAcera_m: 0,
     alturaArtefactoMasDesfavorable_m: 0,
-    material: 'PVC',
   }
 }
 

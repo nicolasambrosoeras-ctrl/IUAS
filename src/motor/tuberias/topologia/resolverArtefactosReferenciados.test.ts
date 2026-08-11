@@ -17,7 +17,6 @@ function proyectoCon(unidadesFuncionales: readonly UnidadFuncional[]): Proyecto 
       tipoDeProyecto: 'oficinaPrivada',
       presionSobreAcera_m: 0,
       alturaArtefactoMasDesfavorable_m: 0,
-      material: 'PVC',
     },
     unidadesFuncionales,
     configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams' },

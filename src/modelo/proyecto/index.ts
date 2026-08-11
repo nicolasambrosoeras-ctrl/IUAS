@@ -54,7 +54,6 @@ export type ParametrosProyecto = {
   tipoDeProyecto: TipoDeProyecto;
   presionSobreAcera_m: number;
   alturaArtefactoMasDesfavorable_m: number;
-  material: string;
 };
 
 export type MetadatosProyecto = {

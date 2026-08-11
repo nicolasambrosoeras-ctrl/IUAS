@@ -16,7 +16,6 @@ function proyectoDePrueba(metodo: 'hazenWilliams' | 'darcyWeisbach'): Proyecto {
       tipoDeProyecto: 'viviendaIndividual',
       presionSobreAcera_m: 2,
       alturaArtefactoMasDesfavorable_m: 3,
-      material: 'PVC',
     },
     unidadesFuncionales: [{ id: 'uf-1', nombre: 'UF 1', locales: [] }],
     configuracionHidraulica: { metodoPerdidaDistribuida: metodo },
