@@ -30,10 +30,19 @@ export type ReferenciaDeNodo = ReferenciaDeArtefacto | ReferenciaDeProduccionACS
 
 // Un Nodo sin `referencia` es puramente topológico (fuente, bifurcación o
 // unión): su rol se infiere de su conectividad en `Tramo`, no de un campo
-// de tipo. Deliberadamente sin cota ni vínculo a Nivel en este incremento.
+// de tipo.
 export type Nodo = {
   id: string;
   referencia?: ReferenciaDeNodo;
+  // Elevación geométrica del punto hidráulico representado por el Nodo
+  // respecto del datum común del Proyecto, expresada en metros. Convención
+  // de esta primera versión: cota 0 = nivel de vereda/acera (no persistida
+  // como campo -- es una convención documental compartida por todo el
+  // Proyecto). Opcional a propósito: las topologías actuales no tienen
+  // geometría real todavía y no corresponde inventar cotas solo para
+  // satisfacer el compilador; ausencia de cota_m NO equivale a cota_m=0 --
+  // ningún consumidor debe asumir ese fallback.
+  cota_m?: number;
 };
 
 export type RedDeTramo = 'AF' | 'AC';
