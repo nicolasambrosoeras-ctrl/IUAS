@@ -109,7 +109,7 @@ describe('resolverDiametroComercialDeTramo', () => {
 
     const resultado = resolverDiametroComercialDeTramo(proyecto, 't0', catalogoArtefactos, catalogoSistemasDeTuberia)
 
-    expect(resultado).toEqual({ tipo: 'sinDemanda' })
+    expect(resultado).toEqual({ tipo: 'sinDemanda', qc_lps: 0 })
   })
 
   it('2. conCandidato con velocidad admisible: primer candidato del sistema real, velocidad y verificación cross-validadas contra las primitivas', () => {
@@ -128,6 +128,10 @@ describe('resolverDiametroComercialDeTramo', () => {
     const verificacionEsperada = verificarVelocidadAdmisible(velocidadEsperada, candidatosEsperados[0]!.diametroInteriorEfectivo_mm)
 
     expect(hidraulico.qc_lps).toBe(0.2)
+    // N3: qc_lps/diMinimo_mm se propagan desde resultadoHidraulico ya
+    // calculado internamente, sin una segunda llamada al motor de demanda.
+    expect(resultado.qc_lps).toBe(hidraulico.qc_lps)
+    expect(resultado.diMinimo_mm).toBe(hidraulico.predimensionamiento.di_min_mm)
     expect(resultado.candidato).toEqual(candidatosEsperados[0])
     expect(resultado.candidato.denominacionComercial).toBe('20 mm')
     expect(resultado.velocidadReal_mps).toBe(velocidadEsperada)
@@ -143,6 +147,7 @@ describe('resolverDiametroComercialDeTramo', () => {
     if (resultado.tipo !== 'conCandidato') {
       throw new Error('se esperaba conCandidato')
     }
+    expect(resultado.qc_lps).toBe(0.2)
     expect(resultado.candidato.diametroInteriorEfectivo_mm).toBe(50)
     expect(resultado.velocidadReal_mps).toBeLessThan(1)
     expect(resultado.verificacionVelocidad).toEqual({ tipo: 'noAdmisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 })
@@ -158,7 +163,11 @@ describe('resolverDiametroComercialDeTramo', () => {
 
     const resultado = resolverDiametroComercialDeTramo(proyecto, tramoId, catalogoArtefactos, SISTEMA_INSUFICIENTE)
 
-    expect(resultado).toEqual({ tipo: 'sinCandidatoSuficiente', diMinimo_mm: hidraulico.predimensionamiento.di_min_mm })
+    expect(resultado).toEqual({
+      tipo: 'sinCandidatoSuficiente',
+      qc_lps: hidraulico.qc_lps,
+      diMinimo_mm: hidraulico.predimensionamiento.di_min_mm,
+    })
   })
 
   it('5. sistemaDeTuberiaId inexistente en el catálogo recibido: throw coherente con la precondición de obtenerSistemaDeTuberia', () => {

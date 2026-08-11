@@ -8,6 +8,10 @@
 // manual ni persistencia por Tramo -- el diámetro se deriva
 // determinísticamente en cada llamada. No calcula todavía pérdida
 // distribuida (hf): eso queda para un incremento posterior.
+// Propaga qc_lps/diMinimo_mm en las tres variantes (N3): ya se conocen
+// internamente (vienen de resultadoHidraulico, sin recalcular nada) y un
+// consumidor de nivel superior (resolverPerdidaDistribuidaDeTramo) los
+// necesita sin tener que volver a llamar resolverHidraulicaDeTramo.
 import type { Proyecto } from '../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { resolverHidraulicaDeTramo } from './resolverHidraulicaDeTramo'
@@ -19,15 +23,19 @@ import { verificarVelocidadAdmisible, type ResultadoVerificacionVelocidad } from
 export type ResultadoDiametroComercialDeTramo =
   | {
       readonly tipo: 'sinDemanda'
+      readonly qc_lps: 0
     }
   | {
       readonly tipo: 'conCandidato'
+      readonly qc_lps: number
+      readonly diMinimo_mm: number
       readonly candidato: EntradaCatalogoTuberia
       readonly velocidadReal_mps: number
       readonly verificacionVelocidad: ResultadoVerificacionVelocidad
     }
   | {
       readonly tipo: 'sinCandidatoSuficiente'
+      readonly qc_lps: number
       readonly diMinimo_mm: number
     }
 
@@ -40,21 +48,22 @@ export function resolverDiametroComercialDeTramo(
   const resultadoHidraulico = resolverHidraulicaDeTramo(proyecto, tramoId, catalogoArtefactos)
 
   if (resultadoHidraulico.tipo === 'sinDemanda') {
-    return { tipo: 'sinDemanda' }
+    return { tipo: 'sinDemanda', qc_lps: 0 }
   }
 
   const sistema = obtenerSistemaDeTuberia(proyecto.configuracionHidraulica.sistemaDeTuberiaId, catalogoSistemasDeTuberia)
+  const { qc_lps } = resultadoHidraulico
   const { di_min_mm } = resultadoHidraulico.predimensionamiento
 
   const candidatos = obtenerCandidatosDeDiametroComercial(di_min_mm, sistema)
 
   if (candidatos.length === 0) {
-    return { tipo: 'sinCandidatoSuficiente', diMinimo_mm: di_min_mm }
+    return { tipo: 'sinCandidatoSuficiente', qc_lps, diMinimo_mm: di_min_mm }
   }
 
   const candidato = candidatos[0]!
-  const velocidadReal_mps = calcularVelocidad(resultadoHidraulico.qc_lps, candidato.diametroInteriorEfectivo_mm)
+  const velocidadReal_mps = calcularVelocidad(qc_lps, candidato.diametroInteriorEfectivo_mm)
   const verificacionVelocidad = verificarVelocidadAdmisible(velocidadReal_mps, candidato.diametroInteriorEfectivo_mm)
 
-  return { tipo: 'conCandidato', candidato, velocidadReal_mps, verificacionVelocidad }
+  return { tipo: 'conCandidato', qc_lps, diMinimo_mm: di_min_mm, candidato, velocidadReal_mps, verificacionVelocidad }
 }

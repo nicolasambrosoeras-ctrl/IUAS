@@ -813,3 +813,65 @@ No se cierra aquí: identificación estructural de "Tramo de montante"
 para presentación de UI, denominación amigable, asignación de UF vía
 interfaz, accesorios por derivación, ni AF/AC agrupadas bajo un mismo
 concepto visual de montante.
+
+### D-δ.25 — Orquestador productivo de pérdida distribuida por Tramo (N3)
+
+`resolverPerdidaDistribuidaDeTramo` (`motor/tuberias/`) es el resolver
+de más alto nivel del pipeline de Módulo 2 hasta ahora: compone, sin
+reimplementar ni recalcular ninguna fórmula, las capas ya cerradas
+(`resolverDiametroComercialDeTramo` → `resolverParametroDePerdidaDistribuida`
+→, solo en Darcy, `resolverPropiedadesAguaParaRed`). Las fórmulas en sí
+(CRIT-A17/CRIT-A18/CRIT-A21) no se duplican aquí -- viven exclusivamente
+en `CRITERIOS.md` y en sus primitivas.
+
+**Alternativa de composición elegida:** el nuevo resolver llama
+internamente a `resolverDiametroComercialDeTramo` (Alternativa A) en vez
+de recibir su resultado ya calculado por parámetro. Mismo patrón que
+`resolverDiametroComercialDeTramo` ya estableció sobre
+`resolverHidraulicaDeTramo`: evita que un llamador pueda pasar, por
+error, el resultado comercial de un Tramo distinto al `Proyecto`/`tramoId`
+evaluado.
+
+**`qc_lps`/`diMinimo_mm` dejan de descartarse en la capa comercial:**
+`resolverDiametroComercialDeTramo` ya calculaba internamente
+`ResultadoHidraulicoDeTramo` (con `qc_lps` y `di_min_mm`) para llegar al
+candidato comercial, pero no los exponía. Se amplían sus tres variantes
+(`sinDemanda`/`conCandidato`/`sinCandidatoSuficiente`) para propagarlos
+-- sin ninguna llamada adicional al motor de demanda -- de modo que N3 (y
+cualquier consumidor futuro) no tenga que volver a invocar
+`resolverHidraulicaDeTramo` solo para conocer el `Qc` ya resuelto.
+
+**Reutilización de velocidad:** `velocidadReal_mps` se reutiliza tal
+cual la devuelve `resolverDiametroComercialDeTramo` (calculada una única
+vez con `Qc`+`Di` efectivo) para alimentar `calcularNumeroReynolds` en
+la rama Darcy -- nunca se vuelve a llamar `calcularVelocidad`.
+
+**Resultados de dominio explícitos, nunca `throw` ni valores inventados:**
+
+- `sinLongitud`: `Tramo.longitud_m` ausente (opcional a propósito,
+  D-δ.22/CRIT-A20) con candidato comercial ya resuelto -- se preserva
+  toda la información comercial ya válida (`qc_lps`, `diMinimo_mm`,
+  `candidato`, `velocidadReal_mps`, `verificacionVelocidad`), sin asumir
+  `longitud=0` ni derivarla de `Δz`.
+- `sinCandidatoSuficiente`: propagado tal cual desde la capa comercial,
+  sin calcular pérdida con un diámetro insuficiente.
+- `fueraDeDominioTurbulento` (exclusivo de la rama Darcy): `Re` se
+  calcula y se verifica contra `UMBRAL_REYNOLDS_TURBULENTO` (constante ya
+  exportada, nunca rehardcodeada) **antes** de llamar a
+  `calcularFactorFriccionDarcy`, evitando depender de capturar su
+  `throw`. No se implementa régimen laminar/transicional ni Colebrook.
+- **Velocidad no admisible (CRIT-A19) NO bloquea el cálculo de `hf`**:
+  el resultado físico de pérdida distribuida es independiente de que el
+  diseño resultante sea aceptable por velocidad -- son dos verificaciones
+  distintas, y `verificacionVelocidad` se preserva sin cambios en el
+  resultado.
+
+**Hazen y Darcy permanecen separados:** el resultado usa un campo
+`detalle` anidado, discriminado por `metodo`, para no mezclar campos de
+un método en el otro (`coeficienteC`/`perdidaUnitaria_J_m_m` solo en
+Hazen; `rugosidadAbsoluta_mm`/`temperaturaReferencia_C`/
+`viscosidadCinematica_m2s`/`reynolds`/`factorFriccion` solo en Darcy).
+Hazen-Williams no conoce `ν` ni temperatura del agua.
+
+No se cierra aquí: orquestación de UI/memoria de cálculo, accesorios,
+pérdidas localizadas, ni presión residual.
