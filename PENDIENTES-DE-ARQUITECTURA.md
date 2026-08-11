@@ -778,3 +778,38 @@ No se anticipa aquí ningún modelo de montante, segmentación,
 denominación de Tramo ni asignación de Unidad Funcional -- esos
 conceptos, cuando se diseñen, deberán apoyarse en `longitud_m`/`cota_m`
 tal como quedan definidos acá, pero no se cierran en este punto.
+
+### D-δ.23 — Una montante es una cadena de Tramos reales; cada segmento resuelve su propio Qc (validado por test)
+
+Una montante se representa exclusivamente como una cadena de Nodos y
+Tramos hidráulicos reales dentro de `RedHidraulica` -- no existe ni se
+introduce ninguna entidad `Montante` en el modelo. La cadena se segmenta
+en cada punto de derivación (cada nivel donde una Unidad Funcional u
+otra rama se desprende del tronco principal): cada segmento resultante
+es un `Tramo` independiente, con su propio conjunto de artefactos aguas
+abajo (`obtenerArtefactosAguasAbajo`), y por lo tanto su propio `Qc`,
+resuelto por el pipeline normal (computabilidad → condición hidráulica →
+participación → simultaneidad → Qc) sin ninguna lógica especial para
+"tramos de montante".
+
+**Nunca se obtiene el `Qc` de un segmento sumando los `Qc` ya calculados
+de las UF/ramas que derivan de él** -- eso violaría CRIT-A5/D-δ.13, y
+matemáticamente da un resultado distinto (mayor) al de recalcular
+simultaneidad sobre el conjunto real, porque la simultaneidad no es
+lineal en `n`.
+
+**Validado productivamente** por "Golden 4 — montante segmentada"
+(`resolverHidraulicaDeTramo.golden.test.ts`): una cadena de 3 niveles
+(cotas 0/3/6/9, `longitud_m=3` por segmento) con una UF derivando en
+cada nivel. El motor existente (`obtenerArtefactosAguasAbajo`,
+`resolverHidraulicaDeTramo`) resolvió los tres segmentos correctamente
+**sin ningún cambio de código productivo** -- el DFS y el pipeline de
+Qc ya eran suficientemente generales. `cota_m`/`longitud_m` no participan
+en ningún cálculo de `Qc`: conviven en el mismo fixture únicamente para
+confirmar que la geometría (D-δ.22/CRIT-A20) no interfiere con la
+topología de demanda.
+
+No se cierra aquí: identificación estructural de "Tramo de montante"
+para presentación de UI, denominación amigable, asignación de UF vía
+interfaz, accesorios por derivación, ni AF/AC agrupadas bajo un mismo
+concepto visual de montante.
