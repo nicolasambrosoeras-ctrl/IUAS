@@ -22,7 +22,7 @@ function proyectoBase(
       alturaArtefactoMasDesfavorable_m: 0,
     },
     unidadesFuncionales,
-    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams' },
+    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', materialTuberiaId: 'ppr' },
     ...(redHidraulica !== undefined ? { redHidraulica } : {}),
   }
 }

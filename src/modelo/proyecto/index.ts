@@ -69,8 +69,21 @@ export type MetadatosProyecto = {
 // selección única y global del Proyecto, no por Tramo.
 export type MetodoPerdidaDistribuida = 'hazenWilliams' | 'darcyWeisbach';
 
+// Material de tubería: selección única y global del Proyecto, no por Tramo.
+// Solo el ID vive en modelo -- las propiedades hidráulicas (C, epsilon) y
+// sus fuentes viven en el catálogo (motor/tuberias/materialTuberia), que
+// importa este tipo; modelo no conoce el catálogo.
+export type MaterialTuberiaId =
+  | 'ppr'
+  | 'pvc'
+  | 'pead'
+  | 'cobre'
+  | 'aceroGalvanizado'
+  | 'aceroCarbono';
+
 export type ConfiguracionHidraulica = {
   metodoPerdidaDistribuida: MetodoPerdidaDistribuida;
+  materialTuberiaId: MaterialTuberiaId;
 };
 
 export type Proyecto = {

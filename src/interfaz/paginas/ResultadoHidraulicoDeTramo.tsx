@@ -14,9 +14,10 @@
 // si existe, ya es estructuralmente válida y sus referencias a Artefactos
 // ya existen.
 import type { CSSProperties } from 'react'
-import type { MetodoPerdidaDistribuida, Proyecto, TipoDeLocal } from '../../modelo/proyecto'
+import type { MaterialTuberiaId, MetodoPerdidaDistribuida, Proyecto, TipoDeLocal } from '../../modelo/proyecto'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
+import { catalogoMaterialesTuberia } from '../../motor/tuberias/materialTuberia'
 import { resolverHidraulicaDeTramo } from '../../motor/tuberias/resolverHidraulicaDeTramo'
 import { obtenerArtefactosAguasAbajo } from '../../motor/tuberias/topologia/obtenerArtefactosAguasAbajo'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
@@ -25,7 +26,7 @@ import {
   identificarFilasDistribucionGeneral,
   identificarFilasPrincipalesDeLocales,
 } from './identificarFilasDeModulo2'
-import { conMetodoPerdidaDistribuida } from './actualizarConfiguracionHidraulica'
+import { conMaterialTuberia, conMetodoPerdidaDistribuida } from './actualizarConfiguracionHidraulica'
 
 // Duplicado intencional de la etiqueta homónima en MotorDemandaPantalla.tsx
 // (mismo criterio que aplicarParticipacionCritA8: segundo consumidor
@@ -218,6 +219,19 @@ function ConfiguracionHidraulicaFormulario({
         >
           <option value="hazenWilliams">Hazen-Williams</option>
           <option value="darcyWeisbach">Darcy-Weisbach</option>
+        </select>
+      </label>
+      <label>
+        Material de la tubería:{' '}
+        <select
+          value={proyecto.configuracionHidraulica.materialTuberiaId}
+          onChange={(evento) => onCambiar(conMaterialTuberia(proyecto, evento.target.value as MaterialTuberiaId))}
+        >
+          {catalogoMaterialesTuberia.map((material) => (
+            <option key={material.id} value={material.id}>
+              {material.nombre}
+            </option>
+          ))}
         </select>
       </label>
     </section>

@@ -47,7 +47,7 @@ function proyectoCon(
     parametros: parametros(tipoDeProyecto),
     unidadesFuncionales,
     redHidraulica,
-    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams' },
+    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', materialTuberiaId: 'ppr' },
   }
 }
 

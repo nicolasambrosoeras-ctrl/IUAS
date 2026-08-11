@@ -584,12 +584,13 @@ const proyectoInicial: Proyecto = {
       { id: 't-af-patio', nodoOrigenId: 'n-0', nodoDestinoId: 'n-af-patio-canilla', red: 'AF' },
     ],
   },
-  // Método inicial explícito del proyecto de ejemplo -- no un default oculto
-  // del motor: es la elección de laboratorio de este punto de creación
-  // productiva concreto, tal como exige el modelo (configuracionHidraulica
-  // es obligatoria en Proyecto).
+  // Método y material iniciales explícitos del proyecto de ejemplo -- no un
+  // default oculto del motor: es la elección de laboratorio de este punto
+  // de creación productiva concreto, tal como exige el modelo
+  // (configuracionHidraulica es obligatoria en Proyecto).
   configuracionHidraulica: {
     metodoPerdidaDistribuida: 'hazenWilliams',
+    materialTuberiaId: 'ppr',
   },
 }
 

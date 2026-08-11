@@ -165,7 +165,7 @@ const proyecto: Proyecto = {
   parametros: parametros(),
   unidadesFuncionales,
   redHidraulica,
-  configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams' },
+  configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', materialTuberiaId: 'ppr' },
 }
 
 describe('resolverHidraulicaDeTramo — consistencia M1 ↔ M2 sobre t-general', () => {

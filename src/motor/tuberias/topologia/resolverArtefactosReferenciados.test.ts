@@ -19,7 +19,7 @@ function proyectoCon(unidadesFuncionales: readonly UnidadFuncional[]): Proyecto 
       alturaArtefactoMasDesfavorable_m: 0,
     },
     unidadesFuncionales,
-    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams' },
+    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', materialTuberiaId: 'ppr' },
   }
 }
 
