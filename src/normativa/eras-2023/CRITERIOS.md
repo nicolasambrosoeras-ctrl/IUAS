@@ -729,10 +729,13 @@ se asocian todavía valores a PPR, PEAD, PVC, cobre, acero, hierro ni
 ningún material; el catálogo real de rugosidades por material es un
 incremento posterior.
 
-**Viscosidad:** `ν` es parámetro explícito. Los tests podrán usar, por
-ejemplo, `ν = 1×10⁻⁶ m²/s` como valor controlado de laboratorio, sin
-convertirlo en constante productiva ni asociarlo todavía a una
-temperatura de diseño.
+**Viscosidad:** `ν` es parámetro explícito **a nivel de esta primitiva
+matemática** — eso no cambia. Los tests podrán seguir usando, por
+ejemplo, `ν = 1×10⁻⁶ m²/s` como valor controlado de laboratorio. La
+política productiva inicial de qué temperatura/`ν` adopta el proyecto
+para poblar ese parámetro queda definida en CRIT-A21, resuelta afuera de
+esta primitiva y pasada como argumento — la primitiva en sí no importa
+ningún valor productivo ni cambia de firma.
 
 **Secuencia conceptual (modular, cada paso una primitiva independiente):**
 
@@ -747,7 +750,9 @@ f + L + Di + V     → hf
 
 - No implementa régimen laminar ni zona de transición.
 - No incorpora materiales reales ni catálogo de `ε` por material.
-- No fija temperatura del agua.
+- No fija temperatura del agua **a nivel de primitiva matemática** (la
+  política productiva inicial de temperatura/`ν` vive en CRIT-A21, fuera
+  de esta primitiva).
 - No decide diámetro comercial.
 - No resuelve pérdidas singulares/localizadas ni accesorios.
 - No calcula ni verifica presión residual.
@@ -945,3 +950,66 @@ efectivamente presentes.
 **Estado:** Firme como criterio técnico operativo del proyecto.
 Implementado en `esLongitudGeometricamenteValida`
 (`motor/tuberias/geometria/`) e integrado en `validarRedHidraulica`.
+
+## CRIT-A21 — Política productiva inicial de propiedades del agua para Darcy-Weisbach
+
+**Naturaleza — decisión técnica del proyecto, no prescripción de ERAS:**
+este criterio no transcribe ni interpreta ningún texto de ERAS-2023. Es
+un criterio técnico de ingeniería del proyecto sobre las propiedades
+físicas del agua (temperatura de referencia y viscosidad cinemática)
+consumidas por el modelo Darcy-Weisbach (CRIT-A18). No debe atribuirse a
+ERAS-2023 bajo ningún concepto, y es conceptualmente independiente de
+`MaterialTuberia` (propiedades del material de la tubería) y de
+`SistemaDeTuberia`/`EntradaCatalogoTuberia` (geometría comercial): `ν`
+es una propiedad del agua, no de la tubería.
+
+**Relación con CRIT-A18:** CRIT-A18 fija que la primitiva matemática
+(`calcularNumeroReynolds`) recibe `ν` como parámetro explícito, sin
+conocer de dónde sale ese valor — eso sigue siendo cierto sin cambios.
+CRIT-A21 cierra, a nivel de política productiva (fuera de la
+primitiva), qué temperatura y qué `ν` adopta el proyecto en esta
+primera versión, y cómo se resuelve esa política.
+
+**Agua líquida, temperatura de referencia inicial:** 20 °C.
+
+**Viscosidad cinemática adoptada:** `ν ≈ 1,0034×10⁻⁶ m²/s`.
+
+**Fuente:** NIST Chemistry WebBook — Thermophysical Properties of Fluid
+Systems (agua, formulación IAPWS), 1 bar, 20 °C. Publicado
+directamente: viscosidad dinámica `μ = 1,0016×10⁻³ Pa·s` y densidad
+`55,409 mol/L`. Derivado: `ρ = 55,409 mol/L × 18,015268 g/mol` (masa
+molar IAPWS del agua) `= 998,208 kg/m³`, y `ν = μ/ρ = 1,0034×10⁻⁶ m²/s`.
+No es un valor publicado por ERAS-2023.
+
+**Resolución preparada por red (AF/AC):** la política se resuelve
+mediante `resolverPropiedadesAguaParaRed(red: RedDeTramo)`
+(`motor/tuberias/perdidaCarga/darcyWeisbach/propiedadesAguaDarcy.ts`),
+no como una única constante global consumida directamente por todo
+Darcy. En esta primera versión, `'AF'` y `'AC'` devuelven ambos la
+misma temperatura y el mismo `ν` — decisión deliberada, no un
+descuido: el motivo de resolver por red desde ahora es dejar preparada
+una futura diferenciación (agua fría y agua caliente sanitaria pueden
+operar a temperaturas materialmente distintas, con impacto cuantificado
+de aproximadamente 6–15 % sobre `hf` entre 10 °C y 60 °C, para casos
+representativos del proyecto) sin tener que modificar el orquestador de
+pérdidas distribuidas cuando esa diferenciación se adopte.
+
+**No es todavía temperatura editable:** no existe hoy ningún campo en
+`ConfiguracionHidraulica` ni en `Proyecto` para configurar temperatura
+o `ν` — es una política fija de esta primera versión, deliberadamente
+sin ampliar el modelo hasta que exista una necesidad real y un criterio
+de diseño cerrado para diferenciar AF de AC.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- No fija temperatura editable por el usuario.
+- No diferencia todavía temperatura de AF y AC (ambas comparten hoy el
+  mismo valor).
+- No modela mezcla de agua, retorno de ACS ni recirculación.
+- No calcula pérdida de carga distribuida (`hf`) ni presión residual.
+- No modifica Hazen-Williams (CRIT-A17), que permanece independiente de
+  temperatura/`ν`.
+
+**Estado:** Firme como criterio técnico operativo del proyecto.
+Implementado en `resolverPropiedadesAguaParaRed`
+(`motor/tuberias/perdidaCarga/darcyWeisbach/propiedadesAguaDarcy.ts`).
