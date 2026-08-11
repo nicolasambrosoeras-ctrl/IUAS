@@ -272,6 +272,13 @@ function ParametroDeCalculoDelMaterial({ proyecto }: { proyecto: Proyecto }) {
           coeficientes publicada por ERAS-2023.
         </small>
       </p>
+      <p>
+        <small>
+          Predimensionamiento: se adopta Ve = 2,0 m/s para la determinación inicial del
+          diámetro interior mínimo. La velocidad real se verificará posteriormente con el
+          diámetro comercial adoptado conforme a ERAS §2.12.1.
+        </small>
+      </p>
     </div>
   )
 }
@@ -300,14 +307,6 @@ export function ResultadoHidraulicoDeTramo({
         <p>El proyecto no tiene una red hidráulica cargada.</p>
       ) : (
         <>
-          <p>
-            <small>
-              Predimensionamiento: se adopta Ve = 2,0 m/s para la determinación inicial del
-              diámetro interior mínimo. La velocidad real se verificará posteriormente con el
-              diámetro comercial adoptado conforme a ERAS §2.12.1.
-            </small>
-          </p>
-
           <h3>Distribución general</h3>
           <TablaDeFilas
             proyecto={proyecto}
