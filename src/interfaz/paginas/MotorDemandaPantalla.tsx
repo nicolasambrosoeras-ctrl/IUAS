@@ -585,6 +585,13 @@ const proyectoInicial: Proyecto = {
       { id: 't-af-patio', nodoOrigenId: 'n-0', nodoDestinoId: 'n-af-patio-canilla', red: 'AF' },
     ],
   },
+  // Método inicial explícito del proyecto de ejemplo -- no un default oculto
+  // del motor: es la elección de laboratorio de este punto de creación
+  // productiva concreto, tal como exige el modelo (configuracionHidraulica
+  // es obligatoria en Proyecto).
+  configuracionHidraulica: {
+    metodoPerdidaDistribuida: 'hazenWilliams',
+  },
 }
 
 function extraerN(pasos: readonly Paso[]): number | null {
@@ -762,7 +769,13 @@ function Pasos({ pasos }: { pasos: readonly Paso[] }) {
   )
 }
 
-function ResultadoDemanda({ proyecto }: { proyecto: Proyecto }) {
+function ResultadoDemanda({
+  proyecto,
+  onCambiar,
+}: {
+  proyecto: Proyecto
+  onCambiar: (proyecto: Proyecto) => void
+}) {
   const resultado = calcularSimultaneidad({
     proyecto,
     normativa: { catalogoArtefactos, coeficientesMayoracion },
@@ -780,7 +793,7 @@ function ResultadoDemanda({ proyecto }: { proyecto: Proyecto }) {
         <Pasos pasos={resultado.pasos} />
       </section>
 
-      <ResultadoHidraulicoDeTramo proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} />
+      <ResultadoHidraulicoDeTramo proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} onCambiar={onCambiar} />
     </>
   )
 }
@@ -799,7 +812,7 @@ export function MotorDemandaPantalla() {
       </p>
       <ProyectoFormulario proyecto={proyecto} onCambiar={setProyecto} />
       {validacion.valido ? (
-        <ResultadoDemanda proyecto={proyecto} />
+        <ResultadoDemanda proyecto={proyecto} onCambiar={setProyecto} />
       ) : (
         <ProblemasValidacion problemas={validacion.problemas} />
       )}

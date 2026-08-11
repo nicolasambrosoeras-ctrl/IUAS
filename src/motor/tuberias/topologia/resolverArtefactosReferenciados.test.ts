@@ -20,6 +20,7 @@ function proyectoCon(unidadesFuncionales: readonly UnidadFuncional[]): Proyecto 
       material: 'PVC',
     },
     unidadesFuncionales,
+    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams' },
   }
 }
 

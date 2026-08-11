@@ -92,6 +92,7 @@ const proyecto: Proyecto = {
   parametros: parametros(),
   unidadesFuncionales,
   redHidraulica,
+  configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams' },
 }
 
 describe('identificarFilasDistribucionGeneral', () => {
@@ -110,7 +111,12 @@ describe('identificarFilasDistribucionGeneral', () => {
   })
 
   it('proyecto sin redHidraulica: lista vacía', () => {
-    const sinRed: Proyecto = { metadatos: metadatos(), parametros: parametros(), unidadesFuncionales }
+    const sinRed: Proyecto = {
+      metadatos: metadatos(),
+      parametros: parametros(),
+      unidadesFuncionales,
+      configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams' },
+    }
     expect(identificarFilasDistribucionGeneral(sinRed)).toEqual([])
   })
 })
@@ -299,6 +305,7 @@ const proyectoDemo: Proyecto = {
   parametros: parametros(),
   unidadesFuncionales: unidadesFuncionalesDemo,
   redHidraulica: redHidraulicaDemo,
+  configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams' },
 }
 
 describe('topología demo real (MotorDemandaPantalla.proyectoInicial): validación end-to-end del algoritmo', () => {

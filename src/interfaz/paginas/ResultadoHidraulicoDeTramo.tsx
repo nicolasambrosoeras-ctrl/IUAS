@@ -14,7 +14,7 @@
 // si existe, ya es estructuralmente válida y sus referencias a Artefactos
 // ya existen.
 import type { CSSProperties } from 'react'
-import type { Proyecto, TipoDeLocal } from '../../modelo/proyecto'
+import type { MetodoPerdidaDistribuida, Proyecto, TipoDeLocal } from '../../modelo/proyecto'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { resolverHidraulicaDeTramo } from '../../motor/tuberias/resolverHidraulicaDeTramo'
@@ -25,6 +25,7 @@ import {
   identificarFilasDistribucionGeneral,
   identificarFilasPrincipalesDeLocales,
 } from './identificarFilasDeModulo2'
+import { conMetodoPerdidaDistribuida } from './actualizarConfiguracionHidraulica'
 
 // Duplicado intencional de la etiqueta homónima en MotorDemandaPantalla.tsx
 // (mismo criterio que aplicarParticipacionCritA8: segundo consumidor
@@ -193,12 +194,44 @@ function TablaDeUnidadFuncional({
   )
 }
 
+// Método de pérdida distribuida: configuración global y única del
+// Proyecto (CRIT-A17/CRIT-A18), no seleccionable por Tramo. Este
+// incremento solo persiste la selección -- todavía no dispara ningún
+// cálculo de Hazen-Williams ni Darcy-Weisbach.
+function ConfiguracionHidraulicaFormulario({
+  proyecto,
+  onCambiar,
+}: {
+  proyecto: Proyecto
+  onCambiar: (proyecto: Proyecto) => void
+}) {
+  return (
+    <section>
+      <h3>Configuración hidráulica</h3>
+      <label>
+        Método de cálculo de pérdidas distribuidas:{' '}
+        <select
+          value={proyecto.configuracionHidraulica.metodoPerdidaDistribuida}
+          onChange={(evento) =>
+            onCambiar(conMetodoPerdidaDistribuida(proyecto, evento.target.value as MetodoPerdidaDistribuida))
+          }
+        >
+          <option value="hazenWilliams">Hazen-Williams</option>
+          <option value="darcyWeisbach">Darcy-Weisbach</option>
+        </select>
+      </label>
+    </section>
+  )
+}
+
 export function ResultadoHidraulicoDeTramo({
   proyecto,
   catalogoArtefactos,
+  onCambiar,
 }: {
   proyecto: Proyecto
   catalogoArtefactos: readonly ArtefactoNormativo[]
+  onCambiar: (proyecto: Proyecto) => void
 }) {
   const tramos = proyecto.redHidraulica?.tramos ?? []
   const filasPrincipalesDeLocales = identificarFilasPrincipalesDeLocales(proyecto)
@@ -206,6 +239,8 @@ export function ResultadoHidraulicoDeTramo({
   return (
     <section>
       <h2>Módulo 2 — Tuberías</h2>
+
+      <ConfiguracionHidraulicaFormulario proyecto={proyecto} onCambiar={onCambiar} />
 
       {tramos.length === 0 ? (
         <p>El proyecto no tiene una red hidráulica cargada.</p>

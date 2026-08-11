@@ -22,6 +22,7 @@ function conUnidadesFuncionales(unidadesFuncionales: readonly UnidadFuncional[])
       material: 'PVC',
     },
     unidadesFuncionales,
+    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams' },
   }
 }
 

@@ -23,6 +23,7 @@ function proyectoBase(
       material: 'PVC',
     },
     unidadesFuncionales,
+    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams' },
     ...(redHidraulica !== undefined ? { redHidraulica } : {}),
   }
 }

@@ -66,10 +66,23 @@ export type MetadatosProyecto = {
   versionNormativa: string;
 };
 
+// Método de cálculo de pérdida de carga distribuida (CRIT-A17/CRIT-A18):
+// selección única y global del Proyecto, no por Tramo.
+export type MetodoPerdidaDistribuida = 'hazenWilliams' | 'darcyWeisbach';
+
+export type ConfiguracionHidraulica = {
+  metodoPerdidaDistribuida: MetodoPerdidaDistribuida;
+};
+
 export type Proyecto = {
   metadatos: MetadatosProyecto;
   parametros: ParametrosProyecto;
   unidadesFuncionales: readonly UnidadFuncional[];
   // Ausente = proyecto sin red topológica modelada todavía (D-δ).
   redHidraulica?: RedHidraulica;
+  // Obligatoria: a diferencia de redHidraulica, el método de pérdida
+  // distribuida es una configuración que el Proyecto siempre debe declarar
+  // explícitamente una vez que este concepto existe en el modelo -- no hay
+  // un estado intermedio válido de "Proyecto sin método todavía".
+  configuracionHidraulica: ConfiguracionHidraulica;
 };

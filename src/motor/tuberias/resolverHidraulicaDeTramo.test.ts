@@ -49,6 +49,7 @@ function proyectoCon(
     parametros: parametros(tipoDeProyecto),
     unidadesFuncionales,
     redHidraulica,
+    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams' },
   }
 }
 

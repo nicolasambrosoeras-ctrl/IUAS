@@ -163,6 +163,7 @@ describe('duplicarUnidadFuncionalEnProyecto', () => {
         material: 'PVC',
       },
       unidadesFuncionales,
+      configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams' },
     }
   }
 

@@ -39,6 +39,7 @@ function construirProyecto(
         ],
       },
     ],
+    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams' },
   }
 }
 
@@ -364,6 +365,7 @@ describe('calcularSimultaneidad — Caso Golden G1 (CASOS-GOLDEN.md)', () => {
           ],
         },
       ],
+      configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams' },
     }
 
     const resultado = calcularResultado(proyecto)
