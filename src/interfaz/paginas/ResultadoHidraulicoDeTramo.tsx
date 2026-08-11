@@ -17,7 +17,7 @@ import type { CSSProperties } from 'react'
 import type { MaterialTuberiaId, MetodoPerdidaDistribuida, Proyecto, TipoDeLocal } from '../../modelo/proyecto'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
-import { catalogoMaterialesTuberia } from '../../motor/tuberias/materialTuberia'
+import { catalogoMaterialesTuberia, obtenerMaterialTuberia } from '../../motor/tuberias/materialTuberia'
 import { resolverHidraulicaDeTramo } from '../../motor/tuberias/resolverHidraulicaDeTramo'
 import { obtenerArtefactosAguasAbajo } from '../../motor/tuberias/topologia/obtenerArtefactosAguasAbajo'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
@@ -234,7 +234,45 @@ function ConfiguracionHidraulicaFormulario({
           ))}
         </select>
       </label>
+      <details>
+        <summary>Parámetros de cálculo</summary>
+        <ParametroDeCalculoDelMaterial proyecto={proyecto} />
+      </details>
     </section>
+  )
+}
+
+// Trazabilidad de presentación (CRIT-A17/CRIT-A18): muestra únicamente el
+// parámetro hidráulico del material que corresponde al método actualmente
+// seleccionado -- Hazen-Williams usa C, Darcy-Weisbach usa epsilon, nunca
+// ambos a la vez. El catálogo (materialTuberia) es la única fuente de C,
+// epsilon y sus referencias; este componente no los recalcula ni los
+// duplica. Puramente informativo: todavía no alimenta ningún cálculo de
+// pérdidas.
+function ParametroDeCalculoDelMaterial({ proyecto }: { proyecto: Proyecto }) {
+  const material = obtenerMaterialTuberia(proyecto.configuracionHidraulica.materialTuberiaId, catalogoMaterialesTuberia)
+
+  return (
+    <div>
+      <p>Material: {material.nombre}</p>
+      {proyecto.configuracionHidraulica.metodoPerdidaDistribuida === 'hazenWilliams' ? (
+        <>
+          <p>Coeficiente Hazen-Williams C: {material.coeficienteC}</p>
+          <p>Fuente: {material.referenciaFuenteC}</p>
+        </>
+      ) : (
+        <>
+          <p>Rugosidad absoluta ε: {material.rugosidadAbsoluta_mm} mm</p>
+          <p>Fuente: {material.referenciaFuenteRugosidad}</p>
+        </>
+      )}
+      <p>
+        <small>
+          Los valores indicados son parámetros técnicos adoptados por el proyecto y no corresponden a una tabla de
+          coeficientes publicada por ERAS-2023.
+        </small>
+      </p>
+    </div>
   )
 }
 
