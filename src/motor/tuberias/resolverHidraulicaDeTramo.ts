@@ -13,7 +13,7 @@ import { filtrarArtefactosHidraulicamenteActivos } from './participacion/filtrar
 import { aplicarParticipacionCritA8 } from './participacion/aplicarParticipacionCritA8'
 import { resolverAportesHidraulicosDeTramo } from './aporte/resolverAportesHidraulicosDeTramo'
 import { resolverSimultaneidadHidraulicaDeTramo } from './simultaneidad/resolverSimultaneidadHidraulicaDeTramo'
-import type { ResultadoSimultaneidadDeTramo } from './simultaneidad/calcularSimultaneidadDeTramo'
+import type { ResultadoSimultaneidadHidraulicaDeTramo } from './simultaneidad/resolverSimultaneidadHidraulicaDeTramo'
 import { calcularPredimensionamientoDeTramo } from './predimensionamiento/calcularPredimensionamientoDeTramo'
 import type { PredimensionamientoDeTramo } from './predimensionamiento/calcularPredimensionamientoDeTramo'
 
@@ -25,7 +25,7 @@ export type ResultadoHidraulicoDeTramo =
   | {
       readonly tipo: 'conDemanda'
       readonly qc_lps: number
-      readonly simultaneidad: ResultadoSimultaneidadDeTramo
+      readonly simultaneidad: ResultadoSimultaneidadHidraulicaDeTramo
       readonly predimensionamiento: PredimensionamientoDeTramo
     }
 

@@ -122,3 +122,80 @@ describe('resolverSimultaneidadHidraulicaDeTramo', () => {
     expect(aportes[1]).toBe(copiaSuperficial[1])
   })
 })
+
+// CRIT-A22 (Incremento correctivo 1): piso fisico de caudal individual --
+// qc_lps final no puede ser menor al mayor qu_lps de los aportes
+// participantes finales. Casos con valores de qu_lps sinteticos (1.5 =
+// magnitud real de inodoroValvula, usada aca solo como numero de prueba,
+// sin resolver catalogo/topologia real -- eso se cubre en el golden de
+// integracion aparte).
+describe('resolverSimultaneidadHidraulicaDeTramo — CRIT-A22 (piso de caudal individual)', () => {
+  it('n=1 (equivalente A1): qcEstadistico=quMax=1.5, piso no se activa (no hace falta)', () => {
+    const aportes = [aporteCon('uf-1', 'valvula', 1, 'total', 1.5)]
+
+    const resultado = resolverSimultaneidadHidraulicaDeTramo('viviendaIndividual', aportes)
+
+    expect(resultado.qcEstadistico_lps).toBe(1.5)
+    expect(resultado.quMaxParticipante_lps).toBe(1.5)
+    expect(resultado.qc_lps).toBe(1.5)
+    expect(resultado.pisoCaudalIndividualAplicado).toBe(false)
+  })
+
+  it('caso mínimo del cruce (n=3): válvula 1.5 + dos aportes de 0.2 -> Qc estadístico cae por debajo de 1.5, piso se activa', () => {
+    const aportes = [
+      aporteCon('uf-1', 'valvula', 1, 'total', 1.5),
+      aporteCon('uf-1', 'otro-1', 1, 'total', 0.2),
+      aporteCon('uf-1', 'otro-2', 1, 'total', 0.2),
+    ]
+
+    const resultado = resolverSimultaneidadHidraulicaDeTramo('viviendaIndividual', aportes)
+
+    // Calculado de forma independiente: Qmax=1.9, Kc=1/sqrt(3-1), aEfectivo=1
+    // (viviendaIndividual) -> qcEstadistico=1.9/sqrt(2)=1.3435028842544403...
+    const qmaxEsperado = 1.9
+    const kcEsperado = 1 / Math.sqrt(2)
+    const qcEstadisticoEsperado = qmaxEsperado * kcEsperado
+
+    expect(resultado.qcEstadistico_lps).toBeCloseTo(qcEstadisticoEsperado, 10)
+    expect(resultado.qcEstadistico_lps).toBeCloseTo(1.3435028842544403, 10)
+    expect(resultado.quMaxParticipante_lps).toBe(1.5)
+    expect(resultado.qc_lps).toBe(1.5)
+    expect(resultado.pisoCaudalIndividualAplicado).toBe(true)
+  })
+
+  it('A4/A5 (equivalente, sintético): válvula + varios aportes pequeños de otros Locales, vivienda individual -> piso se activa', () => {
+    const aportes = [
+      aporteCon('uf-1', 'valvula', 1, 'total', 1.5),
+      aporteCon('uf-1', 'cocina-1', 1, 'total', 0.2),
+      aporteCon('uf-1', 'cocina-2', 1, 'total', 0.2),
+      aporteCon('uf-1', 'lavadero-1', 1, 'total', 0.2),
+      aporteCon('uf-1', 'lavadero-2', 1, 'total', 0.2),
+      aporteCon('uf-1', 'jardin-1', 1, 'total', 0.2),
+    ]
+
+    const resultado = resolverSimultaneidadHidraulicaDeTramo('viviendaIndividual', aportes)
+
+    // n=6, Qmax=2.5, Kc=1/sqrt(5), aEfectivo=1 -> qcEstadistico=2.5/sqrt(5)≈1.1180339887498949
+    expect(resultado.qcEstadistico_lps).toBeCloseTo(1.1180339887498949, 10)
+    expect(resultado.quMaxParticipante_lps).toBe(1.5)
+    expect(resultado.qc_lps).toBe(1.5)
+    expect(resultado.pisoCaudalIndividualAplicado).toBe(true)
+  })
+
+  it('A6 (multifamiliar, 2 UF): Qc estadístico ya supera quMax -> piso NO se activa, aEfectivo no se altera', () => {
+    const aportes = [
+      aporteCon('uf-1', 'valvula', 1, 'total', 1.5),
+      aporteCon('uf-2', 'lavatorio', 1, 'total', 0.2),
+    ]
+
+    const resultado = resolverSimultaneidadHidraulicaDeTramo('viviendaMultifamiliar', aportes)
+
+    // n=2, Qmax=1.7, Kc=1, aEfectivo=2 (>1 UF) -> qcEstadistico=1.7*1*2=3.4
+    expect(resultado.aEfectivo).toBe(2)
+    expect(resultado.qcEstadistico_lps).toBeCloseTo(3.4, 10)
+    expect(resultado.quMaxParticipante_lps).toBe(1.5)
+    expect(resultado.qc_lps).toBeCloseTo(3.4, 10)
+    expect(resultado.qc_lps).toBe(resultado.qcEstadistico_lps)
+    expect(resultado.pisoCaudalIndividualAplicado).toBe(false)
+  })
+})

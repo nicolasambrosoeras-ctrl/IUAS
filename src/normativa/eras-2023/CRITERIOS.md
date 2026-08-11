@@ -1013,3 +1013,94 @@ de diseño cerrado para diferenciar AF de AC.
 **Estado:** Firme como criterio técnico operativo del proyecto.
 Implementado en `resolverPropiedadesAguaParaRed`
 (`motor/tuberias/perdidaCarga/darcyWeisbach/propiedadesAguaDarcy.ts`).
+
+## CRIT-A22 — Piso físico de caudal individual en el Qc de Tramo (Módulo 2)
+
+**Naturaleza — criterio técnico de consistencia física adoptado por IUAS,
+no interpretación textual de ERAS:** ERAS-2023 provee la fórmula de
+simultaneidad (§2.9.2.2/§2.9.2.3) y la regla de participación para
+inodoros con válvula automática (§2.10.2, CRIT-A8), pero no resuelve
+explícitamente el caso de una única válvula automática de caudal alto
+diluida entre pocos artefactos pequeños de otros Locales. El único
+ejemplo oficial disponible con válvula automática (G1, `CASOS-GOLDEN.md`)
+combina **dos** válvulas dominando `Qmax`, y no exhibe el problema que
+este criterio corrige. No se atribuye a ERAS ninguna fórmula ni regla
+explícita equivalente a la adoptada aquí.
+
+**Problema identificado:** con `Kc=1/√(n−1)` sin piso, un Tramo cuyo
+conjunto de participantes finales combina un artefacto de caudal alto
+(p. ej. `inodoroValvula`, `quTotal_lps=1,5`) con artefactos pequeños de
+**otros** Locales de la misma UF (que CRIT-A8/A13 no suprimen, porque la
+supresión de CRIT-A8 opera únicamente dentro del Local de la válvula)
+puede producir matemáticamente `Qc estadístico < 1,5 l/s` — un caudal de
+diseño insuficiente para que la propia válvula opere, ya con solo 3
+participantes (`n=3`) en un proyecto no multifamiliar.
+
+**Contraste externo (sustento contextual, no atribución textual):**
+literatura institucional (ASCE, *Standardization of Fixture Units for
+Modern Flush Valves by Optimizing Water Demand Using Modified Hunter's
+Curve*, 2020) y métodos de fixture units (UPC/IPC) confirman que los
+artefactos de descarga por válvula automática reciben tratamiento
+especial en métodos estadísticos de simultaneidad (peso muy superior al
+de artefactos equivalentes de depósito) precisamente por su demanda
+instantánea alta frente a poblaciones pequeñas/heterogéneas. Esta
+literatura no establece la fórmula `Qc≥max(qu)` adoptada aquí; se cita
+únicamente como sustento de que el fenómeno es real y reconocido en el
+campo, no como fuente de la regla en sí.
+
+**Criterio adoptado:**
+
+```text
+qcEstadistico = Qmax × K            (fórmula CRIT-A1/A2/A4 sin cambios)
+quMaxParticipante = max(qu_lps de los aportes participantes finales)
+qcFinal = max(qcEstadistico, quMaxParticipante)
+```
+
+`quMaxParticipante` se calcula exclusivamente sobre el mismo conjunto de
+aportes que ya determina `n`/`Qmax`/`aEfectivo` de ese Tramo — es decir,
+después de aplicar CRIT-A15 (conectividad física), el filtro de
+`qu_lps>0` por condición hidráulica (CRIT-A13) y CRIT-A8 (participación
+por Local). Nunca se usa `qu` del catálogo bruto, de artefactos ya
+suprimidos por CRIT-A8, de `qu=0`, ni de la condición hidráulica opuesta
+a la evaluada.
+
+**Alcance exclusivo — Módulo 2 / Qc físico de Tramo:** este criterio
+aplica únicamente al `Qc` final de diseño de un Tramo hidráulico
+concreto (una cañería física real). **No modifica Módulo 1** (`Qc` de
+proyecto agregado, `calcularSimultaneidad`/
+`calcularCoeficienteDeSimultaneidad`) — ese `Qc` no representa una única
+cañería física, así que no comparte el mismo fundamento físico.
+
+**No modifica la fórmula estadística:** `Qmax`, `Kc`, `K` y `Qc
+estadístico` siguen calculándose exactamente igual que antes de este
+criterio (`calcularSimultaneidadDeTramo`, sin cambios). El piso se aplica
+como un paso posterior, nunca alterando la aritmética de CRIT-A1/CRIT-A2.
+`K` sigue sin capearse (CRIT-A2 intacto).
+
+**No modifica CRIT-A8/A13/A14/A15:** la participación por Local, el
+universo hidráulicamente activo y `aEfectivo` se determinan exactamente
+igual que antes; este criterio no introduce ni suprime ningún artefacto
+del conjunto ya resuelto por esas reglas.
+
+**Caso de válvula automática:** es el caso motivador y el más relevante
+en la práctica (`quTotal_lps=1,5`, el mayor del catálogo), pero el
+criterio es general — aplica a cualquier artefacto cuyo `qu` individual
+supere al `Qc` estadístico del conjunto en el que participa.
+
+**Trazabilidad:** `Qc` estadístico nunca se descarta — queda expuesto
+junto con `quMaxParticipante` y un indicador explícito de si el piso
+intervino, para que un consumidor futuro (p. ej. memoria de cálculo)
+pueda mostrar ambos valores y cuál se adoptó.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- No modifica Módulo 1 ni ningún `Qc` de proyecto agregado.
+- No modifica CRIT-A1/A2/A4/A8/A13/A14/A15.
+- No decide selección de diámetro comercial (CRIT-A16/CRIT-A19, sin
+  cambios) ni pérdida de carga (CRIT-A17/CRIT-A18/CRIT-A21, sin cambios).
+- No resuelve el caso de múltiples artefactos de caudal alto compitiendo
+  entre sí (el piso usa el máximo individual, no una combinación).
+
+**Estado:** Firme como criterio técnico operativo del proyecto.
+Implementado en `resolverSimultaneidadHidraulicaDeTramo`
+(`motor/tuberias/simultaneidad/`).
