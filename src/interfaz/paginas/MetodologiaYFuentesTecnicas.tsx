@@ -10,8 +10,10 @@ import { catalogoMaterialesTuberia } from '../../motor/tuberias/materialTuberia'
 
 export function MetodologiaYFuentesTecnicas() {
   return (
-    <section>
-      <h2>Metodología y fuentes técnicas</h2>
+    <details>
+      <summary>
+        <h2>Metodología y fuentes técnicas</h2>
+      </summary>
       <p>
         Los valores de C (Hazen-Williams) y ε (Darcy-Weisbach) de la tabla son parámetros técnicos adoptados por el
         proyecto: cada material tiene un único valor operativo, sin modelar edad, corrosión, incrustación ni
@@ -50,6 +52,6 @@ export function MetodologiaYFuentesTecnicas() {
           </tbody>
         </table>
       </div>
-    </section>
+    </details>
   )
 }

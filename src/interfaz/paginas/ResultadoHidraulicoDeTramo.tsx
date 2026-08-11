@@ -289,8 +289,10 @@ export function ResultadoHidraulicoDeTramo({
   const filasPrincipalesDeLocales = identificarFilasPrincipalesDeLocales(proyecto)
 
   return (
-    <section>
-      <h2>Módulo 2 — Tuberías</h2>
+    <details open>
+      <summary>
+        <h2>Módulo 2 — Tuberías</h2>
+      </summary>
 
       <ConfiguracionHidraulicaFormulario proyecto={proyecto} onCambiar={onCambiar} />
 
@@ -327,6 +329,6 @@ export function ResultadoHidraulicoDeTramo({
           ))}
         </>
       )}
-    </section>
+    </details>
   )
 }

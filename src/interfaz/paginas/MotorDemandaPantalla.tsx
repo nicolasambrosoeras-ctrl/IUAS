@@ -784,15 +784,17 @@ function ResultadoDemanda({
 
   return (
     <>
-      <section>
-        <h2>Módulo 1 — Demanda</h2>
+      <details open>
+        <summary>
+          <h2>Módulo 1 — Demanda</h2>
+        </summary>
         <Advertencias advertencias={resultado.advertencias} />
         <Resultados resultado={resultado} />
         <button type="button" onClick={() => generarDocumentoPdf({ proyecto, resultado })}>
           Generar memoria PDF
         </button>
         <Pasos pasos={resultado.pasos} />
-      </section>
+      </details>
 
       <ResultadoHidraulicoDeTramo proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} onCambiar={onCambiar} />
     </>
