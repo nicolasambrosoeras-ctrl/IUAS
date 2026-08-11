@@ -55,6 +55,16 @@ export type Tramo = {
   nodoOrigenId: string;
   nodoDestinoId: string;
   red: RedDeTramo;
+  // Longitud física real de la tubería representada por el Tramo,
+  // expresada en metros -- el recorrido real instalado/previsto de la
+  // conducción (vertical, horizontal, diagonal o con desvíos). NO
+  // representa diferencia de cota, proyección horizontal, longitud
+  // derivada geométricamente, ni longitud equivalente de accesorios
+  // (Modelo B, ver PENDIENTES-DE-ARQUITECTURA.md D-δ.22): es explícita e
+  // independiente de `Nodo.cota_m`/Δz, nunca se deriva de ellos. Opcional
+  // a propósito, mismo criterio que `cota_m`: ausencia de longitud_m NO
+  // equivale a longitud_m=0 ni a |Δz|.
+  longitud_m?: number;
 };
 
 // Una sola topología física para AF y AC (D-δ.2): no existen redes

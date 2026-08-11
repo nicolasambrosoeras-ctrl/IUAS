@@ -621,6 +621,9 @@ const MENSAJES_DE_VALIDACION: Readonly<Record<CodigoValidacion, string>> = {
     'Un tramo de red hidráulica no puede tener el mismo nodo como origen y destino.',
   redHidraulicaReferenciaArtefactoInvalida:
     'Una referencia de red hidráulica apunta a un artefacto inexistente o fuera de la ubicación indicada.',
+  redHidraulicaTramoLongitudNoPositiva: 'Un tramo de red hidráulica tiene una longitud menor o igual a cero.',
+  redHidraulicaTramoLongitudIncompatibleConCota:
+    'Un tramo de red hidráulica tiene una longitud menor a la diferencia de cota entre sus nodos.',
 }
 
 function ProblemasValidacion({ problemas }: { problemas: readonly ProblemaValidacion[] }) {

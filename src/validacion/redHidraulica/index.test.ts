@@ -186,4 +186,55 @@ describe('validarRedHidraulica', () => {
     const codigos = validarRedHidraulica(proyecto).map((p) => p.codigo)
     expect(codigos).toContain('redHidraulicaReferenciaArtefactoInvalida')
   })
+
+  it('longitud_m <= 0 falla (cero y negativa)', () => {
+    const red: RedHidraulica = {
+      nodos: [{ id: 'n0' }, { id: 'n1' }, { id: 'n2' }],
+      tramos: [
+        { id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: 0 },
+        { id: 't1', nodoOrigenId: 'n1', nodoDestinoId: 'n2', red: 'AF', longitud_m: -1 },
+      ],
+    }
+    const proyecto = proyectoBase(unidadesFuncionalesDeEjemplo, red)
+    const problemas = validarRedHidraulica(proyecto).filter(
+      (p) => p.codigo === 'redHidraulicaTramoLongitudNoPositiva',
+    )
+    expect(problemas).toHaveLength(2)
+  })
+
+  it('longitud_m incompatible con la diferencia de cota falla (z0=0, z1=3, L=2.9)', () => {
+    const red: RedHidraulica = {
+      nodos: [
+        { id: 'n0', cota_m: 0 },
+        { id: 'n1', cota_m: 3 },
+      ],
+      tramos: [{ id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: 2.9 }],
+    }
+    const proyecto = proyectoBase(unidadesFuncionalesDeEjemplo, red)
+    const codigos = validarRedHidraulica(proyecto).map((p) => p.codigo)
+    expect(codigos).toContain('redHidraulicaTramoLongitudIncompatibleConCota')
+  })
+
+  it('longitud_m compatible con la diferencia de cota no falla (z0=0, z1=3, L=5, diagonal)', () => {
+    const red: RedHidraulica = {
+      nodos: [
+        { id: 'n0', cota_m: 0 },
+        { id: 'n1', cota_m: 3 },
+      ],
+      tramos: [{ id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: 5 }],
+    }
+    const proyecto = proyectoBase(unidadesFuncionalesDeEjemplo, red)
+    const codigos = validarRedHidraulica(proyecto).map((p) => p.codigo)
+    expect(codigos).not.toContain('redHidraulicaTramoLongitudIncompatibleConCota')
+  })
+
+  it('longitud_m presente pero cotas ausentes: no valida compatibilidad geométrica', () => {
+    const red: RedHidraulica = {
+      nodos: [{ id: 'n0' }, { id: 'n1' }],
+      tramos: [{ id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: 5 }],
+    }
+    const proyecto = proyectoBase(unidadesFuncionalesDeEjemplo, red)
+    const codigos = validarRedHidraulica(proyecto).map((p) => p.codigo)
+    expect(codigos).not.toContain('redHidraulicaTramoLongitudIncompatibleConCota')
+  })
 })

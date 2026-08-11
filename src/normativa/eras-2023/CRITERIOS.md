@@ -897,3 +897,51 @@ aplicable para esos diámetros.
 
 **Estado:** Firme como interpretación normativa y criterio operativo
 del proyecto. Pendiente de implementación en motor/tests.
+
+## CRIT-A20 — Compatibilidad geométrica entre longitud de Tramo y diferencia de cota
+
+**Naturaleza — decisión técnica del proyecto, no prescripción de ERAS:**
+este criterio no transcribe ni interpreta ningún texto de ERAS-2023. Es
+una consecuencia geométrica ineludible (la distancia recta entre dos
+puntos es la longitud mínima físicamente posible entre ellos), no una
+regla normativa. No debe atribuirse a ERAS-2023 bajo ningún concepto.
+
+**Criterio adoptado:** si para un Tramo están disponibles simultáneamente
+su `longitud_m` y la cota (`cota_m`) de sus dos Nodos (origen y destino),
+debe cumplirse:
+
+```
+longitud_m ≥ |cotaDestino_m − cotaOrigen_m|
+```
+
+es decir, `longitud_m ≥ |Δz|`, con `Δz = z_destino − z_origen` (signo
+conservado, ver `calcularDiferenciaDeCota`). La tolerancia aplicada en la comparación es **exclusivamente
+numérica** (ruido de punto flotante, del orden de `1e-9` m) — no
+representa tolerancia constructiva, de medición, ni margen de diseño.
+
+**Longitud positiva:** si `longitud_m` está informada, debe ser
+estrictamente mayor a cero. `longitud_m = 0` es inválido, con
+independencia de `Δz` (con `Δz=0`, la sola regla de compatibilidad
+permitiría `longitud_m=0`, pero esta segunda regla lo excluye
+igualmente).
+
+**Ausencia de datos:** mientras `cota_m`/`longitud_m` sigan siendo
+campos opcionales (ver D-δ.22), la ausencia de cualquiera de los tres
+datos relevantes (cota origen, cota destino, longitud) no constituye un
+error geométrico — simplemente no hay suficiente información para
+verificar. Nunca se asume cota ausente = 0 ni longitud ausente = `|Δz|`;
+esta condición se evalúa únicamente cuando los tres datos están
+efectivamente presentes.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- No deriva `longitud_m` a partir de `Δz` ni de ninguna otra magnitud
+  geométrica (Modelo B, D-δ.22): `longitud_m` es siempre un dato
+  explícito.
+- No modela pérdidas localizadas ni longitud equivalente de accesorios.
+- No resuelve montantes, segmentación ni recorridos completos.
+- No calcula pérdida de carga distribuida ni presión residual.
+
+**Estado:** Firme como criterio técnico operativo del proyecto.
+Implementado en `esLongitudGeometricamenteValida`
+(`motor/tuberias/geometria/`) e integrado en `validarRedHidraulica`.

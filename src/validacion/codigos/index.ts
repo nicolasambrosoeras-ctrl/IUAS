@@ -14,7 +14,9 @@ export type CodigoValidacion =
   | 'redHidraulicaTramoIdDuplicado'
   | 'redHidraulicaTramoNodoInexistente'
   | 'redHidraulicaTramoOrigenIgualDestino'
-  | 'redHidraulicaReferenciaArtefactoInvalida';
+  | 'redHidraulicaReferenciaArtefactoInvalida'
+  | 'redHidraulicaTramoLongitudNoPositiva'
+  | 'redHidraulicaTramoLongitudIncompatibleConCota';
 
 export type Severidad = 'error' | 'advertencia';
 
@@ -74,6 +76,15 @@ export const codigosValidacion: Readonly<Record<CodigoValidacion, DescripcionCod
     severidad: 'error',
     descripcion:
       'La referencia de un nodo a un artefacto no resuelve la cadena unidadFuncionalId → localId → artefactoId dentro del proyecto.',
+  },
+  redHidraulicaTramoLongitudNoPositiva: {
+    severidad: 'error',
+    descripcion: 'Tramo con longitud_m informada menor o igual a cero.',
+  },
+  redHidraulicaTramoLongitudIncompatibleConCota: {
+    severidad: 'error',
+    descripcion:
+      'Tramo con longitud_m menor a la diferencia de cota (en valor absoluto) entre su nodo origen y su nodo destino (CRIT-A20).',
   },
 } as const;
 

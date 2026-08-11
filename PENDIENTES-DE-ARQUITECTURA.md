@@ -748,3 +748,33 @@ Ninguno de estos puntos se convierte en criterio de `CRITERIOS.md` en
 este incremento: son decisiones de presentación de UI, no
 interpretación normativa. Quedan registradas acá para que el próximo
 incremento de UI de Módulo 2 no las redescubra desde cero.
+
+### D-δ.22 — Longitud física de Tramo, independiente de Δz (decisión arquitectónica)
+
+La longitud física real de la tubería pertenece a `Tramo` (`longitud_m`),
+no se deriva de `Nodo.cota_m` ni de la diferencia de cota (Δz) entre sus
+dos nodos. Es un dato explícito, opcional a propósito mientras las
+topologías actuales no tengan geometría real (mismo criterio que
+`cota_m`; ver `CRITERIOS.md` CRIT-A20 para la invariante que los
+relaciona).
+
+Modelo B (frente al Modelo A descartado de `|Δz| + desplazamiento
+horizontal`): `longitud_m` representa el recorrido real instalado o
+previsto de la conducción -- vertical, horizontal, diagonal, o con
+desvíos/codos -- sin que ninguna aritmética geométrica (suma con Δz,
+Pitágoras, u otra) intente reconstruirlo a partir de las cotas. Un
+mismo par de Nodos con la misma diferencia de cota puede admitir
+distintas `longitud_m` según cuál sea el recorrido real instalado; el
+modelo no fuerza ninguna relación salvo la cota mínima físicamente
+posible (CRIT-A20).
+
+`longitud_m` **no incluye** longitud equivalente de accesorios (codos,
+tees, válvulas, `Ks`) ni ninguna otra forma de pérdida localizada: es
+exclusivamente longitud física de tubería recta/curva instalada. Las
+pérdidas localizadas quedan como concepto aparte, sin resolver en este
+incremento.
+
+No se anticipa aquí ningún modelo de montante, segmentación,
+denominación de Tramo ni asignación de Unidad Funcional -- esos
+conceptos, cuando se diseñen, deberán apoyarse en `longitud_m`/`cota_m`
+tal como quedan definidos acá, pero no se cierran en este punto.
