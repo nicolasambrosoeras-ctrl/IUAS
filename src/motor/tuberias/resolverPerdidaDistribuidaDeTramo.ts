@@ -1,13 +1,18 @@
 // Orquestador productivo de pérdida distribuida por Tramo (N3): compone,
 // sin recalcular ni reimplementar nada, las capas ya cerradas --
-// resolverDiametroComercialDeTramo (Qc/Di mínimo/candidato/velocidad
-// real/verificación CRIT-A19), resolverParametroDePerdidaDistribuida
+// resolverDiametroComercialDeTramo (Qc/candidato elegido por CRIT-A23/
+// velocidad real/verificación CRIT-A19), resolverParametroDePerdidaDistribuida
 // (C o epsilon segun metodo) y, solo para Darcy, resolverPropiedadesAguaParaRed
 // (temperatura/nu por red). Reutiliza velocidadReal_mps tal como lo
 // devuelve resolverDiametroComercialDeTramo -- nunca vuelve a llamar
 // calcularVelocidad. Hazen y Darcy siguen usando exclusivamente sus
 // propias primitivas matemáticas (CRIT-A17/CRIT-A18), sin mezclar
-// parámetros de un método en el otro.
+// parámetros de un método en el otro. Correctivo 2A (CRIT-A23): el
+// candidato que llega aquí ya es siempre 'admisible' por construcción
+// (resolverDiametroComercialDeTramo descarta noAdmisible/
+// fueraDeDominioNormativo antes de devolver 'conCandidato') --
+// verificacionVelocidad se sigue propagando como evidencia auditable,
+// no como una verificación que este orquestador todavía deba resolver.
 import type { Proyecto } from '../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { resolverDiametroComercialDeTramo } from './resolverDiametroComercialDeTramo'
@@ -21,7 +26,7 @@ import {
   calcularPerdidaCargaHazenWilliams,
 } from './perdidaCarga/calcularPerdidaCargaHazenWilliams'
 import { calcularNumeroReynolds } from './perdidaCarga/darcyWeisbach/calcularNumeroReynolds'
-import { calcularFactorFriccionDarcy, UMBRAL_REYNOLDS_TURBULENTO } from './perdidaCarga/darcyWeisbach/calcularFactorFriccionDarcy'
+import { calcularFactorFriccionDarcy } from './perdidaCarga/darcyWeisbach/calcularFactorFriccionDarcy'
 import { calcularPerdidaCargaDarcyWeisbach } from './perdidaCarga/darcyWeisbach/calcularPerdidaCargaDarcyWeisbach'
 import { resolverPropiedadesAguaParaRed } from './perdidaCarga/darcyWeisbach/propiedadesAguaDarcy'
 
@@ -31,36 +36,22 @@ export type ResultadoPerdidaDistribuidaDeTramo =
       readonly qc_lps: 0
     }
   | {
-      readonly tipo: 'sinCandidatoSuficiente'
+      readonly tipo: 'sinCandidatoAdmisible'
       readonly qc_lps: number
-      readonly diMinimo_mm: number
+      readonly diReferenciaPredimensionamiento_mm: number
     }
   | {
       readonly tipo: 'sinLongitud'
       readonly qc_lps: number
-      readonly diMinimo_mm: number
+      readonly diReferenciaPredimensionamiento_mm: number
       readonly candidato: EntradaCatalogoTuberia
       readonly velocidadReal_mps: number
       readonly verificacionVelocidad: ResultadoVerificacionVelocidad
-    }
-  | {
-      // Solo alcanzable con metodoPerdidaDistribuida='darcyWeisbach': Hazen
-      // (CRIT-A17) no tiene concepto de régimen turbulento/Reynolds.
-      readonly tipo: 'fueraDeDominioTurbulento'
-      readonly qc_lps: number
-      readonly diMinimo_mm: number
-      readonly candidato: EntradaCatalogoTuberia
-      readonly velocidadReal_mps: number
-      readonly verificacionVelocidad: ResultadoVerificacionVelocidad
-      readonly longitud_m: number
-      readonly reynolds: number
-      readonly temperaturaReferencia_C: number
-      readonly viscosidadCinematica_m2s: number
     }
   | {
       readonly tipo: 'conPerdidaDistribuida'
       readonly qc_lps: number
-      readonly diMinimo_mm: number
+      readonly diReferenciaPredimensionamiento_mm: number
       readonly candidato: EntradaCatalogoTuberia
       readonly velocidadReal_mps: number
       readonly verificacionVelocidad: ResultadoVerificacionVelocidad
@@ -100,15 +91,15 @@ export function resolverPerdidaDistribuidaDeTramo(
     return { tipo: 'sinDemanda', qc_lps: 0 }
   }
 
-  if (resultadoComercial.tipo === 'sinCandidatoSuficiente') {
+  if (resultadoComercial.tipo === 'sinCandidatoAdmisible') {
     return {
-      tipo: 'sinCandidatoSuficiente',
+      tipo: 'sinCandidatoAdmisible',
       qc_lps: resultadoComercial.qc_lps,
-      diMinimo_mm: resultadoComercial.diMinimo_mm,
+      diReferenciaPredimensionamiento_mm: resultadoComercial.diReferenciaPredimensionamiento_mm,
     }
   }
 
-  const { qc_lps, diMinimo_mm, candidato, velocidadReal_mps, verificacionVelocidad } = resultadoComercial
+  const { qc_lps, diReferenciaPredimensionamiento_mm, candidato, velocidadReal_mps, verificacionVelocidad } = resultadoComercial
 
   const { redHidraulica } = proyecto
   if (redHidraulica === undefined) {
@@ -127,7 +118,7 @@ export function resolverPerdidaDistribuidaDeTramo(
   }
 
   if (tramo.longitud_m === undefined) {
-    return { tipo: 'sinLongitud', qc_lps, diMinimo_mm, candidato, velocidadReal_mps, verificacionVelocidad }
+    return { tipo: 'sinLongitud', qc_lps, diReferenciaPredimensionamiento_mm, candidato, velocidadReal_mps, verificacionVelocidad }
   }
   const { longitud_m } = tramo
 
@@ -144,7 +135,7 @@ export function resolverPerdidaDistribuidaDeTramo(
     return {
       tipo: 'conPerdidaDistribuida',
       qc_lps,
-      diMinimo_mm,
+      diReferenciaPredimensionamiento_mm,
       candidato,
       velocidadReal_mps,
       verificacionVelocidad,
@@ -161,28 +152,22 @@ export function resolverPerdidaDistribuidaDeTramo(
     propiedadesAgua.viscosidadCinematica_m2s,
   )
 
-  if (reynolds < UMBRAL_REYNOLDS_TURBULENTO) {
-    return {
-      tipo: 'fueraDeDominioTurbulento',
-      qc_lps,
-      diMinimo_mm,
-      candidato,
-      velocidadReal_mps,
-      verificacionVelocidad,
-      longitud_m,
-      reynolds,
-      temperaturaReferencia_C: propiedadesAgua.temperaturaReferencia_C,
-      viscosidadCinematica_m2s: propiedadesAgua.viscosidadCinematica_m2s,
-    }
-  }
-
+  // No se verifica Re<UMBRAL_REYNOLDS_TURBULENTO acá (Correctivo 2A): el
+  // candidato ya llegó admitido por CRIT-A23 (V≥1 m/s en 13-60mm, V≥1,5
+  // m/s en 75-200mm), y con la viscosidad productiva de CRIT-A21
+  // (ν≈1,0034e-6 m²/s) ese mínimo ya garantiza Re>4000 en todo el
+  // dominio normativo (límite más desfavorable: V=1 m/s, Di=13mm ->
+  // Re≈12956 -- ver test de la propiedad derivada). El guard de
+  // calcularFactorFriccionDarcy (CRIT-A18) permanece intacto como última
+  // defensa ante esa precondición -- inalcanzable en la práctica, no
+  // eliminada de la primitiva matemática.
   const factorFriccion = calcularFactorFriccionDarcy(reynolds, parametro.rugosidadAbsoluta_mm, candidato.diametroInteriorEfectivo_mm)
   const hf_m = calcularPerdidaCargaDarcyWeisbach(factorFriccion, longitud_m, candidato.diametroInteriorEfectivo_mm, velocidadReal_mps)
 
   return {
     tipo: 'conPerdidaDistribuida',
     qc_lps,
-    diMinimo_mm,
+    diReferenciaPredimensionamiento_mm,
     candidato,
     velocidadReal_mps,
     verificacionVelocidad,

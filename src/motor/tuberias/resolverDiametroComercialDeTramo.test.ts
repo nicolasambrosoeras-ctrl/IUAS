@@ -1,18 +1,21 @@
-// Tests de integracion del orquestador: usan Proyecto/topologia/catalogo
-// reales, sin mockear ninguna primitiva interna. Los casos de velocidad
-// noAdmisible/sinCandidatoSuficiente usan catálogos de laboratorio
-// deliberadamente distintos del catálogo real (mismo criterio que
+// Tests de integracion del orquestador (CRIT-A23, Correctivo 2A): usan
+// Proyecto/topologia/catalogo reales, sin mockear ninguna primitiva
+// interna. Los casos de dominio (sinCandidatoAdmisible, hueco 60-75mm)
+// usan catálogos de laboratorio o catalogoArtefactos ficticios
+// deliberadamente distintos del real (mismo criterio que
 // dimensionamientoComercial.integracion.test.ts), para forzar el
 // resultado de forma determinística sin depender de adivinar valores qu
-// del catálogo normativo.
+// del catálogo normativo -- salvo los casos B1/B4 y el de
+// valvulaMingitorio, que usan el catálogo normativo real a propósito.
 import { describe, it, expect } from 'vitest'
 import type { Artefacto, MetadatosProyecto, ParametrosProyecto, Proyecto, TipoDeProyecto, UnidadFuncional } from '../../modelo/proyecto'
 import type { Nodo, RedHidraulica, ReferenciaDeArtefacto, Tramo } from '../../modelo/redHidraulica'
+import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { resolverHidraulicaDeTramo } from './resolverHidraulicaDeTramo'
 import { resolverDiametroComercialDeTramo } from './resolverDiametroComercialDeTramo'
 import { catalogoSistemasDeTuberia, type SistemaDeTuberiaCatalogado } from './sistemaDeTuberia'
-import { obtenerCandidatosDeDiametroComercial } from './diametroComercial/obtenerCandidatosDeDiametroComercial'
+import { obtenerEntradasOrdenadasPorDiametroInterior } from './diametroComercial/obtenerEntradasOrdenadasPorDiametroInterior'
 import { calcularVelocidad } from './perdidaCarga/darcyWeisbach/calcularVelocidad'
 import { verificarVelocidadAdmisible } from './velocidad/verificarVelocidadAdmisible'
 
@@ -62,19 +65,42 @@ function referenciaDe(unidadFuncionalId: string, localId: string, artefactoId: s
   return { tipo: 'artefacto', unidadFuncionalId, localId, artefactoId }
 }
 
-// Fixture compartida: lavatorio único, conectividad física soloAF -> CRIT-A15
-// usa quTotal_lps=0.2, n=1 (CRIT-A4) -> Qc=0.2 l/s. Mismo patrón que el caso
-// 1 de resolverHidraulicaDeTramo.test.ts.
-function proyectoConLavatorioUnico(sistemaDeTuberiaId?: string): { proyecto: Proyecto; tramoId: string } {
-  const lavatorio = artefacto('inst-lavatorio', 'lavatorio')
-  const uf = unidadFuncionalCon('uf-1', 'local-1', [lavatorio])
-  const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n1', referencia: referenciaDe('uf-1', 'local-1', 'inst-lavatorio') }]
+// Fixture compartida: un único artefacto, conectividad física soloAF
+// (CRIT-A15) -> qu efectivo = quTotal_lps, n=1 (CRIT-A4) -> Qc = quTotal_lps
+// del artefacto. Mismo patrón que el caso 1 de resolverHidraulicaDeTramo.test.ts.
+function proyectoConArtefactoUnico(
+  artefactoIdCatalogo: string,
+  sistemaDeTuberiaId?: string,
+): { proyecto: Proyecto; tramoId: string } {
+  const inst = artefacto('inst-unico', artefactoIdCatalogo)
+  const uf = unidadFuncionalCon('uf-1', 'local-1', [inst])
+  const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n1', referencia: referenciaDe('uf-1', 'local-1', 'inst-unico') }]
   const tramos: Tramo[] = [{ id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF' }]
   const proyecto =
     sistemaDeTuberiaId === undefined
       ? proyectoCon('oficinaPrivada', [uf], { nodos, tramos })
       : proyectoCon('oficinaPrivada', [uf], { nodos, tramos }, sistemaDeTuberiaId)
   return { proyecto, tramoId: 't0' }
+}
+
+// catalogoArtefactos ficticio con un único artefacto de qu explícito, para
+// alcanzar valores de Qc concretos (B2/B3) sin replicar la topología
+// completa del demo -- n=1 (CRIT-A4) hace Qc=qu directamente.
+function catalogoConArtefactoDeQu(qu_lps: number): readonly ArtefactoNormativo[] {
+  return [
+    {
+      id: 'inst-unico',
+      nombre: 'Artefacto de prueba (ficticio)',
+      regimen: 'domiciliario',
+      quTotal_lps: qu_lps,
+      quFria_lps: qu_lps,
+      quCaliente_lps: 0,
+      presionMinima_kgcm2: null,
+      limpiezaConValvulaAutomatica: false,
+      origen: 'normativo',
+      referenciaArticulo: 'fixture de prueba, sin referencia normativa real',
+    },
+  ]
 }
 
 const SISTEMA_SOBREDIMENSIONADO: readonly SistemaDeTuberiaCatalogado[] = [
@@ -99,7 +125,30 @@ const SISTEMA_INSUFICIENTE: readonly SistemaDeTuberiaCatalogado[] = [
   },
 ]
 
-describe('resolverDiametroComercialDeTramo', () => {
+// Sistema con un candidato "demasiado rápido" en dominio 13-60mm, uno en
+// el hueco normativo 60-75mm, y uno admisible en dominio 75-200mm: prueba
+// que el hueco se salta sin detener la búsqueda. Di elegidos para que,
+// con Qc=10 (ver catalogoConArtefactoDeQu(10) abajo): 45mm da V≈6,288 m/s
+// (noAdmisible, demasiado rápido); 65mm cae en el hueco
+// (fueraDeDominioNormativo, se descarta sin importar V); 90mm da
+// V≈1,572 m/s, dentro de [1,5-2] (admisible) -- calculado de forma
+// independiente (script aparte), sin ejecutar el resolver bajo test.
+const SISTEMA_CON_HUECO: readonly SistemaDeTuberiaCatalogado[] = [
+  {
+    id: 'sistema-con-hueco',
+    denominacion: 'Sistema de laboratorio con hueco normativo (ficticio)',
+    materialTuberiaId: 'ppr',
+    fabricante: 'Fabricante ficticio',
+    referenciaFuenteDimensiones: 'Fuente ficticia de laboratorio',
+    entradas: [
+      { denominacionComercial: '45mm (ficticio, demasiado rápido)', diametroInteriorEfectivo_mm: 45 },
+      { denominacionComercial: '65mm (ficticio, hueco 60-75)', diametroInteriorEfectivo_mm: 65 },
+      { denominacionComercial: '90mm (ficticio, admisible)', diametroInteriorEfectivo_mm: 90 },
+    ],
+  },
+]
+
+describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
   it('1. sinDemanda: propaga sinDemanda sin construir candidato', () => {
     const inodoro = artefacto('inst-inodoro', 'inodoroValvula')
     const uf = unidadFuncionalCon('uf-1', 'local-bano', [inodoro])
@@ -112,8 +161,8 @@ describe('resolverDiametroComercialDeTramo', () => {
     expect(resultado).toEqual({ tipo: 'sinDemanda', qc_lps: 0 })
   })
 
-  it('2. conCandidato con velocidad admisible: primer candidato del sistema real, velocidad y verificación cross-validadas contra las primitivas', () => {
-    const { proyecto, tramoId } = proyectoConLavatorioUnico()
+  it('B1 — Qc=0.2 l/s (lavatorio real): primer candidato admisible del catálogo real, cross-validado contra las primitivas', () => {
+    const { proyecto, tramoId } = proyectoConArtefactoUnico('lavatorio')
 
     const resultado = resolverDiametroComercialDeTramo(proyecto, tramoId, catalogoArtefactos, catalogoSistemasDeTuberia)
     const hidraulico = resolverHidraulicaDeTramo(proyecto, tramoId, catalogoArtefactos)
@@ -123,38 +172,146 @@ describe('resolverDiametroComercialDeTramo', () => {
     }
 
     const sistema = catalogoSistemasDeTuberia[0]!
-    const candidatosEsperados = obtenerCandidatosDeDiametroComercial(hidraulico.predimensionamiento.di_min_mm, sistema)
-    const velocidadEsperada = calcularVelocidad(hidraulico.qc_lps, candidatosEsperados[0]!.diametroInteriorEfectivo_mm)
-    const verificacionEsperada = verificarVelocidadAdmisible(velocidadEsperada, candidatosEsperados[0]!.diametroInteriorEfectivo_mm)
+    const entradasOrdenadas = obtenerEntradasOrdenadasPorDiametroInterior(sistema)
+    const primerAdmisibleEsperado = entradasOrdenadas.find((entrada) => {
+      const v = calcularVelocidad(hidraulico.qc_lps, entrada.diametroInteriorEfectivo_mm)
+      return verificarVelocidadAdmisible(v, entrada.diametroInteriorEfectivo_mm).tipo === 'admisible'
+    })!
+    const velocidadEsperada = calcularVelocidad(hidraulico.qc_lps, primerAdmisibleEsperado.diametroInteriorEfectivo_mm)
+    const verificacionEsperada = verificarVelocidadAdmisible(velocidadEsperada, primerAdmisibleEsperado.diametroInteriorEfectivo_mm)
 
     expect(hidraulico.qc_lps).toBe(0.2)
-    // N3: qc_lps/diMinimo_mm se propagan desde resultadoHidraulico ya
-    // calculado internamente, sin una segunda llamada al motor de demanda.
+    // qc_lps/diReferenciaPredimensionamiento_mm se propagan desde
+    // resultadoHidraulico ya calculado internamente, sin una segunda
+    // llamada al motor de demanda.
     expect(resultado.qc_lps).toBe(hidraulico.qc_lps)
-    expect(resultado.diMinimo_mm).toBe(hidraulico.predimensionamiento.di_min_mm)
-    expect(resultado.candidato).toEqual(candidatosEsperados[0])
+    expect(resultado.diReferenciaPredimensionamiento_mm).toBe(hidraulico.predimensionamiento.di_min_mm)
+    expect(resultado.candidato).toEqual(primerAdmisibleEsperado)
     expect(resultado.candidato.denominacionComercial).toBe('20 mm')
+    expect(resultado.candidato.diametroInteriorEfectivo_mm).toBe(14.4)
+    expect(resultado.velocidadReal_mps).toBeCloseTo(1.2280474004004271, 9)
     expect(resultado.velocidadReal_mps).toBe(velocidadEsperada)
     expect(resultado.verificacionVelocidad).toEqual(verificacionEsperada)
-    expect(resultado.verificacionVelocidad.tipo).toBe('admisible')
+    expect(resultado.verificacionVelocidad).toEqual({ tipo: 'admisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 })
   })
 
-  it('3. conCandidato con velocidad noAdmisible: el candidato se devuelve igual, con la verificación marcando noAdmisible (CRIT-A19)', () => {
-    const { proyecto, tramoId } = proyectoConLavatorioUnico('sistema-sobredimensionado')
+  it('B2 — Qc=0.7273238618387272 l/s: nueva política elige 25mm (Di=18.0), la anterior elegía 32mm', () => {
+    const catalogoQu = catalogoConArtefactoDeQu(0.7273238618387272)
+    const { proyecto, tramoId } = proyectoConArtefactoUnico('inst-unico')
 
-    const resultado = resolverDiametroComercialDeTramo(proyecto, tramoId, catalogoArtefactos, SISTEMA_SOBREDIMENSIONADO)
+    const resultado = resolverDiametroComercialDeTramo(proyecto, tramoId, catalogoQu, catalogoSistemasDeTuberia)
 
     if (resultado.tipo !== 'conCandidato') {
       throw new Error('se esperaba conCandidato')
     }
-    expect(resultado.qc_lps).toBe(0.2)
-    expect(resultado.candidato.diametroInteriorEfectivo_mm).toBe(50)
-    expect(resultado.velocidadReal_mps).toBeLessThan(1)
-    expect(resultado.verificacionVelocidad).toEqual({ tipo: 'noAdmisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 })
+    // Calculado de forma independiente (no ejecutando el resolver bajo
+    // test): V(25mm, Qc=0.7273238618387272)=2.8582021688967947 m/s,
+    // dentro de [1,3] -- admisible.
+    expect(resultado.candidato).toEqual({ denominacionComercial: '25 mm', diametroInteriorEfectivo_mm: 18.0 })
+    expect(resultado.velocidadReal_mps).toBeCloseTo(2.8582021688967947, 9)
+    expect(resultado.verificacionVelocidad).toEqual({ tipo: 'admisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 })
   })
 
-  it('4. sinCandidatoSuficiente: Di mínimo mayor que el máximo del sistema -> resultado explícito, sin throw ni extrapolar', () => {
-    const { proyecto, tramoId } = proyectoConLavatorioUnico('sistema-insuficiente')
+  it('B3 — Qc=1.0964415971625976 l/s (Di predimensionamiento≈26.42mm): nueva política elige 32mm (Di=23.2), la anterior elegía 40mm', () => {
+    const catalogoQu = catalogoConArtefactoDeQu(1.0964415971625976)
+    const { proyecto, tramoId } = proyectoConArtefactoUnico('inst-unico')
+
+    const resultado = resolverDiametroComercialDeTramo(proyecto, tramoId, catalogoQu, catalogoSistemasDeTuberia)
+    const hidraulico = resolverHidraulicaDeTramo(proyecto, tramoId, catalogoQu)
+
+    if (resultado.tipo !== 'conCandidato' || hidraulico.tipo !== 'conDemanda') {
+      throw new Error('se esperaba conCandidato/conDemanda')
+    }
+    expect(hidraulico.predimensionamiento.di_min_mm).toBeCloseTo(26.42, 2)
+    expect(resultado.diReferenciaPredimensionamiento_mm).toBeCloseTo(26.42, 2)
+    // Calculado de forma independiente: V(32mm)=2.5936994649227127 m/s,
+    // dentro de [1,3] -- admisible.
+    expect(resultado.candidato).toEqual({ denominacionComercial: '32 mm', diametroInteriorEfectivo_mm: 23.2 })
+    expect(resultado.velocidadReal_mps).toBeCloseTo(2.5936994649227127, 9)
+    expect(resultado.verificacionVelocidad).toEqual({ tipo: 'admisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 })
+  })
+
+  it('B4 — Qc=1.5 l/s (inodoroValvula real, post CRIT-A22): nueva política elige 40mm (Di=29.0), la anterior elegía 50mm', () => {
+    const { proyecto, tramoId } = proyectoConArtefactoUnico('inodoroValvula')
+
+    const resultado = resolverDiametroComercialDeTramo(proyecto, tramoId, catalogoArtefactos, catalogoSistemasDeTuberia)
+    const hidraulico = resolverHidraulicaDeTramo(proyecto, tramoId, catalogoArtefactos)
+
+    if (resultado.tipo !== 'conCandidato' || hidraulico.tipo !== 'conDemanda') {
+      throw new Error('se esperaba conCandidato/conDemanda')
+    }
+    // n=1 (CRIT-A4): Qc estadístico=Qmax=1.5=quMax -> CRIT-A22 no
+    // necesita intervenir (ya coinciden), qc_lps=1.5.
+    expect(hidraulico.qc_lps).toBe(1.5)
+    // Calculado de forma independiente: V(40mm)=2.270938545901003 m/s,
+    // dentro de [1,3] -- admisible.
+    expect(resultado.candidato).toEqual({ denominacionComercial: '40 mm', diametroInteriorEfectivo_mm: 29.0 })
+    expect(resultado.velocidadReal_mps).toBeCloseTo(2.270938545901003, 9)
+    expect(resultado.verificacionVelocidad).toEqual({ tipo: 'admisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 })
+  })
+
+  it('valvulaMingitorio (catálogo normativo real, Qc=0.15 l/s) + Acqua System Magnum PN20 real: ningún candidato es admisible', () => {
+    // valvulaMingitorio tiene quFria_lps/quCaliente_lps=null en el
+    // catálogo (solo quTotal_lps=0.15 definido) -- un tramo AF simple
+    // resolvería condicion='aguaFria' y lanzaría (mismo comportamiento ya
+    // cubierto en resolverHidraulicaDeTramo.test.ts, caso 7). Se usa el
+    // mismo patrón de tronco común que el Golden 5 de ese archivo (misma
+    // referencia alcanzable con y sin pasar por producciónACS) para que
+    // la condición evaluada resuelva 'total' -> resolverQuEfectivo usa
+    // quTotal_lps directamente, sin tocar los campos null.
+    const mingitorio = artefacto('inst-mingitorio', 'valvulaMingitorio')
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'UF 1',
+      locales: [{ id: 'local-1', tipo: 'otros', regimen: 'noDomiciliario', artefactos: [mingitorio] }],
+    }
+    const nodos: Nodo[] = [
+      { id: 'n0' },
+      { id: 'n1' },
+      { id: 'n2', referencia: referenciaDe('uf-1', 'local-1', 'inst-mingitorio') },
+      { id: 'n3', referencia: { tipo: 'produccionACS' } },
+      { id: 'n4', referencia: referenciaDe('uf-1', 'local-1', 'inst-mingitorio') },
+    ]
+    const tramos: Tramo[] = [
+      { id: 't1', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF' },
+      { id: 't2', nodoOrigenId: 'n1', nodoDestinoId: 'n2', red: 'AF' },
+      { id: 't3', nodoOrigenId: 'n1', nodoDestinoId: 'n3', red: 'AF' },
+      { id: 't4', nodoOrigenId: 'n3', nodoDestinoId: 'n4', red: 'AC' },
+    ]
+    const proyecto = proyectoCon('oficinaPrivada', [uf], { nodos, tramos })
+
+    const resultado = resolverDiametroComercialDeTramo(proyecto, 't1', catalogoArtefactos, catalogoSistemasDeTuberia)
+    const hidraulico = resolverHidraulicaDeTramo(proyecto, 't1', catalogoArtefactos)
+
+    if (hidraulico.tipo !== 'conDemanda') {
+      throw new Error('se esperaba conDemanda')
+    }
+    expect(hidraulico.qc_lps).toBe(0.15)
+    // El candidato más chico (20mm, Di=14.4mm) ya da V≈0.921 m/s < 1 --
+    // demasiado lento -- y V sigue bajando en todos los candidatos
+    // mayores (V decrece monótonamente con Di para Qc fijo): ninguno
+    // del catálogo productivo real resulta admisible.
+    expect(resultado).toEqual({
+      tipo: 'sinCandidatoAdmisible',
+      qc_lps: 0.15,
+      diReferenciaPredimensionamiento_mm: hidraulico.predimensionamiento.di_min_mm,
+    })
+  })
+
+  it('sinCandidatoAdmisible: único candidato del sistema resulta noAdmisible (demasiado lento) -> ya no es "conCandidato"', () => {
+    const { proyecto, tramoId } = proyectoConArtefactoUnico('lavatorio', 'sistema-sobredimensionado')
+
+    const resultado = resolverDiametroComercialDeTramo(proyecto, tramoId, catalogoArtefactos, SISTEMA_SOBREDIMENSIONADO)
+
+    expect(resultado.tipo).toBe('sinCandidatoAdmisible')
+    if (resultado.tipo !== 'sinCandidatoAdmisible') {
+      throw new Error('se esperaba sinCandidatoAdmisible')
+    }
+    expect(resultado.qc_lps).toBe(0.2)
+  })
+
+  it('sinCandidatoAdmisible: único candidato queda fuera del dominio normativo (D<13mm) -> resultado explícito, sin throw ni extrapolar', () => {
+    const { proyecto, tramoId } = proyectoConArtefactoUnico('lavatorio', 'sistema-insuficiente')
     const hidraulico = resolverHidraulicaDeTramo(proyecto, tramoId, catalogoArtefactos)
 
     if (hidraulico.tipo !== 'conDemanda') {
@@ -164,14 +321,28 @@ describe('resolverDiametroComercialDeTramo', () => {
     const resultado = resolverDiametroComercialDeTramo(proyecto, tramoId, catalogoArtefactos, SISTEMA_INSUFICIENTE)
 
     expect(resultado).toEqual({
-      tipo: 'sinCandidatoSuficiente',
+      tipo: 'sinCandidatoAdmisible',
       qc_lps: hidraulico.qc_lps,
-      diMinimo_mm: hidraulico.predimensionamiento.di_min_mm,
+      diReferenciaPredimensionamiento_mm: hidraulico.predimensionamiento.di_min_mm,
     })
   })
 
-  it('5. sistemaDeTuberiaId inexistente en el catálogo recibido: throw coherente con la precondición de obtenerSistemaDeTuberia', () => {
-    const { proyecto, tramoId } = proyectoConLavatorioUnico('sistemaInexistente')
+  it('hueco 60-75mm: se salta sin detener la búsqueda, continúa hasta encontrar un candidato admisible más adelante', () => {
+    const catalogoQu = catalogoConArtefactoDeQu(10)
+    const { proyecto, tramoId } = proyectoConArtefactoUnico('inst-unico', 'sistema-con-hueco')
+
+    const resultado = resolverDiametroComercialDeTramo(proyecto, tramoId, catalogoQu, SISTEMA_CON_HUECO)
+
+    if (resultado.tipo !== 'conCandidato') {
+      throw new Error('se esperaba conCandidato (el candidato del hueco debe saltarse, no detener la búsqueda)')
+    }
+    expect(resultado.candidato).toEqual({ denominacionComercial: '90mm (ficticio, admisible)', diametroInteriorEfectivo_mm: 90 })
+    expect(resultado.velocidadReal_mps).toBeCloseTo(1.5719006725125466, 9)
+    expect(resultado.verificacionVelocidad).toEqual({ tipo: 'admisible', limiteMinimo_mps: 1.5, limiteMaximo_mps: 2 })
+  })
+
+  it('sistemaDeTuberiaId inexistente en el catálogo recibido: throw coherente con la precondición de obtenerSistemaDeTuberia', () => {
+    const { proyecto, tramoId } = proyectoConArtefactoUnico('lavatorio', 'sistemaInexistente')
 
     expect(() => resolverDiametroComercialDeTramo(proyecto, tramoId, catalogoArtefactos, catalogoSistemasDeTuberia)).toThrow(
       /no existe ningún SistemaDeTuberiaCatalogado con id "sistemaInexistente"/,

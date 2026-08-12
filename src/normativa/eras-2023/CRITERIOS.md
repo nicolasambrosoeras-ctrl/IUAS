@@ -556,19 +556,30 @@ resueltos por este criterio ni por este incremento.
 fórmula de sección de escurrimiento de CRIT-A10; únicamente fija el valor
 de `Ve` que se inyecta en ella durante la etapa de predimensionamiento.
 
+**El diámetro resultante es una referencia de predimensionamiento, no una
+cota mínima de selección comercial (Correctivo 2A, CRIT-A23):** el `Di`
+que produce este criterio (`diReferenciaPredimensionamiento_mm` en las
+APIs productivas) es un punto de partida orientativo, útil antes de
+conocer ningún diámetro comercial real. **No funciona como filtro de
+admisión** para la selección comercial productiva: un candidato
+comercial con `Di efectivo` menor a esa referencia puede seguir siendo
+válido si su velocidad real cumple los rangos de §2.12.1 (CRIT-A19). La
+selección comercial productiva se resuelve mediante CRIT-A23, no
+comparando directamente contra este `Di` de referencia.
+
 **Alcance — qué NO resuelve este criterio:**
 
 - No fija el diámetro comercial ni el material de la cañería.
 - No calcula la velocidad real de escurrimiento ni la verifica contra
-  §2.12.1; eso queda para el incremento que incorpore diámetro
-  comercial/adoptado.
+  §2.12.1; eso lo resuelve CRIT-A23, no este criterio.
 - No define si, en el futuro, distintos tramos o materiales podrían
   ameritar un `Ve` de predimensionamiento distinto de 2,0 m/s; con la
   información actual del proyecto no hay elementos para justificar esa
   distinción, y no se adopta aquí.
 
-**Estado:** Firme para la etapa de predimensionamiento. No implica
-implementación en motor/tests todavía.
+**Estado:** Firme para la etapa de predimensionamiento. Implementado en
+`calcularPredimensionamientoDeTramo`
+(`motor/tuberias/predimensionamiento/`).
 
 ## CRIT-A17 — Pérdida de carga distribuida por Hazen-Williams
 
@@ -827,12 +838,14 @@ del candidato comercial seleccionado.
 ### 4. Relación con CRIT-A16 — Ve=2,0 m/s no es la velocidad a verificar
 
 CRIT-A16 adopta `Ve=2,0 m/s` únicamente como criterio de
-predimensionamiento inicial, para obtener `Ae` mínima y `Di` mínimo. No
-debe confundirse esa velocidad de diseño inicial con la velocidad real
-resultante del diámetro comercial finalmente seleccionado, que es la
-que efectivamente debe verificarse contra los rangos de este criterio.
+predimensionamiento inicial, para obtener `Ae` mínima y `Di` de
+referencia. No debe confundirse esa velocidad de diseño inicial con la
+velocidad real resultante del diámetro comercial finalmente
+seleccionado, que es la que efectivamente debe verificarse contra los
+rangos de este criterio.
 
-Secuencia completa:
+**Nota histórica (superada por CRIT-A23, Correctivo 2A):** la secuencia
+originalmente documentada aquí era
 
 ```
 Qc
@@ -842,47 +855,51 @@ Qc
 → verificar Ve real contra §2.12.1      (este criterio)
 ```
 
-### 5. Propiedad derivada — Ve_real ≤ 2,0 m/s
+Esa secuencia convertía el `Di` de predimensionamiento en una **frontera
+dura** de selección comercial — un candidato con `Di efectivo` menor,
+aunque su velocidad real fuera admisible, quedaba descartado sin
+evaluarse. Esa restricción **nunca estuvo en el texto de ERAS** (que
+nunca menciona `2,0 m/s`) y podía sobredimensionar la selección
+comercial. **CRIT-A23 la reemplaza**: recorre el catálogo comercial
+completo por diámetro creciente y verifica la velocidad real de cada
+candidato contra el rango que su propio diámetro determina (este mismo
+criterio), sin comparar contra el `Di` de predimensionamiento en ningún
+paso.
 
-**Esto es una consecuencia matemática de la estrategia de selección
-adoptada por el proyecto, no una prescripción adicional de ERAS.** Si
-`diametroInteriorEfectivo ≥ Di mínimo` y ambos se evalúan con el mismo
-`Qc`, entonces `Ve_real ≤ 2,0 m/s` (`V=Q/A` es estrictamente decreciente
-en `D` para `Q` fijo, y `Di mínimo` es por construcción el diámetro en
-el que `V=2,0 m/s` para ese `Qc`).
+### 5. Propiedad derivada — Ve_real ≤ 2,0 m/s (histórica, ya no vigente)
 
-Consecuencias:
+**Esta propiedad pertenecía a la estrategia de selección anterior a
+CRIT-A23 y ya no es cierta bajo la estrategia vigente.** Se documenta
+aquí únicamente por trazabilidad histórica: bajo la estrategia previa
+(`diametroInteriorEfectivo ≥ Di mínimo`), `Ve_real` nunca podía superar
+`2,0 m/s`, porque `Di mínimo` era por construcción el diámetro en el que
+`V=2,0 m/s` para ese `Qc`, y `V` decrece con `D`. Bajo CRIT-A23, el
+candidato elegido puede tener una velocidad real de hasta el máximo
+normativo de cada rango (`3 m/s` para `13–60 mm`; `2 m/s` para
+`75–200 mm`) — `3 m/s` es el límite superior admisible, **no** un
+objetivo de diseño.
 
-- para `13 mm ≤ D ≤ 60 mm`, bajo esta estrategia no puede superarse el
-  máximo normativo de `3 m/s`;
-- para `75 mm ≤ D ≤ 200 mm`, no puede superarse el máximo normativo de
-  `2 m/s`;
-- el eventual incumplimiento de velocidad tras la selección comercial
-  solo puede producirse **por debajo** del mínimo admisible, nunca por
-  encima del máximo.
+### 6. Consecuencia para la selección de diámetro — implementada en CRIT-A23
 
-Esta propiedad depende de que el predimensionamiento y la verificación
-usen el **mismo** `Qc`; no se garantiza si se mezclan `Qc` de distintas
-condiciones hidráulicas del mismo tramo.
+Si un candidato comercial produce una velocidad menor al mínimo
+normativo admisible, **aumentar el diámetro no puede corregir ese
+incumplimiento**: `V` decrece monótonamente con `D` para `Qc` fijo, así
+que un diámetro mayor solo empeora la velocidad. Esta consecuencia, antes
+documentada como pendiente, **ya está implementada**: CRIT-A23 recorre el
+catálogo completo y nunca "sube de diámetro" esperando que eso resuelva
+un incumplimiento por defecto de velocidad. Aumentar el diámetro comercial
+sí podrá ser una herramienta válida en un incremento posterior para
+reducir pérdidas de carga y mejorar la presión residual — un problema
+distinto al de velocidad mínima, todavía no resuelto.
 
-### 6. Consecuencia para la selección futura de diámetro
+### 7. Semántica de resultado — implementada en CRIT-A23
 
-Si el primer candidato comercial suficiente ya produce una velocidad
-menor al mínimo normativo admisible, **aumentar el diámetro no puede
-corregir ese incumplimiento**: `V` decrece monótonamente con `D` para
-`Qc` fijo, así que un diámetro mayor solo empeora la velocidad. Esto
-queda documentado como consecuencia de diseño para un futuro algoritmo
-de selección; no se implementa ningún loop en este criterio. Por el
-contrario, aumentar el diámetro comercial sí podrá ser una herramienta
-válida en un incremento posterior para reducir pérdidas de carga y
-mejorar la presión residual — un problema distinto al de velocidad
-mínima.
-
-### 7. Semántica futura sugerida (no implementada)
-
-Una futura verificación debería distinguir al menos tres resultados:
-admisible; no admisible; fuera del dominio normativo cubierto por esta
-regla. No se fijan tipos ni firmas de TypeScript en este criterio.
+La verificación distingue tres resultados (`ResultadoVerificacionVelocidad`,
+ya implementado): admisible; no admisible; fuera del dominio normativo
+cubierto por esta regla. CRIT-A23 agrega, a nivel de selección de Tramo
+completo (no de esta verificación puntual), un cuarto estado:
+`sinCandidatoAdmisible`, cuando ningún candidato del catálogo resulta
+admisible tras recorrerlo por completo.
 
 ### 8. Fuera del dominio publicado
 
@@ -894,14 +911,16 @@ aplicable para esos diámetros.
 
 **Alcance — qué NO resuelve este criterio:**
 
-- No implementa selección automática de candidato comercial.
-- No implementa el loop de diámetros (subir de diámetro ante fallo).
+- La selección automática de candidato comercial la resuelve CRIT-A23,
+  no este criterio (este criterio define únicamente los rangos y la
+  verificación puntual de un diámetro dado).
 - No resuelve pérdidas distribuidas ni localizadas.
 - No calcula ni verifica presión residual.
-- No incorpora materiales ni catálogos reales.
+- No incorpora materiales ni catálogos reales (eso es CRIT-A23/fabricante).
 
 **Estado:** Firme como interpretación normativa y criterio operativo
-del proyecto. Pendiente de implementación en motor/tests.
+del proyecto. Implementado en `verificarVelocidadAdmisible`
+(`motor/tuberias/velocidad/`).
 
 ## CRIT-A20 — Compatibilidad geométrica entre longitud de Tramo y diferencia de cota
 
@@ -1104,3 +1123,75 @@ pueda mostrar ambos valores y cuál se adoptó.
 **Estado:** Firme como criterio técnico operativo del proyecto.
 Implementado en `resolverSimultaneidadHidraulicaDeTramo`
 (`motor/tuberias/simultaneidad/`).
+
+## CRIT-A23 — Selección de diámetro comercial por velocidad real (Correctivo 2A)
+
+**Naturaleza — criterio técnico de proyecto que resuelve una ambigüedad
+operativa de §2.12.1, no interpretación textual adicional:** ERAS-2023
+§2.12.1 establece los rangos de velocidad admisible por rango de
+diámetro y exige adoptar "un diámetro interior comercial igual o mayor a
+la sección de cálculo" (CRIT-A19) — pero no especifica el procedimiento
+para elegir la `Ve` con la que calcular esa sección de cálculo *antes*
+de conocer el diámetro final, dado que el propio rango de `Ve` admisible
+depende de ese diámetro (circularidad). CRIT-A16 (`Ve=2,0 m/s` fijo) es
+una simplificación de proyecto para el predimensionamiento, no una
+prescripción de ERAS. Este criterio resuelve la ambigüedad sin
+inventar ninguna `Ve` intermedia: verifica la velocidad real de cada
+candidato comercial contra el rango que su propio diámetro determina.
+
+**Catálogo comercial real:** la política opera sobre el sistema de
+tuberías adoptado por el Proyecto (`SistemaDeTuberiaCatalogado`,
+`motor/tuberias/sistemaDeTuberia/`) — el fabricante aporta los diámetros
+interiores efectivos reales; **no aporta esta política de selección**,
+que es enteramente criterio técnico de proyecto.
+
+**Criterio adoptado:**
+
+```text
+Qc final del Tramo (post CRIT-A22)
+→ obtener las entradas comerciales del sistema, ordenadas por Di efectivo creciente
+→ para cada candidato, en orden:
+    calcular velocidad real (Qc + Di efectivo)
+    verificarVelocidadAdmisible(V, Di)          (CRIT-A19, sin cambios)
+    si resulta 'admisible'                       -> seleccionar este candidato, detener
+    si resulta 'noAdmisible' o 'fueraDeDominioNormativo' -> descartar, continuar
+→ si se recorre todo el catálogo sin ningún candidato admisible
+    -> sinCandidatoAdmisible (resultado explícito, no throw, no extrapola)
+```
+
+**El hueco normativo 60–75mm** (CRIT-A19) se descarta como cualquier
+`fueraDeDominioNormativo`: la búsqueda continúa sin detenerse.
+
+**`Ve=2,0 m/s` (CRIT-A16) no funciona como filtro de admisión.** El `Di`
+que produce sigue siendo un dato de predimensionamiento válido y se
+propaga como referencia informativa (`diReferenciaPredimensionamiento_mm`),
+pero ningún candidato se descarta por tener un `Di efectivo` menor a esa
+referencia — solo se descarta por no cumplir su propio rango de
+velocidad de CRIT-A19.
+
+**`3 m/s` es un límite normativo superior, no un objetivo de diseño:**
+es el techo admisible para diámetros de `13–60mm`; el criterio no busca
+acercarse a ese límite, solo encontrar el primer candidato dentro de
+cualquier punto del rango aplicable.
+
+**No resuelve todavía presión residual.** Un futuro incremento deberá
+combinar esta selección por velocidad con verificación de presión
+residual (probar el siguiente candidato comercial si el elegido por
+velocidad no alcanza presión) — ese algoritmo no está implementado ni
+decidido aquí.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- No modifica los rangos normativos de CRIT-A19 (`13–60mm` → `1–3 m/s`;
+  `75–200mm` → `1,5–2 m/s`; hueco/fuera de dominio sin cambios).
+- No modifica CRIT-A16 (`Ve=2,0 m/s` sigue existiendo, solo deja de ser
+  filtro de admisión).
+- No implementa selección manual ni override por Tramo.
+- No calcula pérdida de carga distribuida (`hf`) ni presión residual.
+- No atribuye esta estrategia de selección a ERAS-2023 — es criterio
+  técnico de proyecto ante una ambigüedad operativa no resuelta
+  explícitamente por el texto disponible.
+
+**Estado:** Firme como criterio técnico operativo del proyecto.
+Implementado en `resolverDiametroComercialDeTramo`
+(`motor/tuberias/resolverDiametroComercialDeTramo.ts`).

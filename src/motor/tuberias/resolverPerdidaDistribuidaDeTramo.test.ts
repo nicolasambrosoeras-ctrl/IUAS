@@ -7,6 +7,12 @@
 // vivienda individual, un lavatorio, AF, Qc=0.2 l/s (n=1, CRIT-A4),
 // longitud_m=3m, material PPR + sistema comercial real Acqua System
 // Magnum PN20 (candidato "20 mm", Di efectivo=14.4mm).
+// Correctivo 2A (CRIT-A23): no existe un caso "velocidad noAdmisible con
+// conPerdidaDistribuida" -- resolverDiametroComercialDeTramo ya descarta
+// todo candidato no admisible antes de devolver 'conCandidato', así que
+// esa combinación dejó de ser alcanzable por la selección automática. No
+// se agrega un test que la fuerce artificialmente ni se anticipa una
+// futura selección manual todavía inexistente.
 import { describe, it, expect } from 'vitest'
 import type { Artefacto, MetadatosProyecto, ParametrosProyecto, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
 import type { Nodo, RedHidraulica, ReferenciaDeArtefacto, Tramo } from '../../modelo/redHidraulica'
@@ -15,6 +21,9 @@ import { validarRedHidraulica } from '../../validacion/redHidraulica'
 import { resolverPerdidaDistribuidaDeTramo } from './resolverPerdidaDistribuidaDeTramo'
 import { catalogoSistemasDeTuberia, type SistemaDeTuberiaCatalogado } from './sistemaDeTuberia'
 import { catalogoMaterialesTuberia } from './materialTuberia'
+import { calcularNumeroReynolds } from './perdidaCarga/darcyWeisbach/calcularNumeroReynolds'
+import { UMBRAL_REYNOLDS_TURBULENTO } from './perdidaCarga/darcyWeisbach/calcularFactorFriccionDarcy'
+import { resolverPropiedadesAguaParaRed } from './perdidaCarga/darcyWeisbach/propiedadesAguaDarcy'
 
 function metadatos(): MetadatosProyecto {
   return {
@@ -82,28 +91,6 @@ function proyectoConLavatorioUnico(
   return { proyecto, tramoId: 't0' }
 }
 
-const SISTEMA_SOBREDIMENSIONADO_VELOCIDAD: readonly SistemaDeTuberiaCatalogado[] = [
-  {
-    id: 'sistema-sobredimensionado-velocidad',
-    denominacion: 'Sistema de laboratorio sobredimensionado (ficticio)',
-    materialTuberiaId: 'ppr',
-    fabricante: 'Fabricante ficticio',
-    referenciaFuenteDimensiones: 'Fuente ficticia de laboratorio',
-    entradas: [{ denominacionComercial: '50 mm (ficticio)', diametroInteriorEfectivo_mm: 50 }],
-  },
-]
-
-const SISTEMA_FUERA_DE_DOMINIO_TURBULENTO: readonly SistemaDeTuberiaCatalogado[] = [
-  {
-    id: 'sistema-fuera-de-dominio-turbulento',
-    denominacion: 'Sistema de laboratorio muy sobredimensionado (ficticio)',
-    materialTuberiaId: 'ppr',
-    fabricante: 'Fabricante ficticio',
-    referenciaFuenteDimensiones: 'Fuente ficticia de laboratorio',
-    entradas: [{ denominacionComercial: '90 mm (ficticio)', diametroInteriorEfectivo_mm: 90 }],
-  },
-]
-
 const SISTEMA_INSUFICIENTE: readonly SistemaDeTuberiaCatalogado[] = [
   {
     id: 'sistema-insuficiente',
@@ -138,7 +125,7 @@ describe('resolverPerdidaDistribuidaDeTramo — golden', () => {
     // V=1.2280474004004271 m/s -> J=0.1307150589563208 m/m ->
     // hf=J*3=0.3921451768689624 m.
     expect(resultado.qc_lps).toBe(0.2)
-    expect(resultado.diMinimo_mm).toBeCloseTo(11.283791670955125, 9)
+    expect(resultado.diReferenciaPredimensionamiento_mm).toBeCloseTo(11.283791670955125, 9)
     expect(resultado.candidato).toEqual({ denominacionComercial: '20 mm', diametroInteriorEfectivo_mm: 14.4 })
     expect(resultado.velocidadReal_mps).toBeCloseTo(1.2280474004004271, 9)
     expect(resultado.verificacionVelocidad).toEqual({ tipo: 'admisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 })
@@ -193,12 +180,12 @@ describe('resolverPerdidaDistribuidaDeTramo — casos de dominio', () => {
     expect(resultado).toEqual({ tipo: 'sinDemanda', qc_lps: 0 })
   })
 
-  it('sinCandidatoSuficiente: Di mínimo mayor que el máximo del sistema -> propagado, sin calcular pérdida', () => {
+  it('sinCandidatoAdmisible: único candidato del sistema queda fuera del dominio normativo -> propagado, sin calcular pérdida', () => {
     const { proyecto, tramoId } = proyectoConLavatorioUnico('hazenWilliams', 'sistema-insuficiente')
 
     const resultado = resolverPerdidaDistribuidaDeTramo(proyecto, tramoId, catalogoArtefactos, SISTEMA_INSUFICIENTE, catalogoMaterialesTuberia)
 
-    expect(resultado).toEqual({ tipo: 'sinCandidatoSuficiente', qc_lps: 0.2, diMinimo_mm: 11.283791670955125 })
+    expect(resultado).toEqual({ tipo: 'sinCandidatoAdmisible', qc_lps: 0.2, diReferenciaPredimensionamiento_mm: 11.283791670955125 })
   })
 
   it('sinLongitud: candidato ya resuelto se preserva, sin asumir longitud=0 ni derivarla', () => {
@@ -221,41 +208,32 @@ describe('resolverPerdidaDistribuidaDeTramo — casos de dominio', () => {
     expect(resultado.velocidadReal_mps).toBeCloseTo(1.2280474004004271, 9)
   })
 
-  it('velocidad noAdmisible: hf se calcula igual, la verificación se preserva sin bloquear el cálculo', () => {
-    const { proyecto, tramoId } = proyectoConLavatorioUnico('hazenWilliams', 'sistema-sobredimensionado-velocidad')
+})
 
-    const resultado = resolverPerdidaDistribuidaDeTramo(
-      proyecto,
-      tramoId,
-      catalogoArtefactos,
-      SISTEMA_SOBREDIMENSIONADO_VELOCIDAD,
-      catalogoMaterialesTuberia,
-    )
+// Propiedad derivada (Correctivo 2A): bajo CRIT-A19+CRIT-A21+CRIT-A23,
+// ningún candidato adoptado automáticamente por resolverDiametroComercialDeTramo
+// puede caer fuera del dominio turbulento de Darcy -- por eso
+// ResultadoPerdidaDistribuidaDeTramo ya NO tiene una variante
+// 'fueraDeDominioTurbulento' (decisión definitiva, no un estado
+// "inalcanzable pero conservado"). Se demuestra aquí, componiendo las
+// primitivas reales (sin invocar resolverPerdidaDistribuidaDeTramo, que
+// no es lo que esta propiedad prueba), en el límite más desfavorable que
+// CRIT-A19 puede admitir: Di=13mm (el diámetro más chico del dominio
+// normativo) con V=1 m/s (la velocidad mínima admisible en ese rango).
+// Cualquier candidato real admitido por CRIT-A23 tiene Di≥13mm y V≥1 m/s
+// (o V≥1,5 m/s si Di≥75mm, un caso todavía más favorable a Re alto) --
+// este es el punto de menor Re posible dentro de todo el dominio
+// admisible. El guard Re<UMBRAL_REYNOLDS_TURBULENTO permanece intacto en
+// calcularFactorFriccionDarcy (CRIT-A18) como defensa de la primitiva
+// matemática; esta propiedad es la razón por la que, en la práctica, ese
+// guard nunca se dispara en el camino productivo automático.
+describe('resolverPerdidaDistribuidaDeTramo — propiedad derivada (CRIT-A19+CRIT-A21+CRIT-A23)', () => {
+  it('límite más desfavorable admisible por CRIT-A19 (Di=13mm, V=1 m/s) con ν productiva de N2 ya da Re>UMBRAL_REYNOLDS_TURBULENTO', () => {
+    const { viscosidadCinematica_m2s } = resolverPropiedadesAguaParaRed('AF')
 
-    if (resultado.tipo !== 'conPerdidaDistribuida') {
-      throw new Error('se esperaba conPerdidaDistribuida a pesar de la velocidad no admisible')
-    }
-    expect(resultado.verificacionVelocidad).toEqual({ tipo: 'noAdmisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 })
-    expect(resultado.hf_m).toBeGreaterThan(0)
-  })
+    const reynolds = calcularNumeroReynolds(1, 13, viscosidadCinematica_m2s)
 
-  it('fueraDeDominioTurbulento: Re<4000 en Darcy -> resultado explícito, sin llamar a Haaland ni calcular hf', () => {
-    const { proyecto, tramoId } = proyectoConLavatorioUnico('darcyWeisbach', 'sistema-fuera-de-dominio-turbulento')
-
-    const resultado = resolverPerdidaDistribuidaDeTramo(
-      proyecto,
-      tramoId,
-      catalogoArtefactos,
-      SISTEMA_FUERA_DE_DOMINIO_TURBULENTO,
-      catalogoMaterialesTuberia,
-    )
-
-    if (resultado.tipo !== 'fueraDeDominioTurbulento') {
-      throw new Error('se esperaba fueraDeDominioTurbulento')
-    }
-    expect(resultado.reynolds).toBeLessThan(4000)
-    expect(resultado.temperaturaReferencia_C).toBe(20)
-    expect(resultado.viscosidadCinematica_m2s).toBe(1.0034e-6)
-    expect(resultado.longitud_m).toBe(3)
+    expect(reynolds).toBeCloseTo(12955.949770779349, 6)
+    expect(reynolds).toBeGreaterThan(UMBRAL_REYNOLDS_TURBULENTO)
   })
 })

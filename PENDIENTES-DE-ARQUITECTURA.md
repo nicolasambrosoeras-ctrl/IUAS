@@ -832,14 +832,16 @@ de recibir su resultado ya calculado por parámetro. Mismo patrón que
 error, el resultado comercial de un Tramo distinto al `Proyecto`/`tramoId`
 evaluado.
 
-**`qc_lps`/`diMinimo_mm` dejan de descartarse en la capa comercial:**
-`resolverDiametroComercialDeTramo` ya calculaba internamente
-`ResultadoHidraulicoDeTramo` (con `qc_lps` y `di_min_mm`) para llegar al
-candidato comercial, pero no los exponía. Se amplían sus tres variantes
-(`sinDemanda`/`conCandidato`/`sinCandidatoSuficiente`) para propagarlos
--- sin ninguna llamada adicional al motor de demanda -- de modo que N3 (y
-cualquier consumidor futuro) no tenga que volver a invocar
-`resolverHidraulicaDeTramo` solo para conocer el `Qc` ya resuelto.
+**`qc_lps`/`diReferenciaPredimensionamiento_mm` dejan de descartarse en
+la capa comercial:** `resolverDiametroComercialDeTramo` ya calculaba
+internamente `ResultadoHidraulicoDeTramo` (con `qc_lps` y `di_min_mm`)
+para llegar al candidato comercial, pero no los exponía. Se amplían sus
+tres variantes (`sinDemanda`/`conCandidato`/`sinCandidatoAdmisible`,
+renombrada desde `sinCandidatoSuficiente` en el Correctivo 2A, ver más
+abajo) para propagarlos -- sin ninguna llamada adicional al motor de
+demanda -- de modo que N3 (y cualquier consumidor futuro) no tenga que
+volver a invocar `resolverHidraulicaDeTramo` solo para conocer el `Qc`
+ya resuelto.
 
 **Reutilización de velocidad:** `velocidadReal_mps` se reutiliza tal
 cual la devuelve `resolverDiametroComercialDeTramo` (calculada una única
@@ -850,21 +852,43 @@ la rama Darcy -- nunca se vuelve a llamar `calcularVelocidad`.
 
 - `sinLongitud`: `Tramo.longitud_m` ausente (opcional a propósito,
   D-δ.22/CRIT-A20) con candidato comercial ya resuelto -- se preserva
-  toda la información comercial ya válida (`qc_lps`, `diMinimo_mm`,
-  `candidato`, `velocidadReal_mps`, `verificacionVelocidad`), sin asumir
-  `longitud=0` ni derivarla de `Δz`.
-- `sinCandidatoSuficiente`: propagado tal cual desde la capa comercial,
-  sin calcular pérdida con un diámetro insuficiente.
-- `fueraDeDominioTurbulento` (exclusivo de la rama Darcy): `Re` se
-  calcula y se verifica contra `UMBRAL_REYNOLDS_TURBULENTO` (constante ya
-  exportada, nunca rehardcodeada) **antes** de llamar a
-  `calcularFactorFriccionDarcy`, evitando depender de capturar su
-  `throw`. No se implementa régimen laminar/transicional ni Colebrook.
-- **Velocidad no admisible (CRIT-A19) NO bloquea el cálculo de `hf`**:
-  el resultado físico de pérdida distribuida es independiente de que el
-  diseño resultante sea aceptable por velocidad -- son dos verificaciones
-  distintas, y `verificacionVelocidad` se preserva sin cambios en el
-  resultado.
+  toda la información comercial ya válida (`qc_lps`,
+  `diReferenciaPredimensionamiento_mm`, `candidato`, `velocidadReal_mps`,
+  `verificacionVelocidad`), sin asumir `longitud=0` ni derivarla de `Δz`.
+- `sinCandidatoAdmisible`: propagado tal cual desde la capa comercial,
+  sin calcular pérdida con un diámetro no admisible.
+- **`fueraDeDominioTurbulento` fue eliminada del resultado productivo
+  (decisión definitiva, Correctivo 2A) -- no es un estado conservado
+  "por si acaso".** Demostración: bajo CRIT-A23, todo candidato que
+  llega a `'conCandidato'` ya fue verificado admisible por CRIT-A19
+  (`V≥1 m/s` para `13–60mm`; `V≥1,5 m/s` para `75–200mm`). Con la
+  viscosidad productiva de CRIT-A21 (`ν≈1,0034e-6 m²/s`, agua líquida
+  ~20°C), el punto más desfavorable de todo el dominio normativo
+  (`Di=13mm`, `V=1 m/s`, el límite inferior más chico posible) ya da
+  `Re≈12.956` -- más de tres veces `UMBRAL_REYNOLDS_TURBULENTO=4000`
+  (demostrado en `resolverPerdidaDistribuidaDeTramo.test.ts`, componiendo
+  `calcularNumeroReynolds` + `resolverPropiedadesAguaParaRed` sin invocar
+  el resolver). Es decir: **CRIT-A19 (verificación de velocidad) +
+  CRIT-A21 (viscosidad del agua) + CRIT-A23 (solo se adopta
+  automáticamente un candidato admisible) garantizan juntos, por
+  construcción, que Darcy nunca opera fuera de su dominio turbulento** --
+  por eso ya no hace falta un estado de resultado para ese caso. El
+  guard `Re<UMBRAL_REYNOLDS_TURBULENTO` **permanece intacto** en
+  `calcularFactorFriccionDarcy` (CRIT-A18) como defensa de la primitiva
+  matemática en sí -- no se debilitó ni se eliminó; solo dejó de tener
+  una rama productiva correspondiente en este orquestador, porque la
+  capa superior ya garantiza que nunca se lo invoca fuera de su dominio.
+- **Velocidad no admisible (CRIT-A19) NO bloquea el cálculo de `hf` --
+  con matiz agregado en el Correctivo 2A:** el resultado físico de
+  pérdida distribuida es conceptualmente independiente de que el diseño
+  sea aceptable por velocidad, y `verificacionVelocidad` se sigue
+  propagando como evidencia auditable de que CRIT-A19 se verificó. Pero
+  desde CRIT-A23, `resolverDiametroComercialDeTramo` ya descarta todo
+  candidato no admisible antes de devolver `'conCandidato'` -- la
+  combinación `conCandidato`+`noAdmisible` **ya no es alcanzable** por la
+  selección automática (`verificacionVelocidad.tipo` es siempre
+  `'admisible'` en ese camino). No se promete este comportamiento para
+  una hipotética selección manual todavía inexistente.
 
 **Hazen y Darcy permanecen separados:** el resultado usa un campo
 `detalle` anidado, discriminado por `metodo`, para no mezclar campos de
