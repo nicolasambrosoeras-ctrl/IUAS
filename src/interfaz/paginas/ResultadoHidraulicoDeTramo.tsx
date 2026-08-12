@@ -29,6 +29,7 @@ import {
   identificarFilasPrincipalesDeLocales,
 } from './identificarFilasDeModulo2'
 import { conMaterialTuberia, conMetodoPerdidaDistribuida } from './actualizarConfiguracionHidraulica'
+import { conLongitudDeTramo } from './actualizarRedHidraulica'
 
 // Duplicado intencional de la etiqueta homónima en MotorDemandaPantalla.tsx
 // (mismo criterio que aplicarParticipacionCritA8: segundo consumidor
@@ -103,10 +104,12 @@ function FilaResultado({
   proyecto,
   catalogoArtefactos,
   fila,
+  onCambiar,
 }: {
   proyecto: Proyecto
   catalogoArtefactos: readonly ArtefactoNormativo[]
   fila: FilaDeTabla
+  onCambiar: (proyecto: Proyecto) => void
 }) {
   let errorDelMotor: string | null = null
   let artefactosTexto: string
@@ -133,6 +136,11 @@ function FilaResultado({
     diMinimoTexto = '—'
   }
 
+  // Lectura directa de redHidraulica, fuera del try/catch de arriba: el
+  // input de longitud es independiente de que el motor hidraulico haya
+  // podido resolver Qc para este Tramo (L1 no muestra hf todavia, ver N3).
+  const tramoActual = proyecto.redHidraulica?.tramos.find((tramo) => tramo.id === fila.tramoId)
+
   return (
     <tr>
       <td style={estiloCelda('left')}>{fila.etiqueta}</td>
@@ -149,6 +157,24 @@ function FilaResultado({
         ) : null}
       </td>
       <td style={estiloCelda('right')}>{diMinimoTexto}</td>
+      <td style={estiloCelda('right')}>
+        <input
+          type="number"
+          value={tramoActual?.longitud_m ?? ''}
+          onChange={(evento) => {
+            const texto = evento.target.value
+            if (texto === '') {
+              onCambiar(conLongitudDeTramo(proyecto, fila.tramoId, undefined))
+              return
+            }
+            const longitud_m = Number(texto)
+            if (!Number.isNaN(longitud_m)) {
+              onCambiar(conLongitudDeTramo(proyecto, fila.tramoId, longitud_m))
+            }
+          }}
+          style={{ width: '5rem' }}
+        />
+      </td>
     </tr>
   )
 }
@@ -158,11 +184,13 @@ function TablaDeFilas({
   catalogoArtefactos,
   encabezadoPrimeraColumna,
   filas,
+  onCambiar,
 }: {
   proyecto: Proyecto
   catalogoArtefactos: readonly ArtefactoNormativo[]
   encabezadoPrimeraColumna: string
   filas: readonly FilaDeTabla[]
+  onCambiar: (proyecto: Proyecto) => void
 }) {
   if (filas.length === 0) {
     return null
@@ -179,11 +207,18 @@ function TablaDeFilas({
             <th style={estiloEncabezado('right')}>n</th>
             <th style={estiloEncabezado('right')}>Qc [l/s]</th>
             <th style={estiloEncabezado('right')}>Di de referencia [mm]</th>
+            <th style={estiloEncabezado('right')}>Longitud [m]</th>
           </tr>
         </thead>
         <tbody>
           {filas.map((fila) => (
-            <FilaResultado key={fila.tramoId} proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} fila={fila} />
+            <FilaResultado
+              key={fila.tramoId}
+              proyecto={proyecto}
+              catalogoArtefactos={catalogoArtefactos}
+              fila={fila}
+              onCambiar={onCambiar}
+            />
           ))}
         </tbody>
       </table>
@@ -198,6 +233,7 @@ function TablaDeUnidadFuncional({
   nombre,
   locales,
   filasPrincipales,
+  onCambiar,
 }: {
   proyecto: Proyecto
   catalogoArtefactos: readonly ArtefactoNormativo[]
@@ -205,6 +241,7 @@ function TablaDeUnidadFuncional({
   nombre: string
   locales: Proyecto['unidadesFuncionales'][number]['locales']
   filasPrincipales: ReturnType<typeof identificarFilasPrincipalesDeLocales>
+  onCambiar: (proyecto: Proyecto) => void
 }) {
   const ordinales = derivarOrdinalesDeLocal(locales)
 
@@ -225,6 +262,7 @@ function TablaDeUnidadFuncional({
         catalogoArtefactos={catalogoArtefactos}
         encabezadoPrimeraColumna="Local"
         filas={filas}
+        onCambiar={onCambiar}
       />
     </div>
   )
@@ -389,6 +427,7 @@ export function ResultadoHidraulicoDeTramo({
             catalogoArtefactos={catalogoArtefactos}
             encabezadoPrimeraColumna="Cañería"
             filas={identificarFilasDistribucionGeneral(proyecto)}
+            onCambiar={onCambiar}
           />
 
           {proyecto.unidadesFuncionales.map((uf) => (
@@ -400,6 +439,7 @@ export function ResultadoHidraulicoDeTramo({
               nombre={uf.nombre}
               locales={uf.locales}
               filasPrincipales={filasPrincipalesDeLocales}
+              onCambiar={onCambiar}
             />
           ))}
         </>
