@@ -25,6 +25,7 @@ import { calcularSimultaneidadDeTramo, type ResultadoSimultaneidadDeTramo } from
 // eso se reemplaza, no se agrega aparte, para que un consumidor que solo
 // lea qc_lps (N1/N3) siga recibiendo el valor correcto sin cambios.
 export type ResultadoSimultaneidadHidraulicaDeTramo = Omit<ResultadoSimultaneidadDeTramo, 'qc_lps'> & {
+  readonly n: number
   readonly qcEstadistico_lps: number
   readonly quMaxParticipante_lps: number
   readonly qc_lps: number
@@ -50,5 +51,5 @@ export function resolverSimultaneidadHidraulicaDeTramo(
   const pisoCaudalIndividualAplicado = quMaxParticipante_lps > qcEstadistico_lps
   const qc_lps = pisoCaudalIndividualAplicado ? quMaxParticipante_lps : qcEstadistico_lps
 
-  return { ...resultadoEstadistico, qcEstadistico_lps, quMaxParticipante_lps, qc_lps, pisoCaudalIndividualAplicado }
+  return { ...resultadoEstadistico, n: agregacion.n, qcEstadistico_lps, quMaxParticipante_lps, qc_lps, pisoCaudalIndividualAplicado }
 }

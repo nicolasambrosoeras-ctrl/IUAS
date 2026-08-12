@@ -110,6 +110,7 @@ function FilaResultado({
 }) {
   let errorDelMotor: string | null = null
   let artefactosTexto: string
+  let nTexto: string
   let qcTexto: string
   let diMinimoTexto: string
 
@@ -119,6 +120,7 @@ function FilaResultado({
 
     const resultado = resolverHidraulicaDeTramo(proyecto, fila.tramoId, catalogoArtefactos)
     qcTexto = formatearNumero(resultado.qc_lps, 'l/s')
+    nTexto = resultado.tipo === 'conDemanda' ? formatearNumero(resultado.simultaneidad.n, 'conteo') : '—'
     diMinimoTexto =
       resultado.tipo === 'conDemanda'
         ? formatearNumero(resultado.predimensionamiento.diReferenciaPredimensionamiento_mm, 'mm')
@@ -126,6 +128,7 @@ function FilaResultado({
   } catch (motivo) {
     errorDelMotor = motivo instanceof Error ? motivo.message : String(motivo)
     artefactosTexto = '—'
+    nTexto = '—'
     qcTexto = 'Error'
     diMinimoTexto = '—'
   }
@@ -135,6 +138,7 @@ function FilaResultado({
       <td style={estiloCelda('left')}>{fila.etiqueta}</td>
       <td style={estiloCelda('center')}>{fila.red}</td>
       <td style={estiloCelda('right')}>{artefactosTexto}</td>
+      <td style={estiloCelda('right')}>{nTexto}</td>
       <td style={estiloCelda('right', errorDelMotor !== null)}>
         {qcTexto}
         {errorDelMotor !== null ? (
@@ -171,7 +175,8 @@ function TablaDeFilas({
           <tr>
             <th style={estiloEncabezado('left')}>{encabezadoPrimeraColumna}</th>
             <th style={estiloEncabezado('center')}>Red</th>
-            <th style={estiloEncabezado('right')}>Artefactos</th>
+            <th style={estiloEncabezado('right')}>Refs. físicas</th>
+            <th style={estiloEncabezado('right')}>n</th>
             <th style={estiloEncabezado('right')}>Qc [l/s]</th>
             <th style={estiloEncabezado('right')}>Di de referencia [mm]</th>
           </tr>

@@ -37,6 +37,7 @@ describe('resolverSimultaneidadHidraulicaDeTramo', () => {
 
     const resultado = resolverSimultaneidadHidraulicaDeTramo('oficinaPrivada', aportes)
 
+    expect(resultado.n).toBe(1)
     expect(resultado.aEfectivo).toBe(1)
     expect('estado' in resultado.kc && resultado.kc.estado).toBe('indeterminado')
     expect('estado' in resultado.k && resultado.k.estado).toBe('indeterminado')
@@ -54,6 +55,7 @@ describe('resolverSimultaneidadHidraulicaDeTramo', () => {
     if ('estado' in resultado.kc || 'estado' in resultado.k) {
       throw new Error('se esperaba Kc y K numéricos, no indeterminados')
     }
+    expect(resultado.n).toBe(2)
     expect(resultado.aEfectivo).toBe(1)
     expect(resultado.kc.valor).toBe(1)
     expect(resultado.k.valor).toBe(1)
@@ -93,6 +95,8 @@ describe('resolverSimultaneidadHidraulicaDeTramo', () => {
     const qmaxEsperado = 1 * 0.2 + 2 * 0.08 + 1 * 0.12
     const kcEsperado = 1 / Math.sqrt(4 - 1)
 
+    // n = Σcantidad = 1+2+1 = 4: refleja cantidad, no cantidad de aportes (3).
+    expect(resultado.n).toBe(4)
     expect(resultado.aEfectivo).toBe(1)
     expect(resultado.kc.valor).toBeCloseTo(kcEsperado, 10)
     expect(resultado.qc_lps).toBeCloseTo(qmaxEsperado * kcEsperado, 10)
@@ -135,6 +139,7 @@ describe('resolverSimultaneidadHidraulicaDeTramo — CRIT-A22 (piso de caudal in
 
     const resultado = resolverSimultaneidadHidraulicaDeTramo('viviendaIndividual', aportes)
 
+    expect(resultado.n).toBe(1)
     expect(resultado.qcEstadistico_lps).toBe(1.5)
     expect(resultado.quMaxParticipante_lps).toBe(1.5)
     expect(resultado.qc_lps).toBe(1.5)
@@ -156,6 +161,7 @@ describe('resolverSimultaneidadHidraulicaDeTramo — CRIT-A22 (piso de caudal in
     const kcEsperado = 1 / Math.sqrt(2)
     const qcEstadisticoEsperado = qmaxEsperado * kcEsperado
 
+    expect(resultado.n).toBe(3)
     expect(resultado.qcEstadistico_lps).toBeCloseTo(qcEstadisticoEsperado, 10)
     expect(resultado.qcEstadistico_lps).toBeCloseTo(1.3435028842544403, 10)
     expect(resultado.quMaxParticipante_lps).toBe(1.5)
