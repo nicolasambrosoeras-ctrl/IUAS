@@ -15,11 +15,13 @@
 // ya existen.
 import type { CSSProperties } from 'react'
 import type { MaterialTuberiaId, MetodoPerdidaDistribuida, Proyecto, TipoDeLocal } from '../../modelo/proyecto'
-import type { RedDeTramo } from '../../modelo/redHidraulica'
+import type { ReferenciaDeArtefacto, RedDeTramo } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { catalogoMaterialesTuberia, obtenerMaterialTuberia } from '../../motor/tuberias/materialTuberia'
 import { resolverHidraulicaDeTramo } from '../../motor/tuberias/resolverHidraulicaDeTramo'
 import { obtenerArtefactosAguasAbajo } from '../../motor/tuberias/topologia/obtenerArtefactosAguasAbajo'
+import { resolverArtefactosReferenciados } from '../../motor/tuberias/topologia/resolverArtefactosReferenciados'
+import { auditarCoberturaFisica } from '../../motor/tuberias/cobertura/auditarCoberturaFisica'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 import {
   derivarOrdinalesDeLocal,
@@ -40,6 +42,32 @@ const ETIQUETA_TIPO_DE_LOCAL: Readonly<Record<TipoDeLocal, string>> = {
   cochera: 'Cochera',
   jardin: 'Jardín',
   otros: 'Otros',
+}
+
+// Texto humano de una referencia pendiente de auditarCoberturaFisica (S2):
+// "<nombre de UF> → <tipo de Local> → <nombre de catálogo>". resolverArtefactosReferenciados
+// siempre resuelve acá -- la referencia viene de artefactosSinReferencia, que
+// auditarCoberturaFisica construye directamente desde proyecto.unidadesFuncionales,
+// nunca de una fuente externa que pueda desincronizarse. El fallback al id
+// tecnico de catalogo es deliberado (nunca inventa un nombre) para el caso
+// borde de un artefactoId que no este en el catalogoArtefactos recibido.
+export function describirReferenciaPendiente(
+  proyecto: Proyecto,
+  catalogoArtefactos: readonly ArtefactoNormativo[],
+  referencia: ReferenciaDeArtefacto,
+): string {
+  const [resuelto] = resolverArtefactosReferenciados(proyecto, [referencia])
+
+  if (resuelto === undefined) {
+    // Inalcanzable en la practica: ver comentario de la funcion.
+    throw new Error('describirReferenciaPendiente: la referencia pendiente no resuelve contra el proyecto')
+  }
+
+  const nombreLocal = ETIQUETA_TIPO_DE_LOCAL[resuelto.local.tipo]
+  const artefactoNormativo = catalogoArtefactos.find((candidato) => candidato.id === resuelto.artefacto.artefactoId)
+  const nombreArtefacto = artefactoNormativo?.nombre ?? resuelto.artefacto.artefactoId
+
+  return `${resuelto.unidadFuncional.nombre} → ${nombreLocal} → ${nombreArtefacto}`
 }
 
 // Estilos locales mínimos -- el proyecto no tiene hoja de estilos (ver
@@ -286,6 +314,39 @@ function ParametroDeCalculoDelMaterial({ proyecto }: { proyecto: Proyecto }) {
   )
 }
 
+// Aviso de S1/S2: se muestra en vez de las tablas de resultados hidráulicos
+// cuando auditarCoberturaFisica detecta artefactos normativos sin ninguna
+// referencia física en redHidraulica -- M2 no debe presentar un resultado
+// hidráulico como completo mientras eso ocurra (ver PENDIENTES-DE-ARQUITECTURA.md).
+// No repara, no genera topología, no recalcula cobertura con otra lógica.
+function AvisoCoberturaIncompleta({
+  proyecto,
+  catalogoArtefactos,
+  pendientes,
+}: {
+  proyecto: Proyecto
+  catalogoArtefactos: readonly ArtefactoNormativo[]
+  pendientes: readonly ReferenciaDeArtefacto[]
+}) {
+  return (
+    <section>
+      <h3>Red hidráulica incompleta</h3>
+      <p>
+        {pendientes.length === 1
+          ? 'Hay 1 artefacto normativo sin conexión física en la red hidráulica.'
+          : `Hay ${pendientes.length} artefactos normativos sin conexión física en la red hidráulica.`}
+      </p>
+      <ul>
+        {pendientes.map((referencia) => (
+          <li key={`${referencia.unidadFuncionalId}:${referencia.localId}:${referencia.artefactoId}`}>
+            {describirReferenciaPendiente(proyecto, catalogoArtefactos, referencia)}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 export function ResultadoHidraulicoDeTramo({
   proyecto,
   catalogoArtefactos,
@@ -297,6 +358,7 @@ export function ResultadoHidraulicoDeTramo({
 }) {
   const tramos = proyecto.redHidraulica?.tramos ?? []
   const filasPrincipalesDeLocales = identificarFilasPrincipalesDeLocales(proyecto)
+  const auditoria = auditarCoberturaFisica(proyecto)
 
   return (
     <details open>
@@ -308,6 +370,12 @@ export function ResultadoHidraulicoDeTramo({
 
       {tramos.length === 0 ? (
         <p>El proyecto no tiene una red hidráulica cargada.</p>
+      ) : !auditoria.completa ? (
+        <AvisoCoberturaIncompleta
+          proyecto={proyecto}
+          catalogoArtefactos={catalogoArtefactos}
+          pendientes={auditoria.artefactosSinReferencia}
+        />
       ) : (
         <>
           <h3>Distribución general</h3>
