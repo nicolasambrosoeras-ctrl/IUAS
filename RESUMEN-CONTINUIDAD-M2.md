@@ -4,20 +4,50 @@ Documento técnico operativo para abrir un **chat nuevo de Claude Code** sin
 depender del historial de la conversación anterior. Todo lo que sigue fue
 verificado contra el repo real al HEAD indicado, no reconstruido de memoria.
 
+## HITO DE PAUSA — M2, primer vertical slice hidráulico completo visible
+
+Este HEAD es un punto de pausa intencional del proyecto. El estado que
+sigue documentado en todo este archivo se dejó así a propósito antes de
+una pausa prolongada, con:
+
+- la matemática base del pipeline hidráulico blindada por tests unitarios
+  y por un golden end-to-end (G1, sección 11);
+- resultados hidráulicos completos (Qc → diámetro comercial → velocidad →
+  longitud → pérdida distribuida `hf`) visibles en pantalla por primera
+  vez (L2), verificados manualmente en navegador real;
+- una auditoría de cobertura física (S1) y una barrera de presentación
+  (S2) que evitan mostrar un resultado de M2 incompleto de forma
+  silenciosa;
+- `ROADMAP.md` (nuevo) y `PENDIENTES-DE-ARQUITECTURA.md` sincronizados
+  con las decisiones abiertas reales;
+- deudas técnicas conocidas documentadas explícitamente (sección
+  "Riesgos/preguntas abiertas"), no escondidas.
+
+**Esto NO significa que Módulo 2 esté terminado.** Faltan, como mínimo:
+pérdidas localizadas, origen hidráulico, balance de presión, presión
+residual/mínima, camino crítico, selección/verificación definitiva de
+clase de tubería, sincronización automática M1↔M2, UX definitiva, e
+integración documental/PDF de M2. Ver `ROADMAP.md` para el desglose
+completo por bloque.
+
+No existe todavía ningún tag nuevo sobre este HEAD — ver sección "Estado
+Git" para los tags protegidos vigentes, que no se movieron.
+
 ## 1. Estado Git
 
 - **Branch**: `main`
-- **HEAD**: `48be317f2892526eb109ba33759bcf4c0fb8fa6a`
-- **Mensaje del commit HEAD**: `feat: seleccionar diametro comercial por velocidad admisible`
+- **HEAD**: `9832e809b6d70bd8909eefeae88528132d97cecc`
+- **Mensaje del commit HEAD**: `test: blindar golden hidraulico completo por tramo`
 - **`git status`**: `nothing to commit, working tree clean`
-- **Commits adelante de `origin/main`**: 105
-- **Tests**: 440/440 verdes, 50 archivos de test
+- **Commits adelante de `origin/main`**: 113
+- **Tests**: 464/464 verdes, 53 archivos de test
 - **`npx tsc -b`**: verde
 - **`npm run build`**: verde. Warning conocido y aceptado: "Some chunks are
   larger than 500 kB after minification" — no es error, optimización
   pendiente sin urgencia.
 - **Tags existentes que NO deben moverse**: `pre-modulo-2-2026-08-09`,
-  `v0.1.0`, `v0.2.0-dev`, `v0.3.0-dev`.
+  `v0.1.0`, `v0.2.0-dev`, `v0.3.0-dev`. Ninguno se movió ni se creó uno
+  nuevo durante todo el trabajo documentado en este archivo.
 
 ## 2. Metodología de trabajo obligatoria
 
@@ -43,11 +73,9 @@ Reglas duras:
 - Distinguir siempre, antes de empezar, si el incremento es **funcional**
   (modifica código, requiere tests) o **documental** (modifica solo
   `CRITERIOS.md`/`PENDIENTES-DE-ARQUITECTURA.md`/`RESUMEN-CONTINUIDAD-M2.md`/
-  similares, nunca requiere build/lint/tsc/tests). Anunciarlo explícitamente
-  antes de empezar. Nunca mezclar ambos tipos en un mismo commit salvo
-  acuerdo explícito puntual del usuario (ocurrió una vez, en Correctivo 2A,
-  por decisión expresa de no dejar documentación contradictoria en un commit
-  intermedio).
+  `ROADMAP.md`/similares, nunca requiere build/lint/tsc/tests). Anunciarlo
+  explícitamente antes de empezar. Nunca mezclar ambos tipos en un mismo
+  commit salvo acuerdo explícito puntual del usuario.
 - Incrementos pequeños y verificables, uno por vez.
 - No crear abstracciones preventivas ni infraestructura compartida sin un
   segundo caso de uso real ya en construcción. Preferir pequeña
@@ -61,10 +89,9 @@ Reglas duras:
 - Si aparece un archivo modificado/creado inesperado durante `git status`,
   detenerse y explicar antes de continuar.
 - Si una implementación revela la necesidad de ampliar alcance (tocar un
-  archivo no previsto, o descubrir una consecuencia no anticipada — p. ej.
-  un estado de una unión discriminada que quedó inalcanzable por un cambio
-  de política), detenerse y pedir aprobación antes de decidir unilateralmente
-  qué hacer con ese hallazgo.
+  archivo no previsto, o descubrir una consecuencia no anticipada),
+  detenerse y pedir aprobación antes de decidir unilateralmente qué hacer
+  con ese hallazgo.
 - Antes de cualquier commit: stagear únicamente los archivos del
   incremento aprobado, correr `git diff --cached --check` y
   `git diff --cached --stat`, e inspeccionar el diff completo.
@@ -100,10 +127,13 @@ Golden/demo principal: proyecto demo de `MotorDemandaPantalla.tsx`
 `Qmax = 2.3 l/s`, `Qc = 0.7273238618387272 l/s`. Esa igualdad exacta
 **M1 = M2** sobre el tramo raíz (`t-general`) sigue vigente y probada en
 `src/motor/tuberias/resolverHidraulicaDeTramo.integracionM1.test.ts` —
-**confirmada sin cambios** después de CRIT-A22 (el piso de caudal
-individual no interviene en `t-general`, ver sección 9) y después de
-CRIT-A23 (selección comercial, no afecta este valor de `Qc`). Casos
-Golden G1/G2 de M1 documentados en `src/normativa/eras-2023/CASOS-GOLDEN.md`.
+confirmada sin cambios a lo largo de todos los incrementos posteriores
+(CRIT-A22, CRIT-A23, Correctivo 2B, S1, S2, L1, L2), y ahora extendida
+por el golden end-to-end G1 en ese mismo archivo (sección 11). Casos
+Golden G1/G2 de M1 documentados en `src/normativa/eras-2023/CASOS-GOLDEN.md`
+(nomenclatura "G1"/"G2" de M1, **no confundir** con el golden "G1"
+end-to-end de M2 descripto en la sección 11 de este documento — mismo
+nombre, alcance distinto).
 
 ## 4. Modelo topológico M2 actual
 
@@ -147,9 +177,13 @@ export type RedHidraulica = {
 `Proyecto.redHidraulica?: RedHidraulica` — **opcional**: ausente = proyecto
 sin red topológica modelada todavía. La topología es la fuente de verdad
 física del proyecto, ortogonal a la jerarquía funcional
-`Proyecto → UnidadFuncional → Local → Artefacto` (esa jerarquía responde
-"¿de qué parte del proyecto es esto?"; la red responde "¿cómo llega el
-agua hasta acá?").
+`Proyecto → UnidadFuncional → Local → Artefacto`.
+
+**`Tramo.longitud_m` ahora es editable productivamente desde la UI
+transitoria de M2 (L1, sección 10)** — el tipo del modelo no cambió, pero
+por primera vez existe un camino de escritura real desde la interfaz
+hacia `redHidraulica`, antes solo definida estáticamente en el proyecto
+demo.
 
 ### `Nodo.cota_m`
 
@@ -161,6 +195,8 @@ agua hasta acá?").
   geometría real todavía; no se inventa un valor solo para poblar el
   campo.
 - **Ausencia ≠ cota 0.** Ningún consumidor debe asumir ese fallback.
+- **Todavía no es editable desde la UI** (a diferencia de `longitud_m`,
+  ver sección 10) — sigue siendo un dato solo del proyecto demo estático.
 
 ### `Tramo.longitud_m`
 
@@ -173,9 +209,13 @@ agua hasta acá?").
   proyección horizontal, no se deriva geométricamente de las cotas, no
   incluye longitud equivalente de accesorios, no es longitud ficticia de
   pérdidas localizadas.
-- **Ahora consumida productivamente** (N3): cuando está ausente,
+- **Consumida productivamente** (N3): cuando está ausente,
   `resolverPerdidaDistribuidaDeTramo` devuelve `sinLongitud` explícito
-  (ver sección 11) — nunca asume `0` ni la deriva de `Δz`.
+  (ver sección 9) — nunca asume `0` ni la deriva de `Δz`.
+- **Editable desde la UI transitoria de M2 desde L1** (sección 10):
+  `conLongitudDeTramo(proyecto, tramoId, longitud_m)`, updater puro.
+  Input vacío → `undefined` (la clave se omite del objeto, nunca
+  `longitud_m: 0`).
 
 ## 5. Geometría — primitivas y validación
 
@@ -218,16 +258,20 @@ Invariantes vigentes (CRIT-A20, `src/normativa/eras-2023/CRITERIOS.md`):
   ausente = 0 ni longitud ausente = `|Δz|`. La verificación de
   compatibilidad solo se evalúa cuando los tres datos están presentes.
 
+**Estas validaciones ya se ejercitan realmente desde que `longitud_m` es
+editable desde la UI (L1)**: un valor inválido cargado por el usuario
+(`≤0`, o incompatible con cotas si las hubiera) es capturado por
+`validarRedHidraulica`, que sigue siendo la única fuente de verdad — el
+updater `conLongitudDeTramo` no duplica ninguna regla de validación.
+
 Integrado en `src/validacion/redHidraulica/index.ts`
 (`validarRedHidraulica`), con dos códigos de validación en
 `src/validacion/codigos/index.ts`:
 `redHidraulicaTramoLongitudNoPositiva` y
 `redHidraulicaTramoLongitudIncompatibleConCota` (ambos severidad `error`).
 
-Documentación: **CRIT-A20** (`CRITERIOS.md`, explícitamente NO atribuido a
-ERAS-2023 — es consecuencia geométrica, no interpretación normativa) y
-**D-δ.22** (`PENDIENTES-DE-ARQUITECTURA.md`, decisión arquitectónica del
-Modelo B).
+Documentación: **CRIT-A20** (`CRITERIOS.md`) y **D-δ.22**
+(`PENDIENTES-DE-ARQUITECTURA.md`, decisión arquitectónica del Modelo B).
 
 ## 6. Montante segmentada — Golden 4 (validado productivamente)
 
@@ -267,20 +311,9 @@ Valores exactos calculados a mano (sin invocar el motor):
 Propiedad demostrada explícitamente: `Qc_A ≈ 0,8485281374238571`, **NO**
 `Qc_B + Qc_UF1 = 0,8 + 0,2 = 1,0`. La simultaneidad no es lineal en `n`;
 sumar Qc parciales da un resultado distinto (mayor) al de recalcular
-sobre el conjunto real. Este fixture usa un único artefacto por Tramo
-(`n=1` en cada segmento), por lo que el piso de caudal individual
-(CRIT-A22, sección 9) nunca se activa aquí — no hay contradicción entre
-ambos criterios.
+sobre el conjunto real.
 
-**Muy importante**: Golden 4 pasó **sin ningún cambio de código
-productivo**. `obtenerArtefactosAguasAbajo` y `resolverHidraulicaDeTramo`
-ya eran suficientemente generales — no existe entidad `Montante` en el
-modelo; una montante **es** una cadena de Nodos/Tramos reales, segmentada
-en cada punto de derivación.
-
-Documentación: **D-δ.23** (`PENDIENTES-DE-ARQUITECTURA.md`), sin CRIT-A
-nuevo (es confirmación de una propiedad arquitectónica ya vigente en el
-motor, no una decisión normativa nueva).
+Documentación: **D-δ.23** (`PENDIENTES-DE-ARQUITECTURA.md`).
 
 ## 7. Topología / Qc / AF-AC — decisiones cerradas
 
@@ -291,120 +324,106 @@ Sin cambios desde el resumen anterior:
   artefactos son terminales, dedup por identidad completa UF+Local+
   Artefacto, ignora `Tramo.red` para recorrer.
 - `resolverArtefactosReferenciados`: traduce `ReferenciaDeArtefacto` a
-  las instancias reales del Proyecto.
+  las instancias reales del Proyecto. **Reutilizada también por S2**
+  (sección 8) para humanizar referencias pendientes en la UI.
 - `filtrarArtefactosComputables`: solo `origen === 'normativo'`.
 - **CRIT-A8**: se aplica por UF+Local, solo locales domiciliarios, si hay
   inodoro-válvula activo participan solo las válvulas — **después** de
-  filtrar participantes hidráulicamente activos, nunca antes. Se aplica
-  **independientemente dentro de cada Local**: nunca suprime artefactos de
-  otros Locales aguas abajo del mismo Tramo (ver CRIT-A22, sección 9, que
-  parte exactamente de esta propiedad).
+  filtrar participantes hidráulicamente activos, nunca antes.
 - **CRIT-A13**: pipeline completo — computables aguas abajo → resolver
-  `qu` hidráulico por tramo/artefacto (null = error, nunca 0) → conservar
-  `qu>0` → CRIT-A8 → contribuciones → n/Qmax/a/Kc/K/Qc.
+  `qu` hidráulico por tramo/artefacto → conservar `qu>0` → CRIT-A8 →
+  contribuciones → n/Qmax/a/Kc/K/Qc.
 - **CRIT-A14** (`a` efectivo): no multifamiliar → `a` base; multifamiliar
   con 1 UF participante → `a=1`; multifamiliar con >1 UF participante →
-  `a=2`. UF con solo caudal cero no cuenta. Vacío → throw.
+  `a=2`.
 - **CRIT-A15**: `redHidraulica` es la representación física
   **autoritativa**. Ausencia de un terminal AC (o AF) significa que esa
-  conexión **no existe físicamente**, no que falta modelar. Artefacto
-  físicamente AF+AC → rama AF usa `quFria`, rama AC usa `quCaliente`,
-  tramo común aguas arriba usa `quTotal`. AF-only → `quTotal` en AF.
-  AC-only → `quTotal` en AC. **No fraccionar Qc precomputado. No sumar Qc
-  parciales.**
-- `determinarConectividadFisica`: responde "¿qué terminales físicos
-  existen para esta referencia en toda la red?" (`soloAF`/`soloAC`/
-  `ambas`) — pregunta global, no relativa a un Tramo.
-- `determinarCondicionHidraulicaDeCaudal`: responde "desde este Tramo,
-  ¿cómo se alcanza este Artefacto?" (`total`/`aguaFria`/`aguaCaliente`) —
-  pregunta relativa al Tramo evaluado. Importante para fixtures: un
-  artefacto con `quFria_lps`/`quCaliente_lps=null` en el catálogo (p. ej.
-  `valvulaMingitorio`, `lavachatas`, los "Industrial") **lanza** si la
-  condición resuelta es `aguaFria`/`aguaCaliente` — para usarlos en un
-  fixture simple hace falta o bien un artefacto con esos campos no
-  nulos, o construir una topología de tronco común (ver Golden 5 de
-  `resolverHidraulicaDeTramo.test.ts`) que resuelva condición `'total'`.
+  conexión **no existe físicamente**, no que falta modelar. Este es
+  también el principio central detrás de S1/S2 (sección 8): un
+  `Artefacto` de M1 que no tiene ninguna referencia física en
+  `redHidraulica` no debe presentarse como resuelto por M2.
+- `determinarConectividadFisica`/`determinarCondicionHidraulicaDeCaudal`:
+  implementados y usados productivamente en todo el pipeline (ver
+  `src/motor/tuberias/caudal/`).
 - `t-af-acs` (demo) es alimentación **global** de AF al productor ACS de
-  toda la vivienda — nunca se trata como alimentación local, nunca se
-  obtiene sumando Qc parciales AC de los Locales.
+  toda la vivienda.
 
-## 8. Predimensionamiento (Ve=2,0 m/s) — semántica actualizada
+## 8. Auditoría de cobertura física y barrera de presentación (S1/S2)
 
-**CRIT-A16**: `Ve = 2,0 m/s` es un **criterio de proyecto conservador**
-para el predimensionamiento inicial — **no** es una velocidad normativa
-ERAS fija.
+**Cerrado en los commits `254b860c3bae5fa3dcafd7c75b4c652a747a53dc`**
+("feat: auditar cobertura fisica de artefactos", S1) **y
+`368684555617103a24307d17c8c203957c7cd826`** ("feat: bloquear resultados
+m2 con cobertura incompleta", S2).
 
-```
-Ae [cm²] = 10 · Qc [l/s] / Ve [m/s]        (calcularSeccionEscurrimiento)
-Di_min [mm] = √(4·Ae/π) · 10               (calcularDiametroInteriorMinimo)
-```
+### Decisión arquitectónica de fondo
 
-Ambas primitivas puras en
-`src/normativa/eras-2023/seccion-escurrimiento/index.ts`, sin conocer
-Proyecto/Tramo/RedHidraulica.
-`src/motor/tuberias/predimensionamiento/calcularPredimensionamientoDeTramo.ts`
-orquesta con `VE_PREDIMENSIONAMIENTO_MPS = 2.0` co-ubicado ahí mismo.
+- **M1 es autoritativo** sobre qué artefactos existen (identidad, tipo,
+  cantidad).
+- **`redHidraulica` es autoritativa** sobre cómo están conectados
+  físicamente.
+- Si M1 contiene un artefacto normativo que `redHidraulica` no
+  referencia, **M2 debe considerarse incompleto** y no debe seguir
+  presentando silenciosamente un resultado hidráulico como completo.
+- **Ninguna alta de artefacto en M1 modifica `redHidraulica`**: es un
+  hecho estructural verificado (`agregarArtefacto()` en
+  `MotorDemandaPantalla.tsx` solo toca `local.artefactos`) — la nueva
+  entidad queda invisible para M2 hasta que exista una referencia física
+  real. Esto **no se corrige en este hito**: la sincronización
+  automática queda diferida a propósito (ver D-δ.26 en
+  `PENDIENTES-DE-ARQUITECTURA.md`).
+- Simétricamente, **eliminar un artefacto ya referenciado** deja una
+  referencia huérfana: `validarRedHidraulica` la detecta
+  (`redHidraulicaReferenciaArtefactoInvalida`) y bloquea M1+M2 juntos
+  hasta corregirla — comportamiento ya existente, no tocado por S1/S2.
 
-`ResultadoHidraulicoDeTramo` (tipo, en `resolverHidraulicaDeTramo.ts`) —
-**el campo interno sigue llamándose `di_min_mm`, sin renombrar todavía**:
+### S1 — `auditarCoberturaFisica`
+
+`src/motor/tuberias/cobertura/auditarCoberturaFisica.ts`:
 
 ```typescript
-type ResultadoHidraulicoDeTramo =
-  | { tipo: 'sinDemanda'; qc_lps: 0 }
-  | {
-      tipo: 'conDemanda'
-      qc_lps: number
-      simultaneidad: ResultadoSimultaneidadHidraulicaDeTramo   // ver sección 9 (CRIT-A22)
-      predimensionamiento: { ve_mps: number; ae_cm2: number; di_min_mm: number }
-    }
+export interface AuditoriaDeCoberturaFisica {
+  readonly completa: boolean
+  readonly artefactosSinReferencia: readonly ReferenciaDeArtefacto[]
+}
+
+export function auditarCoberturaFisica(proyecto: Proyecto): AuditoriaDeCoberturaFisica
 ```
 
-**⚠️ CAMBIO DE SEMÁNTICA IMPORTANTE (Correctivo 2A / CRIT-A23) — leer
-antes de usar este valor:** `di_min_mm` **ya NO funciona como filtro de
-admisión de diámetro comercial**. Hasta el commit `a0f14dc` (Correctivo
-1) esta propiedad todavía se llamaba, y se usaba, como "mínimo
-obligatorio". Desde `48be317` (Correctivo 2A) es **puramente una
-referencia de predimensionamiento orientativa** — un candidato comercial
-con `Di efectivo` menor a este valor puede seguir siendo válido si su
-velocidad real cumple CRIT-A19 (ver sección 9). El nombre interno
-`di_min_mm` quedó como **deuda terminológica reconocida**: cuando este
-valor se propaga hacia las APIs comerciales (`resolverDiametroComercialDeTramo`,
-`resolverPerdidaDistribuidaDeTramo`) ya se expone con el nombre correcto,
-`diReferenciaPredimensionamiento_mm`. **Renombrar el campo interno
-`di_min_mm` es el próximo incremento inmediato — Correctivo 2B, ver
-sección "OBJETIVO DEL PRÓXIMO CHAT" — no implementado todavía.**
+Función pura: recorre `proyecto.unidadesFuncionales` (artefactos
+`origen === 'normativo'` únicamente — los `origen === 'usuario'` quedan
+fuera, misma política que el resto del pipeline M2), compara contra las
+claves `(unidadFuncionalId, localId, artefactoId)` presentes en
+`redHidraulica.nodos[].referencia`, y devuelve la lista de artefactos sin
+ninguna referencia física. `cantidad` no participa en la cobertura (una
+identidad cubierta sigue cubierta con cualquier `cantidad`). Dos
+referencias físicas del mismo artefacto (AF+AC) no producen duplicados.
+No modifica `Proyecto` ni `redHidraulica`, no genera topología, no
+repara nada.
 
-## 9. Simultaneidad de Tramo — piso físico de caudal individual (CRIT-A22)
+### S2 — barrera de presentación en `ResultadoHidraulicoDeTramo.tsx`
 
-**Cerrado en el commit `a0f14dc7440b6c69fce554449ca7c0891e013e7d`**
-("fix: aplicar piso de caudal individual por tramo").
+Cuando `auditarCoberturaFisica(proyecto).completa === false`:
 
-Problema detectado: `Kc=1/√(n−1)` no tiene piso. Un Tramo cuyo conjunto
-de participantes finales combina un artefacto de caudal alto (típico:
-`inodoroValvula`, `quTotal_lps=1,5`) con artefactos pequeños de **otros**
-Locales de la misma UF (que CRIT-A8 no suprime, porque solo opera dentro
-del Local de la válvula — ver sección 7) puede producir matemáticamente
-`Qc estadístico < 1,5 l/s`: un caudal de diseño insuficiente para que la
-propia válvula opere. El caso mínimo demostrado (calculado
-independientemente, sin invocar el motor): válvula (`1,5`) + 2 aportes de
-`0,2` de otros Locales → `n=3`, `Qmax=1,9`, `Kc=1/√2`,
-`Qc estadístico≈1,3435028842544403 < 1,5`.
+- `ConfiguracionHidraulicaFormulario` **sigue visible** (no es un
+  resultado hidráulico, es configuración).
+- Las tablas de resultados ("Distribución general" y por UF/Local) **no
+  se renderizan** — ninguna fila llama a `resolverHidraulicaDeTramo` ni a
+  `resolverPerdidaDistribuidaDeTramo`.
+- Se muestra un aviso: título "Red hidráulica incompleta", texto
+  singular/plural ("Hay 1/N artefacto(s) normativo(s) sin conexión física
+  en la red hidráulica."), y una lista humanizada
+  `UF → Local → Artefacto` (función pura `describirReferenciaPendiente`,
+  exportada y testeada, reutiliza `resolverArtefactosReferenciados` +
+  `ETIQUETA_TIPO_DE_LOCAL` + `catalogoArtefactos`).
+- **M1 nunca se bloquea por esto** — `validacion.valido`, `validarProyecto`
+  y `validarRedHidraulica` no se tocaron; S2 es una capa de presentación
+  puramente local a M2.
 
-**No es texto explícito de ERAS.** ERAS provee la fórmula de
-simultaneidad y CRIT-A8, pero no resuelve este caso (el único ejemplo
-oficial con válvula automática, G1 en `CASOS-GOLDEN.md`, combina **dos**
-válvulas dominando `Qmax` y no exhibe el problema). Literatura externa
-(métodos de fixture units UPC/IPC, que pesan una válvula de descarga en
-`10 WSFU` frente a `5 WSFU` de un artefacto de depósito equivalente; ASCE,
-*Standardization of Fixture Units for Modern Flush Valves...*, 2020) se
-usa únicamente como **sustento contextual** de que el fenómeno es
-reconocido en el campo — nunca como fuente textual de la regla adoptada.
-**Clasificación: criterio técnico de consistencia física adoptado por
-IUAS ante una laguna del procedimiento para poblaciones pequeñas/
-heterogéneas** — misma naturaleza epistémica que CRIT-A4/CRIT-A11/CRIT-A13.
+## 9. Simultaneidad de Tramo — piso físico de caudal individual (CRIT-A22) y trazabilidad de `n`
 
-**Semántica productiva** (`resolverSimultaneidadHidraulicaDeTramo`,
-`src/motor/tuberias/simultaneidad/`):
+**CRIT-A22 cerrado en el commit `a0f14dc7440b6c69fce554449ca7c0891e013e7d`**
+("fix: aplicar piso de caudal individual por tramo") — sin cambios desde
+el resumen anterior en cuanto a la fórmula/semántica del piso:
 
 ```
 Qc_estadistico = resultado de la fórmula de simultaneidad vigente (sin cambios)
@@ -412,48 +431,241 @@ quMaxParticipante = max(qu_lps) sobre los aportes PARTICIPANTES FINALES del Tram
 Qc_final = max(Qc_estadistico, quMaxParticipante)
 ```
 
-`quMaxParticipante` se calcula exclusivamente sobre el mismo array
-`AporteHidraulicoDeTramo[]` que ya alimenta `n`/`Qmax`/`aEfectivo` —
-universo post CRIT-A15 (conectividad física) + condición hidráulica +
-`qu>0` + CRIT-A8. **Nunca** catálogo bruto, artefactos ya suprimidos por
-CRIT-A8, `qu=0`, ni `qu` de la condición hidráulica opuesta.
+**Valor normativo especial que motivó este criterio — `inodoroValvula`**:
+`quTotal_lps=1,5`, `quFria_lps=1,5`, `quCaliente_lps=0` (catálogo,
+`src/normativa/eras-2023/catalogo-artefactos/`). **No reducir este `qu`
+en el catálogo** — es precisamente este valor alto y aislado el que puede
+convertirse en `quMaxParticipante` y actuar como piso físico de `Qc` en
+un Tramo M2 cuando la fórmula estadística de simultaneidad daría, sin el
+piso, un `Qc` menor a lo que esa única válvula necesita para operar.
 
-`ResultadoSimultaneidadHidraulicaDeTramo` (tipo, en
-`resolverSimultaneidadHidraulicaDeTramo.ts`, **amplía** —no reemplaza—
-`ResultadoSimultaneidadDeTramo` de `calcularSimultaneidadDeTramo.ts`, que
-sigue existiendo intacto como la aritmética pura):
+`ResultadoSimultaneidadHidraulicaDeTramo`
+(`src/motor/tuberias/simultaneidad/resolverSimultaneidadHidraulicaDeTramo.ts`)
+— **ahora expone también `n`** (microincremento de trazabilidad, commit
+`4ffb892bd1d3a268a87858504945afc7a1f411b4`, "feat: mostrar n hidraulico en
+modulo 2"):
 
 ```typescript
-type ResultadoSimultaneidadHidraulicaDeTramo = Omit<ResultadoSimultaneidadDeTramo, 'qc_lps'> & {
+export type ResultadoSimultaneidadHidraulicaDeTramo = Omit<ResultadoSimultaneidadDeTramo, 'qc_lps'> & {
+  readonly n: number
   readonly qcEstadistico_lps: number
   readonly quMaxParticipante_lps: number
-  readonly qc_lps: number   // Qc FINAL — ya incluye el piso si intervino
+  readonly qc_lps: number
   readonly pisoCaudalIndividualAplicado: boolean
 }
 ```
 
-**Alcance exclusivo Módulo 2 / Qc físico de Tramo — Módulo 1 intacto**:
-`calcularSimultaneidad`/`calcularCoeficienteDeSimultaneidad` (M1) no se
-tocaron. `calcularSimultaneidadDeTramo` (la fórmula pura de M2) tampoco
-se tocó — el piso se aplica en el paso siguiente, dentro de
-`resolverSimultaneidadHidraulicaDeTramo`. `Qmax`/`Kc`/`K`/`aEfectivo`
-siguen calculándose exactamente igual. `K` sigue sin capearse (CRIT-A2).
-CRIT-A8/A13/A14/A15 intactos.
+`n: agregacion.n` — valor ya calculado internamente por
+`agregarAportesHidraulicosDeTramo` sobre los aportes **post-CRIT-A8**
+(los mismos que ya determinan Qmax/aEfectivo/piso), simplemente expuesto
+en el tipo de retorno. Cambio aditivo puro, sin ninguna fórmula nueva.
 
-Como consecuencia, `qc_lps` en toda la capa M2 (incluido lo que consumen
-N1/N3, ver secciones 10-11) **ya significa el Qc final post-piso**, sin
-que esas capas superiores hayan necesitado ningún cambio de código para
-heredar la corrección (propagación automática por composición).
+**Fórmula ya implementada** (sin cambios por este microincremento, solo
+ahora visible en el tipo de retorno):
 
-Documentado en **CRIT-A22** (`CRITERIOS.md`) — no se creó D-δ adicional
-(el CRIT-A ya cubre íntegramente la decisión arquitectónica).
+```
+n    = Σ cantidad
+Qmax = Σ (cantidad × qu)
+```
 
-## 10. Diámetro comercial — selección por velocidad real (CRIT-A23)
+`cantidad` multiplica **participación hidráulica** (`n`/`Qmax`), nunca
+referencias topológicas: `Refs. físicas` (columna de la UI) sigue siendo
+exclusivamente la cantidad de `ReferenciaDeArtefacto` distintas en la
+topología (`obtenerArtefactosAguasAbajo(...).length`), ajena a
+`cantidad`.
+
+**Trazabilidad de `cantidad` en `n`, confirmada experimentalmente**
+(reproducido en navegador real, dev server + Chromium):
+
+```
+base (demo original):        Refs. físicas = 11, n = 11, Qc ≈ 0,73
+Lavatorio Baño cantidad 1→2:  Refs. físicas = 11, n = 12, Qc ≈ 0,75
+restaurado a cantidad 1:      vuelve exactamente al estado base
+```
+
+`Refs. físicas` (columna de la UI) cuenta referencias físicas distintas
+(`obtenerArtefactosAguasAbajo(...).length`, previo a CRIT-A8, ignora
+`cantidad`); `n` es el hidráulico efectivo del motor (post-CRIT-A8,
+refleja `cantidad`). Nunca coinciden cuando `cantidad ≠ 1` en algún
+artefacto — **esto no es un bug**, es la distinción deliberada
+introducida por este microincremento.
+
+**Deuda técnica conocida — doble resolución del motor en la UI**: ver
+sección 11.1 (L2).
+
+`Qmax`/`Kc`/`K`/`aEfectivo` siguen calculándose exactamente igual. `K`
+sigue sin capearse (CRIT-A2). CRIT-A8/A13/A14/A15 intactos.
+
+Documentado en **CRIT-A22** (`CRITERIOS.md`).
+
+## 10. Longitud física de Tramo editable desde M2 (L1)
+
+**Cerrado en el commit `5c4fdbb1866ed1e086fd0affe394347a54746bd6`**
+("feat: editar longitud de tramos en modulo 2").
+
+**Primer punto de escritura productiva de la UI sobre `redHidraulica`**
+en todo el proyecto — hasta este incremento, `redHidraulica` solo se
+definía estáticamente en el proyecto demo.
+
+`src/interfaz/paginas/actualizarRedHidraulica.ts`:
+
+```typescript
+export function conLongitudDeTramo(proyecto: Proyecto, tramoId: string, longitud_m: number | undefined): Proyecto
+```
+
+Updater puro e inmutable, mismo patrón que
+`actualizarConfiguracionHidraulica.ts` (uno por campo, no un updater
+genérico). Comportamiento:
+
+- `redHidraulica === undefined` → no la inventa, devuelve el `Proyecto`
+  sin cambios (misma referencia).
+- `tramoId` inexistente → no-op silencioso (mismo criterio ya vigente en
+  el resto de la UI para updaters por id: `local.artefactos.map(...)`,
+  etc.).
+- `longitud_m === undefined` → la clave se **omite** del `Tramo`
+  resultante (destructuring, no `longitud_m: undefined`) — mismo
+  criterio ya usado para vaciar `Local.regimen`. Nunca `0`.
+- `longitud_m` numérico → reemplaza el campo, preserva el resto del
+  `Tramo`, todos los demás Tramos, todos los Nodos, y el resto del
+  Proyecto (por referencia, sin reconstruir lo que no cambió).
+- **No deriva de `Δz` ni de cotas, no aplica ninguna validación propia**
+  — `validarRedHidraulica`/CRIT-A20 (sección 5) siguen siendo la única
+  fuente de verdad; un valor inválido cargado por el usuario bloquea
+  M1+M2 juntos vía el gate de validación existente, mismo mecanismo que
+  cualquier otro dato inválido del proyecto.
+
+UI: input numérico opcional por fila, columna "Longitud [m]", en
+`ResultadoHidraulicoDeTramo.tsx` (`TablaDeFilas`/`FilaResultado`).
+
+## 11. Pérdida distribuida visible en M2 (L2) y golden end-to-end (G1)
+
+### 11.1 L2 — tabla visible con Qc/diámetro/velocidad/longitud/hf
+
+**Cerrado en el commit `4db31dae0d6ad66ceefaed3b6735312d67b6c3e1`**
+("feat: mostrar perdida distribuida por tramo en modulo 2").
+
+`FilaResultado` (`ResultadoHidraulicoDeTramo.tsx`) dejó de usar
+únicamente `resolverHidraulicaDeTramo` como fuente productiva de la fila
+y pasó a usar principalmente `resolverPerdidaDistribuidaDeTramo` (N3,
+sección 12) para Qc/Di de referencia/Di comercial/Di efectivo/velocidad/
+longitud/hf.
+
+**Deuda técnica conocida y aceptada — doble resolución temporal**:
+`ResultadoPerdidaDistribuidaDeTramo` (N3) **no expone `n`** en ninguna de
+sus 4 variantes — `n` solo vive en
+`ResultadoSimultaneidadHidraulicaDeTramo` (sección 9), que devuelve
+`resolverHidraulicaDeTramo`. Por eso `FilaResultado` llama **a ambos
+resolvers**: `resolverHidraulicaDeTramo` únicamente para leer
+`simultaneidad.n`, y `resolverPerdidaDistribuidaDeTramo` para el resto de
+columnas. No hay ninguna fórmula duplicada en la UI (ambas llamadas
+consumen el motor real sin recalcular nada), pero sí hay **resolución
+duplicada** — el pipeline se recorre dos veces por fila. Pendiente futuro
+explícito: transportar la trazabilidad hidráulica necesaria (`n`, y
+posiblemente `qmax_lps`) dentro del propio N3 para eliminar la doble
+llamada. Ver D-δ.34 en `PENDIENTES-DE-ARQUITECTURA.md`.
+
+**Columnas visibles actuales** de `TablaDeFilas` (tanto "Distribución
+general" como las tablas por UF/Local):
+
+```
+Cañería/Local | Red | Refs. físicas | n | Qc [l/s] | Di de referencia [mm]
+| Di comercial | Di efectivo [mm] | V [m/s] | Longitud [m] (editable, L1)
+| hf [m.c.a.]
+```
+
+**Tratamiento de las 4 variantes de N3** (función pura
+`textosDePerdidaDistribuidaDeTramo`, exportada y testeada en
+`ResultadoHidraulicoDeTramo.test.ts`, sin JSX/DOM):
+
+- `sinDemanda`: Qc real, el resto en `—`.
+- `sinCandidatoAdmisible`: Qc + Di de referencia disponibles; comercial/
+  efectivo/V/hf en `—`. **No es un error** — es un resultado de dominio
+  válido y ya documentado (D-δ.25, sección 12).
+- `sinLongitud`: Qc/Di de referencia/Di comercial/Di efectivo/V
+  disponibles; `hf` en `—` (**nunca `0`**); el input de Longitud queda
+  vacío.
+- `conPerdidaDistribuida`: todos los campos, incluido `hf`, leídos
+  directamente de `hf_m` — **sin ninguna conversión numérica** (el campo
+  interno del motor sigue llamándose `hf_m`, en metros; la UI lo
+  presenta como `hf [m.c.a.]` porque esa es la nomenclatura estándar de
+  carga hidráulica, sin tocar el valor).
+
+**`formatearNumero` ganó una unidad nueva** (`m`, 3 decimales) para
+poder presentar `hf` — único cambio fuera de `interfaz/paginas/` que
+requirió L2, en `src/exportadores/pdf/formatearNumero.ts`; no es motor ni
+modelo, es el mismo utilitario de presentación ya usado por toda la
+tabla.
+
+### 11.2 Verificación manual en navegador real (t-general, L=5m)
+
+Reproducida con dev server (`npm run dev`) + Chromium headless real
+(Playwright), sin cambiar ningún archivo del repo:
+
+| Columna | Sin longitud | Longitud = 5 m |
+|---|---|---|
+| Qc | 0,73 l/s | 0,73 l/s |
+| Di comercial | 25 mm | 25 mm |
+| Di efectivo | 18,00 mm | 18,00 mm |
+| V | 2,9 m/s | 2,9 m/s |
+| Longitud | (vacío) | 5 |
+| hf | **—** | **2,409 m.c.a.** |
+
+Al borrar la longitud, `hf` vuelve exactamente a `—` (nunca `0`), y
+Qc/Di comercial/Di efectivo/V permanecen visibles. Consola del navegador
+sin errores en ningún paso. Trazabilidad de `cantidad`/`n` verificada en
+el mismo navegador (ver sección 9).
+
+### 11.3 G1 — golden end-to-end del vertical slice hidráulico completo
+
+**Cerrado en el commit `9832e809b6d70bd8909eefeae88528132d97cecc`**
+("test: blindar golden hidraulico completo por tramo") — HEAD actual de
+este documento.
+
+Archivo: `src/motor/tuberias/resolverHidraulicaDeTramo.integracionM1.test.ts`
+(mismo archivo del golden M1↔M2 ya existente — reutiliza su fixture, sin
+duplicarla; construye localmente una variante del `Tramo` `t-general` con
+`longitud_m=5`, sin mutar el `redHidraulica` compartido por el otro
+test).
+
+Caso: `t-general`, red AF, `longitud_m=5`, método Hazen-Williams, demo
+original sin artefactos nuevos ni cantidades modificadas.
+
+Valores exactos verificados (outputs públicos reales de
+`resolverPerdidaDistribuidaDeTramo`, sin reimplementar ninguna fórmula):
+
+```
+qc_lps = 0.7273238618387272
+candidato.denominacionComercial = "25 mm"
+candidato.diametroInteriorEfectivo_mm = 18
+velocidadReal_mps ≈ 2.8582021688967947
+verificacionVelocidad = { tipo: 'admisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 }
+longitud_m = 5
+detalle.metodo = 'hazenWilliams'
+hf_m ≈ 2.4085533165200532
+detalle.perdidaUnitaria_J_m_m × longitud_m ≈ hf_m   (coherencia interna, sin recalcular Hazen)
+```
+
+Estos son los mismos valores confirmados en la verificación manual de
+navegador (sección 11.2), ahora blindados por un test automatizado.
+
+## 12. Diámetro comercial — selección por velocidad real (CRIT-A23)
+
+**⚠️ Trampa conceptual a evitar al retomar el proyecto — `Ve=2,0 m/s`
+(CRIT-A16) NO es una velocidad normativa a verificar.** Es únicamente el
+criterio de **referencia para el predimensionamiento inicial**: se usa
+para obtener una sección/`Di` de referencia orientativa
+(`diReferenciaPredimensionamiento_mm`), antes de conocer ningún diámetro
+comercial real. **No es**: una velocidad normativa fija, un objetivo de
+diseño obligatorio, ni el valor contra el cual se valida finalmente el
+diámetro comercial adoptado. La verificación final de velocidad se hace
+siempre con el `Qc` real y el `Di efectivo` real del candidato comercial
+seleccionado, contra los rangos de **CRIT-A19** — nunca contra `Ve=2,0`.
 
 **Cerrado en el commit `48be317f2892526eb109ba33759bcf4c0fb8fa6a`**
-("feat: seleccionar diametro comercial por velocidad admisible").
+("feat: seleccionar diametro comercial por velocidad admisible"). Sin
+cambios de semántica desde el resumen anterior.
 
-### 10.1 Sistema comercial productivo (N1, previo — commit `0b3386e`)
+### 12.1 Sistema comercial productivo
 
 `src/motor/tuberias/sistemaDeTuberia/index.ts`:
 
@@ -468,10 +680,8 @@ export function obtenerSistemaDeTuberia(id: string, catalogo): SistemaDeTuberiaC
 ```
 
 **Catálogo productivo actual — un solo sistema**: **Acqua System®
-Magnum PN20** (Grupo Dema), material `ppr`, fuente:
-`https://www.grupodema.com.ar/productos/tubo-acqua-system-r-magnum-pn20-acqua-system-101`
-(`di` publicado directamente por el fabricante, no derivado). Diámetros
-interiores efectivos vigentes:
+Magnum PN20** (Grupo Dema), material `ppr`. Diámetros interiores
+efectivos vigentes:
 
 | Denominación comercial | Di efectivo [mm] |
 |---|--:|
@@ -487,18 +697,14 @@ interiores efectivos vigentes:
 | 125 mm | 88,9 |
 
 `Proyecto.configuracionHidraulica.sistemaDeTuberiaId: string` —
-**obligatorio** desde N1 (a diferencia de `redHidraulica`, que sigue
-opcional). No es unión cerrada (a diferencia de `MaterialTuberiaId`): el
-catálogo de sistemas está pensado para crecer (más series/PN,
-fabricantes) sin volver a tocar el modelo. `MaterialTuberia` (propiedad
-hidráulica C/ε) y `SistemaDeTuberia`/`SistemaDeTuberiaCatalogado`
-(geometría comercial) permanecen conceptualmente separados — `C`/`ε`
-nunca entran a `SistemaDeTuberia`.
+**obligatorio**. **No existe todavía ningún selector de sistema comercial
+en la UI** — sigue fijado en código en el demo. Ver hallazgo B (sección
+12.3) y D-δ.28 en `PENDIENTES-DE-ARQUITECTURA.md`.
 
-### 10.2 Política de selección — CRIT-A23 (vigente, reemplaza la anterior)
+### 12.2 Política de selección — CRIT-A23 (vigente)
 
 ```
-Qc final del Tramo (post CRIT-A22, sección 9)
+Qc final del Tramo (post CRIT-A22)
 → obtenerEntradasOrdenadasPorDiametroInterior(sistema)   -- catálogo completo, ordenado, sin umbral
 → para cada candidato, en orden ascendente de Di efectivo:
     calcular velocidad real (Qc + Di efectivo)
@@ -509,358 +715,228 @@ Qc final del Tramo (post CRIT-A22, sección 9)
     → sinCandidatoAdmisible (resultado explícito, no throw, no extrapola)
 ```
 
-**`obtenerEntradasOrdenadasPorDiametroInterior(sistema)`** (nueva,
-`src/motor/tuberias/diametroComercial/`): devuelve **todas** las entradas
-ordenadas ascendente por `diametroInteriorEfectivo_mm`, sin umbral, no
-muta el catálogo, orden estable en empates. **`obtenerCandidatosDeDiametroComercial`
-(la primitiva original de N1, "`Di efectivo ≥ umbral`") sigue existiendo
-intacta, sin cambios de semántica ni de tests** — sigue siendo legítima
-para ese caso de uso distinto; nunca se le pasó un umbral artificial
-(`0.001`) para simular "todo el catálogo".
+**Hueco normativo `60 mm < Di < 75 mm` (CRIT-A19/CRIT-A23, sin cambios de
+política)**: los rangos de velocidad normativos implementados cubren
+`13–60 mm` y `75–200 mm` — el intervalo `60<Di<75mm` queda **fuera del
+dominio normativo** de ambos rangos. Un candidato comercial cuyo `Di
+efectivo` cae en ese hueco se descarta como `fueraDeDominioNormativo`
+(no `admisible` ni `noAdmisible`, ninguna de las dos calificaciones
+aplica sin un rango de referencia) y la búsqueda continúa con el
+siguiente candidato del catálogo. **Nunca se interpola ni se extrapola**
+entre los dos rangos publicados para cubrir ese hueco.
 
-**El hueco normativo `60<Di<75mm`** (CRIT-A19) se descarta como
-cualquier `fueraDeDominioNormativo`: la búsqueda continúa sin detenerse
-(verificado con el candidato real "90mm"/`Di=65,4mm`, que cae en ese
-hueco en el catálogo Acqua System).
+### 12.3 Hallazgo A — caudales bajos sin candidato admisible (deliberado, no bug)
 
-**`Ve=2,0 m/s` (CRIT-A16) ya NO funciona como filtro de admisión** — ver
-sección 8. **`3 m/s` es el techo normativo admisible para diámetros
-chicos, nunca un objetivo de diseño.**
+Confirmado con el motor real sobre la topología del demo (sesión de
+verificación previa al commit de L2), caso representativo:
 
-`ResultadoDiametroComercialDeTramo` (`resolverDiametroComercialDeTramo.ts`,
-en `src/motor/tuberias/`):
-
-```typescript
-type ResultadoDiametroComercialDeTramo =
-  | { readonly tipo: 'sinDemanda'; readonly qc_lps: 0 }
-  | {
-      readonly tipo: 'conCandidato'
-      readonly qc_lps: number
-      readonly diReferenciaPredimensionamiento_mm: number   // informativo, ya NO es filtro
-      readonly candidato: EntradaCatalogoTuberia
-      readonly velocidadReal_mps: number
-      readonly verificacionVelocidad: ResultadoVerificacionVelocidad   // SIEMPRE 'admisible' por construcción; se conserva como evidencia auditable de CRIT-A19, sin booleano redundante
-    }
-  | {
-      readonly tipo: 'sinCandidatoAdmisible'   // reemplaza a 'sinCandidatoSuficiente', que YA NO EXISTE
-      readonly qc_lps: number
-      readonly diReferenciaPredimensionamiento_mm: number
-    }
+```
+Tramo t-ac-toilette (rama AC del Toilette, único artefacto conectado a AC)
+Qc = 0.12 l/s
+Sistema: Acqua System Magnum PN20
+Candidato más chico del catálogo: 20 mm, Di efectivo = 14.4 mm
+Velocidad con ese candidato: 0.7368284402402562 m/s
+verificarVelocidadAdmisible → noAdmisible (límite mínimo 1 m/s)
+→ resultado: sinCandidatoAdmisible
 ```
 
-**Propiedad importante para cualquier extensión futura**: como el
-candidato que llega a `'conCandidato'` ya fue filtrado por
-admisibilidad, la combinación `conCandidato` + `verificacionVelocidad.tipo
-!== 'admisible'` es **inalcanzable por construcción** en el camino
-automático. No inventar código/tests que la fuercen artificialmente; si
-en el futuro se agrega selección manual, esa combinación podría volver a
-tener sentido — no decidido todavía.
+Como `V` decrece monótonamente con `D` a Qc fijo, si el candidato más
+chico del catálogo ya incumple el piso de velocidad, **ningún** candidato
+mayor puede cumplirlo — propiedad matemática necesaria, no un caso
+límite raro. Afecta específicamente a tramos terminales de un solo
+artefacto bajo condición AF/AC fraccionada (CRIT-A15, `n=1` siempre,
+CRIT-A4, sin beneficio de simultaneidad): en el demo, las ramas AC de
+Toilette/Cocina/Lavadero (un solo artefacto conectado a AC cada una) lo
+exhiben en la tabla visible; Baño/AC no lo sufre porque agrega 3
+artefactos con simultaneidad.
 
-### 10.3 Casos de referencia vigentes (catálogo real Acqua System Magnum PN20)
+**No es un bug del motor ni de CRIT-A23** — ya estaba documentado en la
+sección 12 anterior de este archivo con el caso `valvulaMingitorio`;
+L2 simplemente lo hizo visible en pantalla por primera vez. Pregunta
+arquitectónica abierta (si el límite inferior de velocidad debería seguir
+siendo condición dura o convertirse en advertencia con el diámetro mínimo
+ya adoptado): ver D-δ.27 en `PENDIENTES-DE-ARQUITECTURA.md`. **No
+decidido, no implementado.**
 
-| Caso | Qc [l/s] | Candidato elegido | Di efectivo | V real | Candidato con la política **anterior** (superada) |
-|---|--:|---|--:|--:|---|
-| B1 | 0,200 | 20mm | 14,4 | 1,228 | 20mm (sin cambio) |
-| B2 | 0,7273238618387272 | **25mm** | 18,0 | 2,858 | 32mm |
-| B3 | 1,0964415971625976 | **32mm** | 23,2 | 2,594 | 40mm |
-| B4 (válvula, post CRIT-A22) | 1,500 | **40mm** | 29,0 | 2,271 | 50mm |
+### 12.4 Hallazgo B — cambio de material sin sistema compatible bloquea M1+M2 (deuda preexistente, no de L2)
 
-Caso real sin candidato admisible: `valvulaMingitorio` (catálogo
-normativo real, `quTotal_lps=0,15`) — el candidato más chico (20mm,
-`Di=14,4mm`) ya da `V≈0,921 m/s<1` (demasiado lento), y `V` sigue bajando
-en todos los mayores → `sinCandidatoAdmisible`. Este caso es
-alcanzable con datos 100% reales (catálogo normativo + catálogo
-comercial productivo), no solo teórico.
+Reproducido en navegador real: cambiar "Material de la tubería" en la UI
+(único sistema comercial del demo es PPR) dispara
+`configuracionHidraulicaSistemaMaterialIncompatible`
+(`src/validacion/configuracionHidraulica/index.ts`, validación
+introducida en el commit `0b3386e`, muy anterior a este hito) y bloquea
+`validacion.valido` — mensaje exacto: *"El sistema de tubería
+seleccionado pertenece a un material distinto del material configurado
+en el proyecto."* Causa raíz: no existe selector de sistema comercial en
+la UI (sección 12.1). **Deuda preexistente, no introducida por L1/L2.**
+Ver D-δ.28 en `PENDIENTES-DE-ARQUITECTURA.md`.
 
-## 11. Pérdida distribuida por Tramo — orquestador productivo (N3)
+`ResultadoDiametroComercialDeTramo` (`resolverDiametroComercialDeTramo.ts`)
+— sin cambios de tipo desde el resumen anterior.
 
-**Cerrado originalmente en el commit `0b9e6ee96f8cf0d58dcd986b0dce1bf4e8545509`**
-("feat: resolver perdida distribuida por tramo"), **su API fue
-posteriormente ajustada mecánicamente por Correctivo 2A** (rename de
-campos/variante, sin tocar física — ver más abajo) **y por el cierre del
-hallazgo `fueraDeDominioTurbulento`** (mismo commit `48be317`, ver 11.2).
+## 13. Pérdida distribuida por Tramo — orquestador productivo (N3)
 
-`resolverPerdidaDistribuidaDeTramo` (`src/motor/tuberias/`) es el
-resolver de más alto nivel del pipeline: compone, sin recalcular ni
-reimplementar ninguna fórmula, `resolverDiametroComercialDeTramo` →
-`resolverParametroDePerdidaDistribuida` (C o ε según método) →, solo en
-Darcy, `resolverPropiedadesAguaParaRed` (temperatura/ν por red). Reutiliza
-`velocidadReal_mps` tal cual la devuelve `resolverDiametroComercialDeTramo`
-— nunca vuelve a llamar `calcularVelocidad`.
+Sin cambios de tipo/semántica desde el resumen anterior —
+`resolverPerdidaDistribuidaDeTramo` (`src/motor/tuberias/`) sigue siendo
+el resolver de más alto nivel, componiendo sin recalcular
+`resolverDiametroComercialDeTramo` → `resolverParametroDePerdidaDistribuida`
+→, solo en Darcy, `resolverPropiedadesAguaParaRed`.
 
-`ResultadoPerdidaDistribuidaDeTramo` — **exactamente 4 variantes**:
+`ResultadoPerdidaDistribuidaDeTramo` — **exactamente 4 variantes**
+(`sinDemanda` / `sinCandidatoAdmisible` / `sinLongitud` /
+`conPerdidaDistribuida`) — sin cambios de forma. **Ahora consumido
+productivamente también por la UI** (L2, sección 11), no solo por tests.
 
-```typescript
-type ResultadoPerdidaDistribuidaDeTramo =
-  | { readonly tipo: 'sinDemanda'; readonly qc_lps: 0 }
-  | { readonly tipo: 'sinCandidatoAdmisible'; readonly qc_lps: number; readonly diReferenciaPredimensionamiento_mm: number }
-  | {
-      readonly tipo: 'sinLongitud'   // Tramo.longitud_m ausente, candidato ya resuelto se preserva
-      readonly qc_lps: number
-      readonly diReferenciaPredimensionamiento_mm: number
-      readonly candidato: EntradaCatalogoTuberia
-      readonly velocidadReal_mps: number
-      readonly verificacionVelocidad: ResultadoVerificacionVelocidad
-    }
-  | {
-      readonly tipo: 'conPerdidaDistribuida'
-      readonly qc_lps: number
-      readonly diReferenciaPredimensionamiento_mm: number
-      readonly candidato: EntradaCatalogoTuberia
-      readonly velocidadReal_mps: number
-      readonly verificacionVelocidad: ResultadoVerificacionVelocidad
-      readonly longitud_m: number
-      readonly hf_m: number
-      readonly detalle:
-        | { readonly metodo: 'hazenWilliams'; readonly coeficienteC: number; readonly perdidaUnitaria_J_m_m: number }
-        | {
-            readonly metodo: 'darcyWeisbach'
-            readonly rugosidadAbsoluta_mm: number
-            readonly temperaturaReferencia_C: number
-            readonly viscosidadCinematica_m2s: number
-            readonly reynolds: number
-            readonly factorFriccion: number
-          }
-    }
-```
+`n` **no está expuesto en este tipo** — ver deuda técnica documentada en
+la sección 11.1 y D-δ.34.
 
-**`sinCandidatoSuficiente` ya no existe** (renombrada a
-`sinCandidatoAdmisible`, propagación mecánica del cambio de N1). **La
-combinación `conCandidato`/`verificacionVelocidad` no-admisible ya no es
-alcanzable** (hereda la propiedad de CRIT-A23) — `verificacionVelocidad`
-se conserva de todos modos como evidencia auditable.
+### 13.1 Hazen (CRIT-A17) y Darcy (CRIT-A18/CRIT-A21)
 
-### 11.1 Hazen (CRIT-A17) y Darcy (CRIT-A18/CRIT-A21) — ahora conectados productivamente
+Sin cambios. Hazen: `calcularPerdidaCargaUnitariaHazenWilliams(qc_lps,
+coeficienteC, Di_efectivo) → J` → `calcularPerdidaCargaHazenWilliams(J,
+longitud_m) → hf`. Darcy: `calcularNumeroReynolds` →
+`calcularFactorFriccionDarcy` (Haaland) →
+`calcularPerdidaCargaDarcyWeisbach`.
 
-Hazen: `calcularPerdidaCargaUnitariaHazenWilliams(qc_lps, coeficienteC,
-Di_efectivo) → J` → `calcularPerdidaCargaHazenWilliams(J, longitud_m) →
-hf`. Sin `ν` ni temperatura — Hazen no conoce propiedades del agua.
+### 13.2 `fueraDeDominioTurbulento` — eliminada del resultado productivo (decisión definitiva)
 
-Darcy: `calcularNumeroReynolds(velocidadReal_mps, Di_efectivo, ν) → Re` →
-`calcularFactorFriccionDarcy(Re, ε, Di_efectivo) → f` (Haaland) →
-`calcularPerdidaCargaDarcyWeisbach(f, longitud_m, Di_efectivo,
-velocidadReal_mps) → hf`. `g=9,81 m/s²`. `ν` proviene de
-`resolverPropiedadesAguaParaRed(tramo.red)` (CRIT-A21, sección 12). No se
-reabre Colebrook, no se agrega régimen laminar/transicional.
+Sin cambios — ver D-δ.25 en `PENDIENTES-DE-ARQUITECTURA.md` para la
+demostración completa de por qué es inalcanzable por construcción bajo
+CRIT-A19+A21+A23.
 
-### 11.2 `fueraDeDominioTurbulento` — eliminada del resultado productivo (decisión definitiva)
-
-**Ya no existe como variante de `ResultadoPerdidaDistribuidaDeTramo`.**
-Demostración (independiente, sin invocar el resolver): bajo CRIT-A23,
-todo candidato que llega a `'conCandidato'` ya fue verificado admisible
-por CRIT-A19 (`V≥1 m/s` para `13–60mm`; `V≥1,5 m/s` para `75–200mm`).
-Con la viscosidad productiva de CRIT-A21 (`ν≈1,0034e-6 m²/s`), el punto
-más desfavorable de todo el dominio normativo (`Di=13mm`, `V=1 m/s`) ya
-da `Re≈12955,95` — más de 3× `UMBRAL_REYNOLDS_TURBULENTO=4000`
-(demostrado en `resolverPerdidaDistribuidaDeTramo.test.ts`, componiendo
-`calcularNumeroReynolds` + `resolverPropiedadesAguaParaRed`, sin invocar
-el resolver). **CRIT-A19 + CRIT-A21 + CRIT-A23 garantizan juntos, por
-construcción, que Darcy nunca opera fuera de su dominio turbulento** en
-el camino automático.
-
-**El guard `Re<UMBRAL_REYNOLDS_TURBULENTO` permanece completamente
-intacto** en `calcularFactorFriccionDarcy` (CRIT-A18, primitiva
-matemática) — no se debilitó ni se eliminó, con sus tests unitarios
-vigentes (régimen turbulento válido / `Re<4000` rechazado). Solo dejó de
-tener una rama productiva correspondiente en `resolverPerdidaDistribuidaDeTramo`,
-porque la capa superior ya garantiza que nunca se lo invoca fuera de
-dominio.
-
-### 11.3 Goldens N3 vigentes
+### 13.3 Goldens N3 vigentes
 
 `resolverPerdidaDistribuidaDeTramo.test.ts` — Goldens Hazen/Darcy con
-`Qc=0,2 l/s` (lavatorio único, `n=1`) **siguen numéricamente vigentes**
-después de CRIT-A23: `20mm`/`Di=14,4mm` sigue siendo el primer (y único
-necesario) candidato admisible para ese `Qc`, sin cambios.
+`Qc=0,2 l/s` (lavatorio único, `n=1`), más el nuevo golden end-to-end G1
+sobre `t-general` con `longitud_m=5` (sección 11.3).
 
-## 12. Propiedades del agua para Darcy — ν/temperatura (CRIT-A21)
+## 14. Propiedades del agua para Darcy — ν/temperatura (CRIT-A21)
 
-**Cerrado en el commit `82e24f6b41abdb0e2b03a83857b35bf51708a660`**
-("feat: definir propiedades del agua para darcy").
+Sin cambios. `src/motor/tuberias/perdidaCarga/darcyWeisbach/propiedadesAguaDarcy.ts`:
+`TEMPERATURA_REFERENCIA_AGUA_C = 20`, `VISCOSIDAD_CINEMATICA_AGUA_M2S =
+1.0034e-6`. `AF` y `AC` devuelven hoy el mismo valor, decisión
+deliberada.
 
-`src/motor/tuberias/perdidaCarga/darcyWeisbach/propiedadesAguaDarcy.ts`:
+## 15. Materiales
 
-```typescript
-export const TEMPERATURA_REFERENCIA_AGUA_C = 20
-export const VISCOSIDAD_CINEMATICA_AGUA_M2S = 1.0034e-6
-export function resolverPropiedadesAguaParaRed(red: RedDeTramo): { temperaturaReferencia_C: number; viscosidadCinematica_m2s: number }
-```
+Sin cambios. `src/motor/tuberias/materialTuberia/index.ts`, 6 materiales
+(`ppr`, `pvc`, `pead`, `cobre`, `aceroGalvanizado`, `aceroCarbono`) con
+`C`/`ε` propios. **PEAD: `ε=0,0213 mm` es un valor adoptado
+deliberadamente** — no reemplazar casualmente por 0,0015.
 
-Fuente: **NIST Chemistry WebBook** (agua, formulación IAPWS), 1 bar,
-20°C. Publicado directamente: `μ=1,0016e-3 Pa·s`, densidad `55,409
-mol/L`. Derivado: `ρ=998,208 kg/m³` (masa molar IAPWS 18,015268 g/mol),
-`ν=μ/ρ=1,0034e-6 m²/s`. **No es un valor publicado por ERAS-2023.**
-`AF` y `AC` devuelven **hoy el mismo valor** — decisión deliberada, no un
-descuido: la resolución por red deja preparada una futura
-diferenciación (impacto cuantificado ~6-15% sobre `hf` entre 10°C y
-60°C) sin tener que modificar el orquestador de pérdidas cuando se
-adopte. `ν` es propiedad del agua, no de la tubería — nunca se agregó a
-`MaterialTuberia`/`SistemaDeTuberia`.
+**Decisión pendiente importante para el futuro** (D-δ.29): no asociar
+automáticamente una clase/serie comercial (ej. PN20/PN25) a AF o AC — la
+clase es una decisión de diseño que deberá considerar material, familia
+comercial, DN, Di efectivo, presión de diseño, temperatura de servicio,
+capacidad admisible presión-temperatura y margen de seguridad. **No
+asumir PN20 suficiente por defecto.**
 
-## 13. Materiales
+## 16. Configuración hidráulica global
 
-Sin cambios desde el resumen anterior. `src/motor/tuberias/materialTuberia/index.ts`:
-
-```typescript
-type MaterialTuberia = {
-  readonly id: MaterialTuberiaId
-  readonly nombre: string
-  readonly coeficienteC: number
-  readonly rugosidadAbsoluta_mm: number
-  readonly referenciaFuenteC: string
-  readonly referenciaFuenteRugosidad: string
-}
-```
-
-`MaterialTuberiaId` (en `modelo/proyecto/index.ts`) — 6 valores, catálogo
-en `catalogoMaterialesTuberia`:
-
-| id | Material | C | ε [mm] |
-|---|---|---:|---:|
-| `ppr` | PPR | 150 | 0,007 |
-| `pvc` | PVC | 150 | 0,0015 |
-| `pead` | PEAD | 150 | **0,0213** |
-| `cobre` | Cobre | 140 | 0,0015 |
-| `aceroGalvanizado` | Acero galvanizado | 120 | 0,15 |
-| `aceroCarbono` | Acero al carbono | 140 | 0,045 |
-
-**PEAD: `ε=0,0213 mm` es un valor adoptado deliberadamente** (fuente PPI
-TN-27/Plastics Pipe Institute, incorpora el efecto de cordones interiores
-de termofusión de tubería HDPE instalada real) — **no reemplazar
-casualmente por 0,0015**. `obtenerMaterialTuberia(materialId,
-catalogoMateriales)` resuelve por ID, catálogo por parámetro, `find` +
-`throw` explícito, sin fallback.
-
-Ninguno de estos valores proviene de una tabla publicada por ERAS-2023.
-Cada material tiene un único valor operativo de C y de ε; no se modela
-edad/corrosión/incrustación/estado superficial en esta primera versión.
-
-## 14. Configuración hidráulica global — actualizada (sistema comercial obligatorio)
-
-`modelo/proyecto/index.ts`:
+`modelo/proyecto/index.ts` — sin cambios de tipo:
 
 ```typescript
 type MetodoPerdidaDistribuida = 'hazenWilliams' | 'darcyWeisbach'
 type ConfiguracionHidraulica = {
   metodoPerdidaDistribuida: MetodoPerdidaDistribuida
   materialTuberiaId: MaterialTuberiaId
-  sistemaDeTuberiaId: string   // agregado en N1 — obligatorio, ver sección 10.1
+  sistemaDeTuberiaId: string
 }
 ```
 
-Los tres campos **obligatorios**. `Proyecto.configuracionHidraulica` es
-la única fuente de verdad (no hay estado paralelo).
+Los tres campos **obligatorios**. Deuda de selector de sistema comercial:
+ver sección 12.4/D-δ.28.
 
-`src/motor/tuberias/perdidaCarga/resolverParametroDePerdidaDistribuida.ts`
-— **sin cambios de firma**, pero **ahora sí consumido productivamente**
-por `resolverPerdidaDistribuidaDeTramo` (N3, sección 11) — ya no es una
-función de motor completa sin conectar:
+## 17. UI de Módulo 2 actual
 
-```typescript
-type ParametroDePerdidaDistribuida =
-  | { readonly metodo: 'hazenWilliams'; readonly coeficienteC: number }
-  | { readonly metodo: 'darcyWeisbach'; readonly rugosidadAbsoluta_mm: number }
+`MotorDemandaPantalla.tsx`: bloques colapsables (`<details>` nativo, sin
+router, sin librerías nuevas). **Ningún incremento tocó el layout general
+de esta pantalla** — L1/L2/S1/S2 modificaron exclusivamente
+`ResultadoHidraulicoDeTramo.tsx`.
 
-function resolverParametroDePerdidaDistribuida(proyecto: Proyecto, catalogoMateriales: readonly MaterialTuberia[]): ParametroDePerdidaDistribuida
-```
+Dentro de Módulo 2, `ConfiguracionHidraulicaFormulario`: select método,
+select material, `<details>` con parámetros de cálculo. **Sigue sin
+selector de sistema comercial** (sección 12.4).
 
-Union discriminada que hace imposible representar ambos valores a la vez.
-Las primitivas matemáticas (Hazen/Darcy) siguen recibiendo números
-explícitos, sin conocer `Proyecto`/`MaterialTuberiaId`/catálogo.
+Tabla principal de M2: ver columnas completas en la sección 11.1. Cuando
+`auditarCoberturaFisica` detecta cobertura incompleta, la tabla se
+reemplaza por el aviso de S2 (sección 8) — configuración sigue visible.
 
-## 15. UI de Módulo 2 actual — sin cambios desde N1
-
-**Ningún incremento de N1 a Correctivo 2A tocó UI.** `MotorDemandaPantalla.tsx`:
-bloques principales colapsables (`<details>` nativo, sin router, sin
-librerías nuevas, sin estado React):
-
-- **Módulo 1 — Demanda**: `<details open>`.
-- **Módulo 2 — Tuberías**: `<details open>` (gate de validación
-  existente, sin cambios).
-- **Metodología y fuentes técnicas**: `<details>` sin `open`.
-
-Dentro de Módulo 2 (`ResultadoHidraulicoDeTramo.tsx`),
-`ConfiguracionHidraulicaFormulario`: select método, select material,
-`<details>` con parámetros de cálculo (material, C o ε, fuente,
-disclaimers). **Puramente informativo: cambiar método/material todavía
-no dispara ningún cálculo de pérdidas ni modifica las tablas de Qc/Di
-existentes en la UI** (aunque el motor ya sí las calcula productivamente
-desde N3 — la UI simplemente no las muestra todavía; eso es N4).
-
-**No existe todavía ningún selector de sistema comercial en la UI** — el
-`sistemaDeTuberiaId` del demo está fijado en código (sección 17), no es
-editable por el usuario.
-
-## 16. Metodología y fuentes técnicas (Nivel 2 documental)
+## 18. Metodología y fuentes técnicas (Nivel 2 documental)
 
 Sin cambios. `src/interfaz/paginas/MetodologiaYFuentesTecnicas.tsx` —
-tabla derivada 100% de `catalogoMaterialesTuberia`. Pendiente menor sin
-resolver: formato locale de C/epsilon (hoy literal JS crudo, para no
-perder precisión significativa).
+tabla derivada 100% de `catalogoMaterialesTuberia`.
 
-## 17. Filas visibles actuales de M2
+## 19. Filas visibles actuales de M2
 
-Sin cambios. `src/interfaz/paginas/identificarFilasDeModulo2.ts` —
-agrupamiento puramente estructural, sin heurísticas de string de ID.
-Los tramos terminales siguen existiendo íntegros en `RedHidraulica` pero
-no se muestran en la tabla principal (D-δ.20/D-δ.21).
+Sin cambios de algoritmo. `src/interfaz/paginas/identificarFilasDeModulo2.ts`
+— agrupamiento puramente estructural. Los tramos terminales siguen
+existiendo íntegros en `RedHidraulica` pero no se muestran en la tabla
+principal (D-δ.20/D-δ.21).
 
-## 18. Demo actual (`MotorDemandaPantalla.tsx`, `proyectoInicial`)
+## 20. Demo actual (`MotorDemandaPantalla.tsx`, `proyectoInicial`)
 
-Topología física sin cambios (nodo hub `n-0`, topología plana, **0
-tramos con `longitud_m` cargado** — confirmado por inspección, relevante
-para N3: el demo no puede ejercitar `hf` productivamente tal cual está,
-solo `sinLongitud`). `t-general` (`Qc=0,7273238618387272`) y `t-af-acs`
-sin cambios (sección 3/7).
+Topología física sin cambios estructurales (nodo hub `n-0`, topología
+plana). **El proyecto demo estático sigue sin ningún `longitud_m`
+cargado por defecto** — pero desde L1, cualquier Tramo visible puede
+recibir una longitud editada en vivo desde la UI (no persiste entre
+recargas de página, solo vive en el estado React de la sesión).
+`t-general` (`Qc=0,7273238618387272`) y `t-af-acs` sin cambios.
 
-**`configuracionHidraulica` del demo actualizada** (N1): ahora incluye
-`sistemaDeTuberiaId: 'acquaSystemMagnumPn20'` (coherente con
-`materialTuberiaId: 'ppr'` ya existente). `metodoPerdidaDistribuida:
-'hazenWilliams'` sin cambios.
+`configuracionHidraulica` del demo: `sistemaDeTuberiaId:
+'acquaSystemMagnumPn20'`, `materialTuberiaId: 'ppr'`,
+`metodoPerdidaDistribuida: 'hazenWilliams'`. Sin cambios.
 
-Locales/artefactos sin cambios: 11 artefactos deduplicados
-(lavatorio/ducha/bidet AF+AC, `inodoroDeposito` AF-only —
-**no `inodoroValvula`**, por eso el piso de CRIT-A22 nunca se activa en
-este demo—, lavavajillas/lavarropas/canillaDeServicio AF-only).
+Locales/artefactos sin cambios: 11 artefactos deduplicados.
 
-## 19. Documentación vigente — CRIT-A y D-δ relevantes para M2
+## 21. Documentación vigente — CRIT-A y D-δ relevantes para M2
 
-`src/normativa/eras-2023/CRITERIOS.md` (hasta **CRIT-A23**):
-CRIT-A10, CRIT-A11, CRIT-A13, CRIT-A14, CRIT-A15, CRIT-A16 (Ve=2,0,
-**semántica actualizada** — sección 8), CRIT-A17 (Hazen), CRIT-A18
-(Darcy turbulento), CRIT-A19 (verificación de velocidad, **puntos 4/5
-marcados como históricos/superados**, rangos normativos intactos),
-CRIT-A20 (longitud/cota), **CRIT-A21** (propiedades del agua, sección
-12), **CRIT-A22** (piso de caudal individual, sección 9), **CRIT-A23**
-(selección comercial por velocidad, sección 10.2). Todas **cerradas y
-firmes**.
+`src/normativa/eras-2023/CRITERIOS.md` (hasta **CRIT-A23**): sin criterios
+nuevos agregados durante Correctivo 2B/S1/S2/L1/L2/G1 — todo este trabajo
+consumió criterios ya cerrados, sin introducir interpretación normativa
+nueva. Se corrigieron en este hito **tres afirmaciones de estado que
+habían quedado objetivamente desactualizadas** (CRIT-A15, CRIT-A17,
+CRIT-A18 — ver el propio archivo para el detalle; ya no dicen "pendiente
+de implementación" para funcionalidad que hoy es productiva).
 
-`PENDIENTES-DE-ARQUITECTURA.md`, sección D-δ (hasta **D-δ.25** — no
-existe D-δ.24, se decidió que CRIT-A21 no necesitaba D-δ complementario):
-D-δ.1/D-δ.2, D-δ.12, D-δ.16 (CERRADO), D-δ.17 (no cerrada), D-δ.20/D-δ.21
-(dirección preferida), D-δ.22 (cerrada), D-δ.23 (montante, validado),
-**D-δ.25** (orquestador N3 — actualizado en Correctivo 2A: rename de
-campos/variante, nota definitiva sobre `fueraDeDominioTurbulento`
-eliminada, nota sobre `conCandidato`/`noAdmisible` inalcanzable).
+`PENDIENTES-DE-ARQUITECTURA.md`, sección D-δ: hasta **D-δ.25** heredado
+del resumen anterior, **más D-δ.26 a D-δ.34 nuevas** en este hito (ver
+ese archivo — cobertura M1↔M2, límite de velocidad bajo, sistema
+comercial, clase de tubería, margen de seguridad, granularidad de
+sistema, presión, pérdidas localizadas, deuda de `n` en N3).
 
-No existen `ARQUITECTURA-v2.1.md` ni `RESUMEN-FASE-0.md` en este repo.
-Sí existe `HANDOFF-MODULO-1-A-MODULO-2.md` (precedente de este mismo
-documento).
+`ROADMAP.md` (nuevo en este hito): visión estructural por bloques,
+reemplaza la sección "OBJETIVO DEL PRÓXIMO CHAT" que tenían las
+versiones anteriores de este documento.
+
+No existen `ARQUITECTURA*.md` ni `CONVENCIONES*.md` en este repo — `docs/adr/`
+y `docs/arquitectura/` existen como carpetas vacías (solo `.gitkeep`), sin
+ningún documento real todavía (deuda ya registrada en
+`PENDIENTES-DE-ARQUITECTURA.md`, sección "Deuda documental — documentos
+ADR no materializados"). Sí existe `HANDOFF-MODULO-1-A-MODULO-2.md`
+(documento histórico de la transición M1→M2, **desactualizado respecto
+del estado actual** — sus "bloqueos antes de Módulo 2" ya están todos
+resueltos; se conserva como registro histórico, no se edita ni se usa
+como referencia de estado actual).
 
 ## NO HACER
 
-- No sumar `Qc` parciales (ni de UF, ni de Locales, ni de segmentos de
-  montante) para obtener un `Qc` mayor.
+- No sumar `Qc` parciales para obtener un `Qc` mayor.
 - No capear `K` en 1.
 - No convertir `qu = null` en `0`.
 - No contar `qu = 0` en `n`.
 - No aplicar CRIT-A8 antes del filtrado hidráulicamente activo.
 - No modificar valores normativos del catálogo de artefactos.
-- No asumir que `inodoroDeposito` tiene conexión física AC en la demo
-  (aunque el catálogo tenga `quCaliente=0,12`).
+- **No asumir que `inodoroDeposito` tiene conexión física AC en el demo**
+  (aunque el catálogo normativo conserve su `quCaliente_lps` propio): en
+  la topología física del proyecto demo, `inodoroDeposito` está
+  conectado únicamente a AF (sin terminal AC en `redHidraulica`). No
+  agregarle rama AC al reconstruir o editar el demo sin una decisión
+  explícita — no confundir el dato normativo de catálogo con la
+  conectividad física real (CRIT-A15).
 - No confundir `Di` de referencia de predimensionamiento con diámetro
-  comercial final — y **no usarlo como filtro de admisión comercial**
-  (CRIT-A23 ya reemplazó esa política).
+  comercial final — y no usarlo como filtro de admisión comercial
+  (CRIT-A23).
 - No identificar `DN` con `Di` interior.
 - No poner `C`/`epsilon` dentro de `SistemaDeTuberia`/`SistemaDeTuberiaCatalogado`.
 - No hardcodear un sistema comercial real sin decisión explícita previa.
@@ -871,226 +947,124 @@ documento).
   presentes.
 - No representar una montante como un único Tramo si existen
   derivaciones intermedias.
-- No crear una entidad `Montante` paralela a la topología (D-δ.23 cerrado).
+- No crear una entidad `Montante` paralela a la topología.
 - No mezclar accesorios/codos/tees/válvulas/`Ks` dentro de `longitud_m`.
 - No calcular "% de pérdida" como `hf/Qc`.
 - No reducir `Qc` artificialmente para hacer "pasar" una verificación de
-  presión (regla que va a ser crítica cuando se implemente presión
-  residual — sección "Pendiente prioritario").
-- **No usar `Qc` estadístico bruto como Qc final de Tramo en M2** — usar
-  siempre el `qc_lps` ya resultante de `resolverSimultaneidadHidraulicaDeTramo`
-  (con el piso de CRIT-A22 ya aplicado).
-- **No reintroducir `Di` de predimensionamiento como filtro de selección
-  comercial** — la política vigente es CRIT-A23 (recorrer todo el
-  catálogo, verificar velocidad real por candidato).
-- **No usar `obtenerCandidatosDeDiametroComercial` con un umbral
-  artificial** (`0.001`, etc.) para simular "todo el catálogo" — usar
+  presión.
+- No usar `Qc` estadístico bruto como Qc final de Tramo en M2.
+- No reintroducir `Di` de predimensionamiento como filtro de selección
+  comercial.
+- No usar `obtenerCandidatosDeDiametroComercial` con un umbral artificial
+  para simular "todo el catálogo" — usar
   `obtenerEntradasOrdenadasPorDiametroInterior`.
-- **No reintroducir la variante `fueraDeDominioTurbulento`** en
-  `ResultadoPerdidaDistribuidaDeTramo` sin volver a analizar la propiedad
-  derivada de CRIT-A19+A21+A23 que la volvió inalcanzable.
-- No debilitar ni eliminar el guard `Re<UMBRAL_REYNOLDS_TURBULENTO` de
-  `calcularFactorFriccionDarcy` (CRIT-A18) — sigue siendo la defensa de
-  la primitiva matemática, independiente de que la capa superior ya
-  garantice no alcanzarlo en la práctica.
+- No reintroducir la variante `fueraDeDominioTurbulento`.
+- No debilitar ni eliminar el guard `Re<UMBRAL_REYNOLDS_TURBULENTO`.
+- **No mutar `redHidraulica` desde ningún updater sin pasar por
+  `conLongitudDeTramo` (o un updater análogo futuro)** — nunca reconstruir
+  el árbol de Tramos a mano en un componente de UI.
+- **No recalcular cobertura física con otra lógica en la UI** — la única
+  fuente es `auditarCoberturaFisica(proyecto).artefactosSinReferencia`.
+- **No recalcular `n`/`Qmax`/simultaneidad en la UI** — siempre leer del
+  motor (`resolverHidraulicaDeTramo`/`resolverPerdidaDistribuidaDeTramo`),
+  incluso al costo de la doble resolución temporal documentada (sección
+  11.1).
+- **No usar `identificarFilasDeModulo2` como punto de escritura** sin una
+  decisión arquitectónica explícita — es una función de presentación de
+  solo lectura.
 - No mover los tags listados en la sección 1.
 - No hacer commit sin aprobación explícita del usuario.
 
-## OBJETIVO DEL PRÓXIMO CHAT
-
-**M2 ya tiene el pipeline completo Qc → diámetro comercial → `hf`
-Hazen/Darcy calculado productivamente por el motor.** Falta: limpieza
-terminológica pequeña, luego exponerlo en UI, luego accesorios/presión.
-
-### ⚠️ PRIMER PASO INMEDIATO — Correctivo 2B (mecánico, pequeño)
-
-**Renombrar `di_min_mm` internamente.** Alcance:
-
-- `calcularPredimensionamientoDeTramo.ts` (tipo `PredimensionamientoDeTramo`,
-  campo `di_min_mm`).
-- `ResultadoHidraulicoDeTramo` (`resolverHidraulicaDeTramo.ts`).
-- Todos los consumidores/tests que leen `.predimensionamiento.di_min_mm`.
-- Textos de UI si en algún lugar dicen "Di mínimo" (verificar
-  `ParametroDeCalculoDelMaterial`/`ResultadoHidraulicoDeTramo.tsx`).
-
-Nombre preferido (ya usado en las APIs comerciales, mantener
-consistencia): `diReferenciaPredimensionamiento_mm`. Si la inspección
-revela una convención mejor, proponerla antes de implementar — no
-decidir unilateralmente.
-
-**Explícitamente NO incluye**: cambio numérico, cambio de selección
-comercial, cambio de CRIT-A23. Es un incremento mecánico puro, análisis
-read-only primero, como todos los anteriores.
-
-### ⚠️ Hallazgo UI/integración — sincronización Proyecto ↔ `redHidraulica`, sin analizar todavía
-
-Los cambios realizados en M1 sobre artefactos (alta, baja,
-aumento/disminución de cantidades, duplicaciones y operaciones
-equivalentes) **no actualizan automáticamente `redHidraulica`**. M2
-continúa calculando solo sobre las referencias físicas ya existentes en
-la topología. Debe definirse una política de sincronización
-`Proyecto ↔ redHidraulica` **antes de considerar M2 funcionalmente
-integrado y antes de cerrar N4/UI**.
-
-Aclaraciones importantes:
-
-- **No es un error del motor hidráulico** — `resolverHidraulicaDeTramo`
-  y todo lo que compone hacen exactamente lo que deben hacer sobre la
-  topología que reciben.
-- `redHidraulica` **sigue siendo físicamente autoritativa** (CRIT-A15) —
-  esto no cuestiona esa decisión.
-- **No corresponde "sumar automáticamente" un artefacto** a `redHidraulica`
-  sin definir a qué nodo/tramo físico queda conectado — eso sería
-  inventar topología, exactamente lo que este proyecto evita en todos
-  los criterios de geometría (CRIT-A20, D-δ.22).
-- Debe analizarse **en el próximo chat** una estrategia de
-  sincronización/generación de topología — **no analizado ni diseñado
-  todavía en este documento**.
-- Una posible solución futura puede ser híbrida (topología inicial
-  automática + topología explícita/editable) — mencionada aquí solo como
-  hipótesis a evaluar, **no adoptada**.
-
-### Después de Correctivo 2B
-
-### Incremento N4 — resultados visibles en tabla
-Agregar según diseño real (a definir): Di comercial/adoptado, Di interior
-efectivo, velocidad real, estado de verificación de velocidad, método
-usado, `hf [m.c.a.]`. Evitar ruido visual innecesario. Requiere primero
-decidir si se migra el demo para tener al menos un `longitud_m` cargado
-(hoy 0 tramos lo tienen) o si se usa otro proyecto de prueba.
-
-### Incremento N5 — geometría/montantes en UX
-Retomar cota de origen, cotas relevantes, montante general, N montantes
-auxiliares, segmentación por derivaciones — con UI amigable que
-**materialice topología real** (Nodo/Tramo reales), nunca una lista
-paralela de asignaciones UF→montante.
-
-### Incremento posterior — accesorios (no implementado, diseño ya pensado)
-`topología → accesorios estructurales inferibles` + `accesorios
-adicionales del usuario` → `ΣK` → pérdidas localizadas.
-
-### Incremento posterior — presión residual (no implementado)
-
-Algoritmo conceptual (no implementar todavía):
-
-```
-Qc final
-→ candidatos admisibles por velocidad (CRIT-A23)
-→ hf distribuida (N3, ya implementado)
-→ hf localizada (no implementado)
-→ Δz
-→ presión residual
-→ verificar presión mínima según criterio seleccionado
-→ si no cumple: evaluar siguiente candidato admisible
-→ aceptar primer candidato que cumpla simultáneamente velocidad + presión
-```
-
-Recordar: un diámetro mayor puede violar la velocidad **mínima** (ya
-demostrado con datos reales en CRIT-A23) — "aumentar el diámetro" no es
-una solución universal. Nunca reducir `Qc` para hacer pasar presión.
-
-**No asumir** que `ParametrosProyecto.presionSobreAcera_m` es `H_origen`
-sin inspección/decisión explícita — solo comparten convencionalmente la
-referencia de vereda/acera con `cota_m`, nada más está decidido todavía.
-
-#### ⚠️ Pendiente técnico importante detectado, todavía sin investigar — presión mínima ERAS vs. práctica IUAS
-
-Se detectó una **tensión práctica** entre las presiones mínimas exigidas
-por ERAS para muchos artefactos y la alimentación domiciliaria
-tradicional por tanque elevado. Ejemplo conceptual (sin verificar
-todavía): ERAS puede exigir del orden de `0,6 bar / ~6 m.c.a.` en
-determinados puntos, mientras que la práctica constructiva tradicional
-de alimentación gravitacional usa frecuentemente separaciones del orden
-de `2–2,5 m` entre el pelo de agua del tanque y el punto alto de la
-ducha — geométricamente insuficiente para esa presión mínima si se
-interpreta estrictamente. **No se adoptó ningún valor todavía.**
-
-**Antes de programar presión residual**, hace falta una investigación
-read-only de:
-
-- tabla exacta de presiones mínimas ERAS (releer texto completo, no de
-  memoria);
-- antecedentes normativos previos (OSN/AySA) si existen y son
-  accesibles;
-- bibliografía sanitaria y manuales/fabricantes;
-- la regla de rubro "2–2,5 m entre pelo de agua y ducha superior" — de
-  dónde sale, si es real, si está documentada en algún lado citable;
-- requisitos específicos por tipo de artefacto (calefones, termotanques,
-  mezcladoras, duchas, válvulas) si ERAS los distingue.
-
-Hipótesis a estudiar (no aprobada, no implementar): un selector explícito
-`criterioPresionMinima: 'eras' | 'iuas'`, donde `'eras'` sea verificación
-estricta contra valores normativos e `'iuas'` sea un criterio técnico
-alternativo documentado para configuraciones domiciliarias por gravedad
-— posiblemente con tabla propia por tipo/familia de artefacto, no un
-único valor. Trazabilidad obligatoria de qué criterio se usó en cada
-verificación; nunca reinterpretar un resultado bajo criterio IUAS como
-cumplimiento ERAS.
-
-Salida futura deseable (no implementar): `presionResidualDisponible`,
-`presionMinimaRequerida`, `criterioAplicado`, `margen`.
-
 ## Riesgos / preguntas abiertas
 
-- **Correctivo 2B**: nombre final de `di_min_mm` — a confirmar antes de
-  implementar (preferencia actual: `diReferenciaPredimensionamiento_mm`).
-- **Sincronización Proyecto ↔ `redHidraulica`** (ver "Hallazgo
-  UI/integración" arriba) — cambios de artefactos en M1 no propagan a la
-  topología; estrategia sin analizar, pendiente antes de N4/UI.
-- **Presión mínima ERAS vs. IUAS** (ver arriba) — investigación read-only
-  pendiente, ninguna decisión tomada.
-- Cómo materializar montantes en la demo/UI sin romper D-δ.23 (siempre
-  como Nodo/Tramo reales).
-- Cómo agrupar amigablemente AF/AC bajo un mismo concepto visual de
-  "montante" sin que la denominación humana se vuelva identidad
-  estructural.
-- Accesorios estructurales automáticos (tees de colector/derivación) vs.
-  accesorios editables por el usuario — diseño pendiente completo.
+Ver `PENDIENTES-DE-ARQUITECTURA.md` (D-δ.26 a D-δ.34) para el detalle
+completo de cada una. Lista corta de orientación:
+
+- **Límite inferior de velocidad (CRIT-A19/CRIT-A23) ante Qc muy bajo**
+  — ¿condición dura o advertencia con el diámetro mínimo ya adoptado?
+  Caso real: `t-ac-toilette`, sección 12.3. No decidido.
+- **Selector de sistema comercial / compatibilidad con material** —
+  deuda de UI preexistente (sección 12.4). No implementado.
+- **Clase/serie comercial (PN20/PN25) y verificación presión-temperatura**
+  — decisión de diseño pendiente, no debe asumirse PN20 por defecto.
+- **Margen de seguridad de diseño** — debe quedar como criterio explícito
+  y trazable, sin fórmula/factor universal todavía.
+- **Granularidad de `sistemaDeTuberiaId`** (global/por red/por tramo) —
+  no decidido.
+- **Sincronización Proyecto ↔ `redHidraulica`** — alta de artefacto en M1
+  no crea conexión física; S1/S2 evitan que eso produzca un resultado
+  silenciosamente incompleto, pero la sincronización automática sigue
+  diferida a propósito.
+- **Presión mínima ERAS vs. práctica IUAS** — investigación read-only
+  pendiente, ninguna decisión tomada (ver D-δ.32 y el detalle histórico
+  más abajo en este mismo documento si se conserva, o en
+  `PENDIENTES-DE-ARQUITECTURA.md`).
+- **Deuda de `n` no expuesto por N3** — doble resolución temporal en
+  `FilaResultado` (sección 11.1). Pendiente transportar la trazabilidad
+  necesaria dentro de `ResultadoPerdidaDistribuidaDeTramo`.
+- Cómo materializar montantes en la demo/UI sin romper D-δ.23.
+- Accesorios estructurales automáticos vs. editables por el usuario —
+  diseño pendiente completo.
 - Tramo terminal hasta el artefacto crítico: hoy oculto en la tabla
-  principal (D-δ.20) pero íntegro en `RedHidraulica`; falta decidir cómo
-  se expone para presión residual.
+  principal (D-δ.20) pero íntegro en `RedHidraulica`.
 - `H_origen`: geométrico vs. carga disponible vs. nivel de tanque — sin
-  cerrar (relacionado con el pendiente de presión ERAS vs. IUAS).
-- Formato locale de C/epsilon en UI (pendiente menor, sección 16).
-- El demo (`proyectoInicial`) tiene **0 tramos con `longitud_m`** — N4
-  necesitará decidir si se migra el demo o se usa otro proyecto de
-  prueba para mostrar `hf` en pantalla.
-- Selección manual de diámetro por Tramo — explícitamente fuera de
-  alcance hasta ahora; si se adopta en el futuro, revisar si la
-  combinación `conCandidato`+velocidad-no-admisible vuelve a tener
-  sentido productivo (hoy inalcanzable por construcción, ver sección 10.2).
+  cerrar.
+- El demo (`proyectoInicial`) sigue sin `longitud_m` por defecto — el
+  usuario debe cargarla manualmente por fila para ver `hf`.
+- Selección manual de diámetro por Tramo — fuera de alcance hasta ahora.
 
 ## Estado aproximado M2 (orientativo, no contractual)
 
-- Topología / demanda / simultaneidad (incl. piso CRIT-A22): **cerradas**.
-- Materiales / sistemas comerciales: **cerrados**.
+- Topología / demanda / simultaneidad (incl. piso CRIT-A22, trazabilidad
+  `n`): **cerradas**.
+- Cobertura física (S1) y barrera de presentación (S2): **cerradas**,
+  sincronización automática **diferida a propósito**.
+- Longitud física editable (L1): **cerrada**.
+- Materiales / sistemas comerciales: **cerrados en lo matemático**,
+  selector de sistema comercial en UI **pendiente** (deuda preexistente).
 - Selección comercial por velocidad (CRIT-A23): **funcionalmente
-  cerrada**, pendiente rename mecánico (Correctivo 2B).
-- Pérdida distribuida Hazen/Darcy (N3): **cerrada**.
+  cerrada**; límite inferior de velocidad ante Qc bajo **identificado,
+  sin decisión de política todavía**.
+- Pérdida distribuida Hazen/Darcy (N3): **cerrada**, ahora **visible en
+  UI** (L2) y **blindada por golden end-to-end** (G1).
 - Geometría / cotas / longitudes: **implementadas**.
 - Pérdidas localizadas / accesorios: **pendiente**.
-- Balance de presión (incl. tensión ERAS vs. IUAS): **pendiente**,
-  investigación read-only sin empezar.
-- Selección final velocidad+presión: **pendiente**.
-- UI final de M2 (N4/N5): **pendiente**.
+- Balance de presión: **pendiente**, investigación read-only sin empezar.
+- Clase de tubería / margen de seguridad: **pendiente de decisión**.
+- UI final de M2 (N4/N5): **pendiente** — la UI actual es explícitamente
+  transitoria.
 
 ## Historial de commits relevantes (hash real + mensaje real)
 
-Checkpoints de este chat (N1 → Correctivo 2A), del más reciente al más antiguo:
+Del más reciente al más antiguo, checkpoints de este hito de pausa:
+
+- `9832e809b6d70bd8909eefeae88528132d97cecc` — test: blindar golden
+  hidraulico completo por tramo (**HEAD actual**, G1)
+- `4db31dae0d6ad66ceefaed3b6735312d67b6c3e1` — feat: mostrar perdida
+  distribuida por tramo en modulo 2 (L2)
+- `5c4fdbb1866ed1e086fd0affe394347a54746bd6` — feat: editar longitud de
+  tramos en modulo 2 (L1)
+- `4ffb892bd1d3a268a87858504945afc7a1f411b4` — feat: mostrar n
+  hidraulico en modulo 2 (trazabilidad n/Refs. físicas)
+- `368684555617103a24307d17c8c203957c7cd826` — feat: bloquear resultados
+  m2 con cobertura incompleta (S2)
+- `254b860c3bae5fa3dcafd7c75b4c652a747a53dc` — feat: auditar cobertura
+  fisica de artefactos (S1)
+- `5bf1de8037cbab4a7609c92801e98a31b111135a` — refactor: renombrar
+  diametro de referencia de predimensionamiento (Correctivo 2B)
+
+Checkpoints previos (chats anteriores, ya incorporados a este resumen):
 
 - `48be317f2892526eb109ba33759bcf4c0fb8fa6a` — feat: seleccionar
-  diametro comercial por velocidad admisible (**HEAD actual**, CRIT-A23)
+  diametro comercial por velocidad admisible (CRIT-A23)
 - `a0f14dc7440b6c69fce554449ca7c0891e013e7d` — fix: aplicar piso de
   caudal individual por tramo (CRIT-A22)
 - `0b9e6ee96f8cf0d58dcd986b0dce1bf4e8545509` — feat: resolver perdida
   distribuida por tramo (N3)
 - `82e24f6b41abdb0e2b03a83857b35bf51708a660` — feat: definir propiedades
-  del agua para darcy (N2, CRIT-A21)
+  del agua para darcy (CRIT-A21)
 - `0b3386e0ce0e3186475b672655f269bab64a5de4` — feat: incorporar sistema
-  comercial de tuberia (N1, `SistemaDeTuberiaCatalogado`/Acqua System)
-
-Checkpoints previos (chat anterior, ya incorporados a este resumen):
-
+  comercial de tuberia (Acqua System)
 - `b9dfe8cd03500c88a42f2070785d8f879f3ec29e` — refactor: agrupar
   criterio de predimensionamiento
 - `92ac0ceb375762f07424e9037cd15997c5392495` — test: validar montante
@@ -1107,14 +1081,26 @@ Checkpoints previos (chat anterior, ya incorporados a este resumen):
 ## Tests / golden cases críticos — nunca romper inadvertidamente
 
 - `src/motor/tuberias/resolverHidraulicaDeTramo.integracionM1.test.ts` —
-  igualdad M1=M2 exacta sobre `t-general` (`Qc=0,7273238618387272`),
-  confirmada sin cambios después de CRIT-A22/A23.
+  igualdad M1=M2 exacta sobre `t-general` (`Qc=0,7273238618387272`), **más
+  el golden end-to-end G1** (Qc→diámetro comercial→velocidad→longitud→hf,
+  sección 11.3).
 - `src/motor/tuberias/resolverHidraulicaDeTramo.golden.test.ts` —
   Golden 1-3 (CRIT-A4/A13/A8/A15) y Golden 4 (montante segmentada).
 - `src/motor/tuberias/resolverHidraulicaDeTramo.pisoCaudalIndividual.golden.test.ts`
-  — casos A1-A6 de CRIT-A22 con topología/catálogo reales.
+  — casos A1-A6 de CRIT-A22.
 - `src/motor/tuberias/simultaneidad/resolverSimultaneidadHidraulicaDeTramo.test.ts`
-  — CRIT-A22, incluido el caso mínimo de cruce (`n=3`).
+  — CRIT-A22, **y ahora `resultado.n`** en 5 casos (ordinario, con
+  cantidad>1, con/sin piso).
+- `src/motor/tuberias/cobertura/auditarCoberturaFisica.test.ts` — S1,
+  casos A-E más 2 casos límite (`redHidraulica` ausente, proyecto vacío).
+- `src/interfaz/paginas/actualizarRedHidraulica.test.ts` — L1, casos
+  A-E (setear/cambiar/vaciar longitud, preservación estructural, tramo
+  inexistente, `redHidraulica` ausente).
+- `src/interfaz/paginas/ResultadoHidraulicoDeTramo.test.ts` —
+  `describirReferenciaPendiente` (S2) y `textosDePerdidaDistribuidaDeTramo`
+  (L2, las 4 variantes de N3).
+- `src/exportadores/pdf/formatearNumero.test.ts` — incluida la unidad
+  `m` (hf, 3 decimales).
 - `src/motor/tuberias/participacion/aplicarParticipacionCritA8.test.ts` /
   `filtrarArtefactosHidraulicamenteActivos.test.ts` — CRIT-A8.
 - `src/motor/tuberias/simultaneidad/determinarAEfectivo.test.ts` —
@@ -1124,26 +1110,26 @@ Checkpoints previos (chat anterior, ya incorporados a este resumen):
 - `src/motor/tuberias/velocidad/verificarVelocidadAdmisible.test.ts` —
   CRIT-A19.
 - `src/validacion/redHidraulica/index.test.ts` — CRIT-A20 (longitud/cota).
+- `src/validacion/configuracionHidraulica/index.test.ts` —
+  incompatibilidad sistema/material (hallazgo B, sección 12.4).
 - `src/motor/tuberias/sistemaDeTuberia/index.test.ts` — catálogo Acqua
-  System Magnum PN20 (N1).
+  System Magnum PN20.
 - `src/motor/tuberias/diametroComercial/obtenerCandidatosDeDiametroComercial.test.ts`
   — primitiva original intacta.
 - `src/motor/tuberias/diametroComercial/obtenerEntradasOrdenadasPorDiametroInterior.test.ts`
-  — primitiva nueva de CRIT-A23.
+  — primitiva de CRIT-A23.
 - `src/motor/tuberias/resolverDiametroComercialDeTramo.test.ts` — Goldens
-  B1-B4, `valvulaMingitorio` sin candidato, hueco 60-75mm (CRIT-A23).
+  B1-B4, `valvulaMingitorio` sin candidato, hueco 60-75mm.
 - `src/motor/tuberias/perdidaCarga/darcyWeisbach/propiedadesAguaDarcy.test.ts`
-  — CRIT-A21 (N2).
+  — CRIT-A21.
 - `src/motor/tuberias/resolverPerdidaDistribuidaDeTramo.test.ts` —
-  Goldens Hazen/Darcy (N3), incluida la propiedad derivada
-  `Re>UMBRAL_REYNOLDS_TURBULENTO` en el límite de CRIT-A19.
+  Goldens Hazen/Darcy, propiedad derivada `Re>UMBRAL_REYNOLDS_TURBULENTO`.
 - `src/motor/tuberias/perdidaCarga/calcularPerdidaCargaHazenWilliams.test.ts`
   — CRIT-A17.
 - `src/motor/tuberias/perdidaCarga/darcyWeisbach/calcularNumeroReynolds.test.ts` /
-  `calcularFactorFriccionDarcy.test.ts` — CRIT-A18, incluido el guard
-  `Re<4000`.
+  `calcularFactorFriccionDarcy.test.ts` — CRIT-A18, guard `Re<4000`.
 - `src/motor/tuberias/materialTuberia/index.test.ts` — catálogo de
-  materiales (6 entradas, valores exactos).
+  materiales.
 - `src/motor/tuberias/perdidaCarga/resolverParametroDePerdidaDistribuida.test.ts`
   — resolución C/epsilon por método.
 - `src/motor/tuberias/geometria/calcularDiferenciaDeCota.test.ts` /

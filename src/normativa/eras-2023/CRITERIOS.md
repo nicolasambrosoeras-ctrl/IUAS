@@ -513,8 +513,13 @@ nunca cuántas veces participa.
 principio físico de conservación de masa (mismo estatus epistémico que
 CRIT-A11/CRIT-A13), no una disposición textual de ERAS.
 
-**Estado:** Adoptado conceptualmente. Pendiente de implementación en
-motor/tests (ver D-δ.19 en `PENDIENTES-DE-ARQUITECTURA.md`).
+**Estado:** Firme e implementado en
+`src/motor/tuberias/caudal/determinarConectividadFisica.ts` y
+`determinarCondicionHidraulicaDeCaudal.ts`, con tests unitarios propios y
+consumido productivamente por todo el pipeline de Módulo 2. Pendiente
+únicamente la revisión de los goldens Golden 1/2/3 (D-δ.19 en
+`PENDIENTES-DE-ARQUITECTURA.md`), escritos antes de esta decisión — eso
+no bloquea el resto de la implementación, ya productiva.
 
 ## CRIT-A16 — Velocidad de escurrimiento adoptada para el predimensionamiento inicial
 
@@ -622,10 +627,14 @@ Esta conversión debe quedar explícita y comentada en la implementación,
 sin colapsar en una constante combinada que oculte el origen dimensional
 de cada factor.
 
-**Coeficiente C:** en esta etapa, `C` es un parámetro explícito de la
-primitiva de cálculo. El proyecto no fija todavía ningún valor real de
-`C` por material; los materiales y sus coeficientes se incorporarán en
-un incremento posterior, mediante un catálogo aún no implementado.
+**Coeficiente C:** `C` es un parámetro explícito de la primitiva de
+cálculo, que nunca conoce materiales ni catálogo (separación deliberada).
+El catálogo de materiales con sus valores reales de `C` **ya está
+implementado** (`src/motor/tuberias/materialTuberia/`, 6 materiales) y se
+resuelve productivamente mediante
+`resolverParametroDePerdidaDistribuida`, que le entrega el `C`
+correspondiente a esta primitiva sin que ella necesite conocer el
+catálogo.
 
 **No se abre discusión sobre variantes de redondeo:** existen en la
 bibliografía distintas versiones publicadas de la constante numérica
@@ -651,9 +660,12 @@ operativo, sin profundizar esa comparación en este criterio.
 - No calcula ni verifica presión residual.
 - No incorpora materiales ni catálogo de coeficientes `C`.
 
-**Estado:** Firme como criterio técnico operativo del proyecto. No
-implica todavía implementación en motor/tests (ver incremento funcional
-correspondiente).
+**Estado:** Firme como criterio técnico operativo del proyecto.
+Implementado en
+`src/motor/tuberias/perdidaCarga/calcularPerdidaCargaHazenWilliams.ts` y
+consumido productivamente por `resolverPerdidaDistribuidaDeTramo` (N3),
+con tests unitarios y goldens propios, y visible en la UI transitoria de
+Módulo 2.
 
 ## CRIT-A18 — Darcy-Weisbach para régimen turbulento
 
@@ -773,7 +785,13 @@ f + L + Di + V     → hf
   como primitivas).
 
 **Estado:** Firme como criterio técnico operativo del proyecto.
-Pendiente de implementación en motor/tests.
+Implementado en
+`src/motor/tuberias/perdidaCarga/darcyWeisbach/calcularNumeroReynolds.ts`,
+`calcularFactorFriccionDarcy.ts` (Haaland, dominio turbulento) y
+`calcularPerdidaCargaDarcyWeisbach.ts`, con tests unitarios propios y
+consumido productivamente por `resolverPerdidaDistribuidaDeTramo` (N3) —
+esta es una afirmación de estado de implementación del proyecto, no una
+atribución normativa nueva a ERAS.
 
 ## CRIT-A19 — Verificación de velocidad con diámetro interior comercial
 

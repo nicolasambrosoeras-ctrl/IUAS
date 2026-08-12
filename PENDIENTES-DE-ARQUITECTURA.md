@@ -899,3 +899,170 @@ Hazen-Williams no conoce `ν` ni temperatura del agua.
 
 No se cierra aquí: orquestación de UI/memoria de cálculo, accesorios,
 pérdidas localizadas, ni presión residual.
+
+### D-δ.26 — Sincronización Proyecto ↔ `redHidraulica` (CERRADO conceptualmente, escritura automática diferida)
+
+**Decisión adoptada**: M1 es autoritativo sobre qué artefactos existen
+(identidad, tipo, cantidad); `redHidraulica` es autoritativa sobre cómo
+están conectados físicamente. Si M1 contiene un artefacto normativo que
+`redHidraulica` no referencia, M2 debe considerarse incompleto y no debe
+presentar silenciosamente un resultado hidráulico como completo.
+
+**Verificado por lectura de código, no supuesto**: ninguna operación de
+alta de artefacto en M1 (`agregarArtefacto()` en
+`MotorDemandaPantalla.tsx`) modifica `redHidraulica` — la nueva entidad
+queda invisible para `obtenerArtefactosAguasAbajo` porque no existe
+ningún `Nodo` que la referencie. Simétricamente, eliminar un artefacto ya
+referenciado deja una `ReferenciaDeArtefacto` huérfana, que
+`validarRedHidraulica` detecta (`redHidraulicaReferenciaArtefactoInvalida`)
+y bloquea M1+M2 juntos — asimetría ya existente, no introducida por este
+cierre.
+
+**Implementado**: S1 (`auditarCoberturaFisica`, función pura de solo
+lectura) y S2 (barrera de presentación en `ResultadoHidraulicoDeTramo.tsx`)
+resuelven la mitad "nunca mostrar silenciosamente un resultado
+incompleto" de esta decisión, sin generar topología ni reparar nada.
+
+**Diferido a propósito**: generación/edición automática de Nodos/Tramos
+al agregar un artefacto en M1. No existe hoy ningún punto de inserción
+AF/AC explícito por Local en el modelo (`Nodo`/`Tramo` no tienen
+`localId` ni concepto de "cabecera"); `identificarFilasDeModulo2.ts` sabe
+inferir estructuralmente el Tramo cabecera de un Local, pero es lógica de
+presentación, no debe usarse como punto de escritura sin una decisión
+explícita nueva.
+
+**Condición de resolución**: diseñar el punto de inserción físico
+(cabecera AF/AC por Local) antes de implementar cualquier generación
+automática de topología.
+
+### D-δ.27 — Límite inferior de velocidad (CRIT-A19/CRIT-A23) ante Qc muy bajo — ABIERTA
+
+**Caso real confirmado con el motor** (demo, tramo `t-ac-toilette`):
+
+```
+Qc = 0.12 l/s
+Sistema: Acqua System Magnum PN20
+Candidato comercial mínimo: 20 mm, Di efectivo = 14.4 mm
+Velocidad con ese candidato: 0.7368284402402562 m/s
+verificarVelocidadAdmisible → noAdmisible (límite mínimo 1 m/s)
+Resultado vigente: sinCandidatoAdmisible
+```
+
+**Causa**: `V` decrece monótonamente con `D` a Qc fijo (V=Q/A, A crece
+con D²); si el diámetro comercial mínimo ya incumple el piso de
+velocidad, todo diámetro mayor lo empeora — ningún candidato puede ser
+admisible bajo la política vigente. Consecuencia matemática necesaria de
+CRIT-A19+CRIT-A23, no un defecto de implementación.
+
+**Pregunta abierta, no decidida**: evaluar, post-pausa, si el límite
+inferior de velocidad debe mantenerse como condición dura (estado actual)
+o convertirse en advertencia cuando ya se está utilizando el diámetro
+comercial mínimo disponible del catálogo. **No decidir ahora — no cambiar
+CRIT-A23.**
+
+### D-δ.28 — Selector de sistema comercial / compatibilidad con material — ABIERTA
+
+**Estado actual**: `materialTuberiaId` es seleccionable desde la UI;
+`sistemaDeTuberiaId` queda fijo en código (el demo usa Acqua System
+Magnum PN20, material PPR, único sistema del catálogo productivo).
+
+**Comportamiento verificado**: cambiar el material a uno incompatible con
+el único sistema disponible dispara correctamente
+`configuracionHidraulicaSistemaMaterialIncompatible`
+(`validarConfiguracionHidraulica`, preexistente desde el commit
+`0b3386e`) y bloquea M1+M2 — la validación funciona como debe, la deuda
+es la ausencia de un selector de sistema comercial (o una política
+equivalente de selección compatible) en la UI.
+
+**Condición de resolución**: diseñar el selector de sistema comercial (o
+mecanismo equivalente) antes de que el catálogo comercial crezca más allá
+de un único sistema.
+
+### D-δ.29 — Clase/serie comercial (PN20/PN25) y verificación presión-temperatura — ABIERTA
+
+**Decisión explícita, no ambigua**: NO asociar automáticamente una clase
+comercial a la red por defecto (ej. "AF → una clase, AC → otra clase").
+La clase es una decisión de diseño, no una inferencia estructural.
+
+La selección/verificación futura de clase deberá poder considerar,
+como mínimo: material, familia comercial, clase/serie (ej. PN20/PN25),
+DN, Di efectivo, presión de diseño, temperatura de servicio, capacidad
+admisible presión-temperatura, y margen de seguridad elegido por el
+diseñador (ver D-δ.30). **No asumir PN20 suficiente por defecto** en
+ningún caso, incluido el catálogo demo actual (que hoy solo tiene PN20
+cargado, sin que eso implique una decisión de que sea la clase correcta
+para cualquier proyecto).
+
+**No decidido**: nada de esto se implementa en este hito.
+
+### D-δ.30 — Margen de seguridad de diseño — ABIERTA
+
+**Registro, no fórmula**: el diseñador podrá querer aplicar un margen de
+seguridad adicional respecto del mínimo estrictamente necesario (en
+diámetro, en clase de presión, u otro parámetro todavía no decidido). No
+se fija todavía ninguna fórmula ni factor universal.
+
+**Condición de resolución**: debe quedar como criterio explícito y
+trazable en el resultado (qué margen se aplicó y por qué), nunca como
+ajuste implícito escondido dentro de otro cálculo.
+
+### D-δ.31 — Granularidad de `sistemaDeTuberiaId` — ABIERTA
+
+**Pregunta sin resolver**: si `sistemaDeTuberiaId` debe seguir siendo
+global al Proyecto (estado actual), pasar a ser por red (AF/AC), por
+Tramo, o un default global con override local por Tramo.
+
+**No decidido**: evaluar post-pausa, con casos reales que lo justifiquen
+(mismo criterio general del proyecto: no anticipar estructura sin
+segundo caso de uso real).
+
+### D-δ.32 — Próximo gran bloque hidráulico: presión — ABIERTA, investigación no iniciada
+
+Bloque conceptual completo, todavía sin ningún código: origen hidráulico
+(tanque elevado / presión de red / bombeo), cota o nivel libre, presión
+estática, pérdidas distribuidas (ya implementadas, N3) y localizadas
+(D-δ.33, pendiente), presión residual, presión mínima requerida, camino
+crítico, y redimensionamiento por presión.
+
+**Regla dura ya fijada, no negociable cuando se implemente**: nunca
+reducir `Qc` artificialmente para hacer "pasar" una verificación de
+presión.
+
+**Condición de resolución antes de implementar**: revisión
+normativa/bibliográfica de presiones mínimas ERAS, antecedentes
+normativos previos si existen y son accesibles, y la tensión detectada
+(no verificada todavía) entre presiones mínimas exigidas por ERAS y la
+práctica constructiva tradicional de alimentación por tanque elevado.
+Ninguna hipótesis de esa investigación fue confirmada todavía — no
+adoptar ningún valor numérico de presión mínima sin esa revisión previa.
+
+### D-δ.33 — Pérdidas localizadas / accesorios — ABIERTA
+
+Pendiente completo: accesorios estructurales inferibles de la topología
+(tees de colector/derivación) vs. accesorios adicionales cargados por el
+usuario, `ΣK`, integración con la pérdida distribuida ya implementada
+(N3). **Nunca meter accesorios/codos/tees/válvulas/`Ks` dentro de
+`longitud_m`** (D-δ.22 ya lo prohíbe explícitamente; se reafirma acá
+porque es el punto de contacto directo con este pendiente).
+
+### D-δ.34 — `n` no expuesto por `ResultadoPerdidaDistribuidaDeTramo` (N3) — deuda técnica identificada, no arquitectónica de fondo
+
+**Hallazgo**: `ResultadoPerdidaDistribuidaDeTramo` (N3) no expone `n` en
+ninguna de sus 4 variantes — solo vive en
+`ResultadoSimultaneidadHidraulicaDeTramo`, devuelto por
+`resolverHidraulicaDeTramo`. Como la UI de M2 (L2) necesita mostrar tanto
+`n` como los datos de N3 en la misma fila, `FilaResultado` llama
+actualmente a **ambos** resolvers — sin duplicar ninguna fórmula, pero
+con resolución duplicada del pipeline por fila.
+
+**No resuelto en este hito, a propósito**: no se decidió todavía si `n`
+(y eventualmente `qmax_lps`) debe agregarse al tipo de N3, ni con qué
+forma exacta. Es un cambio de tipo público del motor, pequeño pero real,
+que amerita su propia aprobación explícita cuando se retome el trabajo.
+
+**Condición de resolución**: al reabrir Módulo 2, evaluar agregar `n`
+(campo aditivo, sin romper consumidores existentes — mismo patrón ya
+usado para exponer `n` en `ResultadoSimultaneidadHidraulicaDeTramo`) a
+`ResultadoPerdidaDistribuidaDeTramo`, y eliminar la llamada a
+`resolverHidraulicaDeTramo` en `FilaResultado` una vez que deje de ser
+necesaria.
