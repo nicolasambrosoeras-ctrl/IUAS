@@ -18,7 +18,10 @@ import type { MaterialTuberiaId, MetodoPerdidaDistribuida, Proyecto, TipoDeLocal
 import type { ReferenciaDeArtefacto, RedDeTramo } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { catalogoMaterialesTuberia, obtenerMaterialTuberia } from '../../motor/tuberias/materialTuberia'
+import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia'
 import { resolverHidraulicaDeTramo } from '../../motor/tuberias/resolverHidraulicaDeTramo'
+import { resolverPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolverPerdidaDistribuidaDeTramo'
+import type { ResultadoPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolverPerdidaDistribuidaDeTramo'
 import { obtenerArtefactosAguasAbajo } from '../../motor/tuberias/topologia/obtenerArtefactosAguasAbajo'
 import { resolverArtefactosReferenciados } from '../../motor/tuberias/topologia/resolverArtefactosReferenciados'
 import { auditarCoberturaFisica } from '../../motor/tuberias/cobertura/auditarCoberturaFisica'
@@ -71,6 +74,47 @@ export function describirReferenciaPendiente(
   return `${resuelto.unidadFuncional.nombre} → ${nombreLocal} → ${nombreArtefacto}`
 }
 
+// Texto de presentación de las 4 variantes de ResultadoPerdidaDistribuidaDeTramo
+// (N3), sin recalcular nada -- lee exclusivamente los campos que el motor ya
+// devuelve. '—' para cualquier dato no aplicable en esa variante (nunca 0,
+// nunca inventado): sinDemanda no tiene diámetro/velocidad/hf;
+// sinCandidatoAdmisible no tiene candidato comercial; sinLongitud tiene todo
+// menos hf (Tramo.longitud_m ausente, CRIT-A20 -- no se asume 0 ni se deriva).
+export interface TextosDePerdidaDistribuidaDeTramo {
+  readonly qcTexto: string
+  readonly diReferenciaTexto: string
+  readonly diComercialTexto: string
+  readonly diEfectivoTexto: string
+  readonly vTexto: string
+  readonly hfTexto: string
+}
+
+export function textosDePerdidaDistribuidaDeTramo(
+  resultado: ResultadoPerdidaDistribuidaDeTramo,
+): TextosDePerdidaDistribuidaDeTramo {
+  const qcTexto = formatearNumero(resultado.qc_lps, 'l/s')
+
+  if (resultado.tipo === 'sinDemanda') {
+    return { qcTexto, diReferenciaTexto: '—', diComercialTexto: '—', diEfectivoTexto: '—', vTexto: '—', hfTexto: '—' }
+  }
+
+  const diReferenciaTexto = formatearNumero(resultado.diReferenciaPredimensionamiento_mm, 'mm')
+
+  if (resultado.tipo === 'sinCandidatoAdmisible') {
+    return { qcTexto, diReferenciaTexto, diComercialTexto: '—', diEfectivoTexto: '—', vTexto: '—', hfTexto: '—' }
+  }
+
+  const diComercialTexto = resultado.candidato.denominacionComercial
+  const diEfectivoTexto = formatearNumero(resultado.candidato.diametroInteriorEfectivo_mm, 'mm')
+  const vTexto = formatearNumero(resultado.velocidadReal_mps, 'm/s')
+
+  if (resultado.tipo === 'sinLongitud') {
+    return { qcTexto, diReferenciaTexto, diComercialTexto, diEfectivoTexto, vTexto, hfTexto: '—' }
+  }
+
+  return { qcTexto, diReferenciaTexto, diComercialTexto, diEfectivoTexto, vTexto, hfTexto: formatearNumero(resultado.hf_m, 'm') }
+}
+
 // Estilos locales mínimos -- el proyecto no tiene hoja de estilos (ver
 // index.html/main.tsx): mismo patrón ya usado en el archivo (style={{...}}
 // puntual), solo que acá se comparte entre encabezado y filas para que la
@@ -114,31 +158,38 @@ function FilaResultado({
   let errorDelMotor: string | null = null
   let artefactosTexto: string
   let nTexto: string
-  let qcTexto: string
-  let diMinimoTexto: string
+  let textos: TextosDePerdidaDistribuidaDeTramo
 
   try {
     const referencias = obtenerArtefactosAguasAbajo(proyecto, fila.tramoId)
     artefactosTexto = formatearNumero(referencias.length, 'conteo')
 
-    const resultado = resolverHidraulicaDeTramo(proyecto, fila.tramoId, catalogoArtefactos)
-    qcTexto = formatearNumero(resultado.qc_lps, 'l/s')
-    nTexto = resultado.tipo === 'conDemanda' ? formatearNumero(resultado.simultaneidad.n, 'conteo') : '—'
-    diMinimoTexto =
-      resultado.tipo === 'conDemanda'
-        ? formatearNumero(resultado.predimensionamiento.diReferenciaPredimensionamiento_mm, 'mm')
-        : '—'
+    // n hidraulico efectivo: no expuesto por ResultadoPerdidaDistribuidaDeTramo
+    // (N3) -- solo vive en ResultadoSimultaneidadHidraulicaDeTramo, que
+    // resolverHidraulicaDeTramo si devuelve. Se llama aparte para preservar
+    // exactamente la semantica ya cerrada, sin recalcular n en la UI ni
+    // tocar el motor para agregarlo a N3.
+    const resultadoHidraulico = resolverHidraulicaDeTramo(proyecto, fila.tramoId, catalogoArtefactos)
+    nTexto = resultadoHidraulico.tipo === 'conDemanda' ? formatearNumero(resultadoHidraulico.simultaneidad.n, 'conteo') : '—'
+
+    const resultadoPerdida = resolverPerdidaDistribuidaDeTramo(
+      proyecto,
+      fila.tramoId,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+    textos = textosDePerdidaDistribuidaDeTramo(resultadoPerdida)
   } catch (motivo) {
     errorDelMotor = motivo instanceof Error ? motivo.message : String(motivo)
     artefactosTexto = '—'
     nTexto = '—'
-    qcTexto = 'Error'
-    diMinimoTexto = '—'
+    textos = { qcTexto: 'Error', diReferenciaTexto: '—', diComercialTexto: '—', diEfectivoTexto: '—', vTexto: '—', hfTexto: '—' }
   }
 
   // Lectura directa de redHidraulica, fuera del try/catch de arriba: el
   // input de longitud es independiente de que el motor hidraulico haya
-  // podido resolver Qc para este Tramo (L1 no muestra hf todavia, ver N3).
+  // podido resolver Qc para este Tramo.
   const tramoActual = proyecto.redHidraulica?.tramos.find((tramo) => tramo.id === fila.tramoId)
 
   return (
@@ -148,7 +199,7 @@ function FilaResultado({
       <td style={estiloCelda('right')}>{artefactosTexto}</td>
       <td style={estiloCelda('right')}>{nTexto}</td>
       <td style={estiloCelda('right', errorDelMotor !== null)}>
-        {qcTexto}
+        {textos.qcTexto}
         {errorDelMotor !== null ? (
           <>
             <br />
@@ -156,7 +207,10 @@ function FilaResultado({
           </>
         ) : null}
       </td>
-      <td style={estiloCelda('right')}>{diMinimoTexto}</td>
+      <td style={estiloCelda('right')}>{textos.diReferenciaTexto}</td>
+      <td style={estiloCelda('right')}>{textos.diComercialTexto}</td>
+      <td style={estiloCelda('right')}>{textos.diEfectivoTexto}</td>
+      <td style={estiloCelda('right')}>{textos.vTexto}</td>
       <td style={estiloCelda('right')}>
         <input
           type="number"
@@ -175,6 +229,7 @@ function FilaResultado({
           style={{ width: '5rem' }}
         />
       </td>
+      <td style={estiloCelda('right')}>{textos.hfTexto}</td>
     </tr>
   )
 }
@@ -207,7 +262,11 @@ function TablaDeFilas({
             <th style={estiloEncabezado('right')}>n</th>
             <th style={estiloEncabezado('right')}>Qc [l/s]</th>
             <th style={estiloEncabezado('right')}>Di de referencia [mm]</th>
+            <th style={estiloEncabezado('right')}>Di comercial</th>
+            <th style={estiloEncabezado('right')}>Di efectivo [mm]</th>
+            <th style={estiloEncabezado('right')}>V [m/s]</th>
             <th style={estiloEncabezado('right')}>Longitud [m]</th>
+            <th style={estiloEncabezado('right')}>hf [m.c.a.]</th>
           </tr>
         </thead>
         <tbody>

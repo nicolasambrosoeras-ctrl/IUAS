@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import type { Artefacto, Local, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
 import type { ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
-import { describirReferenciaPendiente } from './ResultadoHidraulicoDeTramo'
+import type { ResultadoPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolverPerdidaDistribuidaDeTramo'
+import { describirReferenciaPendiente, textosDePerdidaDistribuidaDeTramo } from './ResultadoHidraulicoDeTramo'
 
 function proyectoCon(unidadesFuncionales: readonly UnidadFuncional[]): Proyecto {
   return {
@@ -82,5 +83,80 @@ describe('describirReferenciaPendiente', () => {
     const resultado = describirReferenciaPendiente(proyecto, [], referenciaA('uf-1', 'local-bano', 'a1'))
 
     expect(resultado).toBe('Unidad funcional 1 → Baño → artefactoInexistente')
+  })
+})
+
+describe('textosDePerdidaDistribuidaDeTramo', () => {
+  it('L2-A: sinDemanda -- Qc="0,00", el resto en "—"', () => {
+    const resultado: ResultadoPerdidaDistribuidaDeTramo = { tipo: 'sinDemanda', qc_lps: 0 }
+
+    expect(textosDePerdidaDistribuidaDeTramo(resultado)).toEqual({
+      qcTexto: '0,00',
+      diReferenciaTexto: '—',
+      diComercialTexto: '—',
+      diEfectivoTexto: '—',
+      vTexto: '—',
+      hfTexto: '—',
+    })
+  })
+
+  it('L2-B: sinCandidatoAdmisible -- Qc y Di de referencia disponibles, comercial/efectivo/V/hf en "—"', () => {
+    const resultado: ResultadoPerdidaDistribuidaDeTramo = {
+      tipo: 'sinCandidatoAdmisible',
+      qc_lps: 0.15,
+      diReferenciaPredimensionamiento_mm: 9.772,
+    }
+
+    expect(textosDePerdidaDistribuidaDeTramo(resultado)).toEqual({
+      qcTexto: '0,15',
+      diReferenciaTexto: '9,77',
+      diComercialTexto: '—',
+      diEfectivoTexto: '—',
+      vTexto: '—',
+      hfTexto: '—',
+    })
+  })
+
+  it('L2-C: sinLongitud -- diámetro/velocidad disponibles, hf="—"', () => {
+    const resultado: ResultadoPerdidaDistribuidaDeTramo = {
+      tipo: 'sinLongitud',
+      qc_lps: 0.2,
+      diReferenciaPredimensionamiento_mm: 11.28,
+      candidato: { denominacionComercial: '20 mm', diametroInteriorEfectivo_mm: 14.4 },
+      velocidadReal_mps: 1.228,
+      verificacionVelocidad: { tipo: 'admisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 },
+    }
+
+    expect(textosDePerdidaDistribuidaDeTramo(resultado)).toEqual({
+      qcTexto: '0,20',
+      diReferenciaTexto: '11,28',
+      diComercialTexto: '20 mm',
+      diEfectivoTexto: '14,40',
+      vTexto: '1,2',
+      hfTexto: '—',
+    })
+  })
+
+  it('L2-D: conPerdidaDistribuida -- Di comercial, Di efectivo, V, hf todos presentes', () => {
+    const resultado: ResultadoPerdidaDistribuidaDeTramo = {
+      tipo: 'conPerdidaDistribuida',
+      qc_lps: 0.2,
+      diReferenciaPredimensionamiento_mm: 11.28,
+      candidato: { denominacionComercial: '20 mm', diametroInteriorEfectivo_mm: 14.4 },
+      velocidadReal_mps: 1.228,
+      verificacionVelocidad: { tipo: 'admisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 },
+      longitud_m: 10,
+      hf_m: 0.4567,
+      detalle: { metodo: 'hazenWilliams', coeficienteC: 150, perdidaUnitaria_J_m_m: 0.04567 },
+    }
+
+    expect(textosDePerdidaDistribuidaDeTramo(resultado)).toEqual({
+      qcTexto: '0,20',
+      diReferenciaTexto: '11,28',
+      diComercialTexto: '20 mm',
+      diEfectivoTexto: '14,40',
+      vTexto: '1,2',
+      hfTexto: '0,457',
+    })
   })
 })
