@@ -22,6 +22,9 @@ import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefacto
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
 import { calcularSimultaneidad } from '../demanda/simultaneidad/calcularSimultaneidad'
 import { resolverHidraulicaDeTramo } from './resolverHidraulicaDeTramo'
+import { resolverPerdidaDistribuidaDeTramo } from './resolverPerdidaDistribuidaDeTramo'
+import { catalogoSistemasDeTuberia } from './sistemaDeTuberia'
+import { catalogoMaterialesTuberia } from './materialTuberia'
 import { obtenerArtefactosAguasAbajo } from './topologia/obtenerArtefactosAguasAbajo'
 
 function metadatos(): MetadatosProyecto {
@@ -206,5 +209,66 @@ describe('resolverHidraulicaDeTramo — consistencia M1 ↔ M2 sobre t-general',
     expect(resultadoM2.predimensionamiento.ve_mps).toBe(2.0)
     expect(resultadoM2.predimensionamiento.ae_cm2).toBeCloseTo(3.636619309193636, 9)
     expect(resultadoM2.predimensionamiento.diReferenciaPredimensionamiento_mm).toBeCloseTo(21.518102875515787, 9)
+  })
+})
+
+// G1: golden end-to-end del vertical slice hidraulico completo -- demanda
+// (M1/M2) -> seleccion de diametro comercial -> velocidad real -> perdida
+// distribuida hf, sobre el mismo t-general y los mismos 11 artefactos ya
+// usados arriba para el golden M1<->M2. Unica variacion: un Tramo local con
+// longitud_m=5 (el fixture de arriba no muta -- se reconstruye el Tramo
+// afectado sin tocar `redHidraulica`), replicando el caso ya verificado
+// manualmente en navegador real (Correctivo L2). Valida exclusivamente
+// outputs publicos de resolverPerdidaDistribuidaDeTramo -- no reimplementa
+// Hazen-Williams ni ninguna formula del motor.
+describe('resolverPerdidaDistribuidaDeTramo — golden end-to-end (G1) sobre t-general con longitud_m=5', () => {
+  const tramoGeneralConLongitud = { ...redHidraulica.tramos[0]!, longitud_m: 5 }
+  const proyectoConLongitud: Proyecto = {
+    ...proyecto,
+    redHidraulica: {
+      ...redHidraulica,
+      tramos: redHidraulica.tramos.map((tramo) => (tramo.id === 't-general' ? tramoGeneralConLongitud : tramo)),
+    },
+  }
+
+  it('vertical slice completo: Qc -> diametro comercial -> velocidad -> hf, valores reales del motor', () => {
+    const resultado = resolverPerdidaDistribuidaDeTramo(
+      proyectoConLongitud,
+      't-general',
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    if (resultado.tipo !== 'conPerdidaDistribuida') {
+      throw new Error(`se esperaba conPerdidaDistribuida, se obtuvo "${resultado.tipo}"`)
+    }
+
+    // 1. Qc: mismo valor exacto que el golden M1<->M2 de arriba -- la
+    // longitud_m agregada no participa en el calculo de demanda/Qc.
+    expect(resultado.qc_lps).toBe(0.7273238618387272)
+
+    // 2-4. Seleccion de diametro comercial (CRIT-A23) sobre el catalogo real
+    // Acqua System Magnum PN20 -- primer candidato admisible.
+    expect(resultado.candidato.denominacionComercial).toBe('25 mm')
+    expect(resultado.candidato.diametroInteriorEfectivo_mm).toBe(18)
+    expect(resultado.verificacionVelocidad).toEqual({ tipo: 'admisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 })
+
+    // 5. Velocidad real (CRIT-A19), calculada por el motor, no derivada acá.
+    expect(resultado.velocidadReal_mps).toBeCloseTo(2.8582021688967947, 9)
+
+    // 6. Longitud: la cargada en el Tramo local, sin derivar de Δz ni cotas.
+    expect(resultado.longitud_m).toBe(5)
+
+    // 7-9. Perdida distribuida Hazen-Williams (CRIT-A17), metodo del demo.
+    expect(resultado.detalle.metodo).toBe('hazenWilliams')
+    expect(resultado.hf_m).toBeCloseTo(2.4085533165200532, 9)
+
+    // 10. Coherencia interna hf_m = J * longitud_m, sin reimplementar la
+    // formula de Hazen-Williams -- solo multiplica los dos outputs publicos
+    // que el motor ya devuelve.
+    if (resultado.detalle.metodo === 'hazenWilliams') {
+      expect(resultado.detalle.perdidaUnitaria_J_m_m * resultado.longitud_m).toBeCloseTo(resultado.hf_m, 9)
+    }
   })
 })
