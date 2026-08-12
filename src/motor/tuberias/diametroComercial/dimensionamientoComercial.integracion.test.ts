@@ -31,12 +31,12 @@ describe('pipeline comercial de dimensionamiento — integración de primitivas 
   it('Caso 1 — Qc=0.28 l/s (representativo de tramo demo): candidato admisible', () => {
     const qc_lps = 0.28
 
-    const { di_min_mm } = calcularPredimensionamientoDeTramo(qc_lps)
-    const candidatos = obtenerCandidatosDeDiametroComercial(di_min_mm, SISTEMA_LABORATORIO)
+    const { diReferenciaPredimensionamiento_mm } = calcularPredimensionamientoDeTramo(qc_lps)
+    const candidatos = obtenerCandidatosDeDiametroComercial(diReferenciaPredimensionamiento_mm, SISTEMA_LABORATORIO)
     expect(candidatos.length).toBeGreaterThan(0)
 
     const candidato = candidatos[0]!
-    expect(candidato.diametroInteriorEfectivo_mm).toBeGreaterThanOrEqual(di_min_mm)
+    expect(candidato.diametroInteriorEfectivo_mm).toBeGreaterThanOrEqual(diReferenciaPredimensionamiento_mm)
 
     const velocidadReal_mps = calcularVelocidad(qc_lps, candidato.diametroInteriorEfectivo_mm)
     const resultado = verificarVelocidadAdmisible(velocidadReal_mps, candidato.diametroInteriorEfectivo_mm)
@@ -44,7 +44,7 @@ describe('pipeline comercial de dimensionamiento — integración de primitivas 
     // Valores derivados de las primitivas reales, no copiados:
     // Di_min≈13.351162356249091mm -> candidato "A" (15mm) ->
     // V_real≈1.584475877892647 m/s -> admisible en [1,3] (D=15mm).
-    expect(di_min_mm).toBeCloseTo(13.351162356249091, 9)
+    expect(diReferenciaPredimensionamiento_mm).toBeCloseTo(13.351162356249091, 9)
     expect(candidato.denominacionComercial).toBe('A')
     expect(candidato.diametroInteriorEfectivo_mm).toBe(15)
     expect(velocidadReal_mps).toBeCloseTo(1.584475877892647, 9)
@@ -58,12 +58,12 @@ describe('pipeline comercial de dimensionamiento — integración de primitivas 
   it('Caso 2 — Qc=0.12 l/s (otro Qc del demo): candidato resulta noAdmisible (velocidad real por debajo del mínimo)', () => {
     const qc_lps = 0.12
 
-    const { di_min_mm } = calcularPredimensionamientoDeTramo(qc_lps)
-    const candidatos = obtenerCandidatosDeDiametroComercial(di_min_mm, SISTEMA_LABORATORIO)
+    const { diReferenciaPredimensionamiento_mm } = calcularPredimensionamientoDeTramo(qc_lps)
+    const candidatos = obtenerCandidatosDeDiametroComercial(diReferenciaPredimensionamiento_mm, SISTEMA_LABORATORIO)
     expect(candidatos.length).toBeGreaterThan(0)
 
     const candidato = candidatos[0]!
-    expect(candidato.diametroInteriorEfectivo_mm).toBeGreaterThanOrEqual(di_min_mm)
+    expect(candidato.diametroInteriorEfectivo_mm).toBeGreaterThanOrEqual(diReferenciaPredimensionamiento_mm)
 
     const velocidadReal_mps = calcularVelocidad(qc_lps, candidato.diametroInteriorEfectivo_mm)
     const resultado = verificarVelocidadAdmisible(velocidadReal_mps, candidato.diametroInteriorEfectivo_mm)
@@ -73,7 +73,7 @@ describe('pipeline comercial de dimensionamiento — integración de primitivas 
     // ninguna entrada menor a 15mm -> candidato "A" (15mm) sobredimensiona
     // bastante este caudal -> V_real≈0.679 m/s, por debajo del mínimo
     // normativo de 1 m/s para D=15mm.
-    expect(di_min_mm).toBeCloseTo(8.740387444736633, 9)
+    expect(diReferenciaPredimensionamiento_mm).toBeCloseTo(8.740387444736633, 9)
     expect(candidato.diametroInteriorEfectivo_mm).toBe(15)
     expect(velocidadReal_mps).toBeCloseTo(0.6790610905254201, 9)
     expect(resultado).toEqual({ tipo: 'noAdmisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 })
@@ -82,10 +82,10 @@ describe('pipeline comercial de dimensionamiento — integración de primitivas 
   it('Caso 3 — sin candidato: Qc grande frente al catálogo de laboratorio', () => {
     const qc_lps = 5
 
-    const { di_min_mm } = calcularPredimensionamientoDeTramo(qc_lps)
-    expect(di_min_mm).toBeCloseTo(56.418958354775626, 9)
+    const { diReferenciaPredimensionamiento_mm } = calcularPredimensionamientoDeTramo(qc_lps)
+    expect(diReferenciaPredimensionamiento_mm).toBeCloseTo(56.418958354775626, 9)
 
-    const candidatos = obtenerCandidatosDeDiametroComercial(di_min_mm, SISTEMA_LABORATORIO)
+    const candidatos = obtenerCandidatosDeDiametroComercial(diReferenciaPredimensionamiento_mm, SISTEMA_LABORATORIO)
     expect(candidatos).toEqual([])
   })
 
@@ -104,14 +104,14 @@ describe('pipeline comercial de dimensionamiento — integración de primitivas 
     }
     const qc_lps = 0.31
 
-    const { di_min_mm } = calcularPredimensionamientoDeTramo(qc_lps)
-    expect(di_min_mm).toBeCloseTo(14.048207338801284, 9) // > 13mm: "F" queda excluida
+    const { diReferenciaPredimensionamiento_mm } = calcularPredimensionamientoDeTramo(qc_lps)
+    expect(diReferenciaPredimensionamiento_mm).toBeCloseTo(14.048207338801284, 9) // > 13mm: "F" queda excluida
 
-    const candidatos = obtenerCandidatosDeDiametroComercial(di_min_mm, sistemaConSaltoGrande)
+    const candidatos = obtenerCandidatosDeDiametroComercial(diReferenciaPredimensionamiento_mm, sistemaConSaltoGrande)
     const candidato = candidatos[0]!
     expect(candidato.denominacionComercial).toBe('G')
     expect(candidato.diametroInteriorEfectivo_mm).toBe(60)
-    expect(candidato.diametroInteriorEfectivo_mm).toBeGreaterThanOrEqual(di_min_mm)
+    expect(candidato.diametroInteriorEfectivo_mm).toBeGreaterThanOrEqual(diReferenciaPredimensionamiento_mm)
 
     const velocidadReal_mps = calcularVelocidad(qc_lps, candidato.diametroInteriorEfectivo_mm)
     const resultado = verificarVelocidadAdmisible(velocidadReal_mps, candidato.diametroInteriorEfectivo_mm)
@@ -129,11 +129,11 @@ describe('pipeline comercial de dimensionamiento — integración de primitivas 
     }
     const qc_lps = 1
 
-    const { di_min_mm } = calcularPredimensionamientoDeTramo(qc_lps)
-    const candidatos = obtenerCandidatosDeDiametroComercial(di_min_mm, sistemaConHueco)
+    const { diReferenciaPredimensionamiento_mm } = calcularPredimensionamientoDeTramo(qc_lps)
+    const candidatos = obtenerCandidatosDeDiametroComercial(diReferenciaPredimensionamiento_mm, sistemaConHueco)
     const candidato = candidatos[0]!
     expect(candidato.diametroInteriorEfectivo_mm).toBe(68)
-    expect(candidato.diametroInteriorEfectivo_mm).toBeGreaterThanOrEqual(di_min_mm)
+    expect(candidato.diametroInteriorEfectivo_mm).toBeGreaterThanOrEqual(diReferenciaPredimensionamiento_mm)
 
     const velocidadReal_mps = calcularVelocidad(qc_lps, candidato.diametroInteriorEfectivo_mm)
     expect(() => verificarVelocidadAdmisible(velocidadReal_mps, candidato.diametroInteriorEfectivo_mm)).not.toThrow()

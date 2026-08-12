@@ -205,6 +205,6 @@ describe('resolverHidraulicaDeTramo — consistencia M1 ↔ M2 sobre t-general',
     // matemática de estos mismos números.
     expect(resultadoM2.predimensionamiento.ve_mps).toBe(2.0)
     expect(resultadoM2.predimensionamiento.ae_cm2).toBeCloseTo(3.636619309193636, 9)
-    expect(resultadoM2.predimensionamiento.di_min_mm).toBeCloseTo(21.518102875515787, 9)
+    expect(resultadoM2.predimensionamiento.diReferenciaPredimensionamiento_mm).toBeCloseTo(21.518102875515787, 9)
   })
 })

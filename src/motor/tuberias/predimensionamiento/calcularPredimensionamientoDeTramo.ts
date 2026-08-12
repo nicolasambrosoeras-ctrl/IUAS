@@ -16,13 +16,13 @@ export const VE_PREDIMENSIONAMIENTO_MPS = 2.0
 export type PredimensionamientoDeTramo = {
   readonly ve_mps: number
   readonly ae_cm2: number
-  readonly di_min_mm: number
+  readonly diReferenciaPredimensionamiento_mm: number
 }
 
 export function calcularPredimensionamientoDeTramo(qc_lps: number): PredimensionamientoDeTramo {
   const ve_mps = VE_PREDIMENSIONAMIENTO_MPS
   const ae_cm2 = calcularSeccionEscurrimiento(qc_lps, ve_mps)
-  const di_min_mm = calcularDiametroInteriorMinimo(ae_cm2)
+  const diReferenciaPredimensionamiento_mm = calcularDiametroInteriorMinimo(ae_cm2)
 
-  return { ve_mps, ae_cm2, di_min_mm }
+  return { ve_mps, ae_cm2, diReferenciaPredimensionamiento_mm }
 }

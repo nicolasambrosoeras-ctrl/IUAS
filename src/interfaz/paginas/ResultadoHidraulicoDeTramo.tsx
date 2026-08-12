@@ -92,7 +92,9 @@ function FilaResultado({
     const resultado = resolverHidraulicaDeTramo(proyecto, fila.tramoId, catalogoArtefactos)
     qcTexto = formatearNumero(resultado.qc_lps, 'l/s')
     diMinimoTexto =
-      resultado.tipo === 'conDemanda' ? formatearNumero(resultado.predimensionamiento.di_min_mm, 'mm') : '—'
+      resultado.tipo === 'conDemanda'
+        ? formatearNumero(resultado.predimensionamiento.diReferenciaPredimensionamiento_mm, 'mm')
+        : '—'
   } catch (motivo) {
     errorDelMotor = motivo instanceof Error ? motivo.message : String(motivo)
     artefactosTexto = '—'
@@ -143,7 +145,7 @@ function TablaDeFilas({
             <th style={estiloEncabezado('center')}>Red</th>
             <th style={estiloEncabezado('right')}>Artefactos</th>
             <th style={estiloEncabezado('right')}>Qc [l/s]</th>
-            <th style={estiloEncabezado('right')}>Di mínimo [mm]</th>
+            <th style={estiloEncabezado('right')}>Di de referencia [mm]</th>
           </tr>
         </thead>
         <tbody>
@@ -275,8 +277,9 @@ function ParametroDeCalculoDelMaterial({ proyecto }: { proyecto: Proyecto }) {
       <p>
         <small>
           Predimensionamiento: se adopta Ve = 2,0 m/s para la determinación inicial del
-          diámetro interior mínimo. La velocidad real se verificará posteriormente con el
-          diámetro comercial adoptado conforme a ERAS §2.12.1.
+          diámetro interior de referencia de predimensionamiento. La velocidad real se
+          verificará posteriormente con el diámetro comercial adoptado conforme a ERAS
+          §2.12.1.
         </small>
       </p>
     </div>

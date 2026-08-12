@@ -185,7 +185,7 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
     // resultadoHidraulico ya calculado internamente, sin una segunda
     // llamada al motor de demanda.
     expect(resultado.qc_lps).toBe(hidraulico.qc_lps)
-    expect(resultado.diReferenciaPredimensionamiento_mm).toBe(hidraulico.predimensionamiento.di_min_mm)
+    expect(resultado.diReferenciaPredimensionamiento_mm).toBe(hidraulico.predimensionamiento.diReferenciaPredimensionamiento_mm)
     expect(resultado.candidato).toEqual(primerAdmisibleEsperado)
     expect(resultado.candidato.denominacionComercial).toBe('20 mm')
     expect(resultado.candidato.diametroInteriorEfectivo_mm).toBe(14.4)
@@ -222,7 +222,7 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
     if (resultado.tipo !== 'conCandidato' || hidraulico.tipo !== 'conDemanda') {
       throw new Error('se esperaba conCandidato/conDemanda')
     }
-    expect(hidraulico.predimensionamiento.di_min_mm).toBeCloseTo(26.42, 2)
+    expect(hidraulico.predimensionamiento.diReferenciaPredimensionamiento_mm).toBeCloseTo(26.42, 2)
     expect(resultado.diReferenciaPredimensionamiento_mm).toBeCloseTo(26.42, 2)
     // Calculado de forma independiente: V(32mm)=2.5936994649227127 m/s,
     // dentro de [1,3] -- admisible.
@@ -294,7 +294,7 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
     expect(resultado).toEqual({
       tipo: 'sinCandidatoAdmisible',
       qc_lps: 0.15,
-      diReferenciaPredimensionamiento_mm: hidraulico.predimensionamiento.di_min_mm,
+      diReferenciaPredimensionamiento_mm: hidraulico.predimensionamiento.diReferenciaPredimensionamiento_mm,
     })
   })
 
@@ -323,7 +323,7 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
     expect(resultado).toEqual({
       tipo: 'sinCandidatoAdmisible',
       qc_lps: hidraulico.qc_lps,
-      diReferenciaPredimensionamiento_mm: hidraulico.predimensionamiento.di_min_mm,
+      diReferenciaPredimensionamiento_mm: hidraulico.predimensionamiento.diReferenciaPredimensionamiento_mm,
     })
   })
 

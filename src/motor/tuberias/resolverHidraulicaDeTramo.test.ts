@@ -353,7 +353,7 @@ describe('resolverHidraulicaDeTramo', () => {
     }
     expect(resultado.predimensionamiento.ve_mps).toBe(2.0)
     expect(resultado.predimensionamiento.ae_cm2).toBe(calcularSeccionEscurrimiento(resultado.qc_lps, 2.0))
-    expect(resultado.predimensionamiento.di_min_mm).toBe(
+    expect(resultado.predimensionamiento.diReferenciaPredimensionamiento_mm).toBe(
       calcularDiametroInteriorMinimo(resultado.predimensionamiento.ae_cm2),
     )
   })

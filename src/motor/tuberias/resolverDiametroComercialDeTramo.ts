@@ -63,7 +63,7 @@ export function resolverDiametroComercialDeTramo(
 
   const sistema = obtenerSistemaDeTuberia(proyecto.configuracionHidraulica.sistemaDeTuberiaId, catalogoSistemasDeTuberia)
   const { qc_lps } = resultadoHidraulico
-  const diReferenciaPredimensionamiento_mm = resultadoHidraulico.predimensionamiento.di_min_mm
+  const diReferenciaPredimensionamiento_mm = resultadoHidraulico.predimensionamiento.diReferenciaPredimensionamiento_mm
 
   // CRIT-A23: recorrer el catálogo completo por Di efectivo creciente y
   // verificar la velocidad real de cada candidato contra el rango que su
