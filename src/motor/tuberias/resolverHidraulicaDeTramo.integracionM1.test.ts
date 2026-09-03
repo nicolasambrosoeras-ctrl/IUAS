@@ -248,6 +248,11 @@ describe('resolverPerdidaDistribuidaDeTramo — golden end-to-end (G1) sobre t-g
     // longitud_m agregada no participa en el calculo de demanda/Qc.
     expect(resultado.qc_lps).toBe(0.7273238618387272)
 
+    // n hidraulico efectivo (D-delta.34): mismo valor que los 11
+    // artefactos deduplicados aguas abajo de t-general (cantidad=1 en
+    // todos, sin CRIT-A22 activo en este golden).
+    expect(resultado.n).toBe(11)
+
     // 2-4. Seleccion de diametro comercial (CRIT-A23) sobre el catalogo real
     // Acqua System Magnum PN20 -- primer candidato admisible.
     expect(resultado.candidato.denominacionComercial).toBe('25 mm')

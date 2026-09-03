@@ -19,7 +19,6 @@ import type { ReferenciaDeArtefacto, RedDeTramo } from '../../modelo/redHidrauli
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { catalogoMaterialesTuberia, obtenerMaterialTuberia } from '../../motor/tuberias/materialTuberia'
 import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia'
-import { resolverHidraulicaDeTramo } from '../../motor/tuberias/resolverHidraulicaDeTramo'
 import { resolverPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolverPerdidaDistribuidaDeTramo'
 import type { ResultadoPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolverPerdidaDistribuidaDeTramo'
 import { obtenerArtefactosAguasAbajo } from '../../motor/tuberias/topologia/obtenerArtefactosAguasAbajo'
@@ -164,14 +163,6 @@ function FilaResultado({
     const referencias = obtenerArtefactosAguasAbajo(proyecto, fila.tramoId)
     artefactosTexto = formatearNumero(referencias.length, 'conteo')
 
-    // n hidraulico efectivo: no expuesto por ResultadoPerdidaDistribuidaDeTramo
-    // (N3) -- solo vive en ResultadoSimultaneidadHidraulicaDeTramo, que
-    // resolverHidraulicaDeTramo si devuelve. Se llama aparte para preservar
-    // exactamente la semantica ya cerrada, sin recalcular n en la UI ni
-    // tocar el motor para agregarlo a N3.
-    const resultadoHidraulico = resolverHidraulicaDeTramo(proyecto, fila.tramoId, catalogoArtefactos)
-    nTexto = resultadoHidraulico.tipo === 'conDemanda' ? formatearNumero(resultadoHidraulico.simultaneidad.n, 'conteo') : '—'
-
     const resultadoPerdida = resolverPerdidaDistribuidaDeTramo(
       proyecto,
       fila.tramoId,
@@ -179,6 +170,11 @@ function FilaResultado({
       catalogoSistemasDeTuberia,
       catalogoMaterialesTuberia,
     )
+    // n hidraulico efectivo: ahora expuesto directamente por
+    // ResultadoPerdidaDistribuidaDeTramo (N3, D-delta.34) -- ya no hace
+    // falta una segunda llamada a resolverHidraulicaDeTramo solo para
+    // leerlo.
+    nTexto = resultadoPerdida.tipo === 'sinDemanda' ? '—' : formatearNumero(resultadoPerdida.n, 'conteo')
     textos = textosDePerdidaDistribuidaDeTramo(resultadoPerdida)
   } catch (motivo) {
     errorDelMotor = motivo instanceof Error ? motivo.message : String(motivo)

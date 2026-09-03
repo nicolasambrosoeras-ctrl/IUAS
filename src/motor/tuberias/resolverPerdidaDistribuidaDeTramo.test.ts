@@ -125,6 +125,8 @@ describe('resolverPerdidaDistribuidaDeTramo — golden', () => {
     // V=1.2280474004004271 m/s -> J=0.1307150589563208 m/m ->
     // hf=J*3=0.3921451768689624 m.
     expect(resultado.qc_lps).toBe(0.2)
+    // n=1 (CRIT-A4): un único artefacto conectado.
+    expect(resultado.n).toBe(1)
     expect(resultado.diReferenciaPredimensionamiento_mm).toBeCloseTo(11.283791670955125, 9)
     expect(resultado.candidato).toEqual({ denominacionComercial: '20 mm', diametroInteriorEfectivo_mm: 14.4 })
     expect(resultado.velocidadReal_mps).toBeCloseTo(1.2280474004004271, 9)
@@ -156,6 +158,8 @@ describe('resolverPerdidaDistribuidaDeTramo — golden', () => {
     // Re=17623.96109803284 (turbulento) -> f (Haaland, epsilon=0.007mm)
     // =0.027405639751638396 -> hf=0.4388640073359451 m.
     expect(resultado.qc_lps).toBe(0.2)
+    // n=1 (CRIT-A4): un único artefacto conectado.
+    expect(resultado.n).toBe(1)
     expect(resultado.velocidadReal_mps).toBeCloseTo(1.2280474004004271, 9)
     expect(resultado.longitud_m).toBe(3)
     expect(resultado.detalle.rugosidadAbsoluta_mm).toBe(0.007)
@@ -185,7 +189,7 @@ describe('resolverPerdidaDistribuidaDeTramo — casos de dominio', () => {
 
     const resultado = resolverPerdidaDistribuidaDeTramo(proyecto, tramoId, catalogoArtefactos, SISTEMA_INSUFICIENTE, catalogoMaterialesTuberia)
 
-    expect(resultado).toEqual({ tipo: 'sinCandidatoAdmisible', qc_lps: 0.2, diReferenciaPredimensionamiento_mm: 11.283791670955125 })
+    expect(resultado).toEqual({ tipo: 'sinCandidatoAdmisible', qc_lps: 0.2, n: 1, diReferenciaPredimensionamiento_mm: 11.283791670955125 })
   })
 
   it('sinLongitud: candidato ya resuelto se preserva, sin asumir longitud=0 ni derivarla', () => {
@@ -204,6 +208,8 @@ describe('resolverPerdidaDistribuidaDeTramo — casos de dominio', () => {
       throw new Error('se esperaba sinLongitud')
     }
     expect(resultado.qc_lps).toBe(0.2)
+    // n=1 (CRIT-A4): un único artefacto conectado.
+    expect(resultado.n).toBe(1)
     expect(resultado.candidato).toEqual({ denominacionComercial: '20 mm', diametroInteriorEfectivo_mm: 14.4 })
     expect(resultado.velocidadReal_mps).toBeCloseTo(1.2280474004004271, 9)
   })

@@ -38,11 +38,13 @@ export type ResultadoPerdidaDistribuidaDeTramo =
   | {
       readonly tipo: 'sinCandidatoAdmisible'
       readonly qc_lps: number
+      readonly n: number
       readonly diReferenciaPredimensionamiento_mm: number
     }
   | {
       readonly tipo: 'sinLongitud'
       readonly qc_lps: number
+      readonly n: number
       readonly diReferenciaPredimensionamiento_mm: number
       readonly candidato: EntradaCatalogoTuberia
       readonly velocidadReal_mps: number
@@ -51,6 +53,7 @@ export type ResultadoPerdidaDistribuidaDeTramo =
   | {
       readonly tipo: 'conPerdidaDistribuida'
       readonly qc_lps: number
+      readonly n: number
       readonly diReferenciaPredimensionamiento_mm: number
       readonly candidato: EntradaCatalogoTuberia
       readonly velocidadReal_mps: number
@@ -95,11 +98,12 @@ export function resolverPerdidaDistribuidaDeTramo(
     return {
       tipo: 'sinCandidatoAdmisible',
       qc_lps: resultadoComercial.qc_lps,
+      n: resultadoComercial.n,
       diReferenciaPredimensionamiento_mm: resultadoComercial.diReferenciaPredimensionamiento_mm,
     }
   }
 
-  const { qc_lps, diReferenciaPredimensionamiento_mm, candidato, velocidadReal_mps, verificacionVelocidad } = resultadoComercial
+  const { qc_lps, n, diReferenciaPredimensionamiento_mm, candidato, velocidadReal_mps, verificacionVelocidad } = resultadoComercial
 
   const { redHidraulica } = proyecto
   if (redHidraulica === undefined) {
@@ -118,7 +122,7 @@ export function resolverPerdidaDistribuidaDeTramo(
   }
 
   if (tramo.longitud_m === undefined) {
-    return { tipo: 'sinLongitud', qc_lps, diReferenciaPredimensionamiento_mm, candidato, velocidadReal_mps, verificacionVelocidad }
+    return { tipo: 'sinLongitud', qc_lps, n, diReferenciaPredimensionamiento_mm, candidato, velocidadReal_mps, verificacionVelocidad }
   }
   const { longitud_m } = tramo
 
@@ -135,6 +139,7 @@ export function resolverPerdidaDistribuidaDeTramo(
     return {
       tipo: 'conPerdidaDistribuida',
       qc_lps,
+      n,
       diReferenciaPredimensionamiento_mm,
       candidato,
       velocidadReal_mps,
@@ -167,6 +172,7 @@ export function resolverPerdidaDistribuidaDeTramo(
   return {
     tipo: 'conPerdidaDistribuida',
     qc_lps,
+    n,
     diReferenciaPredimensionamiento_mm,
     candidato,
     velocidadReal_mps,

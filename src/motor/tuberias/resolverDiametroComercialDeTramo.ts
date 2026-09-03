@@ -35,6 +35,7 @@ export type ResultadoDiametroComercialDeTramo =
   | {
       readonly tipo: 'conCandidato'
       readonly qc_lps: number
+      readonly n: number
       readonly diReferenciaPredimensionamiento_mm: number
       readonly candidato: EntradaCatalogoTuberia
       readonly velocidadReal_mps: number
@@ -46,6 +47,7 @@ export type ResultadoDiametroComercialDeTramo =
   | {
       readonly tipo: 'sinCandidatoAdmisible'
       readonly qc_lps: number
+      readonly n: number
       readonly diReferenciaPredimensionamiento_mm: number
     }
 
@@ -63,6 +65,7 @@ export function resolverDiametroComercialDeTramo(
 
   const sistema = obtenerSistemaDeTuberia(proyecto.configuracionHidraulica.sistemaDeTuberiaId, catalogoSistemasDeTuberia)
   const { qc_lps } = resultadoHidraulico
+  const { n } = resultadoHidraulico.simultaneidad
   const diReferenciaPredimensionamiento_mm = resultadoHidraulico.predimensionamiento.diReferenciaPredimensionamiento_mm
 
   // CRIT-A23: recorrer el catálogo completo por Di efectivo creciente y
@@ -81,6 +84,7 @@ export function resolverDiametroComercialDeTramo(
       return {
         tipo: 'conCandidato',
         qc_lps,
+        n,
         diReferenciaPredimensionamiento_mm,
         candidato,
         velocidadReal_mps,
@@ -94,5 +98,5 @@ export function resolverDiametroComercialDeTramo(
   // lento, o un salto comercial que salta por encima del rango
   // admisible) -- nunca throw, nunca se extrapola ni se elige el más
   // cercano.
-  return { tipo: 'sinCandidatoAdmisible', qc_lps, diReferenciaPredimensionamiento_mm }
+  return { tipo: 'sinCandidatoAdmisible', qc_lps, n, diReferenciaPredimensionamiento_mm }
 }

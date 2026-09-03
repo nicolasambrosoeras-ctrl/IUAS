@@ -185,6 +185,7 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
     // resultadoHidraulico ya calculado internamente, sin una segunda
     // llamada al motor de demanda.
     expect(resultado.qc_lps).toBe(hidraulico.qc_lps)
+    expect(resultado.n).toBe(hidraulico.simultaneidad.n)
     expect(resultado.diReferenciaPredimensionamiento_mm).toBe(hidraulico.predimensionamiento.diReferenciaPredimensionamiento_mm)
     expect(resultado.candidato).toEqual(primerAdmisibleEsperado)
     expect(resultado.candidato.denominacionComercial).toBe('20 mm')
@@ -204,6 +205,8 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
     if (resultado.tipo !== 'conCandidato') {
       throw new Error('se esperaba conCandidato')
     }
+    // n=1 (CRIT-A4): un único artefacto conectado.
+    expect(resultado.n).toBe(1)
     // Calculado de forma independiente (no ejecutando el resolver bajo
     // test): V(25mm, Qc=0.7273238618387272)=2.8582021688967947 m/s,
     // dentro de [1,3] -- admisible.
@@ -223,6 +226,7 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
       throw new Error('se esperaba conCandidato/conDemanda')
     }
     expect(hidraulico.predimensionamiento.diReferenciaPredimensionamiento_mm).toBeCloseTo(26.42, 2)
+    expect(resultado.n).toBe(hidraulico.simultaneidad.n)
     expect(resultado.diReferenciaPredimensionamiento_mm).toBeCloseTo(26.42, 2)
     // Calculado de forma independiente: V(32mm)=2.5936994649227127 m/s,
     // dentro de [1,3] -- admisible.
@@ -243,6 +247,7 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
     // n=1 (CRIT-A4): Qc estadístico=Qmax=1.5=quMax -> CRIT-A22 no
     // necesita intervenir (ya coinciden), qc_lps=1.5.
     expect(hidraulico.qc_lps).toBe(1.5)
+    expect(resultado.n).toBe(hidraulico.simultaneidad.n)
     // Calculado de forma independiente: V(40mm)=2.270938545901003 m/s,
     // dentro de [1,3] -- admisible.
     expect(resultado.candidato).toEqual({ denominacionComercial: '40 mm', diametroInteriorEfectivo_mm: 29.0 })
@@ -294,6 +299,7 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
     expect(resultado).toEqual({
       tipo: 'sinCandidatoAdmisible',
       qc_lps: 0.15,
+      n: hidraulico.simultaneidad.n,
       diReferenciaPredimensionamiento_mm: hidraulico.predimensionamiento.diReferenciaPredimensionamiento_mm,
     })
   })
@@ -308,6 +314,8 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
       throw new Error('se esperaba sinCandidatoAdmisible')
     }
     expect(resultado.qc_lps).toBe(0.2)
+    // n=1 (CRIT-A4): un único artefacto conectado.
+    expect(resultado.n).toBe(1)
   })
 
   it('sinCandidatoAdmisible: único candidato queda fuera del dominio normativo (D<13mm) -> resultado explícito, sin throw ni extrapolar', () => {
@@ -323,6 +331,7 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
     expect(resultado).toEqual({
       tipo: 'sinCandidatoAdmisible',
       qc_lps: hidraulico.qc_lps,
+      n: hidraulico.simultaneidad.n,
       diReferenciaPredimensionamiento_mm: hidraulico.predimensionamiento.diReferenciaPredimensionamiento_mm,
     })
   })
@@ -336,6 +345,8 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
     if (resultado.tipo !== 'conCandidato') {
       throw new Error('se esperaba conCandidato (el candidato del hueco debe saltarse, no detener la búsqueda)')
     }
+    // n=1 (CRIT-A4): un único artefacto conectado.
+    expect(resultado.n).toBe(1)
     expect(resultado.candidato).toEqual({ denominacionComercial: '90mm (ficticio, admisible)', diametroInteriorEfectivo_mm: 90 })
     expect(resultado.velocidadReal_mps).toBeCloseTo(1.5719006725125466, 9)
     expect(resultado.verificacionVelocidad).toEqual({ tipo: 'admisible', limiteMinimo_mps: 1.5, limiteMaximo_mps: 2 })

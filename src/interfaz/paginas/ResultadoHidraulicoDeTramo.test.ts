@@ -104,6 +104,7 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
     const resultado: ResultadoPerdidaDistribuidaDeTramo = {
       tipo: 'sinCandidatoAdmisible',
       qc_lps: 0.15,
+      n: 1,
       diReferenciaPredimensionamiento_mm: 9.772,
     }
 
@@ -121,6 +122,7 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
     const resultado: ResultadoPerdidaDistribuidaDeTramo = {
       tipo: 'sinLongitud',
       qc_lps: 0.2,
+      n: 1,
       diReferenciaPredimensionamiento_mm: 11.28,
       candidato: { denominacionComercial: '20 mm', diametroInteriorEfectivo_mm: 14.4 },
       velocidadReal_mps: 1.228,
@@ -141,6 +143,7 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
     const resultado: ResultadoPerdidaDistribuidaDeTramo = {
       tipo: 'conPerdidaDistribuida',
       qc_lps: 0.2,
+      n: 1,
       diReferenciaPredimensionamiento_mm: 11.28,
       candidato: { denominacionComercial: '20 mm', diametroInteriorEfectivo_mm: 14.4 },
       velocidadReal_mps: 1.228,
