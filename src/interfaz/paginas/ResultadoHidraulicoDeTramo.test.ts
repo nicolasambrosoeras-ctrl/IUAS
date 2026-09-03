@@ -96,6 +96,7 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
       diComercialTexto: '—',
       diEfectivoTexto: '—',
       vTexto: '—',
+      velocidadPorDebajoDelMinimo: false,
       hfTexto: '—',
     })
   })
@@ -114,6 +115,7 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
       diComercialTexto: '—',
       diEfectivoTexto: '—',
       vTexto: '—',
+      velocidadPorDebajoDelMinimo: false,
       hfTexto: '—',
     })
   })
@@ -127,6 +129,7 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
       candidato: { denominacionComercial: '20 mm', diametroInteriorEfectivo_mm: 14.4 },
       velocidadReal_mps: 1.228,
       verificacionVelocidad: { tipo: 'admisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 },
+      velocidadPorDebajoDelMinimo: false,
     }
 
     expect(textosDePerdidaDistribuidaDeTramo(resultado)).toEqual({
@@ -135,6 +138,7 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
       diComercialTexto: '20 mm',
       diEfectivoTexto: '14,40',
       vTexto: '1,2',
+      velocidadPorDebajoDelMinimo: false,
       hfTexto: '—',
     })
   })
@@ -148,6 +152,7 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
       candidato: { denominacionComercial: '20 mm', diametroInteriorEfectivo_mm: 14.4 },
       velocidadReal_mps: 1.228,
       verificacionVelocidad: { tipo: 'admisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 },
+      velocidadPorDebajoDelMinimo: false,
       longitud_m: 10,
       hf_m: 0.4567,
       detalle: { metodo: 'hazenWilliams', coeficienteC: 150, perdidaUnitaria_J_m_m: 0.04567 },
@@ -159,7 +164,34 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
       diComercialTexto: '20 mm',
       diEfectivoTexto: '14,40',
       vTexto: '1,2',
+      velocidadPorDebajoDelMinimo: false,
       hfTexto: '0,457',
+    })
+  })
+
+  it('L2-E (D-delta.27): conPerdidaDistribuida con velocidadPorDebajoDelMinimo=true -- se propaga tal cual, sin reinterpretar', () => {
+    const resultado: ResultadoPerdidaDistribuidaDeTramo = {
+      tipo: 'conPerdidaDistribuida',
+      qc_lps: 0.08,
+      n: 1,
+      diReferenciaPredimensionamiento_mm: 7.14,
+      candidato: { denominacionComercial: '20 mm', diametroInteriorEfectivo_mm: 14.4 },
+      velocidadReal_mps: 0.4912189601601709,
+      verificacionVelocidad: { tipo: 'noAdmisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 },
+      velocidadPorDebajoDelMinimo: true,
+      longitud_m: 3,
+      hf_m: 0.123,
+      detalle: { metodo: 'hazenWilliams', coeficienteC: 150, perdidaUnitaria_J_m_m: 0.041 },
+    }
+
+    expect(textosDePerdidaDistribuidaDeTramo(resultado)).toEqual({
+      qcTexto: '0,08',
+      diReferenciaTexto: '7,14',
+      diComercialTexto: '20 mm',
+      diEfectivoTexto: '14,40',
+      vTexto: '0,5',
+      velocidadPorDebajoDelMinimo: true,
+      hfTexto: '0,123',
     })
   })
 })

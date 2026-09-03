@@ -1213,3 +1213,100 @@ decidido aquí.
 **Estado:** Firme como criterio técnico operativo del proyecto.
 Implementado en `resolverDiametroComercialDeTramo`
 (`motor/tuberias/resolverDiametroComercialDeTramo.ts`).
+
+## CRIT-A24 — Fallback de velocidad mínima ante `Qc` muy bajo (D-δ.27)
+
+**Naturaleza — excepción acotada de CRIT-A23, no una interpretación
+normativa nueva ni una relajación general de CRIT-A19:** ERAS-2023
+§2.12.1 publica un rango de velocidad (mínimo y máximo) por rango de
+diámetro (CRIT-A19), pero no especifica qué debe hacer el proyectista
+cuando, para un `Qc` real, incluso el menor diámetro comercial
+disponible produce una velocidad inferior al mínimo publicado. Ese
+vacío normativo es exactamente el que resuelve este criterio — decisión
+IUAS, no texto de ERAS.
+
+**Problema resuelto:** bajo CRIT-A23 (sin este criterio), cuando el
+menor diámetro comercial normativamente evaluable de un Tramo ya
+incumple `Vmin`, ningún diámetro mayor puede corregirlo (`V` decrece
+monótonamente con `D` a `Qc` fijo — CRIT-A19 §6), así que el resultado
+era siempre `sinCandidatoAdmisible`. Eso declaraba "sin solución" tramos
+físicamente instalables (p. ej. una rama terminal AC de un único
+artefacto, sin beneficio de simultaneidad — caso real confirmado:
+`t-ac-toilette`, `Qc=0,12 l/s`, ver D-δ.27 en
+`PENDIENTES-DE-ARQUITECTURA.md`).
+
+**Criterio adoptado:**
+
+```text
+Recorrido normal de CRIT-A23, sin cambios, mientras exista algún
+candidato admisible dentro de rango.
+
+Si se agota el catálogo sin ningún candidato admisible:
+  si el PRIMER candidato normativamente evaluable (el menor Di que no
+  resultó 'fueraDeDominioNormativo') fue descartado específicamente por
+  V < Vmin (nunca por V > Vmax):
+    -> se adopta ESE candidato igual, como 'conCandidato'
+    -> velocidadPorDebajoDelMinimo = true
+    -> verificacionVelocidad conserva el resultado real de la
+       primitiva (puede ser 'noAdmisible')
+  en cualquier otro caso (exceso de Vmax, o ningún candidato en dominio
+  normativo):
+    -> sigue siendo sinCandidatoAdmisible, sin cambios
+```
+
+**`Vmax` permanece condición dura, sin excepción.** Este criterio no
+introduce ninguna tolerancia sobre el límite superior de velocidad — un
+`Qc` cuyo único candidato disponible resulta demasiado rápido sigue
+devolviendo `sinCandidatoAdmisible`, exactamente como antes.
+
+**Por qué exclusivamente el primer candidato normativamente evaluable**:
+por la misma propiedad de monotonicidad que ya fundamenta CRIT-A19 §6 —
+si ese candidato (el menor Di posible) ya incumple `Vmin`, todo
+candidato posterior lo incumple con más margen todavía, sin excepción.
+El fallback nunca elige un diámetro distinto del menor disponible; nunca
+"el primero que falle por Vmin en algún punto intermedio del catálogo".
+
+**Consecuencia sobre `verificacionVelocidad`:** deja de ser cierto que
+`conCandidato` implica `verificacionVelocidad.tipo === 'admisible'`. En
+el fallback, `verificacionVelocidad` conserva el resultado real
+`'noAdmisible'` de `verificarVelocidadAdmisible` — se propaga como
+evidencia auditable de por qué se activó `velocidadPorDebajoDelMinimo`,
+no se reinterpreta ni se oculta.
+
+**Consecuencia sobre el dominio turbulento de Darcy (CRIT-A18/A21):** la
+propiedad histórica "todo candidato adoptado por CRIT-A23 cumple
+`Re>UMBRAL_REYNOLDS_TURBULENTO` porque `V≥Vmin`" deja de sostenerse en
+`V≥Vmin` — el fallback admite `V<Vmin`. Verificado con los datos
+vigentes: el menor `qu` positivo de `catalogoArtefactos` (`0,08 l/s`)
+con el menor `Di` comercial normativamente evaluable del sistema
+productivo (`14,4mm`, Acqua System Magnum PN20) da
+`Re≈7049,58 > 4000` — la garantía turbulenta sigue firme, pero **pasa a
+depender del catálogo normativo vigente**, no de una propiedad
+matemática cerrada de `Vmin`. El guard
+`Re<UMBRAL_REYNOLDS_TURBULENTO → throw` de `calcularFactorFriccionDarcy`
+(CRIT-A18) se conserva intacto como defensa activa ante un futuro
+catálogo con un `qu` menor — ya no se documenta como "inalcanzable por
+construcción".
+
+**Contrato:** `ResultadoDiametroComercialDeTramo` (`conCandidato`) y
+`ResultadoPerdidaDistribuidaDeTramo` (`sinLongitud`,
+`conPerdidaDistribuida`) exponen `velocidadPorDebajoDelMinimo: boolean`
+— campo aditivo, `false` en la selección normal dentro de rango, `true`
+únicamente en el fallback de este criterio.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- No modifica los rangos normativos de CRIT-A19.
+- No modifica el recorrido ni la prioridad de CRIT-A23 cuando existe
+  algún candidato admisible dentro de rango.
+- No relaja `Vmax` bajo ninguna circunstancia.
+- No decide selector de sistema comercial, clase de tubería, margen de
+  seguridad ni granularidad de `sistemaDeTuberiaId` (D-δ.28 a D-δ.31,
+  sin tocar).
+- No calcula presión residual.
+
+**Estado:** Firme como criterio técnico operativo del proyecto.
+Implementado en `resolverDiametroComercialDeTramo`
+(`motor/tuberias/resolverDiametroComercialDeTramo.ts`), propagado por
+`resolverPerdidaDistribuidaDeTramo`
+(`motor/tuberias/resolverPerdidaDistribuidaDeTramo.ts`).

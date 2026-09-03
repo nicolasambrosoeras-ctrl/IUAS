@@ -18,6 +18,17 @@
 // resultadoHidraulico, sin recalcular nada) y un consumidor de nivel
 // superior (resolverPerdidaDistribuidaDeTramo) los necesita sin tener
 // que volver a llamar resolverHidraulicaDeTramo.
+//
+// D-delta.27: excepción acotada a Vmin (Vmax permanece dura, sin
+// cambios). Cuando el menor diámetro comercial normativamente evaluable
+// (primer candidato cuyo verificarVelocidadAdmisible no resulta
+// 'fueraDeDominioNormativo') ya incumple Vmin, ningún diámetro mayor
+// puede corregirlo -- V decrece monótonamente con D a Qc fijo (CRIT-A19
+// §6) -- así que ese candidato se adopta igual como 'conCandidato', con
+// velocidadPorDebajoDelMinimo=true. Ya NO es cierto que 'conCandidato'
+// implique verificacionVelocidad.tipo==='admisible': se conserva el
+// resultado real de la primitiva (puede ser 'noAdmisible') como
+// evidencia auditable de por qué se activó el fallback.
 import type { Proyecto } from '../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { resolverHidraulicaDeTramo } from './resolverHidraulicaDeTramo'
@@ -39,10 +50,17 @@ export type ResultadoDiametroComercialDeTramo =
       readonly diReferenciaPredimensionamiento_mm: number
       readonly candidato: EntradaCatalogoTuberia
       readonly velocidadReal_mps: number
-      // Por construcción, siempre 'admisible' -- se conserva completo
-      // como evidencia auditable de CRIT-A19 (límites aplicados), no
-      // como dato redundante.
+      // Ya NO es siempre 'admisible' (D-delta.27): en el fallback de Vmin
+      // conserva el resultado real 'noAdmisible' de la primitiva, como
+      // evidencia auditable de por qué se activó velocidadPorDebajoDelMinimo.
+      // Fuera de ese fallback, sigue siendo siempre 'admisible' -- Vmax
+      // permanece como condición dura sin excepciones.
       readonly verificacionVelocidad: ResultadoVerificacionVelocidad
+      // D-delta.27: true únicamente cuando este candidato es el menor
+      // diámetro comercial normativamente evaluable y fue adoptado pese a
+      // incumplir Vmin (ningún diámetro mayor podía corregirlo). false en
+      // la selección normal dentro de rango.
+      readonly velocidadPorDebajoDelMinimo: boolean
     }
   | {
       readonly tipo: 'sinCandidatoAdmisible'
@@ -76,6 +94,17 @@ export function resolverDiametroComercialDeTramo(
   // se descartan y la búsqueda continúa (p. ej. el hueco 60–75mm).
   const entradasOrdenadas = obtenerEntradasOrdenadasPorDiametroInterior(sistema)
 
+  // D-delta.27: candidato de fallback, capturado únicamente si el
+  // PRIMER candidato normativamente evaluable (el menor Di que no resulta
+  // 'fueraDeDominioNormativo') incumple específicamente por defecto de
+  // velocidad (V<Vmin). Ningún candidato posterior puede activarlo: solo
+  // importa el primero, exactamente "el menor diámetro comercial
+  // normativamente evaluable" -- no "el primero que falle por Vmin".
+  let primerCandidatoNormativoEvaluado = false
+  let candidatoFallbackPorDebajoDelMinimo:
+    | { candidato: EntradaCatalogoTuberia; velocidadReal_mps: number; verificacionVelocidad: ResultadoVerificacionVelocidad }
+    | undefined
+
   for (const candidato of entradasOrdenadas) {
     const velocidadReal_mps = calcularVelocidad(qc_lps, candidato.diametroInteriorEfectivo_mm)
     const verificacionVelocidad = verificarVelocidadAdmisible(velocidadReal_mps, candidato.diametroInteriorEfectivo_mm)
@@ -89,14 +118,37 @@ export function resolverDiametroComercialDeTramo(
         candidato,
         velocidadReal_mps,
         verificacionVelocidad,
+        velocidadPorDebajoDelMinimo: false,
+      }
+    }
+
+    if (!primerCandidatoNormativoEvaluado && verificacionVelocidad.tipo !== 'fueraDeDominioNormativo') {
+      primerCandidatoNormativoEvaluado = true
+      // Vmax (velocidad excesiva) sigue siendo condición dura sin
+      // excepción: solo el defecto de Vmin activa el fallback de D-delta.27.
+      if (velocidadReal_mps < verificacionVelocidad.limiteMinimo_mps) {
+        candidatoFallbackPorDebajoDelMinimo = { candidato, velocidadReal_mps, verificacionVelocidad }
       }
     }
   }
 
-  // Recorrido completo sin ningún candidato admisible: resultado
-  // hidráulico/comercial legítimo (catálogo demasiado rápido, demasiado
-  // lento, o un salto comercial que salta por encima del rango
-  // admisible) -- nunca throw, nunca se extrapola ni se elige el más
-  // cercano.
+  if (candidatoFallbackPorDebajoDelMinimo !== undefined) {
+    const { candidato, velocidadReal_mps, verificacionVelocidad } = candidatoFallbackPorDebajoDelMinimo
+    return {
+      tipo: 'conCandidato',
+      qc_lps,
+      n,
+      diReferenciaPredimensionamiento_mm,
+      candidato,
+      velocidadReal_mps,
+      verificacionVelocidad,
+      velocidadPorDebajoDelMinimo: true,
+    }
+  }
+
+  // Recorrido completo sin ningún candidato admisible y sin fallback de
+  // D-delta.27 aplicable: exceso de Vmax (Qc alto) o ningún candidato en
+  // dominio normativo -- resultado hidráulico/comercial legítimo, nunca
+  // throw, nunca se extrapola ni se elige el más cercano.
   return { tipo: 'sinCandidatoAdmisible', qc_lps, n, diReferenciaPredimensionamiento_mm }
 }

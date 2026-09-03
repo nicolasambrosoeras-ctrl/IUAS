@@ -1,12 +1,16 @@
-// Tests de integracion del orquestador (CRIT-A23, Correctivo 2A): usan
-// Proyecto/topologia/catalogo reales, sin mockear ninguna primitiva
-// interna. Los casos de dominio (sinCandidatoAdmisible, hueco 60-75mm)
-// usan catálogos de laboratorio o catalogoArtefactos ficticios
-// deliberadamente distintos del real (mismo criterio que
+// Tests de integracion del orquestador (CRIT-A23, Correctivo 2A, D-delta.27):
+// usan Proyecto/topologia/catalogo reales, sin mockear ninguna primitiva
+// interna. Los casos de dominio (sinCandidatoAdmisible, hueco 60-75mm,
+// fallback de Vmin) usan catálogos de laboratorio o catalogoArtefactos
+// ficticios deliberadamente distintos del real (mismo criterio que
 // dimensionamientoComercial.integracion.test.ts), para forzar el
 // resultado de forma determinística sin depender de adivinar valores qu
 // del catálogo normativo -- salvo los casos B1/B4 y el de
 // valvulaMingitorio, que usan el catálogo normativo real a propósito.
+// D-delta.27: el fallback de Vmin se aplica exclusivamente sobre el
+// PRIMER candidato normativamente evaluable (el menor Di que no resulta
+// 'fueraDeDominioNormativo') cuando incumple por defecto de velocidad --
+// nunca por exceso (Vmax sigue dura, sin excepción).
 import { describe, it, expect } from 'vitest'
 import type { Artefacto, MetadatosProyecto, ParametrosProyecto, Proyecto, TipoDeProyecto, UnidadFuncional } from '../../modelo/proyecto'
 import type { Nodo, RedHidraulica, ReferenciaDeArtefacto, Tramo } from '../../modelo/redHidraulica'
@@ -194,6 +198,7 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
     expect(resultado.velocidadReal_mps).toBe(velocidadEsperada)
     expect(resultado.verificacionVelocidad).toEqual(verificacionEsperada)
     expect(resultado.verificacionVelocidad).toEqual({ tipo: 'admisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 })
+    expect(resultado.velocidadPorDebajoDelMinimo).toBe(false)
   })
 
   it('B2 — Qc=0.7273238618387272 l/s: nueva política elige 25mm (Di=18.0), la anterior elegía 32mm', () => {
@@ -213,6 +218,7 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
     expect(resultado.candidato).toEqual({ denominacionComercial: '25 mm', diametroInteriorEfectivo_mm: 18.0 })
     expect(resultado.velocidadReal_mps).toBeCloseTo(2.8582021688967947, 9)
     expect(resultado.verificacionVelocidad).toEqual({ tipo: 'admisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 })
+    expect(resultado.velocidadPorDebajoDelMinimo).toBe(false)
   })
 
   it('B3 — Qc=1.0964415971625976 l/s (Di predimensionamiento≈26.42mm): nueva política elige 32mm (Di=23.2), la anterior elegía 40mm', () => {
@@ -233,6 +239,7 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
     expect(resultado.candidato).toEqual({ denominacionComercial: '32 mm', diametroInteriorEfectivo_mm: 23.2 })
     expect(resultado.velocidadReal_mps).toBeCloseTo(2.5936994649227127, 9)
     expect(resultado.verificacionVelocidad).toEqual({ tipo: 'admisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 })
+    expect(resultado.velocidadPorDebajoDelMinimo).toBe(false)
   })
 
   it('B4 — Qc=1.5 l/s (inodoroValvula real, post CRIT-A22): nueva política elige 40mm (Di=29.0), la anterior elegía 50mm', () => {
@@ -253,9 +260,10 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
     expect(resultado.candidato).toEqual({ denominacionComercial: '40 mm', diametroInteriorEfectivo_mm: 29.0 })
     expect(resultado.velocidadReal_mps).toBeCloseTo(2.270938545901003, 9)
     expect(resultado.verificacionVelocidad).toEqual({ tipo: 'admisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 })
+    expect(resultado.velocidadPorDebajoDelMinimo).toBe(false)
   })
 
-  it('valvulaMingitorio (catálogo normativo real, Qc=0.15 l/s) + Acqua System Magnum PN20 real: ningún candidato es admisible', () => {
+  it('D-delta.27: valvulaMingitorio (catálogo normativo real, Qc=0.15 l/s) + Acqua System Magnum PN20 real -- fallback de Vmin, ya no sinCandidatoAdmisible', () => {
     // valvulaMingitorio tiene quFria_lps/quCaliente_lps=null en el
     // catálogo (solo quTotal_lps=0.15 definido) -- un tramo AF simple
     // resolvería condicion='aguaFria' y lanzaría (mismo comportamiento ya
@@ -292,30 +300,57 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
       throw new Error('se esperaba conDemanda')
     }
     expect(hidraulico.qc_lps).toBe(0.15)
-    // El candidato más chico (20mm, Di=14.4mm) ya da V≈0.921 m/s < 1 --
-    // demasiado lento -- y V sigue bajando en todos los candidatos
-    // mayores (V decrece monótonamente con Di para Qc fijo): ninguno
-    // del catálogo productivo real resulta admisible.
-    expect(resultado).toEqual({
-      tipo: 'sinCandidatoAdmisible',
-      qc_lps: 0.15,
-      n: hidraulico.simultaneidad.n,
-      diReferenciaPredimensionamiento_mm: hidraulico.predimensionamiento.diReferenciaPredimensionamiento_mm,
-    })
+    // El candidato más chico (20mm, Di=14.4mm) -- el menor diámetro
+    // comercial normativamente evaluable del catálogo productivo real --
+    // ya da V≈0.921 m/s < 1: incumple Vmin. Por monotonicidad (V decrece
+    // con Di a Qc fijo), ningún candidato mayor podría corregirlo, así
+    // que D-delta.27 lo adopta igual, con advertencia explícita.
+    if (resultado.tipo !== 'conCandidato') {
+      throw new Error('se esperaba conCandidato (fallback D-delta.27)')
+    }
+    expect(resultado.qc_lps).toBe(0.15)
+    expect(resultado.n).toBe(hidraulico.simultaneidad.n)
+    expect(resultado.diReferenciaPredimensionamiento_mm).toBe(hidraulico.predimensionamiento.diReferenciaPredimensionamiento_mm)
+    expect(resultado.candidato).toEqual({ denominacionComercial: '20 mm', diametroInteriorEfectivo_mm: 14.4 })
+    expect(resultado.velocidadReal_mps).toBeCloseTo(0.9210355503003202, 9)
+    expect(resultado.verificacionVelocidad).toEqual({ tipo: 'noAdmisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 })
+    expect(resultado.velocidadPorDebajoDelMinimo).toBe(true)
   })
 
-  it('sinCandidatoAdmisible: único candidato del sistema resulta noAdmisible (demasiado lento) -> ya no es "conCandidato"', () => {
+  it('D-delta.27: único candidato del sistema (50mm, ficticio) resulta noAdmisible por defecto de velocidad -> fallback, ya no sinCandidatoAdmisible', () => {
     const { proyecto, tramoId } = proyectoConArtefactoUnico('lavatorio', 'sistema-sobredimensionado')
 
     const resultado = resolverDiametroComercialDeTramo(proyecto, tramoId, catalogoArtefactos, SISTEMA_SOBREDIMENSIONADO)
 
-    expect(resultado.tipo).toBe('sinCandidatoAdmisible')
-    if (resultado.tipo !== 'sinCandidatoAdmisible') {
-      throw new Error('se esperaba sinCandidatoAdmisible')
+    if (resultado.tipo !== 'conCandidato') {
+      throw new Error('se esperaba conCandidato (fallback D-delta.27)')
     }
     expect(resultado.qc_lps).toBe(0.2)
     // n=1 (CRIT-A4): un único artefacto conectado.
     expect(resultado.n).toBe(1)
+    expect(resultado.candidato).toEqual({ denominacionComercial: '50 mm (ficticio)', diametroInteriorEfectivo_mm: 50 })
+    expect(resultado.velocidadReal_mps).toBeCloseTo(0.10185916357881301, 9)
+    expect(resultado.verificacionVelocidad).toEqual({ tipo: 'noAdmisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 })
+    expect(resultado.velocidadPorDebajoDelMinimo).toBe(true)
+  })
+
+  it('D-delta.27 NO se activa por exceso de Vmax: Qc alto agota el único candidato del sistema por ser demasiado rápido -> sigue sinCandidatoAdmisible', () => {
+    const catalogoQu = catalogoConArtefactoDeQu(7)
+    const { proyecto, tramoId } = proyectoConArtefactoUnico('inst-unico', 'sistema-sobredimensionado')
+
+    const resultado = resolverDiametroComercialDeTramo(proyecto, tramoId, catalogoQu, SISTEMA_SOBREDIMENSIONADO)
+
+    // V(50mm, Qc=7)≈3.565 m/s > Vmax=3: el único candidato es
+    // 'noAdmisible' por EXCESO, no por defecto -- la condición de
+    // velocidadReal_mps<limiteMinimo_mps es falsa, así que D-delta.27 no
+    // aplica y el resultado sigue siendo sinCandidatoAdmisible, exactamente
+    // como antes de este incremento.
+    expect(resultado).toEqual({
+      tipo: 'sinCandidatoAdmisible',
+      qc_lps: 7,
+      n: 1,
+      diReferenciaPredimensionamiento_mm: expect.any(Number),
+    })
   })
 
   it('sinCandidatoAdmisible: único candidato queda fuera del dominio normativo (D<13mm) -> resultado explícito, sin throw ni extrapolar', () => {
@@ -350,6 +385,10 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
     expect(resultado.candidato).toEqual({ denominacionComercial: '90mm (ficticio, admisible)', diametroInteriorEfectivo_mm: 90 })
     expect(resultado.velocidadReal_mps).toBeCloseTo(1.5719006725125466, 9)
     expect(resultado.verificacionVelocidad).toEqual({ tipo: 'admisible', limiteMinimo_mps: 1.5, limiteMaximo_mps: 2 })
+    // El primer candidato normativamente evaluable (45mm) es 'noAdmisible'
+    // por EXCESO (demasiado rápido), no por defecto -- D-delta.27 no se
+    // activa, y el recorrido normal sigue hasta el 90mm admisible.
+    expect(resultado.velocidadPorDebajoDelMinimo).toBe(false)
   })
 
   it('sistemaDeTuberiaId inexistente en el catálogo recibido: throw coherente con la precondición de obtenerSistemaDeTuberia', () => {
@@ -358,5 +397,37 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
     expect(() => resolverDiametroComercialDeTramo(proyecto, tramoId, catalogoArtefactos, catalogoSistemasDeTuberia)).toThrow(
       /no existe ningún SistemaDeTuberiaCatalogado con id "sistemaInexistente"/,
     )
+  })
+
+  it('D-delta.27 -- invariante del fallback: con velocidadPorDebajoDelMinimo=true, el candidato es siempre el menor diámetro normativamente evaluable, nunca uno posterior', () => {
+    // Tres diámetros, los tres en dominio normativo (13-60mm), con un Qc
+    // tan bajo que los tres incumplen Vmin (V decrece con Di, así que si
+    // el menor ya incumple, los otros dos incumplen todavía más). El
+    // fallback debe adoptar exclusivamente el primero (20mm), nunca 30mm
+    // ni 40mm, aunque los tres compartan la misma causa de descarte.
+    const SISTEMA_TRES_DIAMETROS_TODOS_BAJO_VMIN: readonly SistemaDeTuberiaCatalogado[] = [
+      {
+        id: 'sistema-tres-diametros',
+        denominacion: 'Sistema de laboratorio con tres diámetros bajo Vmin (ficticio)',
+        materialTuberiaId: 'ppr',
+        fabricante: 'Fabricante ficticio',
+        referenciaFuenteDimensiones: 'Fuente ficticia de laboratorio',
+        entradas: [
+          { denominacionComercial: '20mm (ficticio)', diametroInteriorEfectivo_mm: 20 },
+          { denominacionComercial: '30mm (ficticio)', diametroInteriorEfectivo_mm: 30 },
+          { denominacionComercial: '40mm (ficticio)', diametroInteriorEfectivo_mm: 40 },
+        ],
+      },
+    ]
+    const catalogoQu = catalogoConArtefactoDeQu(0.01)
+    const { proyecto, tramoId } = proyectoConArtefactoUnico('inst-unico', 'sistema-tres-diametros')
+
+    const resultado = resolverDiametroComercialDeTramo(proyecto, tramoId, catalogoQu, SISTEMA_TRES_DIAMETROS_TODOS_BAJO_VMIN)
+
+    if (resultado.tipo !== 'conCandidato') {
+      throw new Error('se esperaba conCandidato (fallback D-delta.27)')
+    }
+    expect(resultado.velocidadPorDebajoDelMinimo).toBe(true)
+    expect(resultado.candidato).toEqual({ denominacionComercial: '20mm (ficticio)', diametroInteriorEfectivo_mm: 20 })
   })
 })

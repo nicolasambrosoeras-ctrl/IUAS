@@ -79,12 +79,16 @@ export function describirReferenciaPendiente(
 // nunca inventado): sinDemanda no tiene diámetro/velocidad/hf;
 // sinCandidatoAdmisible no tiene candidato comercial; sinLongitud tiene todo
 // menos hf (Tramo.longitud_m ausente, CRIT-A20 -- no se asume 0 ni se deriva).
+// velocidadPorDebajoDelMinimo (D-delta.27): leído tal cual del motor, nunca
+// reinterpretado ni recalculado -- false cuando la variante no tiene
+// candidato (sinDemanda/sinCandidatoAdmisible), nada que advertir ahí.
 export interface TextosDePerdidaDistribuidaDeTramo {
   readonly qcTexto: string
   readonly diReferenciaTexto: string
   readonly diComercialTexto: string
   readonly diEfectivoTexto: string
   readonly vTexto: string
+  readonly velocidadPorDebajoDelMinimo: boolean
   readonly hfTexto: string
 }
 
@@ -94,24 +98,49 @@ export function textosDePerdidaDistribuidaDeTramo(
   const qcTexto = formatearNumero(resultado.qc_lps, 'l/s')
 
   if (resultado.tipo === 'sinDemanda') {
-    return { qcTexto, diReferenciaTexto: '—', diComercialTexto: '—', diEfectivoTexto: '—', vTexto: '—', hfTexto: '—' }
+    return {
+      qcTexto,
+      diReferenciaTexto: '—',
+      diComercialTexto: '—',
+      diEfectivoTexto: '—',
+      vTexto: '—',
+      velocidadPorDebajoDelMinimo: false,
+      hfTexto: '—',
+    }
   }
 
   const diReferenciaTexto = formatearNumero(resultado.diReferenciaPredimensionamiento_mm, 'mm')
 
   if (resultado.tipo === 'sinCandidatoAdmisible') {
-    return { qcTexto, diReferenciaTexto, diComercialTexto: '—', diEfectivoTexto: '—', vTexto: '—', hfTexto: '—' }
+    return {
+      qcTexto,
+      diReferenciaTexto,
+      diComercialTexto: '—',
+      diEfectivoTexto: '—',
+      vTexto: '—',
+      velocidadPorDebajoDelMinimo: false,
+      hfTexto: '—',
+    }
   }
 
   const diComercialTexto = resultado.candidato.denominacionComercial
   const diEfectivoTexto = formatearNumero(resultado.candidato.diametroInteriorEfectivo_mm, 'mm')
   const vTexto = formatearNumero(resultado.velocidadReal_mps, 'm/s')
+  const { velocidadPorDebajoDelMinimo } = resultado
 
   if (resultado.tipo === 'sinLongitud') {
-    return { qcTexto, diReferenciaTexto, diComercialTexto, diEfectivoTexto, vTexto, hfTexto: '—' }
+    return { qcTexto, diReferenciaTexto, diComercialTexto, diEfectivoTexto, vTexto, velocidadPorDebajoDelMinimo, hfTexto: '—' }
   }
 
-  return { qcTexto, diReferenciaTexto, diComercialTexto, diEfectivoTexto, vTexto, hfTexto: formatearNumero(resultado.hf_m, 'm') }
+  return {
+    qcTexto,
+    diReferenciaTexto,
+    diComercialTexto,
+    diEfectivoTexto,
+    vTexto,
+    velocidadPorDebajoDelMinimo,
+    hfTexto: formatearNumero(resultado.hf_m, 'm'),
+  }
 }
 
 // Estilos locales mínimos -- el proyecto no tiene hoja de estilos (ver
@@ -180,7 +209,15 @@ function FilaResultado({
     errorDelMotor = motivo instanceof Error ? motivo.message : String(motivo)
     artefactosTexto = '—'
     nTexto = '—'
-    textos = { qcTexto: 'Error', diReferenciaTexto: '—', diComercialTexto: '—', diEfectivoTexto: '—', vTexto: '—', hfTexto: '—' }
+    textos = {
+      qcTexto: 'Error',
+      diReferenciaTexto: '—',
+      diComercialTexto: '—',
+      diEfectivoTexto: '—',
+      vTexto: '—',
+      velocidadPorDebajoDelMinimo: false,
+      hfTexto: '—',
+    }
   }
 
   // Lectura directa de redHidraulica, fuera del try/catch de arriba: el
@@ -206,7 +243,15 @@ function FilaResultado({
       <td style={estiloCelda('right')}>{textos.diReferenciaTexto}</td>
       <td style={estiloCelda('right')}>{textos.diComercialTexto}</td>
       <td style={estiloCelda('right')}>{textos.diEfectivoTexto}</td>
-      <td style={estiloCelda('right')}>{textos.vTexto}</td>
+      <td style={estiloCelda('right', textos.velocidadPorDebajoDelMinimo)}>
+        {textos.vTexto}
+        {textos.velocidadPorDebajoDelMinimo ? (
+          <>
+            <br />
+            <small>Velocidad inferior al rango recomendado</small>
+          </>
+        ) : null}
+      </td>
       <td style={estiloCelda('right')}>
         <input
           type="number"

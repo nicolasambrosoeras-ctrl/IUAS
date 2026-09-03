@@ -858,37 +858,41 @@ la rama Darcy -- nunca se vuelve a llamar `calcularVelocidad`.
 - `sinCandidatoAdmisible`: propagado tal cual desde la capa comercial,
   sin calcular pérdida con un diámetro no admisible.
 - **`fueraDeDominioTurbulento` fue eliminada del resultado productivo
-  (decisión definitiva, Correctivo 2A) -- no es un estado conservado
-  "por si acaso".** Demostración: bajo CRIT-A23, todo candidato que
-  llega a `'conCandidato'` ya fue verificado admisible por CRIT-A19
-  (`V≥1 m/s` para `13–60mm`; `V≥1,5 m/s` para `75–200mm`). Con la
-  viscosidad productiva de CRIT-A21 (`ν≈1,0034e-6 m²/s`, agua líquida
-  ~20°C), el punto más desfavorable de todo el dominio normativo
-  (`Di=13mm`, `V=1 m/s`, el límite inferior más chico posible) ya da
-  `Re≈12.956` -- más de tres veces `UMBRAL_REYNOLDS_TURBULENTO=4000`
-  (demostrado en `resolverPerdidaDistribuidaDeTramo.test.ts`, componiendo
-  `calcularNumeroReynolds` + `resolverPropiedadesAguaParaRed` sin invocar
-  el resolver). Es decir: **CRIT-A19 (verificación de velocidad) +
-  CRIT-A21 (viscosidad del agua) + CRIT-A23 (solo se adopta
-  automáticamente un candidato admisible) garantizan juntos, por
-  construcción, que Darcy nunca opera fuera de su dominio turbulento** --
-  por eso ya no hace falta un estado de resultado para ese caso. El
-  guard `Re<UMBRAL_REYNOLDS_TURBULENTO` **permanece intacto** en
-  `calcularFactorFriccionDarcy` (CRIT-A18) como defensa de la primitiva
-  matemática en sí -- no se debilitó ni se eliminó; solo dejó de tener
-  una rama productiva correspondiente en este orquestador, porque la
-  capa superior ya garantiza que nunca se lo invoca fuera de su dominio.
+  (decisión definitiva, Correctivo 2A) -- sigue sin ser un estado
+  conservado "por si acaso", con la garantía revisada por D-δ.27/CRIT-A24
+  (ver esa sección para el detalle completo).** Demostración vigente: con
+  la viscosidad productiva de CRIT-A21 (`ν≈1,0034e-6 m²/s`), el menor `qu`
+  positivo del catálogo normativo vigente (`0,08 l/s`) junto con el menor
+  `Di` comercial normativamente evaluable del sistema productivo
+  (`14,4mm`) da `Re≈7049,58` -- todavía muy por encima de
+  `UMBRAL_REYNOLDS_TURBULENTO=4000` (demostrado en
+  `resolverPerdidaDistribuidaDeTramo.test.ts`, calculado
+  programáticamente desde `catalogoArtefactos`, sin invocar el
+  resolver). **Esta garantía YA NO se sostiene en "todo candidato
+  admitido cumple `V≥Vmin`"** (esa era la base original de Correctivo
+  2A/D-δ.25; desde D-δ.27/CRIT-A24 dejó de ser cierta, porque el
+  fallback admite `V<Vmin` en el candidato adoptado). **Pasa a
+  sostenerse en que el catálogo normativo vigente no tiene ningún `qu`
+  menor a ese piso** -- una garantía de datos, no una propiedad
+  matemática cerrada. El guard `Re<UMBRAL_REYNOLDS_TURBULENTO`
+  **permanece intacto** en `calcularFactorFriccionDarcy` (CRIT-A18),
+  ahora como defensa activa ante un futuro catálogo con un `qu` menor,
+  no como rama "inalcanzable por construcción".
 - **Velocidad no admisible (CRIT-A19) NO bloquea el cálculo de `hf` --
-  con matiz agregado en el Correctivo 2A:** el resultado físico de
-  pérdida distribuida es conceptualmente independiente de que el diseño
-  sea aceptable por velocidad, y `verificacionVelocidad` se sigue
-  propagando como evidencia auditable de que CRIT-A19 se verificó. Pero
-  desde CRIT-A23, `resolverDiametroComercialDeTramo` ya descarta todo
-  candidato no admisible antes de devolver `'conCandidato'` -- la
-  combinación `conCandidato`+`noAdmisible` **ya no es alcanzable** por la
-  selección automática (`verificacionVelocidad.tipo` es siempre
-  `'admisible'` en ese camino). No se promete este comportamiento para
-  una hipotética selección manual todavía inexistente.
+  con matiz agregado en el Correctivo 2A, y matiz adicional desde
+  D-δ.27/CRIT-A24:** el resultado físico de pérdida distribuida es
+  conceptualmente independiente de que el diseño sea aceptable por
+  velocidad, y `verificacionVelocidad` se sigue propagando como
+  evidencia auditable de que CRIT-A19 se verificó. Bajo CRIT-A23 sin
+  D-δ.27, `resolverDiametroComercialDeTramo` descartaba todo candidato
+  no admisible antes de devolver `'conCandidato'` -- la combinación
+  `conCandidato`+`noAdmisible` no era alcanzable por la selección
+  automática. **Desde D-δ.27/CRIT-A24, esa combinación SÍ es alcanzable,
+  de forma controlada y acotada: exclusivamente cuando el menor diámetro
+  comercial normativamente evaluable incumple `Vmin`
+  (`velocidadPorDebajoDelMinimo=true`) -- nunca por exceso de `Vmax`, y
+  nunca fuera de ese caso puntual.** No se promete este comportamiento
+  para una hipotética selección manual todavía inexistente.
 
 **Hazen y Darcy permanecen separados:** el resultado usa un campo
 `detalle` anidado, discriminado por `metodo`, para no mezclar campos de
@@ -935,9 +939,9 @@ explícita nueva.
 (cabecera AF/AC por Local) antes de implementar cualquier generación
 automática de topología.
 
-### D-δ.27 — Límite inferior de velocidad (CRIT-A19/CRIT-A23) ante Qc muy bajo — ABIERTA
+### D-δ.27 — Límite inferior de velocidad (CRIT-A19/CRIT-A23) ante Qc muy bajo — CERRADA
 
-**Caso real confirmado con el motor** (demo, tramo `t-ac-toilette`):
+**Caso real que motivó el análisis** (demo, tramo `t-ac-toilette`):
 
 ```
 Qc = 0.12 l/s
@@ -945,20 +949,63 @@ Sistema: Acqua System Magnum PN20
 Candidato comercial mínimo: 20 mm, Di efectivo = 14.4 mm
 Velocidad con ese candidato: 0.7368284402402562 m/s
 verificarVelocidadAdmisible → noAdmisible (límite mínimo 1 m/s)
-Resultado vigente: sinCandidatoAdmisible
+Resultado previo a este cierre: sinCandidatoAdmisible
 ```
 
 **Causa**: `V` decrece monótonamente con `D` a Qc fijo (V=Q/A, A crece
 con D²); si el diámetro comercial mínimo ya incumple el piso de
 velocidad, todo diámetro mayor lo empeora — ningún candidato puede ser
-admisible bajo la política vigente. Consecuencia matemática necesaria de
+admisible bajo la política previa. Consecuencia matemática necesaria de
 CRIT-A19+CRIT-A23, no un defecto de implementación.
 
-**Pregunta abierta, no decidida**: evaluar, post-pausa, si el límite
-inferior de velocidad debe mantenerse como condición dura (estado actual)
-o convertirse en advertencia cuando ya se está utilizando el diámetro
-comercial mínimo disponible del catálogo. **No decidir ahora — no cambiar
-CRIT-A23.**
+**Decisión adoptada**: `Vmax` permanece condición dura, sin excepción.
+`Vmin` permanece como rango objetivo de diseño y criterio normal de
+admisibilidad, pero deja de bloquear la selección exclusivamente cuando
+el **menor diámetro comercial normativamente evaluable** ya incumple
+`Vmin` — por la propiedad de monotonicidad ya documentada (CRIT-A19 §6),
+ningún diámetro mayor podría corregirlo. En ese caso puntual, el motor
+adopta igual ese candidato (`conCandidato`), con
+`velocidadPorDebajoDelMinimo=true` y `verificacionVelocidad` conservando
+el resultado real `'noAdmisible'` de la primitiva, como evidencia
+auditable. Formalizado como **CRIT-A24** en
+`src/normativa/eras-2023/CRITERIOS.md`.
+
+**Fundamento de la decisión**: ERAS-2023 §2.12.1 sí establece el rango
+de velocidades (CRIT-A19) — eso es dato normativo, no está en discusión.
+Lo que ERAS no explicita es qué tratamiento corresponde cuando el menor
+diámetro comercial normativamente evaluable queda por debajo de ese
+mínimo: ningún texto disponible dice si eso invalida la instalación, la
+condiciona a advertencia, o exige otra cosa. Ese vacío puntual (el
+tratamiento del caso límite, no el rango en sí) es lo que resuelve este
+criterio. El tratamiento adoptado (adoptar el mínimo con advertencia, en
+vez de declarar "sin solución") es criterio operativo de IUAS para
+llenar ese vacío — no una interpretación textual adicional de ERAS, ni
+una afirmación de que ERAS "no obliga" a cumplir el rango de
+velocidades.
+
+**Consecuencia descubierta durante el cierre — invariante Darcy
+revisada**: la garantía histórica "todo candidato adoptado por CRIT-A23
+cumple `Re>UMBRAL_REYNOLDS_TURBULENTO` porque `V≥Vmin`" dejó de ser
+cierta (el fallback admite `V<Vmin`). Se verificó, con el catálogo
+normativo vigente, que el menor `qu` positivo real (`0,08 l/s`,
+`quFria_lps` de varios artefactos domiciliarios) con el menor `Di`
+comercial normativamente evaluable del sistema productivo (`14,4mm`)
+da `Re≈7049,58 > 4000` — la garantía turbulenta sigue firme, pero ahora
+**depende de que el catálogo normativo vigente no tenga ningún `qu`
+menor a ese piso**, una garantía de datos, no una propiedad matemática
+cerrada. El guard `Re<UMBRAL_REYNOLDS_TURBULENTO → throw` de
+`calcularFactorFriccionDarcy` (CRIT-A18) se conserva intacto,
+deliberadamente, como defensa activa ante un futuro catálogo con un `qu`
+menor — dejó de documentarse como "inalcanzable por construcción". Test
+de propiedad agregado en `resolverPerdidaDistribuidaDeTramo.test.ts`,
+calculado programáticamente desde `catalogoArtefactos` (nunca
+hardcodeando `0,08`), para que una futura edición normativa que reduzca
+ese piso haga fallar el test en vez de quedar silenciosamente
+desactualizada.
+
+**No reabre**: los rangos normativos de CRIT-A19, el recorrido/prioridad
+de CRIT-A23 cuando existe algún candidato admisible dentro de rango, ni
+ninguna tolerancia sobre `Vmax`. No decide D-δ.28/29/30/31.
 
 ### D-δ.28 — Selector de sistema comercial / compatibilidad con material — ABIERTA
 

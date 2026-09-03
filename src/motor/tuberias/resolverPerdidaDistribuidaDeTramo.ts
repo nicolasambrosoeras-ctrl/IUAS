@@ -8,11 +8,10 @@
 // calcularVelocidad. Hazen y Darcy siguen usando exclusivamente sus
 // propias primitivas matemáticas (CRIT-A17/CRIT-A18), sin mezclar
 // parámetros de un método en el otro. Correctivo 2A (CRIT-A23): el
-// candidato que llega aquí ya es siempre 'admisible' por construcción
-// (resolverDiametroComercialDeTramo descarta noAdmisible/
-// fueraDeDominioNormativo antes de devolver 'conCandidato') --
-// verificacionVelocidad se sigue propagando como evidencia auditable,
-// no como una verificación que este orquestador todavía deba resolver.
+// candidato que llega aquí es 'admisible' salvo que
+// velocidadPorDebajoDelMinimo sea true (D-delta.27, fallback acotado a
+// Vmin) -- verificacionVelocidad se propaga como evidencia auditable, no
+// como una verificación que este orquestador todavía deba resolver.
 import type { Proyecto } from '../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { resolverDiametroComercialDeTramo } from './resolverDiametroComercialDeTramo'
@@ -49,6 +48,7 @@ export type ResultadoPerdidaDistribuidaDeTramo =
       readonly candidato: EntradaCatalogoTuberia
       readonly velocidadReal_mps: number
       readonly verificacionVelocidad: ResultadoVerificacionVelocidad
+      readonly velocidadPorDebajoDelMinimo: boolean
     }
   | {
       readonly tipo: 'conPerdidaDistribuida'
@@ -58,6 +58,7 @@ export type ResultadoPerdidaDistribuidaDeTramo =
       readonly candidato: EntradaCatalogoTuberia
       readonly velocidadReal_mps: number
       readonly verificacionVelocidad: ResultadoVerificacionVelocidad
+      readonly velocidadPorDebajoDelMinimo: boolean
       readonly longitud_m: number
       readonly hf_m: number
       readonly detalle:
@@ -103,7 +104,8 @@ export function resolverPerdidaDistribuidaDeTramo(
     }
   }
 
-  const { qc_lps, n, diReferenciaPredimensionamiento_mm, candidato, velocidadReal_mps, verificacionVelocidad } = resultadoComercial
+  const { qc_lps, n, diReferenciaPredimensionamiento_mm, candidato, velocidadReal_mps, verificacionVelocidad, velocidadPorDebajoDelMinimo } =
+    resultadoComercial
 
   const { redHidraulica } = proyecto
   if (redHidraulica === undefined) {
@@ -122,7 +124,16 @@ export function resolverPerdidaDistribuidaDeTramo(
   }
 
   if (tramo.longitud_m === undefined) {
-    return { tipo: 'sinLongitud', qc_lps, n, diReferenciaPredimensionamiento_mm, candidato, velocidadReal_mps, verificacionVelocidad }
+    return {
+      tipo: 'sinLongitud',
+      qc_lps,
+      n,
+      diReferenciaPredimensionamiento_mm,
+      candidato,
+      velocidadReal_mps,
+      verificacionVelocidad,
+      velocidadPorDebajoDelMinimo,
+    }
   }
   const { longitud_m } = tramo
 
@@ -144,6 +155,7 @@ export function resolverPerdidaDistribuidaDeTramo(
       candidato,
       velocidadReal_mps,
       verificacionVelocidad,
+      velocidadPorDebajoDelMinimo,
       longitud_m,
       hf_m,
       detalle: { metodo: 'hazenWilliams', coeficienteC: parametro.coeficienteC, perdidaUnitaria_J_m_m },
@@ -157,15 +169,19 @@ export function resolverPerdidaDistribuidaDeTramo(
     propiedadesAgua.viscosidadCinematica_m2s,
   )
 
-  // No se verifica Re<UMBRAL_REYNOLDS_TURBULENTO acá (Correctivo 2A): el
-  // candidato ya llegó admitido por CRIT-A23 (V≥1 m/s en 13-60mm, V≥1,5
-  // m/s en 75-200mm), y con la viscosidad productiva de CRIT-A21
-  // (ν≈1,0034e-6 m²/s) ese mínimo ya garantiza Re>4000 en todo el
-  // dominio normativo (límite más desfavorable: V=1 m/s, Di=13mm ->
-  // Re≈12956 -- ver test de la propiedad derivada). El guard de
-  // calcularFactorFriccionDarcy (CRIT-A18) permanece intacto como última
-  // defensa ante esa precondición -- inalcanzable en la práctica, no
-  // eliminada de la primitiva matemática.
+  // No se verifica Re<UMBRAL_REYNOLDS_TURBULENTO acá explícitamente
+  // (Correctivo 2A): con la viscosidad productiva de CRIT-A21
+  // (ν≈1,0034e-6 m²/s), el menor qu positivo del catálogo normativo
+  // vigente (0,08 l/s) junto con el menor Di comercial normativamente
+  // evaluable (14,4mm) ya da Re≈7049,58>4000 -- ver test de la
+  // propiedad derivada. Desde D-delta.27, esta garantía YA NO se apoya
+  // en "V≥Vmin" (el fallback de velocidadPorDebajoDelMinimo permite
+  // V<Vmin en el candidato adoptado): se apoya en que el catálogo
+  // normativo actual no tiene ningún qu menor a ese piso -- es una
+  // garantía de datos, no una propiedad matemática cerrada. El guard de
+  // calcularFactorFriccionDarcy (CRIT-A18) permanece intacto como
+  // defensa activa ante un futuro catálogo con un qu menor, no como
+  // rama "inalcanzable por construcción".
   const factorFriccion = calcularFactorFriccionDarcy(reynolds, parametro.rugosidadAbsoluta_mm, candidato.diametroInteriorEfectivo_mm)
   const hf_m = calcularPerdidaCargaDarcyWeisbach(factorFriccion, longitud_m, candidato.diametroInteriorEfectivo_mm, velocidadReal_mps)
 
@@ -177,6 +193,7 @@ export function resolverPerdidaDistribuidaDeTramo(
     candidato,
     velocidadReal_mps,
     verificacionVelocidad,
+    velocidadPorDebajoDelMinimo,
     longitud_m,
     hf_m,
     detalle: {
