@@ -30,7 +30,7 @@ import {
   identificarFilasDistribucionGeneral,
   identificarFilasPrincipalesDeLocales,
 } from './identificarFilasDeModulo2'
-import { conMaterialTuberia, conMetodoPerdidaDistribuida } from './actualizarConfiguracionHidraulica'
+import { conMaterialTuberia, conMetodoPerdidaDistribuida, conSistemaDeTuberia } from './actualizarConfiguracionHidraulica'
 import { conLongitudDeTramo } from './actualizarRedHidraulica'
 
 // Duplicado intencional de la etiqueta homónima en MotorDemandaPantalla.tsx
@@ -403,6 +403,19 @@ function ConfiguracionHidraulicaFormulario({
           {catalogoMaterialesTuberia.map((material) => (
             <option key={material.id} value={material.id}>
               {material.nombre}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Sistema de tubería:{' '}
+        <select
+          value={proyecto.configuracionHidraulica.sistemaDeTuberiaId}
+          onChange={(evento) => onCambiar(conSistemaDeTuberia(proyecto, evento.target.value))}
+        >
+          {catalogoSistemasDeTuberia.map((sistema) => (
+            <option key={sistema.id} value={sistema.id}>
+              {sistema.denominacion}
             </option>
           ))}
         </select>

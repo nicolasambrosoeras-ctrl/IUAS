@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import type { MaterialTuberiaId, Proyecto } from '../../modelo/proyecto'
-import { conMaterialTuberia, conMetodoPerdidaDistribuida } from './actualizarConfiguracionHidraulica'
+import { conMaterialTuberia, conMetodoPerdidaDistribuida, conSistemaDeTuberia } from './actualizarConfiguracionHidraulica'
 
 function proyectoDePrueba(
   metodo: 'hazenWilliams' | 'darcyWeisbach',
   materialTuberiaId: MaterialTuberiaId = 'ppr',
+  sistemaDeTuberiaId = 'acquaSystemMagnumPn20',
 ): Proyecto {
   return {
     metadatos: {
@@ -21,7 +22,7 @@ function proyectoDePrueba(
       alturaArtefactoMasDesfavorable_m: 3,
     },
     unidadesFuncionales: [{ id: 'uf-1', nombre: 'UF 1', locales: [] }],
-    configuracionHidraulica: { metodoPerdidaDistribuida: metodo, materialTuberiaId, sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
+    configuracionHidraulica: { metodoPerdidaDistribuida: metodo, materialTuberiaId, sistemaDeTuberiaId },
   }
 }
 
@@ -94,6 +95,45 @@ describe('conMaterialTuberia', () => {
     const original = proyectoDePrueba('hazenWilliams', 'ppr')
 
     const actualizado = conMaterialTuberia(original, 'pead')
+
+    expect(actualizado.metadatos).toBe(original.metadatos)
+    expect(actualizado.parametros).toBe(original.parametros)
+    expect(actualizado.unidadesFuncionales).toBe(original.unidadesFuncionales)
+    expect(actualizado.redHidraulica).toBe(original.redHidraulica)
+  })
+})
+
+describe('conSistemaDeTuberia (D-delta.28)', () => {
+  it('actualiza sistemaDeTuberiaId, no muta el original', () => {
+    const original = proyectoDePrueba('hazenWilliams', 'ppr', 'acquaSystemMagnumPn20')
+
+    const actualizado = conSistemaDeTuberia(original, 'otroSistemaFicticio')
+
+    expect(actualizado.configuracionHidraulica.sistemaDeTuberiaId).toBe('otroSistemaFicticio')
+    expect(original.configuracionHidraulica.sistemaDeTuberiaId).toBe('acquaSystemMagnumPn20')
+  })
+
+  it('conserva metodoPerdidaDistribuida y materialTuberiaId', () => {
+    const original = proyectoDePrueba('darcyWeisbach', 'cobre', 'acquaSystemMagnumPn20')
+
+    const actualizado = conSistemaDeTuberia(original, 'otroSistemaFicticio')
+
+    expect(actualizado.configuracionHidraulica.metodoPerdidaDistribuida).toBe('darcyWeisbach')
+    expect(actualizado.configuracionHidraulica.materialTuberiaId).toBe('cobre')
+  })
+
+  it('no valida existencia ni compatibilidad -- eso es responsabilidad exclusiva de validarConfiguracionHidraulica', () => {
+    const original = proyectoDePrueba('hazenWilliams', 'ppr', 'acquaSystemMagnumPn20')
+
+    const actualizado = conSistemaDeTuberia(original, 'sistemaInexistente')
+
+    expect(actualizado.configuracionHidraulica.sistemaDeTuberiaId).toBe('sistemaInexistente')
+  })
+
+  it('no altera metadatos, parametros, unidadesFuncionales ni redHidraulica; conserva su identidad referencial', () => {
+    const original = proyectoDePrueba('hazenWilliams', 'ppr', 'acquaSystemMagnumPn20')
+
+    const actualizado = conSistemaDeTuberia(original, 'otroSistemaFicticio')
 
     expect(actualizado.metadatos).toBe(original.metadatos)
     expect(actualizado.parametros).toBe(original.parametros)

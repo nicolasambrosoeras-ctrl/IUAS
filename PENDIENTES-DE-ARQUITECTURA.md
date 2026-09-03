@@ -1007,23 +1007,41 @@ desactualizada.
 de CRIT-A23 cuando existe algún candidato admisible dentro de rango, ni
 ninguna tolerancia sobre `Vmax`. No decide D-δ.28/29/30/31.
 
-### D-δ.28 — Selector de sistema comercial / compatibilidad con material — ABIERTA
+### D-δ.28 — Selector de sistema comercial / compatibilidad con material — CERRADA
 
-**Estado actual**: `materialTuberiaId` es seleccionable desde la UI;
-`sistemaDeTuberiaId` queda fijo en código (el demo usa Acqua System
-Magnum PN20, material PPR, único sistema del catálogo productivo).
+**Estado previo a este cierre**: `materialTuberiaId` era seleccionable
+desde la UI; `sistemaDeTuberiaId` quedaba fijo en código (el demo usa
+Acqua System Magnum PN20, material PPR, único sistema del catálogo
+productivo).
 
-**Comportamiento verificado**: cambiar el material a uno incompatible con
-el único sistema disponible dispara correctamente
+**Comportamiento ya verificado, sin cambios**: cambiar el material a uno
+incompatible con el sistema configurado dispara correctamente
 `configuracionHidraulicaSistemaMaterialIncompatible`
 (`validarConfiguracionHidraulica`, preexistente desde el commit
-`0b3386e`) y bloquea M1+M2 — la validación funciona como debe, la deuda
-es la ausencia de un selector de sistema comercial (o una política
-equivalente de selección compatible) en la UI.
+`0b3386e`) y bloquea M1+M2 — la validación funcionaba como debe; la
+deuda era exclusivamente la ausencia de un selector de sistema comercial
+en la UI.
 
-**Condición de resolución**: diseñar el selector de sistema comercial (o
-mecanismo equivalente) antes de que el catálogo comercial crezca más allá
-de un único sistema.
+**Decisión adoptada**: exponer `sistemaDeTuberiaId` como un `<select>` en
+`ConfiguracionHidraulicaFormulario`, poblado desde
+`catalogoSistemasDeTuberia` (`denominacion` como etiqueta, `id` como
+valor), con el updater puro `conSistemaDeTuberia`
+(`src/interfaz/paginas/actualizarConfiguracionHidraulica.ts`) —
+exactamente el mismo patrón ya usado por el selector de material
+(`conMaterialTuberia`). No se diseñó ningún mecanismo nuevo: es la misma
+solución que el propio pendiente ya calificaba como equivalente
+("selector... o una política equivalente de selección compatible").
+`validarConfiguracionHidraulica` sigue siendo la única fuente de verdad
+sobre compatibilidad material/sistema -- el selector no duplica ni
+anticipa esa validación.
+
+**No decide**: granularidad de `sistemaDeTuberiaId` (D-δ.31, sigue
+abierta -- el campo sigue siendo global al Proyecto, sin cambios de
+modelo), clase/serie comercial (D-δ.29), ni margen de seguridad (D-δ.30).
+Con un único sistema en el catálogo, el selector hoy solo tiene una
+opción -- queda listo para cuando el catálogo comercial crezca, sin
+haber anticipado ninguna estructura que ese crecimiento todavía no
+demanda.
 
 ### D-δ.29 — Clase/serie comercial (PN20/PN25) y verificación presión-temperatura — ABIERTA
 
@@ -1092,24 +1110,21 @@ usuario, `ΣK`, integración con la pérdida distribuida ya implementada
 `longitud_m`** (D-δ.22 ya lo prohíbe explícitamente; se reafirma acá
 porque es el punto de contacto directo con este pendiente).
 
-### D-δ.34 — `n` no expuesto por `ResultadoPerdidaDistribuidaDeTramo` (N3) — deuda técnica identificada, no arquitectónica de fondo
+### D-δ.34 — `n` no expuesto por `ResultadoPerdidaDistribuidaDeTramo` (N3) — CERRADA
 
-**Hallazgo**: `ResultadoPerdidaDistribuidaDeTramo` (N3) no expone `n` en
-ninguna de sus 4 variantes — solo vive en
+**Hallazgo original**: `ResultadoPerdidaDistribuidaDeTramo` (N3) no
+exponía `n` en ninguna de sus 4 variantes — solo vivía en
 `ResultadoSimultaneidadHidraulicaDeTramo`, devuelto por
-`resolverHidraulicaDeTramo`. Como la UI de M2 (L2) necesita mostrar tanto
-`n` como los datos de N3 en la misma fila, `FilaResultado` llama
-actualmente a **ambos** resolvers — sin duplicar ninguna fórmula, pero
-con resolución duplicada del pipeline por fila.
+`resolverHidraulicaDeTramo`. Como la UI de M2 (L2) necesitaba mostrar
+tanto `n` como los datos de N3 en la misma fila, `FilaResultado` llamaba
+a **ambos** resolvers — sin duplicar ninguna fórmula, pero con
+resolución duplicada del pipeline por fila.
 
-**No resuelto en este hito, a propósito**: no se decidió todavía si `n`
-(y eventualmente `qmax_lps`) debe agregarse al tipo de N3, ni con qué
-forma exacta. Es un cambio de tipo público del motor, pequeño pero real,
-que amerita su propia aprobación explícita cuando se retome el trabajo.
-
-**Condición de resolución**: al reabrir Módulo 2, evaluar agregar `n`
-(campo aditivo, sin romper consumidores existentes — mismo patrón ya
-usado para exponer `n` en `ResultadoSimultaneidadHidraulicaDeTramo`) a
-`ResultadoPerdidaDistribuidaDeTramo`, y eliminar la llamada a
-`resolverHidraulicaDeTramo` en `FilaResultado` una vez que deje de ser
-necesaria.
+**Resuelto**: `n` se agregó como campo aditivo a `sinCandidatoAdmisible`,
+`sinLongitud` y `conPerdidaDistribuida` de
+`ResultadoPerdidaDistribuidaDeTramo` (propagado desde
+`ResultadoDiametroComercialDeTramo`, que ya lo recibía de
+`resolverHidraulicaDeTramo`), y `FilaResultado` dejó de llamar a
+`resolverHidraulicaDeTramo` — lee `n` directamente del resultado de N3.
+Commit `a3757a60e4fe9be0697684cf07e8e0cf56c21322` ("refactor: evitar
+doble resolucion hidraulica por tramo").

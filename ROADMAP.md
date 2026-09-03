@@ -57,23 +57,26 @@ No se toca salvo bug real confirmado.
 - pérdida distribuida `hf` visible en pantalla, con las 4 variantes del
   pipeline correctamente distinguidas (L2);
 - golden end-to-end del vertical slice completo: demanda → Qc por tramo →
-  diámetro comercial → Di efectivo → velocidad → longitud → `hf` (G1).
+  diámetro comercial → Di efectivo → velocidad → longitud → `hf` (G1);
+- fallback por velocidad mínima ante `Qc` muy bajo (D-δ.27, CRIT-A24) —
+  `Vmax` sigue dura, `Vmin` deja de bloquear exclusivamente cuando el
+  menor diámetro comercial normativamente evaluable ya la incumple;
+- selector de sistema comercial en la UI (D-δ.28), mismo patrón que el
+  selector de material ya existente.
 
 **Pendiente**, organizado en subbloques (dependencias indicadas donde
 existen; sin orden absoluto fijado entre ellos salvo lo señalado):
 
 #### M2-A — Robustecer selección comercial
 
-- decidir política ante límite inferior de velocidad con Qc muy bajo
-  (condición dura vs. advertencia con diámetro mínimo ya adoptado);
-- selector de sistema comercial en la UI (o política equivalente de
-  compatibilidad material/sistema);
 - selección/verificación de clase comercial (PN20/PN25 u otra),
   considerando presión de diseño y temperatura de servicio — nunca
-  asumir PN20 suficiente por defecto;
-- margen de seguridad de diseño, como criterio explícito y trazable;
+  asumir PN20 suficiente por defecto (D-δ.29, bloqueada por M2-B);
+- margen de seguridad de diseño, como criterio explícito y trazable
+  (D-δ.30, requiere definir fórmula/factor — no decidido);
 - decidir granularidad de `sistemaDeTuberiaId` (global/por red/por
-  tramo).
+  tramo) (D-δ.31, diferida hasta que exista un segundo sistema
+  comercial real que lo justifique).
 
 #### M2-B — Presión
 
@@ -120,8 +123,5 @@ M2-A antes de cerrar la verificación de presión-temperatura de tubería.
 
 ## Deuda técnica conocida (no bloqueante, registrada explícitamente)
 
-- `ResultadoPerdidaDistribuidaDeTramo` (N3) no expone `n` — la UI llama
-  a dos resolvers por fila en vez de uno solo. Ver
-  `PENDIENTES-DE-ARQUITECTURA.md`, D-δ.34.
 - `docs/adr/` y `docs/arquitectura/` existen como carpetas vacías, sin
   ningún documento real todavía.

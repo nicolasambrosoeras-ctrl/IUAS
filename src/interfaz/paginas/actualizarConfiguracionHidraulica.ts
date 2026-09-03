@@ -19,3 +19,15 @@ export function conMaterialTuberia(proyecto: Proyecto, materialTuberiaId: Materi
     configuracionHidraulica: { ...proyecto.configuracionHidraulica, materialTuberiaId },
   }
 }
+
+// sistemaDeTuberiaId es string (id de catálogo comercial, D-delta.28) --
+// no un literal union como MaterialTuberiaId. No valida aquí que el id
+// exista ni que sea compatible con materialTuberiaId: esa es
+// responsabilidad exclusiva de validarConfiguracionHidraulica, mismo
+// criterio que el resto de los updaters de este archivo.
+export function conSistemaDeTuberia(proyecto: Proyecto, sistemaDeTuberiaId: string): Proyecto {
+  return {
+    ...proyecto,
+    configuracionHidraulica: { ...proyecto.configuracionHidraulica, sistemaDeTuberiaId },
+  }
+}
