@@ -9,6 +9,7 @@ import type { ResultadoPerdidaDistribuidaDeTramo } from '../../motor/tuberias/re
 import {
   describirReferenciaPendiente,
   textosDePerdidaDistribuidaDeTramo,
+  resolverCambioDeLongitud,
   FilaResultado,
   TablaDeFilas,
 } from './ResultadoHidraulicoDeTramo'
@@ -204,6 +205,36 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
   })
 })
 
+describe('resolverCambioDeLongitud', () => {
+  it('campo vacío -> omitir (longitud no informada, nunca 0)', () => {
+    expect(resolverCambioDeLongitud('')).toEqual({ tipo: 'omitir' })
+  })
+
+  it('0 -> establecer con longitud_m=0 (mecánicamente ingresable; CRIT-A20 sigue siendo la única defensa de dominio)', () => {
+    expect(resolverCambioDeLongitud('0')).toEqual({ tipo: 'establecer', longitud_m: 0 })
+  })
+
+  it('valor positivo -> establecer', () => {
+    expect(resolverCambioDeLongitud('3.5')).toEqual({ tipo: 'establecer', longitud_m: 3.5 })
+  })
+
+  it('valor negativo tipeado directamente -> ignorar, nunca establecer con longitud_m<0', () => {
+    expect(resolverCambioDeLongitud('-1')).toEqual({ tipo: 'ignorar' })
+    expect(resolverCambioDeLongitud('-0.1')).toEqual({ tipo: 'ignorar' })
+  })
+
+  it('bajar con la flecha desde 0 dispara onChange con texto "-1" (comportamiento nativo del input numérico) -> ignorar, nunca -1', () => {
+    // Mismo caso que el anterior, documentado explícitamente porque es el
+    // escenario real que reprodujo el bug: la flecha descendente del
+    // <input type="number"> en 0 produce el string "-1" en el evento.
+    expect(resolverCambioDeLongitud('-1')).toEqual({ tipo: 'ignorar' })
+  })
+
+  it('texto no numérico -> ignorar (NaN, mismo criterio que antes de este incremento)', () => {
+    expect(resolverCambioDeLongitud('abc')).toEqual({ tipo: 'ignorar' })
+  })
+})
+
 // Fixture de un Tramo real (catálogo y sistema comercial productivos, no
 // ficticios) que activa el fallback de D-delta.27/CRIT-A24: valvulaMingitorio
 // es el único artefacto conectado (soloAF, CRIT-A4 -> n=1 -> Qc=quTotal_lps
@@ -283,6 +314,30 @@ describe('FilaResultado (UI): advertencia de velocidadPorDebajoDelMinimo', () =>
     expect(html).toContain('14,40') // Di efectivo (mm)
     expect(html).toContain('0,9') // velocidad real, formateada a 1 decimal
     expect(html).not.toContain('Velocidad inferior al rango recomendado')
+  })
+
+  it('el input de Longitud [m] se renderiza con min={0} (ayuda de UI; la defensa real es resolverCambioDeLongitud)', () => {
+    const { proyecto, tramoId } = proyectoConFallbackDeVelocidadPorVmin()
+
+    const html = renderToStaticMarkup(
+      createElement(
+        'table',
+        null,
+        createElement(
+          'tbody',
+          null,
+          createElement(FilaResultado, {
+            proyecto,
+            catalogoArtefactos,
+            fila: { etiqueta: 'Local de prueba', red: 'AF', tramoId },
+            onCambiar: () => {},
+          }),
+        ),
+      ),
+    )
+
+    expect(html).toContain('<input')
+    expect(html).toMatch(/<input[^>]*\bmin="0"/)
   })
 })
 

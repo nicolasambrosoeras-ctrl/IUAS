@@ -154,6 +154,35 @@ export function textosDePerdidaDistribuidaDeTramo(
   }
 }
 
+// Decisión pura del <input> de Longitud [m] ante un cambio de texto --
+// extraída de FilaResultado para poder testearla sin DOM/jsdom (mismo
+// criterio que el resto de las funciones exportadas-solo-para-test de
+// este archivo). Nunca produce un resultado con longitud_m<0: ni un
+// negativo tipeado directamente, ni el alcanzado bajando con la flecha
+// del input numérico desde 0 (el navegador dispara onChange con texto
+// "-1" en ese caso) terminan en 'establecer'. `min={0}` en el <input> es
+// una ayuda de UI, no la única defensa -- esta función es la que decide
+// qué llega efectivamente al modelo.
+// longitud_m=0 SÍ es un resultado 'establecer' válido acá (mecánicamente
+// ingresable): CRIT-A20 (longitud_m>0) sigue siendo la única fuente de
+// verdad sobre esa regla física, vía validarRedHidraulica -- este input
+// no la duplica ni la anticipa.
+export type ResultadoDeCambioDeLongitud =
+  | { readonly tipo: 'omitir' } // campo vacío: "no informada", nunca 0
+  | { readonly tipo: 'establecer'; readonly longitud_m: number }
+  | { readonly tipo: 'ignorar' } // NaN o negativo: no se persiste ningún cambio
+
+export function resolverCambioDeLongitud(texto: string): ResultadoDeCambioDeLongitud {
+  if (texto === '') {
+    return { tipo: 'omitir' }
+  }
+  const longitud_m = Number(texto)
+  if (Number.isNaN(longitud_m) || longitud_m < 0) {
+    return { tipo: 'ignorar' }
+  }
+  return { tipo: 'establecer', longitud_m }
+}
+
 // Estilos locales mínimos -- el proyecto no tiene hoja de estilos (ver
 // index.html/main.tsx): mismo patrón ya usado en el archivo (style={{...}}
 // puntual), solo que acá se comparte entre encabezado y filas para que la
@@ -265,17 +294,18 @@ export function FilaResultado({
       <td style={estiloCelda('right')}>
         <input
           type="number"
+          min={0}
           value={tramoActual?.longitud_m ?? ''}
           onChange={(evento) => {
-            const texto = evento.target.value
-            if (texto === '') {
+            const resultado = resolverCambioDeLongitud(evento.target.value)
+            if (resultado.tipo === 'omitir') {
               onCambiar(conLongitudDeTramo(proyecto, fila.tramoId, undefined))
-              return
+            } else if (resultado.tipo === 'establecer') {
+              onCambiar(conLongitudDeTramo(proyecto, fila.tramoId, resultado.longitud_m))
             }
-            const longitud_m = Number(texto)
-            if (!Number.isNaN(longitud_m)) {
-              onCambiar(conLongitudDeTramo(proyecto, fila.tramoId, longitud_m))
-            }
+            // 'ignorar': no se llama a onCambiar -- el input vuelve a
+            // mostrar el último valor válido en el próximo render, en vez
+            // de generar un estado inválido transitorio.
           }}
           style={{ width: '5rem' }}
         />
