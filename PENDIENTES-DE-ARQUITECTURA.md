@@ -1421,6 +1421,49 @@ está en el camino porque el origen no está modelado (D-δ.38). Además
 inequívocamente forzada por el dominio actual. Ver el checkpoint rojo
 reportado al cerrar esta investigación.
 
+#### Contrato mínimo M2↔M3 para `hfMedidor` — CERRADO (alcance acotado)
+
+**Investigación M2-B (tercera pasada)**: lo anterior deja ABIERTA la
+pregunta de *dónde vive el medidor en la topología* (qué alternativa de
+(1)/(2)/(3)/(4) representa general vs. individual, Tabla N°6, `Qc` del
+medidor). Pero esa pregunta es distinta de una más chica y ya
+respondible: *¿el motor de M2 puede resolver un balance completo si
+alguien más le entrega `hfMedidor` ya calculado?* — sin decidir todavía
+quién es ese "alguien" ni de dónde saca el valor.
+
+Distinción clave: **"M2 hidráulicamente completo"** (el motor cierra el
+balance cuando recibe todos los términos) no es lo mismo que **"proyecto
+completo hasta M3"** (el proyecto ya tiene un valor real de `hfMedidor`
+producido por una selección de medidor). Es válido que lo primero esté
+cerrado mientras lo segundo siga pendiente de M3.
+
+**Decisión adoptada**: alternativa (4) de la lista de arriba, pero
+acotada estrictamente al *orquestador* (`resolverPresionResidualDeCamino`),
+no a `RedHidraulica`/`Nodo`. `hfMedidor_mca: number | undefined` pasa a
+ser un parámetro explícito de `resolverPresionResidualDeCamino`, con el
+mismo estatus que `presionDisponible_mca` (D-δ.36): una condición de
+borde que el llamador provee, nunca derivada de la topología por este
+motor. Si el llamador no puede proveerlo, pasa `undefined` y el balance
+sigue `'incompleto'` — ningún comportamiento nuevo respecto del término
+`hfLocalizada`, que ya funciona así.
+
+**Por qué esto NO reabre ni duplica lo que sigue ABIERTO arriba**: el
+motor de M2 no gana ninguna capacidad de decidir si un medidor
+(general/individual) pertenece al camino de un terminal dado, ni
+selecciona catálogo comercial, ni calcula `Qc` del medidor — sigue sin
+saber que existe un "medidor" como concepto. Eso sigue siendo,
+íntegramente, lo que describe la investigación de arriba y queda para
+cuando se diseñe M3 (o se resuelva D-δ.35/D-δ.38 en conjunto). Este
+cierre solo establece el *punto de entrada* por el que ese valor,
+cuando exista, entra al balance.
+
+**Consecuencia práctica**: `resolverTerminalMasDesfavorable` ya puede
+determinar un terminal más desfavorable real (`'determinado'`) cuando
+todos sus candidatos reciben `hfMedidor_mca` — primera vez que
+`'balanceCompleto'` es alcanzable en la práctica, no solo en el tipo.
+Ver los tests de integración de `resolverPresionResidualDeCamino.test.ts`
+y `resolverTerminalMasDesfavorable.test.ts`.
+
 ### D-δ.36 — Balance de presión: motor puro con `Pdisponible` como condición de borde explícita — EN PROGRESO
 
 **Decisión adoptada** (continuación de D-δ.32): el motor de balance de
