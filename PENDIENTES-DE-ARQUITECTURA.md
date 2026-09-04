@@ -1164,6 +1164,80 @@ interviene en ambos orígenes si está sobre el ramal de la unidad. Ver
 D-δ.38 para el detalle. Esto confirma que este pendiente no puede
 resolverse con un único `hfMedidor` global.
 
+#### Investigación M2-B (segunda pasada) — dominio reconstruido, sigue ABIERTA
+
+**Casos reales que distingue ERAS** (según hallazgos ya registrados; el
+repo no tiene el texto fuente):
+
+- **Medidor general**: en la conexión / sala de medidores. Lo atraviesa
+  la totalidad de la demanda del proyecto (o del sector que alimenta).
+- **Medidor individual por unidad funcional** (§2.12.1 punto e; §2.6): en
+  el ramal de cada UF. Lo atraviesa sólo la demanda de esa UF.
+- Ambos pueden coexistir en un mismo proyecto (general + individuales).
+- **No hay respaldo** en el material disponible para "medidores en
+  serie" ni para otros arreglos comerciales — no se inventan.
+
+**Cadena física por origen** (concreción de D-δ.38):
+
+```text
+Alimentación directa:
+  red pública → medidor general → [raíz del camino] → … → terminal
+  → Jm(general) ENTRA en el balance de todos los terminales.
+
+Tanque de reserva:
+  red → medidor general → almacenamiento → [raíz] → … → terminal
+  → Jm(general) NO entra (está aguas arriba del almacenamiento).
+  Si además hay medidor individual:
+  … → almacenamiento → medidor individual (ramal UF) → terminal
+  → Jm(individual) ENTRA en el balance de los terminales de esa UF.
+```
+
+**Caudal para `Jm` (`Qcl`, "gasto máximo probable en L/min")**: es el
+`Qc` que atraviesa el punto físico del medidor, en l/min (= `Qc_lps ·
+60`). No es un valor único:
+
+- medidor general → `Qc` global del proyecto (CRIT-A5) = el `Qc` del
+  tramo raíz, que el pipeline actual ya calcula
+  (`resolverPerdidaDistribuidaDeTramo(proyecto, tramoRaiz).qc_lps`);
+- medidor individual → `Qc` del ramal de esa UF = el `Qc` del tramo
+  cabecera de la UF, que el pipeline también ya calcula.
+
+Es decir: **la posición topológica del medidor determina qué `Qc` le
+corresponde, y ese `Qc` ya está disponible por tramo** sin ningún cálculo
+nuevo. Esto es evidencia a favor de una representación que capture la
+posición (tramo o nodo del camino), no de un `hfMedidor` global.
+
+**Colisión con un pendiente ya diferido**: el `Qc` del medidor individual
+está atado a la "simultaneidad total de los consumos" que §2.6 exige para
+medidores individuales, en tensión con el modelo §2.9.2 (ver más arriba
+en este archivo, "Contradicción entre Qunit (Fig. 2.8 e) y simultaneidad
+total…", explícitamente sin resolver). Cerrar el `Qc` del medidor
+individual reabre esa contradicción.
+
+**Tabla N°6 (capacidad `C` del medidor por caudal/diámetro)**: **no está
+en el repo** — no existe `normativa/eras-2023/tabla-06-*`. Sin ella, `C`
+sólo puede venir cargado por el usuario. Incorporarla es dato normativo
+nuevo + una regla de selección (`Qc → diámetro/capacidad de medidor`),
+del mismo tipo que la selección de diámetro comercial de tubería
+(CRIT-A23) — no es transcripción trivial.
+
+**Por qué sigue siendo decisión roja** (no se cierra en esta corrida):
+toda representación que permita al motor decidir *solo* si `Jm` pertenece
+a un camino exige una de estas, todas con consecuencias divergentes:
+(1) un tipo nuevo de `ReferenciaDeNodo` `'medidor'` (cambio transversal
+de `Nodo`, análogo a `produccionACS` pero con datos propios: general vs
+individual, `C`); (2) una propiedad de `Tramo` (`medidor?`); (3) una
+entidad/lista aparte asociada a `Proyecto` o a una subred; (4) mantener
+`hfMedidor` como escalar que el llamador provee (analógico a `Pdisponible`
+abstracto, D-δ.38) — pero hoy el llamador no puede derivar si el medidor
+está en el camino porque el origen no está modelado (D-δ.38). Además
+(2)/(3)/(1) interactúan con el origen no modelado y con la contradicción
+§2.6 todavía abierta.
+
+**Estado**: ABIERTA. Ninguna de las cuatro alternativas queda
+inequívocamente forzada por el dominio actual. Ver el checkpoint rojo
+reportado al cerrar esta investigación.
+
 ### D-δ.36 — Balance de presión: motor puro con `Pdisponible` como condición de borde explícita — EN PROGRESO
 
 **Decisión adoptada** (continuación de D-δ.32): el motor de balance de
