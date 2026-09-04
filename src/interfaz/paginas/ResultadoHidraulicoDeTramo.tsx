@@ -285,7 +285,10 @@ export function FilaResultado({
   )
 }
 
-function TablaDeFilas({
+// Exportado únicamente para el test de UI que verifica los encabezados
+// visibles de la tabla (nomenclatura Di teórico/DN/Di real) -- mismo
+// criterio de exportar-solo-para-test que FilaResultado más arriba.
+export function TablaDeFilas({
   proyecto,
   catalogoArtefactos,
   encabezadoPrimeraColumna,
@@ -312,9 +315,9 @@ function TablaDeFilas({
             <th style={estiloEncabezado('right')}>Refs. físicas</th>
             <th style={estiloEncabezado('right')}>n</th>
             <th style={estiloEncabezado('right')}>Qc [l/s]</th>
-            <th style={estiloEncabezado('right')}>Di de referencia [mm]</th>
-            <th style={estiloEncabezado('right')}>Di comercial</th>
-            <th style={estiloEncabezado('right')}>Di efectivo [mm]</th>
+            <th style={estiloEncabezado('right')}>Di teórico [mm]</th>
+            <th style={estiloEncabezado('right')}>DN [mm]</th>
+            <th style={estiloEncabezado('right')}>Di real [mm]</th>
             <th style={estiloEncabezado('right')}>V [m/s]</th>
             <th style={estiloEncabezado('right')}>Longitud [m]</th>
             <th style={estiloEncabezado('right')}>hf [m.c.a.]</th>
@@ -471,9 +474,8 @@ function ParametroDeCalculoDelMaterial({ proyecto }: { proyecto: Proyecto }) {
       <p>
         <small>
           Predimensionamiento: se adopta Ve = 2,0 m/s para la determinación inicial del
-          diámetro interior de referencia de predimensionamiento. La velocidad real se
-          verificará posteriormente con el diámetro comercial adoptado conforme a ERAS
-          §2.12.1.
+          Di teórico. La velocidad real se verificará posteriormente con el DN adoptado
+          (y su Di real correspondiente) conforme a ERAS §2.12.1.
         </small>
       </p>
     </div>

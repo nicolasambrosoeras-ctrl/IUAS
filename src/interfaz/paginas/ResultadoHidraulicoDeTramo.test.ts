@@ -6,7 +6,12 @@ import type { Nodo, ReferenciaDeArtefacto, Tramo } from '../../modelo/redHidraul
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import type { ResultadoPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolverPerdidaDistribuidaDeTramo'
-import { describirReferenciaPendiente, textosDePerdidaDistribuidaDeTramo, FilaResultado } from './ResultadoHidraulicoDeTramo'
+import {
+  describirReferenciaPendiente,
+  textosDePerdidaDistribuidaDeTramo,
+  FilaResultado,
+  TablaDeFilas,
+} from './ResultadoHidraulicoDeTramo'
 
 function proyectoCon(unidadesFuncionales: readonly UnidadFuncional[]): Proyecto {
   return {
@@ -278,5 +283,28 @@ describe('FilaResultado (UI): advertencia de velocidadPorDebajoDelMinimo', () =>
     expect(html).toContain('14,40') // Di efectivo (mm)
     expect(html).toContain('0,9') // velocidad real, formateada a 1 decimal
     expect(html).not.toContain('Velocidad inferior al rango recomendado')
+  })
+})
+
+describe('TablaDeFilas (UI): nomenclatura visible de columnas de diámetro', () => {
+  it('encabezados usan Di teórico / DN / Di real -- no la nomenclatura anterior (Di de referencia / Di comercial / Di efectivo)', () => {
+    const { proyecto, tramoId } = proyectoConFallbackDeVelocidadPorVmin()
+
+    const html = renderToStaticMarkup(
+      createElement(TablaDeFilas, {
+        proyecto,
+        catalogoArtefactos,
+        encabezadoPrimeraColumna: 'Cañería',
+        filas: [{ etiqueta: 'Local de prueba', red: 'AF', tramoId }],
+        onCambiar: () => {},
+      }),
+    )
+
+    expect(html).toContain('Di teórico [mm]')
+    expect(html).toContain('DN [mm]')
+    expect(html).toContain('Di real [mm]')
+    expect(html).not.toContain('Di de referencia')
+    expect(html).not.toContain('Di comercial')
+    expect(html).not.toContain('Di efectivo')
   })
 })
