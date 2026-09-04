@@ -219,8 +219,8 @@ export function resolverPresionResidualDeCamino(
     {
       hfDistribuida_mca: perdidaDistribuida.hf_m,
       // 'parcial', nunca 'completa': acumularPerdidaLocalizadaDeCamino
-      // solo cubre el subconjunto CRIT-A28 (D-delta.33 sigue abierta para
-      // tees/reducciones/griferia). Ver comentario de archivo.
+      // solo cubre el subconjunto CRIT-A28/CRIT-A30 (D-delta.33 sigue
+      // abierta para tees). Ver comentario de archivo.
       hfLocalizada: { tipo: 'parcial', hf_mca: perdidaLocalizada.hf_m },
       // hfMedidor sigue sin consumidor topologico (D-delta.35): undefined,
       // nunca 0 -- el balance sigue 'incompleto' hasta que se resuelva.
