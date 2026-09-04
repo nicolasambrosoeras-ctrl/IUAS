@@ -1614,7 +1614,7 @@ raíz / subred (CRIT-A27 admite subredes independientes). Esa es una
 decisión roja abierta — ver el checkpoint reportado al cerrar esta
 investigación.
 
-### D-δ.39 — Sincronización funcional -> hidráulica al agregar/eliminar Artefacto (M2-D, primer slice) — PARCIALMENTE CERRADA
+### D-δ.39 — Sincronización funcional -> hidráulica al agregar/eliminar Artefacto (M2-D) — CERRADA para el flujo cotidiano de alta/baja
 
 **Problema reproducido**: agregar un `Artefacto` a un `Local` existente
 (vía UI) actualiza `Local.artefactos` pero nunca `redHidraulica`
@@ -1709,20 +1709,49 @@ de nivel superior (`onCambiarProyecto`, prop nueva enhebrada por
 `UnidadFuncionalFormulario`/`LocalFormulario`) — consecuencia mecánica de
 threading de props, sin rediseño de UI.
 
-#### Límite explícito — primera instancia de un `artefactoId` en todo el proyecto
+#### Primera instancia de un `artefactoId` en todo el proyecto — resuelto
 
 Cuando se agrega el **primer** artefacto de un tipo de catálogo que
 nunca existió antes en el proyecto (p. ej. el caso reproducido real:
-`inodoroValvula`, que no aparece en ningún Local del demo actual),
+`inodoroValvula`, que no aparecía en ningún Local del demo original),
 `determinarRedesFisicasPorPrecedente` devuelve `sinPrecedente` — no hay
 ninguna instalación previa de la que copiar la conectividad física, y
-adoptar el catálogo como respaldo violaría CRIT-A15. El artefacto queda
-creado funcionalmente pero sin conexión física, exactamente como hoy:
-S1/S2 lo señalan, sin ocultarlo. **Este slice no resuelve ese caso** —
-requeriría o bien una interacción explícita del usuario (fuera de
-alcance, "no diseñar UX final") o bien aceptar una inferencia desde
-catálogo que contradice una decisión ya cerrada. No se adopta ninguna de
-las dos sin una decisión nueva.
+adoptar el catálogo como respaldo violaría CRIT-A15. Este límite quedó
+documentado como abierto en el cierre original de este registro; se
+resolvió en un incremento posterior con la interacción explícita del
+usuario que en ese momento se había dejado fuera de alcance:
+
+- **`sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(proyecto,
+  unidadFuncionalId, localId, artefactoInstanciaId, redesDeclaradas)`**
+  (`interfaz/paginas/sincronizarConectividadFisicaDeArtefacto.ts`):
+  variante de `sincronizarConectividadFisicaDeArtefacto` que, en vez de
+  derivar las Redes de un precedente, las recibe declaradas directamente
+  por quien llama. Comparte con la variante original toda la lógica de
+  inserción (`hallarNodoDeInsercionDeLocal`) y las mismas garantías
+  (aditiva, no destructiva, reporta `redesPendientes` si el Local no
+  tiene punto de inserción inequívoco para la Red declarada — nunca
+  fabrica una conexión).
+- **UI (`MotorDemandaPantalla.tsx`, `LocalFormulario`)**: `agregarArtefacto()`
+  ahora consulta `determinarRedesFisicasPorPrecedente` **antes** de crear
+  el `Artefacto` funcional. Si hay precedente, el alta sigue siendo
+  automática como antes (sin preguntar nada). Si no hay precedente, no se
+  crea nada todavía — se muestra un selector inline (AF / AC / AF+AC /
+  Cancelar) y recién al elegir una opción se crean el `Artefacto` y su
+  conectividad física en una única operación atómica
+  (`crearYConectarArtefacto`), evitando el patrón "crear incompleto ->
+  reparar después".
+- El caso `inconsistente` (patrones físicos distintos entre instancias
+  previas) sigue sin resolver interactivamente — no se pidió para este
+  incremento — y se comporta igual que antes: el artefacto se crea
+  funcionalmente sin conexión física, señalado por S1/S2.
+
+Verificado con un test de integración sobre el caso real (`inodoroValvula`
+en un Baño que ya tenía otro artefacto conectado a AF) que confirma
+`sinPrecedente` sin la declaración, y que con `redesDeclaradas: ['AF']`
+el resultado pasa `validarRedHidraulica`, deja completa la auditoría de
+cobertura física, y el artefacto nuevo aparece en el traversal aguas
+abajo y participa del cálculo — y verificado también end-to-end en el
+navegador (Módulo 2 deja de mostrar "Red hidráulica incompleta").
 
 #### No implementado en este slice (deferred a propósito)
 
@@ -1742,8 +1771,11 @@ las dos sin una decisión nueva.
   resultaron necesarias — la Opción A generalizada cubre el caso
   planteado sin introducir ningún concepto nuevo en el modelo.
 
-**Estado**: PARCIALMENTE CERRADA. Alta y baja de artefacto en un Local ya
-físicamente conectado quedan resueltas end-to-end (funcional + física +
-auditoría + cálculo aguas abajo). Cambio de tipo de artefacto y primera
-instancia de un `artefactoId` sin precedente en el proyecto quedan
-explícitamente fuera, documentados arriba.
+**Estado**: CERRADA para el flujo cotidiano de alta/baja. Alta y baja de
+artefacto en un Local ya físicamente conectado, y alta de la primera
+instancia de un `artefactoId` sin precedente (con declaración explícita
+de AF/AC/ambas por el usuario), quedan resueltas end-to-end (funcional +
+física + auditoría + cálculo aguas abajo). Cambio de tipo de artefacto
+después de creado (`<select>` de `ArtefactoFormulario`) y el caso
+`inconsistente` (patrones físicos distintos entre instancias previas)
+quedan explícitamente fuera, documentados arriba.
