@@ -55,6 +55,17 @@ function localUnicoDeTramo(proyecto: Proyecto, tramoId: string): IdentidadDeLoca
   return { unidadFuncionalId: primera.unidadFuncionalId, localId: primera.localId }
 }
 
+// Selección de presentación, NO autoridad hidráulica: devuelve el primer
+// Tramo cuyo nodoDestinoId coincide con el nodoOrigenId de `tramo`, sólo
+// para decidir si dos Tramos consecutivos son "puros del mismo Local" y
+// colapsarlos en una fila. El recorrido hidráulico real hacia el origen
+// (desnivel, Σhf, balance de presión) NO usa este `find()`: lo resuelve
+// `obtenerCaminoHaciaOrigen` (CRIT-A27), que ante múltiples tramos
+// entrantes en un nodo devuelve un estado no resoluble en vez de elegir
+// uno. Sobre la topología ramificada que los motores hidráulicos
+// declaran resoluble (un tramo entrante por nodo) este `find()` es
+// exacto; una topología con convergencia/paralelos ya no produce ningún
+// resultado hidráulico presentable, así que no hay fila que agrupar.
 function buscarTramoPadre(redHidraulica: RedHidraulica, tramo: Tramo): Tramo | undefined {
   return redHidraulica.tramos.find((candidato) => candidato.nodoDestinoId === tramo.nodoOrigenId)
 }

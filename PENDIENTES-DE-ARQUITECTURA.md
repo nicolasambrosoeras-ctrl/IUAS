@@ -1179,3 +1179,79 @@ equivalente a "siempre hay un tanque elevado en el modelo".
 **Estado**: motor puro en construcción, ver el propio archivo del
 motor y su test para el estado exacto de qué términos ya calcula y
 cuáles exige explícitos.
+
+### D-δ.37 — Alimentación ramificada como precondición hidráulica de M2 (recorrido hacia el origen) — CERRADA
+
+**Decisión adoptada** (continuación de D-δ.32/D-δ.36, formalizada como
+**CRIT-A27** en `src/normativa/eras-2023/CRITERIOS.md`): para el alcance
+hidráulico actual de Módulo 2, un terminal solo es hidráulicamente
+resoluble cuando existe un **único camino dirigido e inequívoco** desde
+una raíz de alimentación hasta ese terminal. Sobre la ascendencia
+relevante: a lo sumo un tramo entrante por nodo, ausencia de ciclos,
+terminación en un nodo raíz sin tramo entrante, nunca elección
+silenciosa entre múltiples predecesores.
+
+**Precisión arquitectónica explícita — NO restringe el modelo base**:
+esto NO se convierte en "`redHidraulica` solo puede ser un árbol". La
+validación estructural básica (`validarRedHidraulica`) **no** rechaza
+universalmente ciclos ni convergencias. `RedHidraulica` conserva su
+generalidad deliberada para funcionalidades futuras, particularmente la
+recirculación de ACS (D-δ.15, sigue diferida y no prohibida
+conceptualmente). La restricción se expresa como **precondición de los
+motores hidráulicos actuales de M2**, no como afirmación ontológica de
+que otra topología sea inválida:
+
+```text
+red válida como estructura   ≠   red resoluble por los motores
+                                  hidráulicos actuales de M2
+```
+
+**Fundamento**: CRIT-A11 define el Qc de un tramo sobre *todo* el
+conjunto aguas abajo; eso presupone que el tramo transporta la demanda
+completa, lo que exige un único camino origen→terminal. Una red con
+reparto de caudal entre caminos paralelos requiere otro modelo
+hidráulico (Hardy-Cross / reparto de caudales) y queda fuera de alcance.
+No atribuido a ERAS: criterio operativo / de alcance IUAS derivado de la
+coherencia del modelo actual.
+
+**Implementado**: `obtenerCaminoHaciaOrigen`
+(`src/motor/tuberias/topologia/obtenerCaminoHaciaOrigen.ts`), función
+pura de dominio que parte de un nodo terminal y camina contra la
+dirección de los tramos. Resultado discriminado:
+
+- `camino`: nodos y tramos en orden hidráulico (raíz → terminal), con
+  `raizId`/`terminalId`; incluye el caso "raíz inmediata" (el nodo
+  consultado ya no tiene tramo entrante → camino de un solo nodo, sin
+  tramos).
+- `multiplesTramosEntrantes`: un nodo de la ascendencia (posiblemente el
+  propio terminal) tiene dos o más tramos entrantes — cubre convergencia
+  y tramos paralelos `A → B`. No se elige ninguno.
+- `ciclo`: la ascendencia vuelve a un nodo ya visitado; termina sin loop
+  infinito.
+
+`throw` reservado para precondiciones estructuralmente imposibles tras
+`validarRedHidraulica` (nodo consultado inexistente; tramo que apunta a
+un `nodoOrigenId` inexistente) — mismo criterio que
+`obtenerArtefactosAguasAbajo`. Una `RedHidraulica` estructuralmente
+válida pero no resoluble por el alcance actual **nunca** produce un
+`throw` ni un camino fabricado: devuelve el resultado discriminado
+correspondiente.
+
+**No exige raíz única por `Proyecto`**: componentes independientes son
+válidos; consultar un terminal resuelve sólo su componente.
+
+**No reabre**: no adopta política de "camino más desfavorable" entre
+múltiples alimentaciones (eso es D-δ.32, camino crítico, requiere la
+investigación normativa previa); no modela Hardy-Cross, redes malladas,
+reparto de caudales ni recirculación ACS; no decide ubicación del
+medidor (D-δ.35) ni origen hidráulico persistido (D-δ.36).
+
+**Pendiente derivado (no bloqueante)**: `identificarFilasDeModulo2.ts`
+usa un `buscarTramoPadre` que hace `find()` del primer tramo cuyo
+`nodoDestinoId` coincide — lógica de presentación, nunca autoridad
+hidráulica. Ver la nota en ese archivo. Sobre la topología ramificada
+que los motores declaran resoluble su comportamiento es correcto; sobre
+una topología con convergencia/paralelos elegiría un padre arbitrario
+para agrupar filas, pero esa topología ya no produce ningún resultado
+hidráulico presentable (los motores la declaran no resoluble antes). No
+se reescribe la pantalla en este incremento.

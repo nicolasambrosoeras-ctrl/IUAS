@@ -1404,3 +1404,83 @@ m.c.a. La Tabla N°7 vive como datos puros en
 (`motor/tuberias/perdidaCarga/calcularPerdidaCargaLocalizada.ts`) y
 `tabla07PerdidasLocalizadas`/`obtenerKsDeAccesorio`
 (`normativa/eras-2023/tabla-07-perdidas-localizadas/index.ts`).
+
+## CRIT-A27 — Alimentación ramificada como precondición de los motores hidráulicos de Módulo 2
+
+**Artículo:** sin artículo ERAS directo. ERAS-2023 §2.9.2, §2.10.2 y
+§2.12.1 describen el análisis de caudal y pérdida de carga "por tramo" y
+"hasta el artefacto más desfavorable", pero **no enuncian ninguna
+restricción topológica** sobre la red de alimentación. Este criterio no
+se atribuye a ERAS.
+
+**Naturaleza:** criterio operativo / de alcance de IUAS, derivado de la
+coherencia interna del modelo de cálculo ya adoptado (CRIT-A11 en
+particular). No es transcripción normativa ni interpretación de texto
+ERAS.
+
+**Criterio adoptado:**
+
+Para el alcance hidráulico actual de Módulo 2 — CRIT-A11 (Qc por tramo),
+predimensionamiento (CRIT-A16), diámetro comercial (CRIT-A23/CRIT-A24),
+pérdida distribuida (CRIT-A17/CRIT-A18) y balance de presión (M2-B,
+D-δ.36) — la red de alimentación evaluada se presupone **ramificada**:
+
+- cada consumo computado por un tramo se presupone transportado
+  íntegramente por **un único camino dirigido** desde una raíz de
+  alimentación hasta ese consumo;
+- sobre la ascendencia relevante de un terminal que Módulo 2 intenta
+  resolver: a lo sumo **un tramo entrante por nodo**, **ausencia de
+  ciclos**, y terminación en **exactamente un nodo raíz** sin tramo
+  entrante;
+- ante múltiples predecesores posibles (convergencia de dos tramos en un
+  nodo, tramos paralelos entre el mismo par de nodos) o un ciclo, el
+  motor **nunca elige silenciosamente** un camino: declara la topología
+  no resoluble por el alcance actual y ningún resultado hidráulico se
+  presenta como completo sobre ella.
+
+**Fundamento:** CRIT-A11 define el Qc de un tramo como la simultaneidad
+reaplicada sobre *todo* el conjunto de consumos computables aguas abajo
+de ese tramo. Esa definición solo es coherente si cada tramo transporta
+la demanda completa aguas abajo, lo que exige un único camino
+origen→terminal. Una red con reparto de caudal entre caminos paralelos
+(mallada, con alimentaciones múltiples, o con recirculación) haría que el
+Qc por tramo dejara de estar bien definido — no es una limitación nueva
+del balance de presión, sino una condición de la que el cálculo de
+caudal por tramo ya dependía implícitamente desde CRIT-A11.
+
+**Alcance — qué NO afirma este criterio:**
+
+- **No restringe el modelo `RedHidraulica` a un árbol.**
+  `RedHidraulica` y `validarRedHidraulica` conservan su generalidad
+  deliberada: una red estructuralmente válida (integridad referencial —
+  ids únicos, nodos existentes, `origen≠destino`, geometría CRIT-A20)
+  puede contener ciclos, convergencias o alimentaciones paralelas sin
+  ser rechazada por la validación estructural básica. La distinción es
+  explícita:
+
+  ```text
+  red válida como estructura   ≠   red resoluble por los motores
+                                    hidráulicos actuales de Módulo 2
+  ```
+
+- **No prohíbe la recirculación de ACS.** Sigue diferida (D-δ.15) y el
+  modelo base no debe prohibirla conceptualmente. Cuando se aborde,
+  requerirá su propio modelo hidráulico.
+- **No adopta ninguna política de "camino más desfavorable"** entre
+  múltiples alimentaciones. La selección de camino crítico ante
+  topologías con reparto de caudal queda fuera de alcance (redes
+  malladas, Hardy-Cross, reparto de caudales entre caminos paralelos:
+  todos fuera de alcance, requieren criterios posteriores).
+- No exige una única raíz para todo el `Proyecto`: pueden existir
+  componentes independientes. La propiedad exigida es por terminal
+  consultado — su ascendencia debe ser un único camino que termina en
+  exactamente una raíz.
+- No decide el origen hidráulico persistido (tanque elevado / red /
+  bombeo), que sigue como D-δ.36.
+
+**Estado:** Firme como criterio operativo / de alcance IUAS.
+Implementado como precondición de `obtenerCaminoHaciaOrigen`
+(`motor/tuberias/topologia/obtenerCaminoHaciaOrigen.ts`), que representa
+explícitamente los estados de topología no resoluble
+(`multiplesTramosEntrantes`, `ciclo`) en vez de fabricar un camino o
+elegir un predecesor. Ver D-δ.37 en `PENDIENTES-DE-ARQUITECTURA.md`.
