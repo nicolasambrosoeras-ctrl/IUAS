@@ -82,6 +82,17 @@ export function describirReferenciaPendiente(
 // velocidadPorDebajoDelMinimo (D-delta.27): leído tal cual del motor, nunca
 // reinterpretado ni recalculado -- false cuando la variante no tiene
 // candidato (sinDemanda/sinCandidatoAdmisible), nada que advertir ahí.
+// Se conserva en esta interfaz por trazabilidad y para que el motor siga
+// siendo auditable desde la UI (tests incluidos) -- pero, por decisión de
+// UX (no de cálculo, ver FilaResultado más abajo), la tabla principal ya
+// NO lo renderiza como advertencia: D-delta.27 solo activa este flag
+// exactamente en el caso terminal de CRIT-A24 (el menor diámetro comercial
+// normativamente evaluable, sin ningún diámetro mayor que pudiera
+// corregirlo -- V decrece monótonamente con Di a Qc fijo, ver
+// resolverDiametroComercialDeTramo.ts), así que mostrarlo como advertencia
+// "accionable" sería engañoso: no hay ninguna acción de dimensionamiento
+// que el proyectista pueda tomar para evitarlo. Vmax sigue siendo una
+// condición dura sin excepción, sin cambios acá.
 export interface TextosDePerdidaDistribuidaDeTramo {
   readonly qcTexto: string
   readonly diReferenciaTexto: string
@@ -172,7 +183,11 @@ type FilaDeTabla = {
   readonly tramoId: string
 }
 
-function FilaResultado({
+// Exportado únicamente para el test de UI (renderToStaticMarkup) que
+// verifica que la advertencia de velocidadPorDebajoDelMinimo ya no se
+// renderiza -- mismo criterio de exportar-solo-para-test que
+// textosDePerdidaDistribuidaDeTramo/describirReferenciaPendiente arriba.
+export function FilaResultado({
   proyecto,
   catalogoArtefactos,
   fila,
@@ -243,15 +258,10 @@ function FilaResultado({
       <td style={estiloCelda('right')}>{textos.diReferenciaTexto}</td>
       <td style={estiloCelda('right')}>{textos.diComercialTexto}</td>
       <td style={estiloCelda('right')}>{textos.diEfectivoTexto}</td>
-      <td style={estiloCelda('right', textos.velocidadPorDebajoDelMinimo)}>
-        {textos.vTexto}
-        {textos.velocidadPorDebajoDelMinimo ? (
-          <>
-            <br />
-            <small>Velocidad inferior al rango recomendado</small>
-          </>
-        ) : null}
-      </td>
+      {/* velocidadPorDebajoDelMinimo (D-delta.27/CRIT-A24) se conserva en
+          `textos` para trazabilidad pero deliberadamente no se renderiza
+          acá -- ver el comentario de TextosDePerdidaDistribuidaDeTramo. */}
+      <td style={estiloCelda('right')}>{textos.vTexto}</td>
       <td style={estiloCelda('right')}>
         <input
           type="number"

@@ -1311,6 +1311,21 @@ Implementado en `resolverDiametroComercialDeTramo`
 `resolverPerdidaDistribuidaDeTramo`
 (`motor/tuberias/resolverPerdidaDistribuidaDeTramo.ts`).
 
+**Addendum de presentación (UX, no de cálculo):** `velocidadPorDebajoDelMinimo`
+se sigue calculando y propagando exactamente como se describe arriba —
+`Vmin` sigue gobernando la búsqueda del diámetro mientras exista un
+candidato comercial menor evaluable, sin ninguna excepción nueva. Lo
+único que cambió es que la tabla principal de Módulo 2
+(`ResultadoHidraulicoDeTramo.tsx`) dejó de renderizar la leyenda
+"Velocidad inferior al rango recomendado" para este caso: por
+construcción (monotonicidad de `V` con `Di`, ver arriba), este flag
+únicamente es `true` en el caso terminal ya cubierto por el fallback —
+no hay ningún diámetro mayor que el proyectista pudiera elegir para
+evitarlo, así que mostrarlo como advertencia accionable era engañoso.
+El dato sigue expuesto íntegro (`velocidadPorDebajoDelMinimo`,
+`verificacionVelocidad`, velocidad real) para trazabilidad, auditoría y
+tests — solo cambió si se renderiza como advertencia visual.
+
 ## CRIT-A25 — Pérdida de carga del medidor de agua
 
 **Artículo:** ERAS-2023 §2.12, fórmula (6).

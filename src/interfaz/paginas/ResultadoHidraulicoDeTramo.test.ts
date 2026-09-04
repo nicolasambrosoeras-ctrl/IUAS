@@ -1,9 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import type { Artefacto, Local, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
-import type { ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import type { Artefacto, MetadatosProyecto, ParametrosProyecto, Local, Proyecto, TipoDeProyecto, UnidadFuncional } from '../../modelo/proyecto'
+import type { Nodo, ReferenciaDeArtefacto, Tramo } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
+import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import type { ResultadoPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolverPerdidaDistribuidaDeTramo'
-import { describirReferenciaPendiente, textosDePerdidaDistribuidaDeTramo } from './ResultadoHidraulicoDeTramo'
+import { describirReferenciaPendiente, textosDePerdidaDistribuidaDeTramo, FilaResultado } from './ResultadoHidraulicoDeTramo'
 
 function proyectoCon(unidadesFuncionales: readonly UnidadFuncional[]): Proyecto {
   return {
@@ -193,5 +196,87 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
       velocidadPorDebajoDelMinimo: true,
       hfTexto: '0,123',
     })
+  })
+})
+
+// Fixture de un Tramo real (catálogo y sistema comercial productivos, no
+// ficticios) que activa el fallback de D-delta.27/CRIT-A24: valvulaMingitorio
+// es el único artefacto conectado (soloAF, CRIT-A4 -> n=1 -> Qc=quTotal_lps
+// del catálogo real), y el menor Di comercial evaluable del sistema real
+// (Acqua System Magnum PN20, 20mm/14,4mm efectivo) ya da V<Vmin -- mismo
+// caso, mismos valores, que 'D-delta.27: valvulaMingitorio...' en
+// resolverDiametroComercialDeTramo.test.ts (no se reinventa el fixture).
+function proyectoConFallbackDeVelocidadPorVmin(): { proyecto: Proyecto; tramoId: string } {
+  const metadatos: MetadatosProyecto = {
+    nombre: 'Proyecto de prueba',
+    obra: 'Obra de prueba',
+    comitente: 'Comitente de prueba',
+    fecha: '2026-01-01',
+    schemaVersion: '1.0.0',
+    versionNormativa: 'eras-2023',
+  }
+  const parametros: ParametrosProyecto = {
+    tipoDeProyecto: 'oficinaPrivada' as TipoDeProyecto,
+    presionSobreAcera_m: 0,
+    alturaArtefactoMasDesfavorable_m: 0,
+  }
+  const mingitorio: Artefacto = { id: 'inst-mingitorio', artefactoId: 'valvulaMingitorio', cantidad: 1, origen: 'normativo' }
+  const uf: UnidadFuncional = {
+    id: 'uf-1',
+    nombre: 'UF 1',
+    locales: [{ id: 'local-1', tipo: 'otros', regimen: 'noDomiciliario', artefactos: [mingitorio] }],
+  }
+  const referencia: ReferenciaDeArtefacto = { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-1', artefactoId: 'inst-mingitorio' }
+  const nodos: Nodo[] = [
+    { id: 'n0' },
+    { id: 'n1' },
+    { id: 'n2', referencia },
+    { id: 'n3', referencia: { tipo: 'produccionACS' } },
+    { id: 'n4', referencia },
+  ]
+  const tramos: Tramo[] = [
+    { id: 't1', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF' },
+    { id: 't2', nodoOrigenId: 'n1', nodoDestinoId: 'n2', red: 'AF' },
+    { id: 't3', nodoOrigenId: 'n1', nodoDestinoId: 'n3', red: 'AF' },
+    { id: 't4', nodoOrigenId: 'n3', nodoDestinoId: 'n4', red: 'AC' },
+  ]
+  const proyecto: Proyecto = {
+    metadatos,
+    parametros,
+    unidadesFuncionales: [uf],
+    redHidraulica: { nodos, tramos },
+    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
+  }
+  return { proyecto, tramoId: 't1' }
+}
+
+describe('FilaResultado (UI): advertencia de velocidadPorDebajoDelMinimo', () => {
+  it('D-delta.27/CRIT-A24: muestra diámetro, Di efectivo y velocidad, pero NO renderiza "Velocidad inferior al rango recomendado"', () => {
+    const { proyecto, tramoId } = proyectoConFallbackDeVelocidadPorVmin()
+
+    const html = renderToStaticMarkup(
+      createElement(
+        'table',
+        null,
+        createElement(
+          'tbody',
+          null,
+          createElement(FilaResultado, {
+            proyecto,
+            catalogoArtefactos,
+            fila: { etiqueta: 'Local de prueba', red: 'AF', tramoId },
+            onCambiar: () => {},
+          }),
+        ),
+      ),
+    )
+
+    // Confirma la premisa (mismo caso que el test de motor): el candidato
+    // elegido es el fallback de Vmin (velocidadReal_mps≈0,921), no un
+    // resultado admisible cualquiera.
+    expect(html).toContain('20 mm') // diámetro comercial
+    expect(html).toContain('14,40') // Di efectivo (mm)
+    expect(html).toContain('0,9') // velocidad real, formateada a 1 decimal
+    expect(html).not.toContain('Velocidad inferior al rango recomendado')
   })
 })
