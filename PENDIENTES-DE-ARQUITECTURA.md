@@ -1128,3 +1128,54 @@ resolución duplicada del pipeline por fila.
 `resolverHidraulicaDeTramo` — lee `n` directamente del resultado de N3.
 Commit `a3757a60e4fe9be0697684cf07e8e0cf56c21322` ("refactor: evitar
 doble resolucion hidraulica por tramo").
+
+### D-δ.35 — Dónde vive el medidor en la topología — ABIERTA
+
+**Hallazgo** (investigación M2-B): ERAS-2023 §2.12 exige computar la
+pérdida de carga del medidor (`Jm`, fórmula 6 — ver CRIT-A25) como parte
+obligatoria del balance de presión, y la propia secuencia de cálculo de
+§2.12.1 distingue explícitamente **medidor general** (punto b/c) de
+**medidor individual por unidad funcional** (punto e) — pueden existir
+ambos en un mismo proyecto, en puntos distintos del recorrido
+hidráulico.
+
+**Estado actual del modelo**: `RedHidraulica`/`Nodo` no tiene ningún
+concepto de medidor — `ReferenciaDeNodo` solo admite
+`'artefacto' | 'produccionACS'`. La primitiva de cálculo (CRIT-A25) ya
+existe y es independiente de este modelo, pero no puede aplicarse
+todavía dentro de un recorrido de topología real.
+
+**No decidido**: si el medidor debe representarse como un nuevo tipo de
+`ReferenciaDeNodo`, como una propiedad de `Tramo`, como una entidad
+aparte, o de otra forma; cómo distinguir medidor general de individual
+en la topología; qué catálogo comercial de medidores (Tabla N°6,
+diámetro/capacidad) corresponde incorporar y con qué estructura.
+
+**Condición de resolución**: decidir junto con el diseño del recorrido
+completo del balance de presión (origen → camino → terminal, D-δ.32),
+no de forma aislada.
+
+### D-δ.36 — Balance de presión: motor puro con `Pdisponible` como condición de borde explícita — EN PROGRESO
+
+**Decisión adoptada** (continuación de D-δ.32): el motor de balance de
+presión se construye primero como función pura que recibe `Pdisponible`
+explícitamente como parámetro de entrada, **sin decidir todavía** cómo
+se obtiene esa presión desde `Proyecto` (tanque elevado, tanque de
+reserva, bombeo, conexión directa como tipo de origen quedan
+deliberadamente sin modelar, así como su persistencia y cualquier UI
+asociada).
+
+**Precisión normativa explícita**: ERAS-2023 §2.8 establece que
+"pisos bajos destinados a viviendas y pisos altos" requieren
+**obligatoriamente** provisión de agua con reserva de tanque — sin
+excepción condicionada a presión. Esto **no equivale** a decir que
+"tanque elevado" sea el único origen hidráulico posible en el modelo:
+es el caso normativamente dominante para el uso residencial de IUAS,
+pero la representación hidráulica concreta del origen (qué tipo de
+tanque, a qué altura, cómo se relaciona con la topología) sigue sin
+investigarse/modelarse — no debe darse por resuelta ni asumirse
+equivalente a "siempre hay un tanque elevado en el modelo".
+
+**Estado**: motor puro en construcción, ver el propio archivo del
+motor y su test para el estado exacto de qué términos ya calcula y
+cuáles exige explícitos.

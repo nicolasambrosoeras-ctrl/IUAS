@@ -1310,3 +1310,97 @@ Implementado en `resolverDiametroComercialDeTramo`
 (`motor/tuberias/resolverDiametroComercialDeTramo.ts`), propagado por
 `resolverPerdidaDistribuidaDeTramo`
 (`motor/tuberias/resolverPerdidaDistribuidaDeTramo.ts`).
+
+## CRIT-A25 — Pérdida de carga del medidor de agua
+
+**Artículo:** ERAS-2023 §2.12, fórmula (6).
+
+**Texto oficial confirmado:**
+
+```
+"Jm = 0,036 * (Qcl/C)^2"
+"Qcl=: Gasto máximo probable en L/min"
+"C = Capacidad máxima del medidor en m3/hora"
+"Jm= Pérdida de carga en m/m"
+```
+
+**Ejemplo oficial verificado** (mismo texto de la Guía, "vivienda tipo"):
+`Qc=0,71 l/s` (`42,1 l/min`) → medidor de 19mm, `C=7 m³/hora` →
+`Jm = 0,036*(42,1/7)² = 1,3 m.c.a.` El propio ejemplo trata `Jm` como
+pérdida total del medidor (no como pérdida unitaria a multiplicar por
+una longitud), pese a que la fórmula la etiqueta "m/m" — se transcribe
+la fórmula tal como la publica ERAS y se sigue el tratamiento del
+ejemplo oficial (`Jm` es la pérdida completa del medidor), sin
+interpretar la etiqueta "m/m" como una longitud implícita inexistente.
+
+**Naturaleza — hallazgo normativo no documentado previamente en el
+proyecto:** hasta este incremento no existía en el repo ninguna mención
+a la pérdida de carga del medidor. Es un término obligatorio del balance
+de presión (§2.12.1: "Se deberá determinar la pérdida de carga de los
+tramos de cañería hasta el artefacto más desfavorable"), verificado
+directamente contra el texto oficial de la Resolución 641/2023.
+
+**Criterio adoptado:** primitiva pura `calcularPerdidaCargaMedidor`
+recibe `caudalMaximoProbable_lpm` y `capacidadMaximaMedidor_m3h`
+explícitos, devuelve `Jm` en m.c.a. — sin conocer `Tramo`,
+`RedHidraulica` ni ningún catálogo de medidores comerciales.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- No decide cómo se representa un medidor (general/individual) dentro de
+  `RedHidraulica` — no existe hoy ningún tipo de nodo/referencia para
+  medidores (ver D-δ.35, `PENDIENTES-DE-ARQUITECTURA.md`).
+- No incorpora la Tabla N°6 (diámetro/capacidad de medidor comercial por
+  caudal) — solo la fórmula de pérdida, con los parámetros ya resueltos.
+- No calcula presión residual ni forma parte todavía de ningún balance
+  de presión productivo.
+
+**Estado:** Firme como transcripción normativa. Implementado en
+`calcularPerdidaCargaMedidor`
+(`motor/tuberias/perdidaCarga/calcularPerdidaCargaMedidor.ts`).
+
+## CRIT-A26 — Pérdida de carga localizada (singular) por accesorio
+
+**Artículo:** ERAS-2023 §2.12.1, Tabla N°7.
+
+**Texto oficial confirmado:**
+
+```
+"Para las pérdidas de carga singulares o localizadas se debe utilizar
+Js = Ks*V2/2g"
+"Los valores a adoptar Ks de acuerdo a la tabla N°7"
+```
+
+**Tabla N°7 completa** (transcripción literal, Ks adimensional):
+Griferías `9,18`; curva a 45º `0,43`; curva a 90º `0,81`; codo a 90º
+`1,35`; tee paso recto `1,00`; tee salida lateral `1,62`; tee
+ent.central/salidas laterales `3,00`; llave de paso `9,18`; uniones
+`0,10`; válvula esclusa `0,17`; reducciones `0,75`; tubo saliente
+`1,00`.
+
+**Naturaleza:** transcripción directa de fórmula y tabla publicadas por
+ERAS-2023 — no hay interpretación IUAS en la fórmula ni en los
+coeficientes en sí. `g=9,81 m/s²`, misma constante y criterio ya
+adoptado en `calcularPerdidaCargaDarcyWeisbach` (CRIT-A18).
+
+**Criterio adoptado:** primitiva pura `calcularPerdidaCargaLocalizada`
+recibe `coeficienteKs` y `velocidad_mps` ya resueltos, devuelve `Js` en
+m.c.a. La Tabla N°7 vive como datos puros en
+`normativa/eras-2023/tabla-07-perdidas-localizadas/`
+(`obtenerKsDeAccesorio`), mismo patrón que `tabla-01-gastos-conexion`.
+
+**Alcance — qué NO resuelve este criterio (deliberadamente, M2-C):**
+
+- No decide qué accesorios existen en una instalación real, cuántos, ni
+  dónde viven en `RedHidraulica`/`Tramo` — ningún modelo de accesorios
+  existe todavía (D-δ.33, sigue abierta).
+- No suma pérdidas localizadas de múltiples accesorios de un mismo
+  Tramo — esa composición es responsabilidad de un consumidor futuro.
+- No calcula presión residual ni forma parte todavía de ningún balance
+  de presión productivo.
+
+**Estado:** Firme como transcripción normativa. Implementado en
+`calcularPerdidaCargaLocalizada`
+(`motor/tuberias/perdidaCarga/calcularPerdidaCargaLocalizada.ts`) y
+`tabla07PerdidasLocalizadas`/`obtenerKsDeAccesorio`
+(`normativa/eras-2023/tabla-07-perdidas-localizadas/index.ts`).
