@@ -1613,3 +1613,137 @@ nodo topológica, o una combinación; ni si es global al `Proyecto` o por
 raíz / subred (CRIT-A27 admite subredes independientes). Esa es una
 decisión roja abierta — ver el checkpoint reportado al cerrar esta
 investigación.
+
+### D-δ.39 — Sincronización funcional -> hidráulica al agregar/eliminar Artefacto (M2-D, primer slice) — PARCIALMENTE CERRADA
+
+**Problema reproducido**: agregar un `Artefacto` a un `Local` existente
+(vía UI) actualiza `Local.artefactos` pero nunca `redHidraulica`
+(hallazgo ya registrado en D-δ.26). `auditarCoberturaFisica` (S1) lo
+detecta correctamente y la barrera de presentación (S2) oculta las
+tablas de M2 con "Red hidráulica incompleta" — la barrera funciona como
+debe; lo que faltaba era la sincronización.
+
+#### Reconstrucción del flujo real (antes de implementar)
+
+- `agregarArtefacto()` (`LocalFormulario`, `MotorDemandaPantalla.tsx`)
+  crea la instancia con `artefactoId: catalogoArtefactos[0].id` por
+  defecto (el primer ítem del catálogo, hoy `inodoroValvula`) — el
+  usuario cambia el tipo después vía el `<select>` de
+  `ArtefactoFormulario`, en un `onChange` completamente separado.
+- Los ids de instancia (`Artefacto.id`, `Nodo.id`, `Tramo.id` nuevos) se
+  generan con `generarId()` (`crypto.randomUUID()`,
+  `duplicarUnidadFuncional.ts`) — impredecibles, no derivables de
+  convención de nombres.
+- No existe infraestructura de migraciones (`migraciones = []`) ni
+  reconciliación automática: `redHidraulica` es hoy exclusivamente
+  estática (el proyecto demo) o editada a mano por el usuario (L1,
+  `longitud_m`), nunca regenerada.
+
+#### Patrón topológico real del demo (inspección, no supuesto)
+
+Para cada (Local, Red) con **≥2** artefactos conectados existe un nodo de
+bifurcación dedicado (p. ej. `n-af-1` del Baño). Para **exactamente 1**
+artefacto conectado, **no existe ningún nodo de bifurcación** — la rama
+va directa desde el origen compartido (`n-0` para AF, `n-acs` para AC)
+hasta el terminal (p. ej. Patio→canilla, Toilette AC→lavatorio). Esto
+descarta un "Option A" ingenuo que asuma siempre un nodo de cabecera
+dedicado: hay que generalizarlo para cubrir el caso `n=1` sin necesitar
+"retrofit" (partir un tramo existente en dos) — ver más abajo.
+
+#### Alternativa adoptada — Opción A generalizada: deducible sin persistir nada nuevo
+
+**No se introduce ningún concepto de "cabecera" persistida** (Opciones B/
+C/D del checkpoint no fueron necesarias). Se implementaron dos resolvers
+puros más un orquestador, componiendo piezas ya cerradas:
+
+1. **`hallarNodoDeInsercionDeLocal(redHidraulica, unidadFuncionalId,
+   localId, red)`** (`motor/tuberias/topologia/`): recolecta los nodos de
+   origen (`nodoOrigenId`) de los tramos que alimentan los terminales ya
+   existentes de ese (Local, Red). Si todos coinciden en un único nodo —
+   sea un nodo de bifurcación dedicado (caso `n>=2`) o el origen
+   compartido directo (caso `n=1`, sin retrofit) — ese nodo es el punto
+   de inserción. Si el Local no tiene ningún terminal de esa Red
+   (`sinConexionExistente`) o los existentes no comparten origen
+   (`ambiguo`), no hay resultado — nunca se elige arbitrariamente.
+
+2. **`determinarRedesFisicasPorPrecedente(proyecto, artefactoIdCatalogo)`**
+   (`motor/tuberias/topologia/`): determina qué Redes (AF/AC/ambas)
+   necesita físicamente un artefacto nuevo mirando cómo el **propio
+   proyecto** conecta hoy OTRAS instancias del mismo `artefactoId` de
+   catálogo — **nunca** el catálogo normativo directamente
+   (`quCaliente_lps>0`), porque CRIT-A15 ya estableció que la
+   conectividad física es una decisión de instalación real e
+   independiente de la capacidad normativa (demostrado en el propio demo:
+   `inodoroDeposito` tiene `quCaliente_lps>0` en catálogo pero el
+   proyecto lo conecta exclusivamente a AF). Reutiliza
+   `determinarConectividadFisica` (CRIT-A15) sin reimplementarla. Si no
+   hay ninguna instancia previa conectada de ese `artefactoId` en todo el
+   proyecto (`sinPrecedente`), o si coexisten patrones distintos
+   (`inconsistente`), no hay resultado.
+
+3. **`sincronizarConectividadFisicaDeArtefacto(proyecto,
+   unidadFuncionalId, localId, artefactoInstanciaId)`**
+   (`interfaz/paginas/`): orquesta 1+2. Aditiva y no destructiva a
+   propósito — solo agrega `Nodo`(s)/`Tramo`(s) nuevos, nunca modifica un
+   `Tramo`/`Nodo` existente (`longitud_m`/`cota_m`/`accesorios` ya
+   cargados quedan intactos). Idempotente (una Red ya conectada no se
+   duplica). Reporta `redesConectadas`/`redesPendientes` explícitamente —
+   nunca fabrica una conexión que no pudo determinar; S1/S2 siguen siendo
+   la única fuente de verdad sobre qué falta.
+
+4. **`quitarConectividadFisicaDeArtefacto(proyecto, unidadFuncionalId,
+   localId, artefactoInstanciaId)`** (`interfaz/paginas/`, BAJA): elimina
+   todos los nodos cuya `referencia` identifica exactamente al artefacto
+   (nunca compartidos con otra instancia, por construcción — D-δ.3) y sus
+   tramos entrantes exclusivos. **Nunca elimina el nodo padre/cabecera**
+   aunque quede sin hijos: es infraestructura compartida del Local, no
+   exclusiva de la instancia eliminada — sin esto, eliminar un Artefacto
+   ya referenciado dejaba una referencia huérfana que bloqueaba M1+M2
+   juntos (D-δ.26, `redHidraulicaReferenciaArtefactoInvalida`), un fallo
+   más disruptivo que el caso de alta.
+
+**Wiring en UI**: `agregarArtefacto()`/el `onEliminar` de
+`ArtefactoFormulario` (`MotorDemandaPantalla.tsx`) llaman a estos
+orquestadores y pasan el `Proyecto` resultante directo al `setProyecto`
+de nivel superior (`onCambiarProyecto`, prop nueva enhebrada por
+`UnidadFuncionalFormulario`/`LocalFormulario`) — consecuencia mecánica de
+threading de props, sin rediseño de UI.
+
+#### Límite explícito — primera instancia de un `artefactoId` en todo el proyecto
+
+Cuando se agrega el **primer** artefacto de un tipo de catálogo que
+nunca existió antes en el proyecto (p. ej. el caso reproducido real:
+`inodoroValvula`, que no aparece en ningún Local del demo actual),
+`determinarRedesFisicasPorPrecedente` devuelve `sinPrecedente` — no hay
+ninguna instalación previa de la que copiar la conectividad física, y
+adoptar el catálogo como respaldo violaría CRIT-A15. El artefacto queda
+creado funcionalmente pero sin conexión física, exactamente como hoy:
+S1/S2 lo señalan, sin ocultarlo. **Este slice no resuelve ese caso** —
+requeriría o bien una interacción explícita del usuario (fuera de
+alcance, "no diseñar UX final") o bien aceptar una inferencia desde
+catálogo que contradice una decisión ya cerrada. No se adopta ninguna de
+las dos sin una decisión nueva.
+
+#### No implementado en este slice (deferred a propósito)
+
+- **Cambio de tipo de artefacto** (`ArtefactoFormulario`, `<select>` de
+  `artefactoId`): separable del flujo de alta/baja (call site distinto);
+  hoy no dispara sincronización. Si el tipo cambia después de creado con
+  el default (`catalogoArtefactos[0]`), la conectividad puede quedar
+  desalineada con el nuevo tipo. Reutilizar
+  `sincronizarConectividadFisicaDeArtefacto` en ese `onChange` sería
+  mecánicamente trivial en un incremento futuro — no se hace acá para no
+  ampliar el alcance de este cierre.
+- **`Artefacto.cantidad`**: no modifica la topología física, solo la
+  demanda (`n`/`Qmax`) — el modelo ya trata `cantidad>1` como múltiples
+  unidades sobre la misma conexión funcional (CRIT-A3), sin nodos
+  adicionales. Nada que sincronizar.
+- Persistencia de "cabecera" (Opciones B/C/D del checkpoint): no
+  resultaron necesarias — la Opción A generalizada cubre el caso
+  planteado sin introducir ningún concepto nuevo en el modelo.
+
+**Estado**: PARCIALMENTE CERRADA. Alta y baja de artefacto en un Local ya
+físicamente conectado quedan resueltas end-to-end (funcional + física +
+auditoría + cálculo aguas abajo). Cambio de tipo de artefacto y primera
+instancia de un `artefactoId` sin precedente en el proyecto quedan
+explícitamente fuera, documentados arriba.

@@ -80,9 +80,23 @@ No se toca salvo bug real confirmado.
   camino (`acumularPerdidaDistribuidaDeCamino`) — ambos con estado
   incompleto explícito, nunca término ausente = 0;
 - orquestador `resolverPresionResidualDeCamino` que compone camino +
-  desnivel + Σhf distribuida + Pmin del terminal + balance; hoy siempre
-  `balanceIncompleto` (faltan pérdidas localizadas y de medidor desde la
-  topología — la barrera dice la verdad).
+  desnivel + Σhf distribuida + Pmin del terminal + balance;
+- pérdida localizada declarable sobre `Tramo` para el subconjunto
+  inequívoco de Tabla N°7 (curvas, codo 90°, llave de paso, válvula
+  esclusa, uniones, tubo saliente — CRIT-A28, M2-C slice A), integrada
+  como `hfLocalizada` en el balance;
+- barrera de completitud del balance corregida para distinguir cobertura
+  *parcial* (solo el subconjunto CRIT-A28) de *completa* (toda Tabla
+  N°7) — `hfLocalizada` nunca cuenta como término presente mientras la
+  cobertura sea parcial, aunque el valor calculado siga siendo auditable;
+- grifería vs. presión mínima resuelto como criterio IUAS explícito
+  (CRIT-A29): la verificación de presión termina en la boca de conexión
+  del artefacto, la grifería terminal no se suma como pérdida localizada;
+- sincronización automática Proyecto → `redHidraulica` al agregar/quitar
+  un Artefacto de un Local ya conectado (D-δ.39, M2-D) — sin persistir
+  ningún concepto nuevo de "cabecera";
+- el balance de presión sigue siempre `balanceIncompleto` hoy (falta el
+  medidor y el resto de Tabla N°7 — la barrera dice la verdad).
 
 **Pendiente**, organizado en subbloques (dependencias indicadas donde
 existen; sin orden absoluto fijado entre ellos salvo lo señalado):
@@ -127,18 +141,43 @@ términos de M2-C.
 
 #### M2-C — Pérdidas localizadas
 
-- accesorios inferibles de la topología (tees de colector/derivación);
-- accesorios adicionales cargados por el usuario;
-- `ΣK`, integración con la pérdida distribuida ya implementada (N3);
-- nunca mezclar con `longitud_m`.
+**Ya implementado** (ver lista "Completado" arriba): subconjunto
+inequívoco de Tabla N°7 declarable sobre `Tramo` (CRIT-A28) e integrado
+al balance con barrera de completitud correcta; grifería vs. `Pmin`
+resuelta (CRIT-A29).
+
+**Pendiente** (D-δ.33 sigue abierta para el resto):
+
+- reducciones — qué velocidad usa `Js` cuando cambia el diámetro entre
+  dos Tramos consecutivos (sin convención inequívoca todavía);
+- tees (paso recto / salida lateral / entrada central) — `RedHidraulica`
+  no tiene orientación espacial, no distingue qué `Ks` corresponde sin
+  geometría o declaración manual;
+- nunca mezclar con `longitud_m` (D-δ.22).
 
 #### M2-D — Sincronización / topología productiva
 
-- construcción/edición de red desde M1 (altas/bajas de artefactos
-  reflejadas automáticamente en `redHidraulica`);
-- requiere primero diseñar el punto de inserción físico AF/AC por Local
-  (hoy no existe ningún concepto de "cabecera" en el modelo);
-- reconciliación general Proyecto ↔ `redHidraulica`.
+**Ya implementado** (D-δ.39): alta y baja de un Artefacto en un Local ya
+físicamente conectado sincronizan `redHidraulica` automáticamente —
+`sincronizarConectividadFisicaDeArtefacto`/`quitarConectividadFisicaDeArtefacto`
+(`interfaz/paginas/`), apoyados en `hallarNodoDeInsercionDeLocal` y
+`determinarRedesFisicasPorPrecedente` (`motor/tuberias/topologia/`). Sin
+ningún concepto nuevo de "cabecera" persistida — el punto de inserción se
+deriva de la topología existente en cada llamada. Aditivo/no destructivo:
+nunca modifica `longitud_m`/`cota_m`/`accesorios` ya cargados, nunca
+elimina infraestructura compartida del Local.
+
+**Pendiente:**
+
+- primera instancia de un `artefactoId` de catálogo sin ningún precedente
+  en el proyecto (conectividad física no determinable sin inferir desde
+  catálogo, lo que violaría CRIT-A15) — queda funcionalmente creada pero
+  sin conexión física, señalada por S1/S2 como hoy;
+- sincronización al **cambiar el tipo** de un artefacto ya creado
+  (`artefactoId` vía `<select>`) — mecánicamente separable, reutilizaría
+  la misma función de alta;
+- reconciliación general Proyecto ↔ `redHidraulica` para el resto de
+  mutaciones (más allá de alta/baja de Artefacto individual).
 
 #### M2-E — UX final
 

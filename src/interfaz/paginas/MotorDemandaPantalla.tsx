@@ -23,6 +23,8 @@ import {
   textoValorCalculado,
 } from '../../presentacion/desarrolloDelCalculoDemanda'
 import { duplicarUnidadFuncionalEnProyecto, generarId } from './duplicarUnidadFuncional'
+import { sincronizarConectividadFisicaDeArtefacto } from './sincronizarConectividadFisicaDeArtefacto'
+import { quitarConectividadFisicaDeArtefacto } from './quitarConectividadFisicaDeArtefacto'
 import { ResultadoHidraulicoDeTramo } from './ResultadoHidraulicoDeTramo'
 import { MetodologiaYFuentesTecnicas } from './MetodologiaYFuentesTecnicas'
 
@@ -129,26 +131,60 @@ function ArtefactoFormulario({
 function LocalFormulario({
   local,
   etiqueta,
+  proyecto,
+  unidadFuncionalId,
   onCambiar,
+  onCambiarProyecto,
   onEliminar,
 }: {
   local: Local
   etiqueta: string
+  proyecto: Proyecto
+  unidadFuncionalId: string
   onCambiar: (local: Local) => void
+  onCambiarProyecto: (proyecto: Proyecto) => void
   onEliminar: () => void
 }) {
+  // M2-D (sincronización funcional -> hidráulica, primer slice: ALTA):
+  // agregar un Artefacto no solo actualiza la jerarquía funcional (Local)
+  // sino que intenta conectarlo físicamente en redHidraulica -- solo
+  // cuando el punto de inserción es inequívoco (ver
+  // sincronizarConectividadFisicaDeArtefacto). Si no puede determinarlo,
+  // el artefacto queda igual creado funcionalmente pero sin conexión
+  // física, y la barrera de cobertura (S1/S2) lo señala como siempre --
+  // esta función nunca fabrica una conexión ni oculta esa señal.
   function agregarArtefacto() {
     const primerArtefacto = catalogoArtefactos[0]
     if (!primerArtefacto) {
       return
     }
+    const nuevoArtefactoId = generarId('artefacto')
     const nuevoArtefacto: Artefacto = {
-      id: generarId('artefacto'),
+      id: nuevoArtefactoId,
       artefactoId: primerArtefacto.id,
       cantidad: 1,
       origen: 'normativo',
     }
-    onCambiar({ ...local, artefactos: [...local.artefactos, nuevoArtefacto] })
+    const proyectoConArtefacto: Proyecto = {
+      ...proyecto,
+      unidadesFuncionales: proyecto.unidadesFuncionales.map((uf) =>
+        uf.id !== unidadFuncionalId
+          ? uf
+          : {
+              ...uf,
+              locales: uf.locales.map((l) =>
+                l.id !== local.id ? l : { ...l, artefactos: [...l.artefactos, nuevoArtefacto] },
+              ),
+            },
+      ),
+    }
+    const sincronizacion = sincronizarConectividadFisicaDeArtefacto(
+      proyectoConArtefacto,
+      unidadFuncionalId,
+      local.id,
+      nuevoArtefactoId,
+    )
+    onCambiarProyecto(sincronizacion.tipo === 'sincronizado' ? sincronizacion.proyecto : proyectoConArtefacto)
   }
 
   return (
@@ -203,7 +239,33 @@ function LocalFormulario({
               artefactos: local.artefactos.map((a) => (a.id === artefacto.id ? artefactoActualizado : a)),
             })
           }
-          onEliminar={() => onCambiar({ ...local, artefactos: local.artefactos.filter((a) => a.id !== artefacto.id) })}
+          onEliminar={() => {
+            // M2-D (BAJA): retira tambien la conectividad fisica exclusiva
+            // del artefacto antes de que quede una referencia huerfana
+            // (D-δ.26) -- nunca toca infraestructura compartida del
+            // Local (nodo padre/cabecera).
+            const proyectoSinConectividad = quitarConectividadFisicaDeArtefacto(
+              proyecto,
+              unidadFuncionalId,
+              local.id,
+              artefacto.id,
+            )
+            onCambiarProyecto({
+              ...proyectoSinConectividad,
+              unidadesFuncionales: proyectoSinConectividad.unidadesFuncionales.map((uf) =>
+                uf.id !== unidadFuncionalId
+                  ? uf
+                  : {
+                      ...uf,
+                      locales: uf.locales.map((l) =>
+                        l.id !== local.id
+                          ? l
+                          : { ...l, artefactos: l.artefactos.filter((a) => a.id !== artefacto.id) },
+                      ),
+                    },
+              ),
+            })
+          }}
         />
       ))}
       <button type="button" onClick={agregarArtefacto}>
@@ -215,13 +277,17 @@ function LocalFormulario({
 
 function UnidadFuncionalFormulario({
   uf,
+  proyecto,
   onCambiar,
+  onCambiarProyecto,
   onEliminar,
   onDuplicar,
   mostrarEliminar,
 }: {
   uf: UnidadFuncional
+  proyecto: Proyecto
   onCambiar: (uf: UnidadFuncional) => void
+  onCambiarProyecto: (proyecto: Proyecto) => void
   onEliminar: () => void
   onDuplicar: () => void
   mostrarEliminar: boolean
@@ -268,9 +334,12 @@ function UnidadFuncionalFormulario({
           key={local.id}
           local={local}
           etiqueta={etiquetas[indice] ?? `Local: ${ETIQUETA_TIPO_DE_LOCAL[local.tipo]}`}
+          proyecto={proyecto}
+          unidadFuncionalId={uf.id}
           onCambiar={(localActualizado) =>
             cambiarLocales(locales.map((l) => (l.id === local.id ? localActualizado : l)))
           }
+          onCambiarProyecto={onCambiarProyecto}
           onEliminar={() => cambiarLocales(locales.filter((l) => l.id !== local.id))}
         />
       ))}
@@ -331,12 +400,14 @@ function ProyectoFormulario({
         <UnidadFuncionalFormulario
           key={uf.id}
           uf={uf}
+          proyecto={proyecto}
           mostrarEliminar={unidadesFuncionales.length > 1}
           onCambiar={(ufActualizada) =>
             cambiarUnidadesFuncionales(
               unidadesFuncionales.map((u) => (u.id === uf.id ? ufActualizada : u)),
             )
           }
+          onCambiarProyecto={onCambiar}
           onEliminar={() =>
             cambiarUnidadesFuncionales(unidadesFuncionales.filter((u) => u.id !== uf.id))
           }
