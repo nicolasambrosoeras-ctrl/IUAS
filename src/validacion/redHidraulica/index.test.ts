@@ -333,4 +333,93 @@ describe('validarRedHidraulica', () => {
     )
     expect(problemas).toHaveLength(2)
   })
+
+  it('Nodo.tee ausente en una bifurcación real (1 entrante + 2 salientes) no falla -- "no relevado todavía", mismo criterio que accesorios/longitud_m', () => {
+    const red: RedHidraulica = {
+      nodos: [{ id: 'n0' }, { id: 'n-tee' }, { id: 'n1' }, { id: 'n2' }],
+      tramos: [
+        { id: 't-entrada', nodoOrigenId: 'n0', nodoDestinoId: 'n-tee', red: 'AF' },
+        { id: 't-recta', nodoOrigenId: 'n-tee', nodoDestinoId: 'n1', red: 'AF' },
+        { id: 't-lateral', nodoOrigenId: 'n-tee', nodoDestinoId: 'n2', red: 'AF' },
+      ],
+    }
+    expect(validarRedHidraulica(proyectoBase(unidadesFuncionalesDeEjemplo, red))).toEqual([])
+  })
+
+  it('tee entradaPorExtremo válida (estructura 1→2, tramoSalidaRectaId es uno de los dos salientes) no falla', () => {
+    const red: RedHidraulica = {
+      nodos: [{ id: 'n0' }, { id: 'n-tee', tee: { tipo: 'entradaPorExtremo', tramoSalidaRectaId: 't-recta' } }, { id: 'n1' }, { id: 'n2' }],
+      tramos: [
+        { id: 't-entrada', nodoOrigenId: 'n0', nodoDestinoId: 'n-tee', red: 'AF' },
+        { id: 't-recta', nodoOrigenId: 'n-tee', nodoDestinoId: 'n1', red: 'AF' },
+        { id: 't-lateral', nodoOrigenId: 'n-tee', nodoDestinoId: 'n2', red: 'AF' },
+      ],
+    }
+    expect(validarRedHidraulica(proyectoBase(unidadesFuncionalesDeEjemplo, red))).toEqual([])
+  })
+
+  it('tee entradaCentral válida (estructura 1→2) no falla', () => {
+    const red: RedHidraulica = {
+      nodos: [{ id: 'n0' }, { id: 'n-tee', tee: { tipo: 'entradaCentral' } }, { id: 'n1' }, { id: 'n2' }],
+      tramos: [
+        { id: 't-entrada', nodoOrigenId: 'n0', nodoDestinoId: 'n-tee', red: 'AF' },
+        { id: 't-a', nodoOrigenId: 'n-tee', nodoDestinoId: 'n1', red: 'AF' },
+        { id: 't-b', nodoOrigenId: 'n-tee', nodoDestinoId: 'n2', red: 'AF' },
+      ],
+    }
+    expect(validarRedHidraulica(proyectoBase(unidadesFuncionalesDeEjemplo, red))).toEqual([])
+  })
+
+  it('tee declarada sobre un Nodo sin exactamente 1 entrante+2 salientes falla explícitamente (nunca elige otra estructura silenciosamente)', () => {
+    // Solo 1 saliente (no es bifurcación) -- estructura no soportada.
+    const redUnSaliente: RedHidraulica = {
+      nodos: [{ id: 'n0' }, { id: 'n-tee', tee: { tipo: 'entradaCentral' } }, { id: 'n1' }],
+      tramos: [
+        { id: 't-entrada', nodoOrigenId: 'n0', nodoDestinoId: 'n-tee', red: 'AF' },
+        { id: 't-a', nodoOrigenId: 'n-tee', nodoDestinoId: 'n1', red: 'AF' },
+      ],
+    }
+    const problemasUnSaliente = validarRedHidraulica(proyectoBase(unidadesFuncionalesDeEjemplo, redUnSaliente))
+    expect(problemasUnSaliente).toHaveLength(1)
+    expect(problemasUnSaliente[0]?.codigo).toBe('redHidraulicaNodoTeeEstructuraNoSoportada')
+
+    // 3 salientes (fuera del alcance 1→2 de este incremento) -- misma falla.
+    const redTresSalientes: RedHidraulica = {
+      nodos: [{ id: 'n0' }, { id: 'n-tee', tee: { tipo: 'entradaCentral' } }, { id: 'n1' }, { id: 'n2' }, { id: 'n3' }],
+      tramos: [
+        { id: 't-entrada', nodoOrigenId: 'n0', nodoDestinoId: 'n-tee', red: 'AF' },
+        { id: 't-a', nodoOrigenId: 'n-tee', nodoDestinoId: 'n1', red: 'AF' },
+        { id: 't-b', nodoOrigenId: 'n-tee', nodoDestinoId: 'n2', red: 'AF' },
+        { id: 't-c', nodoOrigenId: 'n-tee', nodoDestinoId: 'n3', red: 'AF' },
+      ],
+    }
+    const problemasTresSalientes = validarRedHidraulica(proyectoBase(unidadesFuncionalesDeEjemplo, redTresSalientes))
+    expect(problemasTresSalientes).toHaveLength(1)
+    expect(problemasTresSalientes[0]?.codigo).toBe('redHidraulicaNodoTeeEstructuraNoSoportada')
+  })
+
+  it('tee entradaPorExtremo con tramoSalidaRectaId que no es ninguno de los dos salientes reales falla explícitamente', () => {
+    const red: RedHidraulica = {
+      nodos: [
+        { id: 'n0' },
+        { id: 'n-tee', tee: { tipo: 'entradaPorExtremo', tramoSalidaRectaId: 'tramo-inexistente' } },
+        { id: 'n1' },
+        { id: 'n2' },
+      ],
+      tramos: [
+        { id: 't-entrada', nodoOrigenId: 'n0', nodoDestinoId: 'n-tee', red: 'AF' },
+        { id: 't-recta', nodoOrigenId: 'n-tee', nodoDestinoId: 'n1', red: 'AF' },
+        { id: 't-lateral', nodoOrigenId: 'n-tee', nodoDestinoId: 'n2', red: 'AF' },
+      ],
+    }
+    const problemas = validarRedHidraulica(proyectoBase(unidadesFuncionalesDeEjemplo, red))
+    expect(problemas).toEqual([
+      {
+        codigo: 'redHidraulicaNodoTeeTramoSalidaRectaInvalido',
+        severidad: 'error',
+        campo: 'redHidraulica.nodos[1].tee.tramoSalidaRectaId',
+        valorRecibido: 'tramo-inexistente',
+      },
+    ])
+  })
 })

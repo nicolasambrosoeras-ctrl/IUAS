@@ -28,6 +28,37 @@ export type ReferenciaDeProduccionACS = {
 
 export type ReferenciaDeNodo = ReferenciaDeArtefacto | ReferenciaDeProduccionACS;
 
+// Configuración física de una tee declarada sobre un Nodo de bifurcación
+// (CRIT-A31, modo detallado/experto de M2-C, D-δ.33). Alcance actual:
+// exclusivamente nodos con 1 tramo entrante y 2 tramos salientes -- una
+// tee real, a diferencia de un accesorio en línea (curva, codo...), NO
+// puede estar ausente en una bifurcación 1→2 (dos ramas no pueden salir
+// de un único caño sin algún tipo de pieza en T/Y), así que no existe un
+// equivalente a `accesorios: []` ("relevado, sin accesorios de este
+// tipo") -- solo `undefined` ("bifurcación real, tee todavía no
+// relevada") y una de las dos configuraciones declaradas.
+//
+// 'entradaPorExtremo': la entrada llega por un extremo del eje
+// principal de la tee -- una salida es la continuación recta de ese eje
+// (`tramoSalidaRectaId`, Ks 'teePasoRecto'), la otra es lateral (Ks
+// 'teeSalidaLateral'), deducida automáticamente por descarte: nunca se
+// declaran las dos salidas independientemente, una sola elección
+// determina ambas.
+//
+// 'entradaCentral': la entrada llega por la boca central/perpendicular
+// de la tee -- ambas salidas son laterales respecto de esa entrada (Ks
+// 'teeEntradaCentralSalidasLaterales' para las dos, sin necesidad de
+// elegir cuál es cuál).
+//
+// Deliberadamente NO persiste: Ks (se resuelve desde Tabla N°7 en cada
+// cálculo, mismo criterio que el resto del modelo), coordenadas,
+// ángulos, orientación absoluta, izquierda/derecha, ni geometría
+// gráfica -- solo la información mínima para clasificar el recorrido
+// hidráulico de cada tramo saliente.
+export type ConfiguracionDeTee =
+  | { readonly tipo: 'entradaPorExtremo'; readonly tramoSalidaRectaId: string }
+  | { readonly tipo: 'entradaCentral' };
+
 // Un Nodo sin `referencia` es puramente topológico (fuente, bifurcación o
 // unión): su rol se infiere de su conectividad en `Tramo`, no de un campo
 // de tipo.
@@ -43,6 +74,15 @@ export type Nodo = {
   // satisfacer el compilador; ausencia de cota_m NO equivale a cota_m=0 --
   // ningún consumidor debe asumir ese fallback.
   cota_m?: number;
+  // Configuración física de tee (ver ConfiguracionDeTee) -- solo tiene
+  // sentido declararlo sobre un Nodo con exactamente 1 tramo entrante y 2
+  // salientes (validarRedHidraulica lo exige explícitamente si está
+  // presente). `undefined` = no relevada todavía (nunca "sin tee": una
+  // bifurcación 1→2 real siempre corresponde a algún tipo de pieza en
+  // T/Y). Sobre cualquier otro Nodo (sin bifurcación, o con más de 2
+  // salientes -- fuera de alcance de este incremento) simplemente no se
+  // declara: no es un estado de incompletitud, es no aplicable.
+  tee?: ConfiguracionDeTee;
 };
 
 export type RedDeTramo = 'AF' | 'AC';

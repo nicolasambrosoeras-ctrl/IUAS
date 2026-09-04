@@ -1,16 +1,18 @@
 // Orquestador de balance de presion sobre un camino: se verifican los
 // estados de corte de cada etapa (topologia, terminal/Pmin, desnivel,
 // perdida distribuida, perdida localizada) y que la barrera de
-// completitud sigue diciendo la verdad -- con hfMedidor sin consumidor
-// topologico todavia (D-delta.35) y hfLocalizada siempre 'parcial'
-// (auditoria M2-C: solo cubre el subconjunto CRIT-A28/CRIT-A30,
-// D-delta.33 sigue abierta para tees), el resultado es siempre
-// 'balanceIncompleto', nunca una residual presentada como verificada.
-// Los fixtures de este archivo declaran accesorios=[] por defecto
-// (relevado, sin accesorios del subconjunto soportado) para poder llegar
-// a 'balanceIncompleto' sin necesidad de cargar accesorios reales en cada
-// test que no los ejercita -- el numero de hfLocalizada igual se calcula
-// y queda en la traza (0 real, no ausente).
+// completitud sigue diciendo la verdad. Desde CRIT-A31 (tees),
+// hfLocalizada resuelve 'completa' para un camino sin bifurcaciones de
+// tee sin configurar y con todos sus accesorios relevados -- la unica
+// barrera restante en los fixtures de este archivo (sin bifurcaciones)
+// es hfMedidor, sin consumidor topologico todavia (D-delta.35): el
+// resultado sigue siendo siempre 'balanceIncompleto', nunca una residual
+// presentada como verificada, pero ya NO por hfLocalizada. Los fixtures
+// de este archivo declaran accesorios=[] por defecto (relevado, sin
+// accesorios del subconjunto soportado) para que hfLocalizada resuelva
+// 'completa' sin necesidad de cargar accesorios reales en cada test que
+// no los ejercita -- el numero de hfLocalizada igual se calcula y queda
+// en la traza (0 real, no ausente).
 import { describe, it, expect } from 'vitest'
 import type { Artefacto, MetadatosProyecto, ParametrosProyecto, Proyecto, UnidadFuncional } from '../../../modelo/proyecto'
 import type { AccesorioDeTramo, Nodo, RedHidraulica, ReferenciaDeArtefacto, Tramo } from '../../../modelo/redHidraulica'
@@ -150,15 +152,15 @@ describe('resolverPresionResidualDeCamino', () => {
       catalogoMaterialesTuberia,
     )
 
-    // hfMedidor sin consumidor topologico todavia (D-delta.35) y
-    // hfLocalizada siempre 'parcial' mientras D-delta.33 no cierre el
-    // resto de Tabla N°7 (auditoria M2-C) -- la barrera de
-    // resolverBalanceDePresion corta aca -- SIEMPRE. El numero de
-    // hfLocalizada SI se calcula (accesorios=[] por defecto -> 0 real, no
-    // ausente) y queda en la traza, pero no cuenta como termino presente.
+    // hfMedidor sin consumidor topologico todavia (D-delta.35) -- unica
+    // barrera restante para este camino desde CRIT-A31 (tees): sin
+    // bifurcaciones y con accesorios=[] por defecto (relevado, sin
+    // accesorios), hfLocalizada YA resuelve 'completa' -- deja de ser
+    // termino faltante. El numero de hfLocalizada SI se calcula (0 real,
+    // no ausente) y queda en la traza.
     expect(resultado.tipo).toBe('balanceIncompleto')
     if (resultado.tipo !== 'balanceIncompleto') return
-    expect([...resultado.terminosFaltantes].sort()).toEqual(['hfLocalizada', 'hfMedidor'])
+    expect([...resultado.terminosFaltantes].sort()).toEqual(['hfMedidor'])
     expect(resultado.raizId).toBe('raiz')
     expect(resultado.terminalId).toBe('terminal')
     expect(resultado.desnivel_m).toBe(8)

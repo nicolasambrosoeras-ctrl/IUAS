@@ -227,11 +227,14 @@ describe('acumularPerdidaLocalizadaDeCamino', () => {
   })
 
   it('cada singularidad usa la velocidad de SU tramo: Qc distinto por bifurcación -> V distinta -> hf distinto', () => {
-    // n1 bifurca hacia el terminal (n2, lavatorio) y hacia otra rama (n3,
-    // ducha): t0 (n0->n1) carga Qc de AMBOS aguas abajo; t1 (n1->n2) carga
-    // solo el del lavatorio. Mismo Ks_total declarado en ambos tramos, V
-    // distinta -> hf distinto, y cada uno debe reflejar la V de su propio
-    // tramo, no una compartida.
+    // n1 bifurca hacia el terminal (n2, lavatorio), hacia otra rama (n3,
+    // ducha) y hacia una tercera (n4, bidet) -- 3 salientes a propósito
+    // (noEsBifurcacionDeTee, CRIT-A31: fuera del alcance 1→2 de tees, así
+    // que este fixture no depende de declarar Nodo.tee sobre n1): t0
+    // (n0->n1) carga Qc de TODOS aguas abajo; t1 (n1->n2) carga solo el
+    // del lavatorio. Mismo Ks_total declarado en ambos tramos, V distinta
+    // -> hf distinto, y cada uno debe reflejar la V de su propio tramo,
+    // no una compartida.
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
@@ -240,7 +243,11 @@ describe('acumularPerdidaLocalizadaDeCamino', () => {
           id: 'local-1',
           tipo: 'bano',
           regimen: 'domiciliario',
-          artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+          artefactos: [
+            artefacto('inst-lavatorio', 'lavatorio'),
+            artefacto('inst-ducha', 'receptaculoDucha'),
+            artefacto('inst-bidet', 'bidet'),
+          ],
         },
       ],
     }
@@ -250,11 +257,13 @@ describe('acumularPerdidaLocalizadaDeCamino', () => {
       { id: 'n1' },
       { id: 'n2', referencia: referenciaDe('uf-1', 'local-1', 'inst-lavatorio') },
       { id: 'n3', referencia: referenciaDe('uf-1', 'local-1', 'inst-ducha') },
+      { id: 'n4', referencia: referenciaDe('uf-1', 'local-1', 'inst-bidet') },
     ]
     const tramos: Tramo[] = [
       { id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: 3, accesorios: accesoriosComunes },
       { id: 't1', nodoOrigenId: 'n1', nodoDestinoId: 'n2', red: 'AF', longitud_m: 3, accesorios: accesoriosComunes },
       { id: 't-ducha', nodoOrigenId: 'n1', nodoDestinoId: 'n3', red: 'AF', longitud_m: 3 },
+      { id: 't-bidet', nodoOrigenId: 'n1', nodoDestinoId: 'n4', red: 'AF', longitud_m: 3 },
     ]
     const proyecto = proyectoCon([uf], { nodos, tramos })
     expect(validarRedHidraulica(proyecto)).toEqual([])
@@ -278,11 +287,13 @@ describe('acumularPerdidaLocalizadaDeCamino', () => {
   })
 
   it('reducciones (CRIT-A30): declarada sobre el Tramo del lado menor/aguas abajo de una transición de diámetro real, usa la V de ESE Tramo -- nunca la del tramo padre de mayor diámetro', () => {
-    // Mismo fixture que el test anterior (t0 2 artefactos aguas abajo,
-    // t1 solo 1): con el catálogo/sistema productivos reales, t0 y t1
-    // resuelven diámetros comerciales efectivamente distintos (25mm/18,0mm
-    // vs 20mm/14,4mm) -- una transición de diámetro real, no fabricada.
-    // La reducción se declara sobre t1 (el lado menor, aguas abajo).
+    // Mismo fixture que el test anterior (t0 con más artefactos aguas
+    // abajo que t1, 3 salientes en n1 a propósito -- noEsBifurcacionDeTee,
+    // CRIT-A31 -- así que no depende de declarar Nodo.tee): con el
+    // catálogo/sistema productivos reales, t0 y t1 resuelven diámetros
+    // comerciales efectivamente distintos (25mm/18,0mm vs 20mm/14,4mm) --
+    // una transición de diámetro real, no fabricada. La reducción se
+    // declara sobre t1 (el lado menor, aguas abajo).
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
@@ -291,7 +302,11 @@ describe('acumularPerdidaLocalizadaDeCamino', () => {
           id: 'local-1',
           tipo: 'bano',
           regimen: 'domiciliario',
-          artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+          artefactos: [
+            artefacto('inst-lavatorio', 'lavatorio'),
+            artefacto('inst-ducha', 'receptaculoDucha'),
+            artefacto('inst-bidet', 'bidet'),
+          ],
         },
       ],
     }
@@ -300,11 +315,13 @@ describe('acumularPerdidaLocalizadaDeCamino', () => {
       { id: 'n1' },
       { id: 'n2', referencia: referenciaDe('uf-1', 'local-1', 'inst-lavatorio') },
       { id: 'n3', referencia: referenciaDe('uf-1', 'local-1', 'inst-ducha') },
+      { id: 'n4', referencia: referenciaDe('uf-1', 'local-1', 'inst-bidet') },
     ]
     const tramos: Tramo[] = [
       { id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: 3, accesorios: [] },
       { id: 't1', nodoOrigenId: 'n1', nodoDestinoId: 'n2', red: 'AF', longitud_m: 3, accesorios: [{ tipo: 'reducciones', cantidad: 1 }] },
       { id: 't-ducha', nodoOrigenId: 'n1', nodoDestinoId: 'n3', red: 'AF', longitud_m: 3 },
+      { id: 't-bidet', nodoOrigenId: 'n1', nodoDestinoId: 'n4', red: 'AF', longitud_m: 3 },
     ]
     const proyecto = proyectoCon([uf], { nodos, tramos })
     expect(validarRedHidraulica(proyecto)).toEqual([])
@@ -337,5 +354,121 @@ describe('acumularPerdidaLocalizadaDeCamino', () => {
     // numérica documentada en CRITERIOS.md).
     expect(hfT1Esperado).not.toBeCloseTo(hfT1ConVDelPadreRechazado, 6)
     expect(hfT1ConVDelPadreRechazado).toBeGreaterThan(hfT1Esperado)
+  })
+
+  // Fixture compartida de los tests de tee (CRIT-A31): n0 --t-entrada-->
+  // n-tee (1 entrante) --t-recta--> n1 (lavatorio)
+  //                     --t-lateral--> n2 (ducha)
+  // t-recta declarado como salida recta -> t-lateral queda lateral por
+  // descarte (entradaPorExtremo). Cada saliente sirve un único artefacto
+  // distinto (lavatorio/ducha, Qc/Di/V distintos), para poder demostrar
+  // que la MISMA tee física aporta un Js distinto según qué camino se
+  // evalúa -- sin duplicar la pieza en el modelo.
+  function proyectoConTee(tee: Nodo['tee']): { proyecto: Proyecto; nodos: Nodo[]; tramos: Tramo[] } {
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'uf-1',
+      locales: [
+        {
+          id: 'local-1',
+          tipo: 'bano',
+          regimen: 'domiciliario',
+          artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+        },
+      ],
+    }
+    const nodos: Nodo[] = [
+      { id: 'n0' },
+      { id: 'n-tee', ...(tee !== undefined ? { tee } : {}) },
+      { id: 'n1', referencia: referenciaDe('uf-1', 'local-1', 'inst-lavatorio') },
+      { id: 'n2', referencia: referenciaDe('uf-1', 'local-1', 'inst-ducha') },
+    ]
+    const tramos: Tramo[] = [
+      { id: 't-entrada', nodoOrigenId: 'n0', nodoDestinoId: 'n-tee', red: 'AF', longitud_m: 3, accesorios: [] },
+      { id: 't-recta', nodoOrigenId: 'n-tee', nodoDestinoId: 'n1', red: 'AF', longitud_m: 3, accesorios: [] },
+      { id: 't-lateral', nodoOrigenId: 'n-tee', nodoDestinoId: 'n2', red: 'AF', longitud_m: 3, accesorios: [] },
+    ]
+    return { proyecto: proyectoCon([uf], { nodos, tramos }), nodos, tramos }
+  }
+
+  it('tee entradaPorExtremo (CRIT-A31): dos terminales DISTINTOS a través de la MISMA tee física -- Js distinto por camino (Ks por clasificación + V por Qc propio del tramo saliente), sin duplicar la pieza', () => {
+    const { proyecto } = proyectoConTee({ tipo: 'entradaPorExtremo', tramoSalidaRectaId: 't-recta' })
+    expect(validarRedHidraulica(proyecto)).toEqual([])
+
+    const caminoRecta = caminoResuelto(proyecto, 'n1')
+    const caminoLateral = caminoResuelto(proyecto, 'n2')
+    expect(caminoRecta.tramos.map((t) => t.id)).toEqual(['t-entrada', 't-recta'])
+    expect(caminoLateral.tramos.map((t) => t.id)).toEqual(['t-entrada', 't-lateral'])
+
+    const comercialRecta = resolverDiametroComercialDeTramo(proyecto, 't-recta', catalogoArtefactos, catalogoSistemasDeTuberia)
+    const comercialLateral = resolverDiametroComercialDeTramo(proyecto, 't-lateral', catalogoArtefactos, catalogoSistemasDeTuberia)
+    if (comercialRecta.tipo !== 'conCandidato' || comercialLateral.tipo !== 'conCandidato') {
+      throw new Error('fixture inválida: se esperaba conCandidato en ambos tramos salientes')
+    }
+    // Confirma la premisa: lavatorio y ducha tienen Qc distinto -> V
+    // distinta -- no es un caso trivial de velocidades iguales.
+    expect(comercialRecta.velocidadReal_mps).not.toBeCloseTo(comercialLateral.velocidadReal_mps, 6)
+
+    const resultadoRecta = acumularPerdidaLocalizadaDeCamino(proyecto, caminoRecta, catalogoArtefactos, catalogoSistemasDeTuberia)
+    const resultadoLateral = acumularPerdidaLocalizadaDeCamino(proyecto, caminoLateral, catalogoArtefactos, catalogoSistemasDeTuberia)
+    if (resultadoRecta.tipo !== 'acumulada') throw new Error('se esperaba acumulada (camino recto)')
+    if (resultadoLateral.tipo !== 'acumulada') throw new Error('se esperaba acumulada (camino lateral)')
+
+    const hfTeeRecta = calcularPerdidaCargaLocalizada(obtenerKsDeAccesorio('teePasoRecto'), comercialRecta.velocidadReal_mps)
+    const hfTeeLateral = calcularPerdidaCargaLocalizada(obtenerKsDeAccesorio('teeSalidaLateral'), comercialLateral.velocidadReal_mps)
+
+    // Sin accesorios propios (accesorios:[] en ambos salientes), el hf_m
+    // de cada tramo saliente ES exactamente el aporte de la tee -- Ks
+    // distinto (paso recto vs lateral) Y V distinta (Qc propio de cada
+    // artefacto): dos efectos que se combinan, no solo uno.
+    expect(resultadoRecta.porTramo).toEqual([
+      { tramoId: 't-entrada', hf_m: 0 },
+      { tramoId: 't-recta', hf_m: hfTeeRecta },
+    ])
+    expect(resultadoLateral.porTramo).toEqual([
+      { tramoId: 't-entrada', hf_m: 0 },
+      { tramoId: 't-lateral', hf_m: hfTeeLateral },
+    ])
+    expect(hfTeeRecta).not.toBeCloseTo(hfTeeLateral, 6)
+    // t-entrada nunca recibe contribución de tee: su propio nodoOrigenId
+    // (n0) no es el nodo que bifurca -- la pieza física no se duplica en
+    // ningún otro tramo del camino.
+    expect(resultadoRecta.porTramo.find((p) => p.tramoId === 't-entrada')?.hf_m).toBe(0)
+  })
+
+  it('tee entradaCentral (CRIT-A31): AMBOS caminos usan Ks teeEntradaCentralSalidasLaterales, sin necesidad de declarar cuál es la salida recta', () => {
+    const { proyecto } = proyectoConTee({ tipo: 'entradaCentral' })
+    expect(validarRedHidraulica(proyecto)).toEqual([])
+
+    const caminoRecta = caminoResuelto(proyecto, 'n1')
+    const comercialRecta = resolverDiametroComercialDeTramo(proyecto, 't-recta', catalogoArtefactos, catalogoSistemasDeTuberia)
+    if (comercialRecta.tipo !== 'conCandidato') throw new Error('fixture inválida')
+
+    const resultado = acumularPerdidaLocalizadaDeCamino(proyecto, caminoRecta, catalogoArtefactos, catalogoSistemasDeTuberia)
+    if (resultado.tipo !== 'acumulada') throw new Error('se esperaba acumulada')
+
+    const hfTeeEsperado = calcularPerdidaCargaLocalizada(
+      obtenerKsDeAccesorio('teeEntradaCentralSalidasLaterales'),
+      comercialRecta.velocidadReal_mps,
+    )
+    expect(resultado.porTramo).toEqual([
+      { tramoId: 't-entrada', hf_m: 0 },
+      { tramoId: 't-recta', hf_m: hfTeeEsperado },
+    ])
+  })
+
+  it('tee sin declarar (Nodo.tee === undefined) sobre una bifurcación real: el tramo saliente queda incompleto por motivo teeSinConfigurar -- nunca infiere orientación', () => {
+    // Misma fixture que los dos tests anteriores, pero sin configurar la
+    // tee -- estado real "bifurcación 1→2 existente, todavía sin relevar".
+    const { proyecto } = proyectoConTee(undefined)
+    expect(validarRedHidraulica(proyecto)).toEqual([])
+    const camino = caminoResuelto(proyecto, 'n1')
+
+    const resultado = acumularPerdidaLocalizadaDeCamino(proyecto, camino, catalogoArtefactos, catalogoSistemasDeTuberia)
+
+    expect(resultado).toEqual({
+      tipo: 'incompleta',
+      tramosNoResueltos: [{ tramoId: 't-recta', motivo: 'teeSinConfigurar' }],
+    })
   })
 })

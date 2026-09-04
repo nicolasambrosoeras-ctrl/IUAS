@@ -19,6 +19,8 @@ export type CodigoValidacion =
   | 'redHidraulicaTramoLongitudIncompatibleConCota'
   | 'redHidraulicaTramoAccesorioTipoNoSoportado'
   | 'redHidraulicaTramoAccesorioCantidadNoPositiva'
+  | 'redHidraulicaNodoTeeEstructuraNoSoportada'
+  | 'redHidraulicaNodoTeeTramoSalidaRectaInvalido'
   | 'configuracionHidraulicaSistemaDeTuberiaIdInexistente'
   | 'configuracionHidraulicaSistemaMaterialIncompatible';
 
@@ -98,6 +100,16 @@ export const codigosValidacion: Readonly<Record<CodigoValidacion, DescripcionCod
   redHidraulicaTramoAccesorioCantidadNoPositiva: {
     severidad: 'error',
     descripcion: 'Cantidad de accesorio de Tramo menor o igual a cero.',
+  },
+  redHidraulicaNodoTeeEstructuraNoSoportada: {
+    severidad: 'error',
+    descripcion:
+      'Un Nodo con configuración de tee (Nodo.tee) no tiene exactamente 1 tramo entrante y 2 tramos salientes (CRIT-A31).',
+  },
+  redHidraulicaNodoTeeTramoSalidaRectaInvalido: {
+    severidad: 'error',
+    descripcion:
+      'tramoSalidaRectaId de una configuración de tee (entradaPorExtremo) no es ninguno de los dos tramos salientes reales del Nodo (CRIT-A31).',
   },
   configuracionHidraulicaSistemaDeTuberiaIdInexistente: {
     severidad: 'error',

@@ -141,6 +141,41 @@ export function validarRedHidraulica(proyecto: Proyecto): readonly ProblemaValid
     }
   });
 
+  // Configuración de tee (CRIT-A31, D-δ.33): `Nodo.tee` ausente no se
+  // valida acá -- mismo criterio "no relevado todavía" que longitud_m/
+  // accesorios. Solo se valida lo efectivamente declarado.
+  nodos.forEach((nodo, indiceNodo) => {
+    if (nodo.tee === undefined) {
+      return;
+    }
+
+    const campoNodo = `redHidraulica.nodos[${indiceNodo}]`;
+    const salientes = tramos.filter((tramo) => tramo.nodoOrigenId === nodo.id);
+    const entrantes = tramos.filter((tramo) => tramo.nodoDestinoId === nodo.id);
+
+    if (salientes.length !== 2 || entrantes.length !== 1) {
+      // Estructura no soportada: no tiene sentido validar
+      // tramoSalidaRectaId contra un conjunto de salientes que no es el
+      // esperado (1 entrante + 2 salientes) -- un único problema, no dos
+      // reportes potencialmente confusos sobre el mismo dato roto.
+      problemas.push(crearProblema('redHidraulicaNodoTeeEstructuraNoSoportada', `${campoNodo}.tee`, nodo.tee));
+      return;
+    }
+
+    if (nodo.tee.tipo === 'entradaPorExtremo') {
+      const idsSalientes = new Set(salientes.map((tramo) => tramo.id));
+      if (!idsSalientes.has(nodo.tee.tramoSalidaRectaId)) {
+        problemas.push(
+          crearProblema(
+            'redHidraulicaNodoTeeTramoSalidaRectaInvalido',
+            `${campoNodo}.tee.tramoSalidaRectaId`,
+            nodo.tee.tramoSalidaRectaId,
+          ),
+        );
+      }
+    }
+  });
+
   // Dos nodos distintos pueden referenciar la misma cadena UF/Local/Artefacto
   // (p. ej. terminal AF y terminal AC de un mismo artefacto mixto): esto no
   // se valida como error, a propósito (D-δ.3, D-δ.8).

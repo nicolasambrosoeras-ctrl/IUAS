@@ -204,7 +204,10 @@ function proyectoDosTerminales(): Proyecto {
   }
   const nodos: Nodo[] = [
     { id: 'raiz', cota_m: 0 },
-    { id: 'mid' },
+    // 'mid' bifurca 1→2 (t-lavatorio/t-ducha): tee real (CRIT-A31),
+    // configurada como entradaCentral -- ambas salidas son laterales
+    // respecto de la entrada desde 'raiz'.
+    { id: 'mid', tee: { tipo: 'entradaCentral' } },
     { id: 'terminal-lavatorio', referencia: referenciaDe('uf-1', 'local-1', 'inst-lavatorio'), cota_m: 3 },
     { id: 'terminal-ducha', referencia: referenciaDe('uf-1', 'local-1', 'inst-ducha'), cota_m: 8 },
   ]
@@ -227,7 +230,7 @@ function proyectoDosTerminales(): Proyecto {
 }
 
 describe('resolverTerminalMasDesfavorable (integración con el pipeline real)', () => {
-  it('dos terminales reales resueltos por resolverPresionResidualDeCamino -> sinCandidatoDeterminable (barrera de hfLocalizada parcial propagada correctamente)', () => {
+  it('dos terminales reales, con tee configurada y accesorios relevados -> sinCandidatoDeterminable, pero ahora exclusivamente por hfMedidor (D-delta.35) -- CRIT-A31 cerró hfLocalizada para este camino', () => {
     const proyecto = proyectoDosTerminales()
     expect(validarRedHidraulica(proyecto)).toEqual([])
 
@@ -244,9 +247,16 @@ describe('resolverTerminalMasDesfavorable (integración con el pipeline real)', 
     }))
 
     // Confirma la premisa: ambos caminos son reales y resolubles (no
-    // fallan por topología ni por artefacto), pero ninguno llega a
-    // 'balanceCompleto' -- exactamente el estado esperable hoy.
+    // fallan por topología ni por artefacto ni por pérdida localizada
+    // incompleta -- la tee de 'mid' está configurada y los accesorios de
+    // los 3 tramos están relevados), pero ninguno llega a
+    // 'balanceCompleto' -- la única barrera restante es hfMedidor
+    // (D-delta.35), nunca hfLocalizada.
     expect(candidatos.map((c) => c.resultado.tipo)).toEqual(['balanceIncompleto', 'balanceIncompleto'])
+    for (const candidato of candidatos) {
+      if (candidato.resultado.tipo !== 'balanceIncompleto') throw new Error('se esperaba balanceIncompleto')
+      expect(candidato.resultado.terminosFaltantes).toEqual(['hfMedidor'])
+    }
 
     const resultado = resolverTerminalMasDesfavorable(candidatos)
 

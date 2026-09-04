@@ -763,6 +763,10 @@ const MENSAJES_DE_VALIDACION: Readonly<Record<CodigoValidacion, string>> = {
   redHidraulicaTramoAccesorioTipoNoSoportado:
     'Un accesorio de tramo tiene un tipo todavía no soportado para el cálculo de pérdida localizada.',
   redHidraulicaTramoAccesorioCantidadNoPositiva: 'La cantidad de un accesorio de tramo debe ser mayor que cero.',
+  redHidraulicaNodoTeeEstructuraNoSoportada:
+    'Un nodo con configuración de tee no tiene exactamente 1 tramo entrante y 2 tramos salientes.',
+  redHidraulicaNodoTeeTramoSalidaRectaInvalido:
+    'La salida recta declarada de una tee no es ninguno de los dos tramos salientes reales del nodo.',
   configuracionHidraulicaSistemaDeTuberiaIdInexistente:
     'El sistema de tubería seleccionado no existe en el catálogo de sistemas comerciales vigente.',
   configuracionHidraulicaSistemaMaterialIncompatible:

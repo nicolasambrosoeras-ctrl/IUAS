@@ -22,13 +22,14 @@
 // cualquier otro estado de corte (topologiaNoResoluble,
 // terminalSinArtefacto, etc.) se EXCLUYEN explícitamente, nunca se
 // tratan como si cumplieran ni se ignoran en silencio (quedan listados
-// en terminalesExcluidos). Mientras D-delta.33 (tees) y D-delta.35
-// (medidor) sigan abiertas, 'balanceCompleto' es estructuralmente
-// inalcanzable en todo el proyecto (hfLocalizada siempre 'parcial',
-// hfMedidor siempre undefined -- ver resolverPresionResidualDeCamino) --
-// por eso, hoy, esta función SIEMPRE devuelve 'sinCandidatoDeterminable'
-// sobre datos reales: es el comportamiento correcto y esperable, no un
-// bug, mientras esas barreras sigan vigentes.
+// en terminalesExcluidos). Desde CRIT-A31 (tees), hfLocalizada SI puede
+// resolver 'completa' para un camino con todos sus accesorios y tees
+// relevados -- pero hfMedidor (D-delta.35) sigue siempre undefined, sin
+// ningún consumidor topológico todavía (ver resolverPresionResidualDeCamino):
+// por eso, hoy, 'balanceCompleto' sigue siendo estructuralmente
+// inalcanzable en todo el proyecto, y esta función SIEMPRE devuelve
+// 'sinCandidatoDeterminable' sobre datos reales -- comportamiento
+// correcto y esperable, no un bug, mientras D-delta.35 siga abierta.
 //
 // Tres resultados, nunca colapsados en uno solo (mismo criterio de "no
 // completar por conveniencia" ya aplicado en D-delta.33):

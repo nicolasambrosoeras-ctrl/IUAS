@@ -20,14 +20,17 @@
 // puede distinguir (auditoria M2-C, D-delta.33): "hay un valor calculado"
 // no es lo mismo que "ese valor representa TODA la perdida localizada
 // normativamente exigible para el camino (Tabla N°7 completa)". Desde
-// CRIT-A28/CRIT-A30, el subconjunto {curvas/codos/valvulas/uniones/tubo
-// saliente/reducciones} SI produce un numero real y util -- pero mientras
-// tees (D-delta.33) sigan sin representacion, ese numero es
-// necesariamente PARCIAL: nunca puede por si solo completar el balance,
-// aunque se siga propagando como dato auditable. Griferia queda
-// deliberadamente excluida del balance (CRIT-A29), no es parte de lo que
-// falta. 'completa' hoy no tiene ningun productor real en el motor -- se
-// habilita recien cuando D-delta.33 cierre tees para el camino evaluado.
+// CRIT-A31 (tees), el subconjunto representable sobre RedHidraulica
+// cubre TODA Tabla N°7 -- curvas/codos/valvulas/uniones/tubo
+// saliente/reducciones (CRIT-A28/A30) y las 3 variantes de tee
+// (CRIT-A31); griferia queda deliberadamente excluida del balance
+// (CRIT-A29), no es parte de lo que falta. 'completa' SI tiene productor
+// real ahora: resolverPresionResidualDeCamino la produce cuando
+// acumularPerdidaLocalizadaDeCamino resuelve el camino sin ningun tramo
+// pendiente (accesorios y tees, ambos relevados). 'parcial' queda como
+// variante del tipo para composiciones futuras/alternativas que sigan
+// sin cubrir todo el dominio (p. ej. un modo estimado, ver
+// PENDIENTES-DE-ARQUITECTURA.md D-δ.40).
 export type CoberturaDePerdidaLocalizada =
   | {
       readonly tipo: 'completa'

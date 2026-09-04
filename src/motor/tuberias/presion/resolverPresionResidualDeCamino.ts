@@ -19,21 +19,22 @@
 // ('balanceIncompleto') -- NUNCA presenta una presion residual como
 // verificada mientras falten terminos obligatorios.
 //
-// hfLocalizada SI tiene consumidor desde M2-C slice A (D-delta.33), pero
-// solo cubre el subconjunto inequivoco de Tabla N°7 (curvas, codos,
-// llave de paso, valvula esclusa, uniones, tubo saliente, reducciones
-// -- CRIT-A30) -- tees siguen sin representacion, y griferia queda
-// deliberadamente excluida del balance de la red (CRIT-A29, no es un
-// pendiente). Por eso el valor que produce acumularPerdidaLocalizadaDeCamino
-// SIEMPRE se envuelve como CoberturaDePerdidaLocalizada 'parcial' (nunca
-// 'completa'): un numero util y auditable (queda en la traza), pero que
-// por si solo NUNCA puede completar el balance mientras D-delta.33 no
-// cierre tees para este camino (auditoria de completitud, ver
-// resolverBalanceDePresion). La rama 'balanceCompleto' es el mapeo fiel
-// del resultado 'completo' de resolverBalanceDePresion; hoy sigue
-// inalcanzable por este camino (hfMedidor abstracto Y hfLocalizada
-// siempre 'parcial'), y se vuelve alcanzable recien cuando D-delta.33
-// cierre tees Y D-delta.35 conecte el medidor.
+// hfLocalizada (D-delta.33): desde CRIT-A31 (tees), el subconjunto
+// representable sobre RedHidraulica cubre TODA Tabla N°7 -- curvas,
+// codos, llave de paso, valvula esclusa, uniones, tubo saliente,
+// reducciones (CRIT-A28/A30) y las 3 variantes de tee (CRIT-A31);
+// griferia queda deliberadamente excluida del balance de la red
+// (CRIT-A29, no es un vacio de cobertura). Por eso, cuando
+// acumularPerdidaLocalizadaDeCamino devuelve 'acumulada' para ESTE
+// camino especifico, su cobertura de Tabla N°7 ya es genuinamente
+// completa (todo tramo tuvo accesorios relevados Y toda bifurcacion de
+// tee en el camino quedo configurada -- si algo faltaba,
+// acumularPerdidaLocalizadaDeCamino ya cortó antes con
+// 'perdidaLocalizadaIncompleta', mas arriba en esta misma funcion): se
+// envuelve como CoberturaDePerdidaLocalizada 'completa', no 'parcial'.
+// La rama 'balanceCompleto' sigue inalcanzable en la practica hoy porque
+// hfMedidor (D-delta.35) todavia se pasa siempre como undefined -- esa
+// es ahora la UNICA barrera restante para este camino, no hfLocalizada.
 //
 // Cobertura fisica global del Proyecto (S1/auditarCoberturaFisica) sigue
 // siendo responsabilidad de la barrera de presentacion (S2), no de este
@@ -218,10 +219,13 @@ export function resolverPresionResidualDeCamino(
     desnivel.desnivel_m,
     {
       hfDistribuida_mca: perdidaDistribuida.hf_m,
-      // 'parcial', nunca 'completa': acumularPerdidaLocalizadaDeCamino
-      // solo cubre el subconjunto CRIT-A28/CRIT-A30 (D-delta.33 sigue
-      // abierta para tees). Ver comentario de archivo.
-      hfLocalizada: { tipo: 'parcial', hf_mca: perdidaLocalizada.hf_m },
+      // 'completa': si llegamos hasta acá, acumularPerdidaLocalizadaDeCamino
+      // ya devolvió 'acumulada' (el branch 'incompleta' cortó antes, más
+      // arriba en esta función, con 'perdidaLocalizadaIncompleta') -- desde
+      // CRIT-A31 eso significa que TODO el subconjunto representable de
+      // Tabla N°7 para este camino específico está resuelto (accesorios +
+      // tees). Ver comentario de archivo.
+      hfLocalizada: { tipo: 'completa', hf_mca: perdidaLocalizada.hf_m },
       // hfMedidor sigue sin consumidor topologico (D-delta.35): undefined,
       // nunca 0 -- el balance sigue 'incompleto' hasta que se resuelva.
       hfMedidor_mca: undefined,
