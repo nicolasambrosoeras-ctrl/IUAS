@@ -1155,6 +1155,15 @@ diámetro/capacidad) corresponde incorporar y con qué estructura.
 completo del balance de presión (origen → camino → terminal, D-δ.32),
 no de forma aislada.
 
+**Pre-hallazgo (D-δ.38)**: la pertenencia de `hfMedidor` al balance de un
+terminal **depende del origen hidráulico y del tipo de medidor** — el
+medidor general no interviene en el balance gravitacional tanque →
+artefacto (está aguas arriba del almacenamiento), pero sí en la
+alimentación directa; el medidor individual por unidad funcional
+interviene en ambos orígenes si está sobre el ramal de la unidad. Ver
+D-δ.38 para el detalle. Esto confirma que este pendiente no puede
+resolverse con un único `hfMedidor` global.
+
 ### D-δ.36 — Balance de presión: motor puro con `Pdisponible` como condición de borde explícita — EN PROGRESO
 
 **Decisión adoptada** (continuación de D-δ.32): el motor de balance de
@@ -1255,3 +1264,128 @@ una topología con convergencia/paralelos elegiría un padre arbitrario
 para agrupar filas, pero esa topología ya no produce ningún resultado
 hidráulico presentable (los motores la declaran no resoluble antes). No
 se reescribe la pantalla en este incremento.
+
+### D-δ.38 — Origen hidráulico: modelo físico de `Pdisponible` por tipo de origen (investigación, no cierra ninguna regla)
+
+Continuación de D-δ.32 y D-δ.36. `resolverPresionResidualDeCamino` recibe
+hoy `presionDisponible_mca` como parámetro abstracto (D-δ.36). Este
+registro reconstruye qué representa físicamente esa magnitud según el
+origen, para **informar — no decidir todavía —** la eventual
+representación en el modelo.
+
+**Limitación de fuente**: el repo no contiene el texto de ERAS-2023 (ver
+`HANDOFF-MODULO-1-A-MODULO-2.md` §7). Las afirmaciones rotuladas "norma"
+provienen de hallazgos previos ya registrados en este archivo y en
+`CRITERIOS.md`, y de conocimiento normativo general; no de una
+verificación contra el texto fuente en este repo. Toda ampliación futura
+debe hacerse contra la Resolución 641/2023 real.
+
+**Contrato vigente que NO cambia**: `resolverBalanceDePresion` calcula
+`presionResidual = Pdisponible − Δz − Σpérdidas`, con
+`Δz = cota_terminal − cota_raiz` (signo conservado: el descenso aporta
+carga). Por contrato, entonces, `Pdisponible` es **la carga disponible en
+el nodo raíz del camino** y `cota_raiz` la elevación de ese nodo. Cada
+origen se expresa eligiendo qué nodo es la raíz y qué carga tiene —
+ninguna fórmula se redefine.
+
+#### Origen 1 — Distribución gravitacional desde tanque de reserva elevado
+
+- **Norma (hallazgo previo, D-δ.36)**: ERAS §2.8 exige provisión con
+  reserva para el uso residencial dominante ("pisos bajos destinados a
+  viviendas y pisos altos"), sin excepción condicionada a presión. No
+  equivale a "único origen posible"; es el caso normativamente dominante.
+- **Principio físico**: en distribución por gravedad, la carga disponible
+  en cualquier punto = (elevación de la superficie libre del agua en el
+  tanque) − (elevación del punto). En la salida del tanque la presión
+  manométrica ≈ 0 (superficie libre inmediatamente encima).
+- **Condición de borde**: la **elevación piezométrica** = cota del nivel
+  de agua del tanque. No es "una presión en un nodo": es una cota.
+- **Representación limpia**: nodo raíz = superficie libre del tanque a su
+  **nivel mínimo operativo** (peor caso para presión); `Pdisponible_mca
+  = 0` en la raíz; **toda** la carga motriz la aporta `−Δz` del camino
+  (el artefacto está por debajo del tanque → `Δz < 0`).
+- **Criterio IUAS pendiente**: qué nivel usar como "nivel mínimo
+  operativo" cuando ERAS no lo fija. Opción conservadora simple: cota de
+  la boca de salida del tanque (equivale a `Pdisponible = 0`, tanque a
+  punto de vaciarse). Un futuro modelo de tanque podría refinar con una
+  reserva mínima de altura. No decidido.
+- **Pérdidas previas al camino**: bajada del tanque + colector hasta la
+  raíz. Si la raíz se coloca en la salida del tanque, esas pérdidas caen
+  dentro de los primeros tramos del camino, no antes de él.
+- **Bombeo a tanque elevado**: hidráulicamente **idéntico a este caso**
+  para la red de distribución — la bomba sólo llena el tanque. No es un
+  origen distinto para el balance del terminal.
+
+#### Origen 2 — Alimentación directa desde red pública
+
+- **Norma / práctica (hallazgo previo)**: admisible cuando la presión
+  garantizada en la conexión alcanza para llegar al artefacto más
+  desfavorable con su presión mínima; si no, reserva obligatoria
+  (§2.7 / §2.8).
+- **Condición de borde**: la **presión mínima garantizada sobre el nivel
+  de vereda** — exactamente lo que representa el campo legado
+  `ParametrosProyecto.presionSobreAcera_m`. Es una presión (m.c.a.)
+  referida a `cota 0 = acera` (convención del modelo).
+- **Representación**: nodo raíz en la conexión / salida del medidor
+  general, `cota_raiz ≈ 0`; `Pdisponible_mca = presionSobreAcera_m`. La
+  subida hasta los artefactos es `Δz > 0` (consume); la pérdida del
+  medidor y de la cañería de alimentación entran en el camino.
+- `presionSobreAcera_m` **sigue siendo necesario** para este origen — no
+  es legado a eliminar.
+
+#### Origen 3 — Bombeo con presurización directa (sin tanque elevado)
+
+- **Condición de borde**: presión en la impulsión al caudal de diseño =
+  punto de la curva de bomba / setpoint del presostato. **Requiere datos
+  de bomba** (curva, arranque/parada, caudal, control) que el modelo
+  actual no tiene y que no corresponde modelar en este alcance.
+- **Decisión**: origen **diferido**. El contrato abstracto actual
+  (`Pdisponible` explícito) permite incorporarlo después sin mentira
+  conceptual: un futuro modelo de bomba produciría un `Pdisponible` y lo
+  entregaría igual que los otros orígenes.
+
+#### Consecuencia para D-δ.35 (medidor) — pre-hallazgo, no diseña la entidad
+
+La pertenencia de `hfMedidor` al balance de un terminal **depende del
+origen y del tipo de medidor**:
+
+- **Medidor general** (en la conexión / sala de medidores, §2.12.1):
+  - Origen directo → está hidráulicamente entre la red y el terminal →
+    `hfMedidor` **entra** en el balance del terminal.
+  - Origen tanque/gravitacional → está **aguas arriba del
+    almacenamiento** (llena el tanque) → su pérdida afecta el
+    llenado/reserva, **no** la presión gravitacional tanque → artefacto
+    → **no entra** en el balance del terminal.
+- **Medidor individual por unidad funcional** (§2.12.1 punto e, §2.6): si
+  existe sobre el ramal de la unidad, está en el camino
+  tanque/red → artefacto de esa unidad en **ambos** orígenes → **entra**
+  en el balance de los terminales de esa unidad.
+
+Refuerza que D-δ.35 debe distinguir medidor general de individual y
+ubicarlos topológicamente respecto del origen y del almacenamiento — no
+como un único `hfMedidor` global. **No se diseña la entidad `Medidor`
+acá.**
+
+#### Campos legado de `ParametrosProyecto`
+
+- `presionSobreAcera_m`: **sigue vigente** como condición de borde del
+  Origen 2. Hoy sin consumidor (ningún motor lo lee); pasará a
+  alimentarlo cuando se cierre el origen.
+- `alturaArtefactoMasDesfavorable_m`: **redundante** para el balance por
+  terminal — `Nodo.cota_m` del nodo terminal transporta la misma
+  información, por terminal y con más precisión. Era el sustituto
+  pre-topología de "cuánto sube el artefacto más desfavorable".
+  Clasificación: **legado pendiente de migración**; NO se elimina en esta
+  corrida (no hay infraestructura de migraciones —
+  `modelo/proyecto/migraciones/` con lista vacía —, `SCHEMA_VERSION`
+  congelada en `1.0.0`, y sigue siendo el único dato tipo-origen que
+  carga el demo).
+
+#### Qué NO cierra este registro
+
+No decide si el origen se representa como condición de borde abstracta
+(seguir como D-δ.36), como estructura en `Proyecto`, como referencia de
+nodo topológica, o una combinación; ni si es global al `Proyecto` o por
+raíz / subred (CRIT-A27 admite subredes independientes). Esa es una
+decisión roja abierta — ver el checkpoint reportado al cerrar esta
+investigación.
