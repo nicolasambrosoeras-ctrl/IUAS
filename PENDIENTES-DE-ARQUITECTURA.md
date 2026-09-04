@@ -1912,7 +1912,7 @@ después de creado (`<select>` de `ArtefactoFormulario`) y el caso
 `inconsistente` (patrones físicos distintos entre instancias previas)
 quedan explícitamente fuera, documentados arriba.
 
-### D-δ.40 — Modo estándar/estimado de pérdidas localizadas (dos niveles metodológicos) — DECISIÓN REGISTRADA, NO IMPLEMENTADA
+### D-δ.40 — Modo estándar/estimado de pérdidas localizadas (dos niveles metodológicos) — IMPLEMENTADA (alcance: tees)
 
 **Contexto**: D-δ.33/CRIT-A28/CRIT-A30/CRIT-A31 cerraron el **modo
 detallado/experto**: el usuario declara explícitamente cada accesorio y
@@ -1947,26 +1947,96 @@ parte de este registro.
   reales tengan ese `Ks` — es una adopción deliberadamente conservadora
   ante geometría no relevada, para no subestimar la pérdida localizada.
 
-**No decidido todavía (deliberadamente, fuera de este registro)**:
+#### Velocidad de referencia del modo estimado — RESUELTA
 
-- **Velocidad del modo estimado**: para calcular `N_tees·Ks·V²/(2g)` en
-  modo estándar falta decidir qué `V` representa un conjunto de tees
-  cuya posición física no está relevada — alternativas a investigar:
-  velocidad del tramo distribuidor del Local, velocidad máxima de los
-  tramos de esa red/Local, u otra magnitud técnicamente justificada.
-  **Esta decisión debe resolverse en conjunto con el método GENERAL de
-  pérdidas localizadas estimadas** (codos, curvas, llaves, etc. también
-  estimados) — no se cierra aisladamente solo para tees.
-- Cómo el modelo distingue `estimado` de `detallado` a nivel de
-  Proyecto/Local/red.
-- Semántica de completitud del modo estimado: un cálculo estimado
-  completo (todas las magnitudes del método estándar resueltas) **no
-  debe presentarse como incompleto** solo porque no se relevó cada
-  accesorio físico individual — es un nivel metodológico distinto de
-  `'parcial'`/`'completa'` del modo detallado, no una versión inferior
-  de la misma escala. Esta distinción se implementa recién cuando el
-  modo estándar quede completamente definido.
+**Decisión** (evaluada contra significado físico, riesgo de sub/sobre-
+estimar, comportamiento con diámetros distintos por ramal, con varios
+terminales, coherencia conservadora y estabilidad topológica — ver
+checkpoint presentado al usuario, confirmado sin decisión roja
+adicional):
 
-**Estado**: criterio de dominio aprobado y registrado, cero código.
-Retomar primero decidiendo la velocidad de referencia del método
-estimado completo (tees + resto de accesorios), no tees en aislado.
+```text
+V_ref(Local, red) = MAX velocidadReal_mps entre los tramos que
+                     alimentan DIRECTAMENTE cada terminal físico de
+                     ese Local+red (el tramo cuyo nodoDestinoId es el
+                     terminal — nunca todo el camino hasta la raíz,
+                     que mezclaría velocidades de tramos troncales
+                     compartidos con OTROS Locales).
+```
+
+**Por qué esta y no "velocidad del tramo distribuidor del Local"**: esa
+alternativa exige inventar un concepto topológico que el modelo no
+tiene (qué tramo es "el" distribuidor de un Local — no siempre existe
+un único tronco bien definido) y no garantiza ser conservadora (el
+diámetro comercial del tronco puede dar una V menor O mayor que la de
+los ramales, según qué diámetro resultó admisible en cada segmento).
+`V_ref` como máximo de velocidades reales YA calculadas por la capa
+comercial nunca subestima `Js` (∝V²), es robusta ante diámetros
+distintos por ramal (el ramal más angosto domina automáticamente),
+escala con más terminales sin perder estabilidad, y es coherente con el
+mismo principio conservador ya adoptado para `Ks=3,00` (peor caso
+conocido, nunca inventar geometría).
+
+**Alcance final — qué se estima y qué NO**: de todo el método general de
+pérdidas localizadas estimadas (tees + codos + curvas + llaves + etc.),
+esta implementación cubre **únicamente tees**. No hay en el repo ni en
+el dominio conocido ninguna base normativa ni topológica para inferir
+cantidades de codos/curvas/llaves sin relevamiento físico real — modo
+estándar simplifica el relevamiento, no inventa infraestructura con
+falsa precisión. Si en el futuro aparece evidencia legítima para
+estimar otro accesorio de Tabla N°7, se agrega como una magnitud más al
+mismo mecanismo (mismo Local+red, misma `V_ref`), sin rediseñar el
+contrato.
+
+**Contrato implementado**:
+
+- `Proyecto.configuracionHidraulica.metodoPerdidaLocalizada: 'detallado' | 'estimado'`
+  (`src/modelo/proyecto/index.ts`) — selección única y global del
+  Proyecto, mismo patrón que `metodoPerdidaDistribuida`. Obligatoria: no
+  hay estado intermedio "Proyecto sin metodología todavía".
+- `contarTerminalesFisicosDeLocal` (`motor/tuberias/topologia/`) — cuenta
+  `n` por inspección estructural directa (Nodo → tramo entrante →
+  `Tramo.red`), mismo patrón que `determinarConectividadFisica`
+  (CRIT-A15): un artefacto con conectividad AF+AC tiene dos Nodos
+  terminales (misma referencia), cuenta una vez en cada red por
+  separado, nunca colapsado en una ni duplicado como dos artefactos.
+- `resolverPerdidaLocalizadaEstimadaDeLocal` (`motor/tuberias/presion/`)
+  — `N_tees_estimadas=max(0,n-1)`; si es 0, `hf_m=0` sin necesitar
+  resolver ninguna velocidad (Js=0 no depende de V); si no, resuelve
+  `V_ref` sobre los tramos terminales vía `resolverDiametroComercialDeTramo`
+  (ya productivo) y compone con `calcularPerdidaCargaLocalizada`
+  (CRIT-A26, sin fórmula nueva). Barrera de completitud propia:
+  `'incompleta'` si algún tramo terminal no resuelve diámetro comercial
+  (`sinDemanda`/`sinCandidatoAdmisible`) — nunca una suma parcial.
+- `CoberturaDePerdidaLocalizada` (`resolverBalanceDePresion.ts`) gana la
+  variante `'estimada'` — cuenta igual que `'completa'` para cerrar el
+  balance (nunca igual que `'parcial'`/`'ausente'`): **"estimado" NO
+  significa "parcial"**, es una metodología distinta, también completa
+  dentro de sí misma. Los dos modos son estrictamente ALTERNATIVOS:
+  `resolverPresionResidualDeCamino` elige uno solo según
+  `metodoPerdidaLocalizada` y nunca sesga/mezcla ambos para el mismo
+  camino — modo estimado ignora por completo `Tramo.accesorios` y
+  `Nodo.tee` (nunca invoca `acumularPerdidaLocalizadaDeCamino`), modo
+  detallado sin cambios de comportamiento.
+
+**Qué es decisión IUAS vs. qué proviene de ERAS**: `Ks_estimado_tee=3,00`
+y `V_ref=máxima velocidad entre tramos terminales` son adopciones IUAS
+(conservadoras, no textuales de ERAS-2023). `N_tees=max(0,n-1)` es
+inferencia geométrica IUAS (una tee por unión adicional más allá de la
+primera). La fórmula `Js=Ks·V²/2g` y el propio `Ks=3,00` como valor de
+Tabla N°7 (`teeEntradaCentralSalidasLaterales`) sí son de ERAS-2023
+(CRIT-A26/CRIT-A31) — lo que IUAS decide es *adoptarlo* como estimador
+conservador cuando la orientación real no se releva, no su valor
+normativo en sí.
+
+**Limitaciones conocidas**: no estima ningún accesorio más allá de
+tees; no distingue AF/AC más allá de contarlas por separado (ya
+correcto); no considera un Local con terminales en más de un "grupo"
+físico distante entre sí (el modelo no tiene esa noción — `V_ref` toma
+el máximo entre TODOS los tramos terminales de ese Local+red, sin
+importar cuán separados estén dentro del Local).
+
+**Estado**: IMPLEMENTADA para tees (código, tests, ver commit "feat:
+modo estandar/estimado de perdidas localizadas"). Sigue sin decidir
+—deliberadamente fuera de este alcance— si en el futuro conviene
+estimar además otros accesorios de Tabla N°7.
