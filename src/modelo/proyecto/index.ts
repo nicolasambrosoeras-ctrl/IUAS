@@ -69,6 +69,20 @@ export type MetadatosProyecto = {
 // selección única y global del Proyecto, no por Tramo.
 export type MetodoPerdidaDistribuida = 'hazenWilliams' | 'darcyWeisbach';
 
+// Metodología de pérdida de carga localizada (D-δ.40): selección única y
+// global del Proyecto, no por Tramo/Local/red -- mismo patrón que
+// MetodoPerdidaDistribuida. Los dos modos son ALTERNATIVOS, nunca
+// aditivos: nunca deben sumarse pérdidas 'detallado' + 'estimado' para
+// las mismas singularidades.
+// 'detallado': el usuario declara cada accesorio (Tramo.accesorios) y
+// cada tee (Nodo.tee) -- comportamiento ya existente, sin cambios
+// (CRIT-A26/A28/A30/A31, D-δ.33).
+// 'estimado': el usuario no releva singularidades físicas -- IUAS estima
+// únicamente las tees por Local+red (D-δ.40); el resto de Tabla N°7 no
+// se estima (sin base normativa/topológica para inferir cantidades de
+// codos/llaves/etc.).
+export type MetodoPerdidaLocalizada = 'detallado' | 'estimado';
+
 // Material de tubería: selección única y global del Proyecto, no por Tramo.
 // Solo el ID vive en modelo -- las propiedades hidráulicas (C, epsilon) y
 // sus fuentes viven en el catálogo (motor/tuberias/materialTuberia), que
@@ -83,6 +97,11 @@ export type MaterialTuberiaId =
 
 export type ConfiguracionHidraulica = {
   metodoPerdidaDistribuida: MetodoPerdidaDistribuida;
+  // Obligatorio, mismo criterio que metodoPerdidaDistribuida: una vez que
+  // el concepto de metodología de pérdida localizada existe en el
+  // modelo, no hay estado intermedio válido de "Proyecto sin
+  // metodología todavía".
+  metodoPerdidaLocalizada: MetodoPerdidaLocalizada;
   materialTuberiaId: MaterialTuberiaId;
   // Sistema comercial real adoptado (id contra catalogoSistemasDeTuberia,
   // motor/tuberias/sistemaDeTuberia) -- distinto de materialTuberiaId

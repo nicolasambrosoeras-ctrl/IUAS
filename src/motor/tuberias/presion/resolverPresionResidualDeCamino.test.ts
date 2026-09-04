@@ -61,6 +61,7 @@ function proyectoCon(unidadesFuncionales: readonly UnidadFuncional[], redHidraul
     redHidraulica,
     configuracionHidraulica: {
       metodoPerdidaDistribuida: 'hazenWilliams',
+      metodoPerdidaLocalizada: 'detallado',
       materialTuberiaId: 'ppr',
       sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
     },
@@ -171,8 +172,9 @@ describe('resolverPresionResidualDeCamino', () => {
     expect(resultado.raizId).toBe('raiz')
     expect(resultado.terminalId).toBe('terminal')
     expect(resultado.desnivel_m).toBe(8)
-    expect(resultado.hfLocalizada_mca).toBe(0)
-    expect(resultado.hfLocalizadaPorTramo).toEqual([
+    expect(resultado.hfLocalizada.hf_mca).toBe(0)
+    if (resultado.hfLocalizada.metodologia !== 'detallado') throw new Error('se esperaba metodologia detallado')
+    expect(resultado.hfLocalizada.porTramo).toEqual([
       { tramoId: 't0', hf_m: 0 },
       { tramoId: 't1', hf_m: 0 },
     ])
@@ -350,8 +352,9 @@ describe('resolverPresionResidualDeCamino', () => {
     expect(resultado.desnivel_m).toBe(0)
     expect(resultado.hfDistribuida_mca).toBe(0)
     expect(resultado.hfDistribuidaPorTramo).toEqual([])
-    expect(resultado.hfLocalizada_mca).toBe(0)
-    expect(resultado.hfLocalizadaPorTramo).toEqual([])
+    expect(resultado.hfLocalizada.hf_mca).toBe(0)
+    if (resultado.hfLocalizada.metodologia !== 'detallado') throw new Error('se esperaba metodologia detallado')
+    expect(resultado.hfLocalizada.porTramo).toEqual([])
   })
 
   it('un Tramo con accesorios no relevados (undefined) -> perdidaLocalizadaIncompleta', () => {
@@ -387,11 +390,12 @@ describe('resolverPresionResidualDeCamino', () => {
     )
 
     if (resultado.tipo !== 'balanceIncompleto') throw new Error('se esperaba balanceIncompleto')
-    expect(resultado.hfLocalizada_mca).toBeGreaterThan(0)
-    expect(resultado.hfLocalizadaPorTramo[0]!.hf_m).toBeGreaterThan(0)
-    expect(resultado.hfLocalizadaPorTramo[1]!.hf_m).toBe(0)
-    expect(resultado.hfLocalizada_mca).toBeCloseTo(
-      resultado.hfLocalizadaPorTramo[0]!.hf_m + resultado.hfLocalizadaPorTramo[1]!.hf_m,
+    expect(resultado.hfLocalizada.hf_mca).toBeGreaterThan(0)
+    if (resultado.hfLocalizada.metodologia !== 'detallado') throw new Error('se esperaba metodologia detallado')
+    expect(resultado.hfLocalizada.porTramo[0]!.hf_m).toBeGreaterThan(0)
+    expect(resultado.hfLocalizada.porTramo[1]!.hf_m).toBe(0)
+    expect(resultado.hfLocalizada.hf_mca).toBeCloseTo(
+      resultado.hfLocalizada.porTramo[0]!.hf_m + resultado.hfLocalizada.porTramo[1]!.hf_m,
       12,
     )
   })
@@ -445,7 +449,7 @@ describe('resolverPresionResidualDeCamino', () => {
     expect(resultado.hfDistribuida_mca).toBeCloseTo(J_HAZEN_QC_0_2_DI_14_4_C_150 * (L0 + L1), 9)
     // Sin accesorios declarados en este golden (accesorios=[] por defecto):
     // hfLocalizada es un cero real, no un término ausente.
-    expect(resultado.hfLocalizada_mca).toBe(0)
+    expect(resultado.hfLocalizada.hf_mca).toBe(0)
   })
 
   // Demuestra que, con TODOS los terminos obligatorios presentes -- el
@@ -474,9 +478,249 @@ describe('resolverPresionResidualDeCamino', () => {
     if (resultado.tipo !== 'balanceCompleto') throw new Error('se esperaba balanceCompleto')
     expect(resultado.presionMinimaRequerida_mca).toBeCloseTo(6, 12) // lavatorio: 0,6 kgf/cm² * 10
     expect(resultado.presionResidual_mca).toBeCloseTo(
-      P_DISPONIBLE - resultado.desnivel_m - resultado.hfDistribuida_mca - resultado.hfLocalizada_mca - HF_MEDIDOR_MCA,
+      P_DISPONIBLE - resultado.desnivel_m - resultado.hfDistribuida_mca - resultado.hfLocalizada.hf_mca - HF_MEDIDOR_MCA,
       12,
     )
     expect(resultado.cumpleMinimo).toBe(resultado.presionResidual_mca >= resultado.presionMinimaRequerida_mca)
+  })
+})
+
+// metodoPerdidaLocalizada='estimado' (D-delta.40): raiz(cota0) -> mid ->
+// dos terminales hermanos del mismo Local (lavatorio cota3, ducha cota8)
+// -- n=2 terminales fisicos AF en 'local-1' -> 1 tee estimada. 'mid'
+// queda deliberadamente SIN tee configurada: el modo estimado no la
+// necesita (nunca llama resolverClasificacionDeTee), y validarRedHidraulica
+// no exige Nodo.tee salvo que este declarado (ver validacion/redHidraulica).
+// El tramo mid->lavatorio declara accesorios reales a proposito, para
+// demostrar que el modo estimado los ignora por completo (nunca sale de
+// acumularPerdidaLocalizadaDeCamino ni de Tramo.accesorios).
+function proyectoEstimadoDosTerminales(opts?: { conAccesoriosDetallados?: boolean }): Proyecto {
+  const uf: UnidadFuncional = {
+    id: 'uf-1',
+    nombre: 'uf-1',
+    locales: [
+      {
+        id: 'local-1',
+        tipo: 'bano',
+        regimen: 'domiciliario',
+        artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+      },
+    ],
+  }
+  const nodos: Nodo[] = [
+    { id: 'raiz', cota_m: 0 },
+    { id: 'mid' },
+    { id: 'terminal-lavatorio', referencia: referenciaDe('uf-1', 'local-1', 'inst-lavatorio'), cota_m: 3 },
+    { id: 'terminal-ducha', referencia: referenciaDe('uf-1', 'local-1', 'inst-ducha'), cota_m: 8 },
+  ]
+  const accesoriosLavatorio: readonly AccesorioDeTramo[] | undefined = opts?.conAccesoriosDetallados
+    ? [{ tipo: 'codo90', cantidad: 5 }]
+    : undefined
+  const tramos: Tramo[] = [
+    { id: 't0', nodoOrigenId: 'raiz', nodoDestinoId: 'mid', red: 'AF', longitud_m: 4 },
+    {
+      id: 't-lavatorio',
+      nodoOrigenId: 'mid',
+      nodoDestinoId: 'terminal-lavatorio',
+      red: 'AF',
+      longitud_m: 3,
+      ...(accesoriosLavatorio !== undefined ? { accesorios: accesoriosLavatorio } : {}),
+    },
+    { id: 't-ducha', nodoOrigenId: 'mid', nodoDestinoId: 'terminal-ducha', red: 'AF', longitud_m: 8 },
+  ]
+  return {
+    metadatos: metadatos(),
+    parametros: parametros(),
+    unidadesFuncionales: [uf],
+    redHidraulica: { nodos, tramos },
+    configuracionHidraulica: {
+      metodoPerdidaDistribuida: 'hazenWilliams',
+      metodoPerdidaLocalizada: 'estimado',
+      materialTuberiaId: 'ppr',
+      sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
+    },
+  }
+}
+
+describe('resolverPresionResidualDeCamino — metodoPerdidaLocalizada=estimado (D-delta.40)', () => {
+  it('el resultado se identifica explicitamente como estimado, nunca como completa/parcial del modo detallado', () => {
+    const proyecto = proyectoEstimadoDosTerminales()
+    expect(validarRedHidraulica(proyecto)).toEqual([])
+
+    const resultado = resolverPresionResidualDeCamino(
+      proyecto,
+      'terminal-lavatorio',
+      P_DISPONIBLE,
+      undefined,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    if (resultado.tipo !== 'balanceIncompleto') throw new Error('se esperaba balanceIncompleto (falta hfMedidor)')
+    expect(resultado.hfLocalizada.metodologia).toBe('estimado')
+    if (resultado.hfLocalizada.metodologia !== 'estimado') return
+    expect(resultado.hfLocalizada.nTerminalesLocal).toBe(2)
+    expect(resultado.hfLocalizada.nTeesEstimadas).toBe(1)
+    expect(resultado.hfLocalizada.hf_mca).toBeGreaterThan(0)
+    // Cobertura estimada nunca se reporta como 'parcial' del modo
+    // detallado: la unica barrera restante es hfMedidor, igual que en
+    // modo detallado con todo relevado.
+    expect(resultado.terminosFaltantes).toEqual(['hfMedidor'])
+  })
+
+  it('el modo estimado NUNCA suma pérdidas detalladas: declarar accesorios reales en Tramo.accesorios no cambia el resultado estimado', () => {
+    const proyectoSinAccesorios = proyectoEstimadoDosTerminales({ conAccesoriosDetallados: false })
+    const proyectoConAccesorios = proyectoEstimadoDosTerminales({ conAccesoriosDetallados: true })
+
+    const resolver = (proyecto: Proyecto) =>
+      resolverPresionResidualDeCamino(
+        proyecto,
+        'terminal-lavatorio',
+        P_DISPONIBLE,
+        undefined,
+        catalogoArtefactos,
+        catalogoSistemasDeTuberia,
+        catalogoMaterialesTuberia,
+      )
+
+    const sinAccesorios = resolver(proyectoSinAccesorios)
+    const conAccesorios = resolver(proyectoConAccesorios)
+
+    if (sinAccesorios.tipo !== 'balanceIncompleto' || conAccesorios.tipo !== 'balanceIncompleto') {
+      throw new Error('se esperaba balanceIncompleto en ambos')
+    }
+    expect(conAccesorios.hfLocalizada.hf_mca).toBeCloseTo(sinAccesorios.hfLocalizada.hf_mca, 12)
+  })
+
+  it('camino/balance real: hfLocalizada estimada puede alimentar el motor de presion sin romper balanceCompleto', () => {
+    const HF_MEDIDOR_MCA = 1.3
+    const proyecto = proyectoEstimadoDosTerminales()
+
+    const resultado = resolverPresionResidualDeCamino(
+      proyecto,
+      'terminal-ducha',
+      P_DISPONIBLE,
+      HF_MEDIDOR_MCA,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    if (resultado.tipo !== 'balanceCompleto') throw new Error('se esperaba balanceCompleto')
+    expect(resultado.hfLocalizada.metodologia).toBe('estimado')
+    expect(resultado.presionResidual_mca).toBeCloseTo(
+      P_DISPONIBLE - resultado.desnivel_m - resultado.hfDistribuida_mca - resultado.hfLocalizada.hf_mca - HF_MEDIDOR_MCA,
+      12,
+    )
+  })
+
+  it('terminal que ES la raiz (camino sin tramos): estimado resuelve hf=0 sin necesitar resolver a que red pertenece', () => {
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'uf-1',
+      locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', 'lavatorio')] }],
+    }
+    const proyecto: Proyecto = {
+      metadatos: metadatos(),
+      parametros: parametros(),
+      unidadesFuncionales: [uf],
+      redHidraulica: { nodos: [{ id: 'solo', referencia: referenciaDe('uf-1', 'local-1', 'inst-1'), cota_m: 3 }], tramos: [] },
+      configuracionHidraulica: {
+        metodoPerdidaDistribuida: 'hazenWilliams',
+        metodoPerdidaLocalizada: 'estimado',
+        materialTuberiaId: 'ppr',
+        sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
+      },
+    }
+
+    const resultado = resolverPresionResidualDeCamino(
+      proyecto,
+      'solo',
+      P_DISPONIBLE,
+      undefined,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    if (resultado.tipo !== 'balanceIncompleto') throw new Error('se esperaba balanceIncompleto')
+    expect(resultado.hfLocalizada).toEqual({
+      metodologia: 'estimado',
+      hf_mca: 0,
+      nTerminalesLocal: 0,
+      nTeesEstimadas: 0,
+      velocidadReferencia_mps: 0,
+    })
+  })
+
+  // El tramo sin candidato admisible debe pertenecer al Local+red pero
+  // NO al camino del propio terminal consultado -- si perteneciera a su
+  // propio camino, acumularPerdidaDistribuidaDeCamino (que corre ANTES,
+  // sobre los mismos tramos) ya cortaria con 'perdidaDistribuidaIncompleta'
+  // (precedencia de etapas, mismo criterio que el resto de este archivo).
+  // Por eso se agrega un TERCER terminal hermano ('terminal-bidet', con
+  // una cantidad de artefacto deliberadamente atipica que hace que su
+  // tramo no resuelva comercialmente) cuyo tramo nunca es recorrido al
+  // pedir 'terminal-lavatorio', pero SI participa en el conteo/velocidad
+  // estimada de 'local-1'+AF. El motivo exacto (sinDemanda o
+  // sinCandidatoAdmisible) no es lo que se verifica -- lo relevante es
+  // que el corte proviene del tramo hermano, no del propio camino.
+  it('tramo de un terminal HERMANO (mismo Local+red, fuera del camino consultado) sin resolucion comercial -> perdidaLocalizadaEstimadaIncompleta', () => {
+    const proyectoBase = proyectoEstimadoDosTerminales()
+    const redHidraulica = proyectoBase.redHidraulica!
+    const proyecto: Proyecto = {
+      ...proyectoBase,
+      unidadesFuncionales: [
+        {
+          id: 'uf-1',
+          nombre: 'uf-1',
+          locales: [
+            {
+              id: 'local-1',
+              tipo: 'bano',
+              regimen: 'domiciliario',
+              artefactos: [
+                artefacto('inst-lavatorio', 'lavatorio'),
+                artefacto('inst-ducha', 'receptaculoDucha'),
+                { id: 'inst-bidet', artefactoId: 'bidet', cantidad: 500, origen: 'usuario' },
+              ],
+            },
+          ],
+        },
+      ],
+      redHidraulica: {
+        nodos: [
+          ...redHidraulica.nodos,
+          { id: 'terminal-bidet', referencia: referenciaDe('uf-1', 'local-1', 'inst-bidet'), cota_m: 3 },
+        ],
+        tramos: [
+          ...redHidraulica.tramos,
+          { id: 't-bidet', nodoOrigenId: 'mid', nodoDestinoId: 'terminal-bidet', red: 'AF', longitud_m: 3 },
+        ],
+      },
+    }
+    expect(validarRedHidraulica(proyecto)).toEqual([])
+
+    // Confirma la premisa: el camino de 'terminal-lavatorio' ni siquiera
+    // toca 't-bidet'.
+    const caminoLavatorio = obtenerCaminoHaciaOrigen(proyecto.redHidraulica!, 'terminal-lavatorio')
+    if (caminoLavatorio.tipo !== 'camino') throw new Error('fixture: se esperaba camino')
+    expect(caminoLavatorio.tramos.map((t) => t.id)).toEqual(['t0', 't-lavatorio'])
+
+    const resultado = resolverPresionResidualDeCamino(
+      proyecto,
+      'terminal-lavatorio',
+      P_DISPONIBLE,
+      undefined,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    expect(resultado.tipo).toBe('perdidaLocalizadaEstimadaIncompleta')
+    if (resultado.tipo !== 'perdidaLocalizadaEstimadaIncompleta') return
+    expect(resultado.tramosNoResueltos.length).toBe(1)
+    expect(resultado.tramosNoResueltos[0]!.tramoId).toBe('t-bidet')
   })
 })

@@ -38,6 +38,7 @@ function proyectoCon(unidadesFuncionales: readonly UnidadFuncional[], redHidraul
     redHidraulica,
     configuracionHidraulica: {
       metodoPerdidaDistribuida: 'hazenWilliams',
+      metodoPerdidaLocalizada: 'detallado',
       materialTuberiaId: 'ppr',
       sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
     },
@@ -335,7 +336,7 @@ describe('sincronizarConectividadFisicaDeArtefacto', () => {
       metadatos: metadatos(),
       parametros: parametros(),
       unidadesFuncionales: [uf],
-      configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
+      configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'detallado', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
     }
 
     expect(sincronizarConectividadFisicaDeArtefacto(proyecto, 'uf-1', 'l-1', 'a-1')).toEqual({ tipo: 'sinRedHidraulica' })
@@ -508,7 +509,7 @@ describe('sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas', () => {
       metadatos: metadatos(),
       parametros: parametros(),
       unidadesFuncionales: [uf],
-      configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
+      configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'detallado', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
     }
 
     expect(sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(proyecto, 'uf-1', 'l-1', 'a-1', ['AF'])).toEqual({

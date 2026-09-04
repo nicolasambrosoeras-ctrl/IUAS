@@ -53,6 +53,7 @@ function proyectoCon(
     redHidraulica,
     configuracionHidraulica: {
       metodoPerdidaDistribuida: 'hazenWilliams',
+      metodoPerdidaLocalizada: 'detallado',
       materialTuberiaId: 'ppr',
       sistemaDeTuberiaId,
     },

@@ -16,24 +16,45 @@
 // esta firma -- D-delta.15 sigue sin fórmula normativa, no se inventa
 // una acá.
 //
-// hfLocalizada distingue DOS ejes que un simple `number | undefined` no
-// puede distinguir (auditoria M2-C, D-delta.33): "hay un valor calculado"
-// no es lo mismo que "ese valor representa TODA la perdida localizada
-// normativamente exigible para el camino (Tabla N°7 completa)". Desde
-// CRIT-A31 (tees), el subconjunto representable sobre RedHidraulica
-// cubre TODA Tabla N°7 -- curvas/codos/valvulas/uniones/tubo
-// saliente/reducciones (CRIT-A28/A30) y las 3 variantes de tee
-// (CRIT-A31); griferia queda deliberadamente excluida del balance
-// (CRIT-A29), no es parte de lo que falta. 'completa' SI tiene productor
-// real ahora: resolverPresionResidualDeCamino la produce cuando
-// acumularPerdidaLocalizadaDeCamino resuelve el camino sin ningun tramo
-// pendiente (accesorios y tees, ambos relevados). 'parcial' queda como
-// variante del tipo para composiciones futuras/alternativas que sigan
-// sin cubrir todo el dominio (p. ej. un modo estimado, ver
-// PENDIENTES-DE-ARQUITECTURA.md D-δ.40).
+// hfLocalizada distingue TRES ejes que un simple `number | undefined` no
+// puede distinguir (auditoria M2-C, D-delta.33; ampliado D-delta.40):
+// "hay un valor calculado" no es lo mismo que "ese valor representa TODA
+// la perdida localizada normativamente exigible para el camino bajo el
+// modo DETALLADO (Tabla N°7 completa)", que a su vez no es lo mismo que
+// "ese valor es el resultado COMPLETO de la metodologia ESTIMADA
+// (D-delta.40) para este camino". Desde CRIT-A31 (tees), el subconjunto
+// representable en modo detallado sobre RedHidraulica cubre TODA Tabla
+// N°7 -- curvas/codos/valvulas/uniones/tubo saliente/reducciones
+// (CRIT-A28/A30) y las 3 variantes de tee (CRIT-A31); griferia queda
+// deliberadamente excluida del balance (CRIT-A29), no es parte de lo que
+// falta. 'completa' tiene como productor a resolverPresionResidualDeCamino
+// cuando acumularPerdidaLocalizadaDeCamino resuelve el camino sin ningun
+// tramo pendiente (accesorios y tees, ambos relevados) bajo
+// metodoPerdidaLocalizada='detallado'.
+//
+// 'estimada' (D-delta.40) NO es una version inferior de 'completa' ni un
+// sinonimo de 'parcial': es el resultado COMPLETO de una metodologia
+// DISTINTA y deliberadamente mas simple (el usuario no releva cada
+// singularidad -- IUAS estima tees por Local+red, unica magnitud
+// implementada hasta ahora). Por eso cuenta igual que 'completa' para
+// cerrar el balance -- "estimado" no significa "parcial", significa "otro
+// metodo, tambien completo dentro de si mismo". Productor:
+// resolverPresionResidualDeCamino cuando
+// proyecto.configuracionHidraulica.metodoPerdidaLocalizada==='estimado'.
+// Los dos modos son ALTERNATIVOS: un mismo camino nunca combina
+// 'completa' + 'estimada' (resolverPresionResidualDeCamino elige uno solo
+// segun la configuracion del Proyecto, nunca ambos a la vez).
+//
+// 'parcial' queda como variante del tipo para composiciones futuras que
+// calculen un valor util pero sigan sin cubrir todo el dominio de NINGUNA
+// de las dos metodologias completas.
 export type CoberturaDePerdidaLocalizada =
   | {
       readonly tipo: 'completa'
+      readonly hf_mca: number
+    }
+  | {
+      readonly tipo: 'estimada'
       readonly hf_mca: number
     }
   | {
@@ -96,10 +117,13 @@ export function resolverBalanceDePresion(
   }
 
   const terminosFaltantes: ('hfLocalizada' | 'hfMedidor')[] = []
-  // 'parcial' cuenta como faltante a proposito: un valor util pero que no
-  // cubre toda Tabla N°7 nunca alcanza para completar el balance (ver
-  // comentario de CoberturaDePerdidaLocalizada).
-  if (terminos.hfLocalizada.tipo !== 'completa') {
+  // 'completa' (detallado) y 'estimada' (D-delta.40) cuentan igual como
+  // termino "presente" -- dos metodologias alternativas, cada una
+  // completa dentro de si misma (ver comentario de
+  // CoberturaDePerdidaLocalizada). 'parcial' y 'ausente' cuentan como
+  // faltante a proposito: un valor util pero que no cubre ninguna de las
+  // dos metodologias completas nunca alcanza para completar el balance.
+  if (terminos.hfLocalizada.tipo !== 'completa' && terminos.hfLocalizada.tipo !== 'estimada') {
     terminosFaltantes.push('hfLocalizada')
   }
   if (terminos.hfMedidor_mca === undefined) {
@@ -111,10 +135,10 @@ export function resolverBalanceDePresion(
   }
 
   // Angostamiento de tipos: el chequeo de arriba ya garantiza
-  // hfLocalizada.tipo==='completa' y hfMedidor_mca es number en este
-  // punto, pero TypeScript no lo infiere solo desde el array de
+  // hfLocalizada.tipo==='completa'|'estimada' y hfMedidor_mca es number
+  // en este punto, pero TypeScript no lo infiere solo desde el array de
   // faltantes.
-  const hfLocalizada_mca = (terminos.hfLocalizada as { tipo: 'completa'; hf_mca: number }).hf_mca
+  const hfLocalizada_mca = (terminos.hfLocalizada as { tipo: 'completa' | 'estimada'; hf_mca: number }).hf_mca
   const hfMedidor_mca = terminos.hfMedidor_mca as number
 
   // Δz>0 (ascenso) consume carga; Δz<0 (descenso) la aporta -- signo ya

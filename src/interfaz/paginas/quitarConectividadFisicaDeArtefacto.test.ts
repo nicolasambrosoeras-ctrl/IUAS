@@ -31,6 +31,7 @@ function proyectoCon(unidadesFuncionales: readonly UnidadFuncional[], redHidraul
     redHidraulica,
     configuracionHidraulica: {
       metodoPerdidaDistribuida: 'hazenWilliams',
+      metodoPerdidaLocalizada: 'detallado',
       materialTuberiaId: 'ppr',
       sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
     },
@@ -147,7 +148,7 @@ describe('quitarConectividadFisicaDeArtefacto', () => {
       metadatos: metadatos(),
       parametros: parametros(),
       unidadesFuncionales: [uf],
-      configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
+      configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'detallado', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
     }
 
     expect(quitarConectividadFisicaDeArtefacto(proyecto, 'uf-1', 'l-1', 'a-1')).toBe(proyecto)

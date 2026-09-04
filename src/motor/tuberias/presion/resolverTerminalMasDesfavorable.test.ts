@@ -18,8 +18,7 @@ function traza() {
     desnivel_m: 1,
     hfDistribuida_mca: 0.5,
     hfDistribuidaPorTramo: [],
-    hfLocalizada_mca: 0.1,
-    hfLocalizadaPorTramo: [],
+    hfLocalizada: { metodologia: 'detallado' as const, hf_mca: 0.1, porTramo: [] },
   }
 }
 
@@ -223,6 +222,7 @@ function proyectoDosTerminales(): Proyecto {
     redHidraulica: { nodos, tramos },
     configuracionHidraulica: {
       metodoPerdidaDistribuida: 'hazenWilliams',
+      metodoPerdidaLocalizada: 'detallado',
       materialTuberiaId: 'ppr',
       sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
     },

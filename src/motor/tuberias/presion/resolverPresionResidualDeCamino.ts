@@ -27,23 +27,37 @@
 // undefined -- resolverBalanceDePresion sigue devolviendo 'incompleto'
 // tal como antes, nunca fabrica un 0.
 //
-// hfLocalizada (D-delta.33): desde CRIT-A31 (tees), el subconjunto
-// representable sobre RedHidraulica cubre TODA Tabla N°7 -- curvas,
-// codos, llave de paso, valvula esclusa, uniones, tubo saliente,
-// reducciones (CRIT-A28/A30) y las 3 variantes de tee (CRIT-A31);
-// griferia queda deliberadamente excluida del balance de la red
-// (CRIT-A29, no es un vacio de cobertura). Por eso, cuando
-// acumularPerdidaLocalizadaDeCamino devuelve 'acumulada' para ESTE
-// camino especifico, su cobertura de Tabla N°7 ya es genuinamente
-// completa (todo tramo tuvo accesorios relevados Y toda bifurcacion de
-// tee en el camino quedo configurada -- si algo faltaba,
+// hfLocalizada (D-delta.33/D-delta.40): dos metodologias ALTERNATIVAS,
+// nunca aditivas, elegidas via proyecto.configuracionHidraulica.metodoPerdidaLocalizada.
+//
+// 'detallado': desde CRIT-A31 (tees), el subconjunto representable sobre
+// RedHidraulica cubre TODA Tabla N°7 -- curvas, codos, llave de paso,
+// valvula esclusa, uniones, tubo saliente, reducciones (CRIT-A28/A30) y
+// las 3 variantes de tee (CRIT-A31); griferia queda deliberadamente
+// excluida del balance de la red (CRIT-A29, no es un vacio de
+// cobertura). Por eso, cuando acumularPerdidaLocalizadaDeCamino devuelve
+// 'acumulada' para ESTE camino especifico, su cobertura de Tabla N°7 ya
+// es genuinamente completa (todo tramo tuvo accesorios relevados Y toda
+// bifurcacion de tee en el camino quedo configurada -- si algo faltaba,
 // acumularPerdidaLocalizadaDeCamino ya cortó antes con
 // 'perdidaLocalizadaIncompleta', mas arriba en esta misma funcion): se
 // envuelve como CoberturaDePerdidaLocalizada 'completa', no 'parcial'.
-// 'balanceCompleto' es alcanzable en la practica cuando, ademas, el
-// llamador provee hfMedidor_mca (ver comentario sobre D-delta.35 mas
-// arriba) -- ya no hay ninguna barrera estructural adicional para un
-// camino sin tramos pendientes.
+//
+// 'estimado' (D-delta.40): el usuario no releva singularidades fisicas;
+// resolverPerdidaLocalizadaEstimadaDeLocal estima unicamente las tees
+// del Local+red del terminal (n-1, Ks=3,00 conservador, V_ref=maxima
+// velocidad entre los tramos que alimentan directamente cada terminal
+// de ese Local+red). Se envuelve como 'estimada' -- NUNCA 'completa' (es
+// una metodologia distinta, no una version del detallado) ni 'parcial'
+// (un calculo estimado completo dentro de su propio metodo no es una
+// version inferior de la escala del detallado). Si algun tramo terminal
+// no tiene velocidad comercial resoluble, se corta con
+// 'perdidaLocalizadaEstimadaIncompleta', mismo criterio de "nunca una
+// suma parcial silenciosa" que el resto del motor.
+//
+// 'balanceCompleto' es alcanzable en la practica cuando, ademas de
+// hfLocalizada (cualquiera de las dos metodologias), el llamador provee
+// hfMedidor_mca (ver comentario sobre D-delta.35 mas arriba).
 //
 // Cobertura fisica global del Proyecto (S1/auditarCoberturaFisica) sigue
 // siendo responsabilidad de la barrera de presentacion (S2), no de este
@@ -65,7 +79,32 @@ import {
   acumularPerdidaLocalizadaDeCamino,
   type MotivoTramoSinPerdidaLocalizada,
 } from './acumularPerdidaLocalizadaDeCamino'
+import {
+  resolverPerdidaLocalizadaEstimadaDeLocal,
+  type MotivoTramoSinPerdidaLocalizadaEstimada,
+} from './resolverPerdidaLocalizadaEstimadaDeLocal'
 import { resolverBalanceDePresion } from './resolverBalanceDePresion'
+
+// Union discriminada por metodologia (D-delta.40) -- nunca un booleano
+// "esEstimado": cada variante trae exactamente los datos auditables que
+// esa metodologia produce (porTramo solo tiene sentido en detallado;
+// nTerminalesLocal/nTeesEstimadas/velocidadReferencia_mps solo en
+// estimado). hf_mca es el nombre comun a ambas para que el resto de la
+// funcion (balance, traza) no necesite un `if` extra para extraer el
+// numero.
+export type TrazaHfLocalizada =
+  | {
+      readonly metodologia: 'detallado'
+      readonly hf_mca: number
+      readonly porTramo: readonly { readonly tramoId: string; readonly hf_m: number }[]
+    }
+  | {
+      readonly metodologia: 'estimado'
+      readonly hf_mca: number
+      readonly nTerminalesLocal: number
+      readonly nTeesEstimadas: number
+      readonly velocidadReferencia_mps: number
+    }
 
 type TrazaDeCamino = {
   readonly raizId: string
@@ -73,13 +112,7 @@ type TrazaDeCamino = {
   readonly desnivel_m: number
   readonly hfDistribuida_mca: number
   readonly hfDistribuidaPorTramo: readonly { readonly tramoId: string; readonly hf_m: number }[]
-  // Solo el subconjunto CRIT-A28 de Tabla N°7 (D-delta.33 parcialmente
-  // cerrada) -- NUNCA la totalidad de la perdida localizada normativa de
-  // este camino. Dato auditable util, pero resolverBalanceDePresion lo
-  // recibe envuelto como 'parcial': nunca cuenta por si solo para
-  // completar el balance (ver comentario de archivo).
-  readonly hfLocalizada_mca: number
-  readonly hfLocalizadaPorTramo: readonly { readonly tramoId: string; readonly hf_m: number }[]
+  readonly hfLocalizada: TrazaHfLocalizada
 }
 
 export type ResultadoPresionResidualDeCamino =
@@ -120,6 +153,16 @@ export type ResultadoPresionResidualDeCamino =
       readonly tramosNoResueltos: readonly {
         readonly tramoId: string
         readonly motivo: MotivoTramoSinPerdidaLocalizada
+      }[]
+    }
+  | {
+      // Analogo a 'perdidaLocalizadaIncompleta' pero para metodoPerdidaLocalizada='estimado'
+      // (D-delta.40): algun tramo que alimenta directamente un terminal
+      // de este Local+red no tiene velocidad comercial resoluble.
+      readonly tipo: 'perdidaLocalizadaEstimadaIncompleta'
+      readonly tramosNoResueltos: readonly {
+        readonly tramoId: string
+        readonly motivo: MotivoTramoSinPerdidaLocalizadaEstimada
       }[]
     }
   | ({
@@ -206,14 +249,62 @@ export function resolverPresionResidualDeCamino(
     return { tipo: 'perdidaDistribuidaIncompleta', tramosNoResueltos: perdidaDistribuida.tramosNoResueltos }
   }
 
-  const perdidaLocalizada = acumularPerdidaLocalizadaDeCamino(
-    proyecto,
-    camino,
-    catalogoArtefactos,
-    catalogoSistemasDeTuberia,
-  )
-  if (perdidaLocalizada.tipo === 'incompleta') {
-    return { tipo: 'perdidaLocalizadaIncompleta', tramosNoResueltos: perdidaLocalizada.tramosNoResueltos }
+  let hfLocalizada: TrazaHfLocalizada
+  let coberturaHfLocalizada: { readonly tipo: 'completa' | 'estimada'; readonly hf_mca: number }
+
+  if (proyecto.configuracionHidraulica.metodoPerdidaLocalizada === 'detallado') {
+    const perdidaLocalizada = acumularPerdidaLocalizadaDeCamino(
+      proyecto,
+      camino,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+    )
+    if (perdidaLocalizada.tipo === 'incompleta') {
+      return { tipo: 'perdidaLocalizadaIncompleta', tramosNoResueltos: perdidaLocalizada.tramosNoResueltos }
+    }
+
+    // 'completa': si llegamos hasta acá, acumularPerdidaLocalizadaDeCamino
+    // ya devolvió 'acumulada' (el branch 'incompleta' cortó antes) --
+    // desde CRIT-A31 eso significa que TODO el subconjunto representable
+    // de Tabla N°7 para este camino específico está resuelto (accesorios
+    // + tees). Ver comentario de archivo.
+    hfLocalizada = { metodologia: 'detallado', hf_mca: perdidaLocalizada.hf_m, porTramo: perdidaLocalizada.porTramo }
+    coberturaHfLocalizada = { tipo: 'completa', hf_mca: perdidaLocalizada.hf_m }
+  } else {
+    // Terminal IS raiz (camino.tramos===[]): no hay ningun tramo que
+    // alimente al terminal, ninguna magnitud de este metodo aplica --
+    // mismo cero real que el modo detallado ya devuelve para este mismo
+    // caso (ver acumularPerdidaLocalizadaDeCamino), sin necesitar
+    // resolver a que red (AF/AC) pertenece este terminal.
+    if (camino.tramos.length === 0) {
+      hfLocalizada = { metodologia: 'estimado', hf_mca: 0, nTerminalesLocal: 0, nTeesEstimadas: 0, velocidadReferencia_mps: 0 }
+      coberturaHfLocalizada = { tipo: 'estimada', hf_mca: 0 }
+    } else {
+      // La red (AF/AC) de ESTE terminal es la del ultimo tramo del
+      // camino -- el que efectivamente lo alimenta (por construccion de
+      // obtenerCaminoHaciaOrigen, su nodoDestinoId es el terminal).
+      const redDelTerminal = camino.tramos[camino.tramos.length - 1]!.red
+      const perdidaEstimada = resolverPerdidaLocalizadaEstimadaDeLocal(
+        proyecto,
+        referencia.unidadFuncionalId,
+        referencia.localId,
+        redDelTerminal,
+        catalogoArtefactos,
+        catalogoSistemasDeTuberia,
+      )
+      if (perdidaEstimada.tipo === 'incompleta') {
+        return { tipo: 'perdidaLocalizadaEstimadaIncompleta', tramosNoResueltos: perdidaEstimada.tramosNoResueltos }
+      }
+
+      hfLocalizada = {
+        metodologia: 'estimado',
+        hf_mca: perdidaEstimada.hf_m,
+        nTerminalesLocal: perdidaEstimada.nTerminalesLocal,
+        nTeesEstimadas: perdidaEstimada.nTeesEstimadas,
+        velocidadReferencia_mps: perdidaEstimada.velocidadReferencia_mps,
+      }
+      coberturaHfLocalizada = { tipo: 'estimada', hf_mca: perdidaEstimada.hf_m }
+    }
   }
 
   const traza: TrazaDeCamino = {
@@ -222,8 +313,7 @@ export function resolverPresionResidualDeCamino(
     desnivel_m: desnivel.desnivel_m,
     hfDistribuida_mca: perdidaDistribuida.hf_m,
     hfDistribuidaPorTramo: perdidaDistribuida.porTramo,
-    hfLocalizada_mca: perdidaLocalizada.hf_m,
-    hfLocalizadaPorTramo: perdidaLocalizada.porTramo,
+    hfLocalizada,
   }
 
   const balance = resolverBalanceDePresion(
@@ -231,13 +321,7 @@ export function resolverPresionResidualDeCamino(
     desnivel.desnivel_m,
     {
       hfDistribuida_mca: perdidaDistribuida.hf_m,
-      // 'completa': si llegamos hasta acá, acumularPerdidaLocalizadaDeCamino
-      // ya devolvió 'acumulada' (el branch 'incompleta' cortó antes, más
-      // arriba en esta función, con 'perdidaLocalizadaIncompleta') -- desde
-      // CRIT-A31 eso significa que TODO el subconjunto representable de
-      // Tabla N°7 para este camino específico está resuelto (accesorios +
-      // tees). Ver comentario de archivo.
-      hfLocalizada: { tipo: 'completa', hf_mca: perdidaLocalizada.hf_m },
+      hfLocalizada: coberturaHfLocalizada,
       hfMedidor_mca,
     },
     presionMinima_kgcm2,

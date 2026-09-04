@@ -30,6 +30,7 @@ function proyectoCon(unidadesFuncionales: readonly UnidadFuncional[], redHidraul
     ...(redHidraulica !== undefined ? { redHidraulica } : {}),
     configuracionHidraulica: {
       metodoPerdidaDistribuida: 'hazenWilliams',
+      metodoPerdidaLocalizada: 'detallado',
       materialTuberiaId: 'ppr',
       sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
     },

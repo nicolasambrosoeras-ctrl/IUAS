@@ -726,6 +726,7 @@ const proyectoInicial: Proyecto = {
   // ppr, coherente con materialTuberiaId.
   configuracionHidraulica: {
     metodoPerdidaDistribuida: 'hazenWilliams',
+    metodoPerdidaLocalizada: 'detallado',
     materialTuberiaId: 'ppr',
     sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
   },

@@ -30,7 +30,7 @@ function proyectoDePrueba(materialTuberiaId: MaterialTuberiaId, sistemaDeTuberia
       alturaArtefactoMasDesfavorable_m: 3,
     },
     unidadesFuncionales: [],
-    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', materialTuberiaId, sistemaDeTuberiaId },
+    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'detallado', materialTuberiaId, sistemaDeTuberiaId },
   }
 }
 

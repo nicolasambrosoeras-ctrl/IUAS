@@ -59,6 +59,17 @@ describe('resolverBalanceDePresion — barrera de completitud', () => {
 
     expect(resultado).toEqual({ tipo: 'incompleto', terminosFaltantes: ['hfLocalizada'] })
   })
+
+  it('hfLocalizada estimada (D-delta.40) + hfMedidor -> completo: "estimado" NO es sinonimo de "parcial", es otra metodologia completa dentro de si misma', () => {
+    const resultado = resolverBalanceDePresion(
+      20,
+      3,
+      { hfDistribuida_mca: 2, hfLocalizada: { tipo: 'estimada', hf_mca: 0.3 }, hfMedidor_mca: 1.3 },
+      0.6,
+    )
+
+    expect(resultado.tipo).toBe('completo')
+  })
 })
 
 describe('resolverBalanceDePresion — balance completo', () => {
@@ -76,6 +87,20 @@ describe('resolverBalanceDePresion — balance completo', () => {
     expect(resultado.presionResidual_mca).toBeCloseTo(12.791446683479947, 9)
     expect(resultado.presionMinimaRequerida_mca).toBe(6)
     expect(resultado.cumpleMinimo).toBe(true)
+  })
+
+  it('todos los términos presentes con hfLocalizada ESTIMADA (D-delta.40): mismo Presidual que con completa a igual hf_mca -- el motor no distingue el origen metodologico del numero, solo su presencia', () => {
+    const resultado = resolverBalanceDePresion(
+      20,
+      3,
+      { hfDistribuida_mca: 2.4085533165200532, hfLocalizada: { tipo: 'estimada', hf_mca: 0.5 }, hfMedidor_mca: 1.3 },
+      0.6,
+    )
+
+    if (resultado.tipo !== 'completo') {
+      throw new Error('se esperaba completo')
+    }
+    expect(resultado.presionResidual_mca).toBeCloseTo(12.791446683479947, 9)
   })
 
   it('conversión kg/cm² -> m.c.a.: Pmin=1,5 kg/cm² (inodoroValvula) equivale a 15 m.c.a.', () => {
