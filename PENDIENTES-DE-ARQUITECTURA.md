@@ -1130,23 +1130,32 @@ subconjunto soportado (p. ej. persistido de una versión futura con tees)
 se rechaza explícitamente, nunca se ignora ni se calcula como si no
 existiera.
 
+#### CERRADO — grifería vs. `Pmin` (criterio IUAS explícito, CRIT-A29)
+
+El punto de verificación de presión es la boca/punto de conexión del
+artefacto: la grifería/mecanismo interno del artefacto queda fuera del
+balance de la red. `Ks=9,18` de "Griferías" (Tabla N°7) no se agrega
+como pérdida localizada terminal. Detalle completo, fundamento e
+investigación previa (incluida la limitación de fuente que motivó
+resolverlo como criterio IUAS explícito en vez de transcripción
+normativa) en **CRIT-A29** (`CRITERIOS.md`) y en la investigación
+conservada más abajo en esta misma sección.
+
 #### ABIERTO — el resto de Tabla N°7
 
 | Accesorio | Dónde ocurre físicamente | ¿Inferible de la topología actual? | Velocidad para `Js` |
 |---|---|---|---|
 | Reducciones | en el cambio de diámetro entre dos `Tramo` consecutivos | Parcialmente: la topología sabe *que* hay un cambio de `Di` comercial entre tramo padre e hijo (ambos ya resueltos por N3), pero no decide qué `V` corresponde (¿lado mayor, lado menor, aguas arriba, aguas abajo?) | **Ambiguo** — criterio IUAS todavía sin fijar |
 | Tee paso recto / salida lateral / entrada central-salidas laterales | en el nodo de bifurcación/convergencia | La topología sabe que hay bifurcación (nodo con >1 tramo saliente/entrante), pero **no** cuál de los 3 `Ks` corresponde — `RedHidraulica` no tiene orientación espacial, así que no distingue "sigue recto" de "sale lateral" | Ambiguo (¿tramo entrante o cada saliente?) |
-| Griferías | en el terminal — ¿la propia llave del artefacto, o una llave de paso de artefacto distinta? | Posición sí (nodo terminal); si corresponde **contarla** depende de si `presionMinima_kgcm2` del catálogo (§2.9.1.4) ya incluye la pérdida propia de la grifería del artefacto | Del último `Tramo` del camino, si corresponde contarla |
 
 **No decidido**: ubicación nodo/tramo de tees y reducciones; qué `Ks` de
 tee corresponde sin geometría espacial (o si hace falta declaración
 manual del usuario, sin introducir geometría 3D); qué velocidad usa una
-reducción; si griferías duplica `presionMinima_kgcm2`. Ninguna de las
-tres se resuelve implementando slice A. Orden de investigación sugerido
-para retomar: (1) grifería vs. `Pmin` (normativa), (2) reducciones
-(convención hidráulica), (3) tees (representación más amplia).
+reducción. Ninguna de las dos se resuelve implementando slice A. Orden
+de investigación sugerido para retomar: (1) reducciones (convención
+hidráulica), (2) tees (representación más amplia).
 
-#### Investigación normativa — grifería vs. `Pmin` (sin resolver, ver checkpoint)
+#### Investigación normativa — grifería vs. `Pmin` (CERRADA por criterio IUAS explícito, CRIT-A29)
 
 **Limitación de fuente verificada**: se intentó acceder al texto completo
 de la Guía (Resolución ERAS 641/2023, `argentina.gob.ar`, AySA, InfoLeg,
@@ -1203,7 +1212,29 @@ genuinamente subespecificado en esta tradición normativa.
   "Griferías" igual que cualquier otro accesorio de la tabla.
 
 **No se pudo confirmar cuál lectura es la correcta** con las fuentes
-disponibles. Ver el checkpoint reportado al cerrar esta investigación.
+disponibles.
+
+**Decisión cerrada** (criterio IUAS explícito, sin evidencia normativa
+adicional respecto de lo ya registrado arriba): la verificación de
+presión del sistema de distribución termina en la boca/punto de conexión
+del artefacto; `presionMinima_kgcm2` representa la presión mínima
+exigida en ese punto. En consecuencia — Interpretación A adoptada:
+
+- las pérdidas distribuidas (N3) y localizadas (subconjunto CRIT-A28) se
+  acumulan únicamente hasta la boca de conexión del artefacto terminal;
+- la pérdida propia de la grifería/mecanismo interno del artefacto queda
+  fuera del balance de la red — se entiende absorbida por
+  `presionMinima_kgcm2`, igual que cualquier otra resistencia interna del
+  artefacto;
+- `Ks=9,18` de "Griferías" (Tabla N°7) no se agrega como pérdida
+  localizada terminal en `resolverPresionResidualDeCamino`;
+- no se crea nodo, accesorio de `Tramo` ni término de pérdida adicional
+  para la grifería terminal.
+
+Formalizado como **CRIT-A29** en `CRITERIOS.md`. No reabrir salvo
+evidencia normativa nueva que contradiga explícitamente este criterio
+(p. ej. si en el futuro se logra acceder al texto literal de §2.9.1.4 y
+contradice esta lectura).
 
 ### D-δ.34 — `n` no expuesto por `ResultadoPerdidaDistribuidaDeTramo` (N3) — CERRADA
 

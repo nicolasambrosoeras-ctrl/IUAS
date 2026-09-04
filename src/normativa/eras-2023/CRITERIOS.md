@@ -1550,3 +1550,77 @@ acumulación por camino reutilizando `resolverDiametroComercialDeTramo`
 para la velocidad de cada Tramo, sin volver a resolver Qc/diámetro).
 Integrado en `resolverPresionResidualDeCamino` como `hfLocalizada`. Ver
 D-δ.33 en `PENDIENTES-DE-ARQUITECTURA.md`.
+
+## CRIT-A29 — Punto de verificación de presión mínima: la boca de conexión del artefacto (grifería fuera del balance de red)
+
+**Artículo:** sin verificación literal disponible. Se intentó acceder al
+texto completo de la Guía (Resolución ERAS 641/2023) en
+`argentina.gob.ar`, AySA, InfoLeg y Boletín Oficial — el anexo técnico
+existe únicamente como PDF escaneado (imagen, sin texto seleccionable)
+en todas las fuentes accedidas, y el entorno de trabajo no cuenta con
+herramientas de OCR/renderizado de PDF. Lo único confirmado literalmente
+(ya transcripto en CRIT-A25/CRIT-A26): §2.12.1 exige "determinar la
+pérdida de carga de los tramos de cañería **hasta** el artefacto más
+desfavorable, para verificar la presión mínima resultante", y aplicar
+Tabla N°7 ("Griferías" incluida, `Ks=9,18`) para "las pérdidas de carga
+singulares o localizadas" — sin ninguna excepción textual verificada
+para el caso puntual de la grifería del artefacto evaluado.
+
+**Naturaleza:** criterio operativo / interpretativo IUAS explícito de
+producto, **no transcripción normativa verificada**. Distinto de CRIT-A26
+(que transcribe firme la fórmula `Js=Ks·V²/2g` y la Tabla N°7 completa,
+sin cambios): CRIT-A29 decide dónde termina conceptualmente el balance de
+la red frente a `presionMinima_kgcm2`, no reinterpreta ni modifica la
+fórmula ni los coeficientes.
+
+**Investigación previa** (ver D-δ.33, `PENDIENTES-DE-ARQUITECTURA.md`,
+"Investigación normativa — grifería vs. `Pmin`"): corroboración externa
+en fuentes de ingeniería sanitaria argentina de la misma tradición (OSN
+1981) mostró que esta ambigüedad tampoco está resuelta ahí — no parece un
+vacío de la búsqueda sino un punto genuinamente subespecificado en la
+tradición normativa. Análisis hidráulico propio (inferencia, no norma) a
+favor de esta lectura: la convención estándar de códigos sanitarios
+define la presión mínima de un artefacto como la presión residual
+exigida en su punto de conexión — inclusiva de la resistencia propia del
+artefacto, porque no se mide "dentro" del mecanismo; el propio "...hasta
+el artefacto" de §2.12.1 sugiere que el cómputo de pérdidas de cañería
+termina en la conexión; Tabla N°7 lista simultáneamente "Llave de paso" y
+"Griferías" con el mismo `Ks=9,18`, más coherente si son dos objetos
+físicos distintos (válvula de corte en línea vs. grifo del propio
+artefacto) que si fueran el mismo concepto duplicado.
+
+**Criterio adoptado:** la verificación de presión del sistema de
+distribución termina en la boca/punto de conexión del artefacto.
+`presionMinima_kgcm2` (catálogo, §2.9.1.4) representa la presión mínima
+disponible exigida en ese punto — no aguas abajo de él, dentro del
+artefacto. En consecuencia:
+
+- las pérdidas distribuidas (N3) y localizadas (subconjunto CRIT-A28) del
+  camino se acumulan únicamente hasta la boca de conexión del artefacto
+  terminal;
+- la pérdida propia de la grifería/mecanismo interno del artefacto queda
+  **fuera** del balance de la red que se compara contra
+  `presionMinima_kgcm2` — se entiende ya absorbida por ese valor
+  normativo, igual que cualquier otra resistencia interna del artefacto;
+- el `Ks=9,18` de "Griferías" en Tabla N°7 **no** se agrega como pérdida
+  localizada terminal en `resolverPresionResidualDeCamino`;
+- no se crea nodo, accesorio de `Tramo` ni término de pérdida adicional
+  para la grifería terminal.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- No decide reducciones ni tees — D-δ.33 sigue abierta para esas dos.
+- No reabre CRIT-A26: la fórmula y la Tabla N°7 completa permanecen
+  intactas: "Griferías" sigue siendo una fila válida de la tabla para
+  cualquier uso futuro que no sea la grifería terminal del artefacto
+  verificado (hoy no existe ningún caso real de eso).
+- No decide dónde vivirá conceptualmente esta regla si en el futuro se
+  modela el artefacto con más detalle interno (equipos, mezcladoras,
+  etc.).
+
+**Estado:** Firme como criterio IUAS explícito de producto — no
+transcripción normativa verificada. Sin consumidor de código a modificar
+(ya es el comportamiento vigente de `resolverPresionResidualDeCamino`:
+nunca sumó grifería). Cierra D-δ.33 respecto de grifería. No reabrir
+salvo evidencia normativa nueva que contradiga explícitamente este
+criterio.
