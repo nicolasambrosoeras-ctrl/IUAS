@@ -1101,7 +1101,7 @@ práctica constructiva tradicional de alimentación por tanque elevado.
 Ninguna hipótesis de esa investigación fue confirmada todavía — no
 adoptar ningún valor numérico de presión mínima sin esa revisión previa.
 
-### D-δ.33 — Pérdidas localizadas / accesorios — PARCIALMENTE CERRADA (curvas/codos/válvulas/uniones/tubo saliente/reducciones; solo tees abierta)
+### D-δ.33 — Pérdidas localizadas / accesorios — CERRADA para el alcance 1→2 declarado (modo detallado)
 
 **Nunca meter accesorios/codos/tees/válvulas/`Ks` dentro de
 `longitud_m`** (D-δ.22 ya lo prohíbe explícitamente; se reafirma acá
@@ -1163,15 +1163,54 @@ sigue siendo una declaración explícita del usuario, igual que cualquier
 otro accesorio. Detalle completo, evidencia y consecuencia numérica en
 **CRIT-A30** (`CRITERIOS.md`).
 
-#### ABIERTO — tees (el resto de Tabla N°7)
+#### CERRADO — tees en modo detallado: representación + velocidad por recorrido (CRIT-A31)
 
-| Accesorio | Dónde ocurre físicamente | ¿Inferible de la topología actual? | Velocidad para `Js` |
-|---|---|---|---|
-| Tee paso recto / salida lateral / entrada central-salidas laterales | en el nodo de bifurcación/convergencia | La topología sabe que hay bifurcación (nodo con >1 tramo saliente/entrante), pero **no** cuál de los 3 `Ks` corresponde — `RedHidraulica` no tiene orientación espacial, así que no distingue "sigue recto" de "sale lateral" | Ambiguo (¿tramo entrante o cada saliente?) |
+Decisión de dominio aprobada por el usuario (no evidencia normativa
+nueva: el bloqueo era ausencia de geometría espacial en el modelo, ya
+diagnosticado en CRIT-A28, no un vacío de fuente). Alcance:
+exclusivamente nodos con **1 tramo entrante + 2 tramos salientes**
+(convergencias 2→1, redes malladas y recirculación quedan fuera).
 
-**No decidido**: qué `Ks` de tee corresponde sin geometría espacial (o
-si hace falta declaración manual del usuario, sin introducir geometría
-3D). No se resuelve implementando slice A ni CRIT-A30.
+Representación: `Nodo.tee?: ConfiguracionDeTee` —
+`{tipo:'entradaPorExtremo', tramoSalidaRectaId}` (una elección determina
+ambas salidas: la declarada usa `Ks='teePasoRecto'`, la otra
+`Ks='teeSalidaLateral'` por descarte) o `{tipo:'entradaCentral'}` (ambas
+salidas `Ks='teeEntradaCentralSalidasLaterales'`, sin elegir cuál es
+cuál). `undefined` significa exclusivamente "bifurcación real, tee
+todavía no relevada" — a diferencia del resto de `AccesorioDeTramo`, una
+bifurcación 1→2 real NO tiene equivalente a `accesorios:[]` ("sin
+tee"): dos ramas no salen de un único caño sin alguna pieza en T/Y.
+
+Velocidad: `Js_tee = Ks(recorrido)·V²/2g` con `V` la velocidad real del
+TRAMO SALIENTE recorrido por cada camino evaluado — nunca la del tramo
+entrante ni una "velocidad de tee" separada. Consecuencia: la MISMA tee
+física puede aportar un `Js` distinto a dos terminales diferentes (Ks
+por recorrido + V por Qc propio de cada rama) sin duplicar la pieza en
+el modelo: se declara una única vez, sobre el Nodo.
+
+Implementado: `resolverClasificacionDeTee`
+(`motor/tuberias/topologia/`, resolver puro: `'clasificado'` |
+`'sinConfigurar'` | `'noEsBifurcacionDeTee'`), validación estructural en
+`validarRedHidraulica` (`redHidraulicaNodoTeeEstructuraNoSoportada`/
+`redHidraulicaNodoTeeTramoSalidaRectaInvalido`), integrado en
+`acumularPerdidaLocalizadaDeCamino` (nuevo motivo
+`'teeSinConfigurar'` en `MotivoTramoSinPerdidaLocalizada`). Detalle
+completo en **CRIT-A31** (`CRITERIOS.md`).
+
+**Consecuencia sobre la cobertura de `hfLocalizada`**: con tees
+resueltas, el subconjunto representable cubre TODA Tabla N°7 (griferías
+deliberadamente excluida, CRIT-A29 — no es un vacío). Cuando
+`acumularPerdidaLocalizadaDeCamino` devuelve `'acumulada'` para un
+camino específico (todo tramo con accesorios relevados Y toda
+bifurcación de tee del camino configurada), esa cobertura ya es
+genuinamente completa: `resolverPresionResidualDeCamino` pasó de
+envolver siempre `{tipo:'parcial'}` a `{tipo:'completa'}` en ese caso.
+La única barrera restante hacia `balanceCompleto` en el proyecto
+productivo es `hfMedidor` (D-δ.35) — ver D-δ.36.
+
+**No decidido todavía** (fuera de este cierre): modo estándar/estimado
+de pérdidas localizadas sin declaración manual — ver D-δ.40, registrado
+pero no implementado.
 
 #### Investigación normativa — grifería vs. `Pmin` (CERRADA por criterio IUAS explícito, CRIT-A29)
 
@@ -1413,25 +1452,24 @@ y pasó a ser `CoberturaDePerdidaLocalizada` (`'completa' | 'parcial' |
 'ausente'`, cada una con su `hf_mca` cuando corresponde). **Motivo**: un
 `number` definido no distinguía "hay un valor calculado" de "ese valor
 representa toda la pérdida localizada normativamente exigible para el
-camino (Tabla N°7 completa)". Desde CRIT-A28, `acumularPerdidaLocalizadaDeCamino`
-produce un número real y útil, pero solo del subconjunto declarable sobre
-`Tramo` (curvas/codos/válvulas/uniones/tubo saliente/reducciones,
-CRIT-A28/CRIT-A30; griferías deliberadamente excluida, CRIT-A29) — mientras
-tees (D-δ.33) no tengan representación, ese número es necesariamente
-parcial. Sin esta
-distinción, el día que D-δ.35 conecte `hfMedidor`, el balance habría
-podido reportar `'completo'` con pérdidas localizadas todavía
-incompletas — una verificación de presión falsa. `resolverPresionResidualDeCamino`
-envuelve el resultado de `acumularPerdidaLocalizadaDeCamino` siempre como
-`{ tipo: 'parcial', hf_mca }` — nunca `'completa'`, porque ningún camino
-del código productivo puede hoy afirmar cobertura total de Tabla N°7.
-`'completa'` no tiene todavía ningún productor real: se habilita recién
-cuando D-δ.33 cierre por completo (o, en un incremento futuro, gane un
-mecanismo explícito de "sin singularidades de estas clases para este
-camino"). El valor parcial se sigue propagando en la traza auditable de
-`resolverPresionResidualDeCamino` (`hfLocalizada_mca`/`hfLocalizadaPorTramo`)
-— un cálculo parcial sigue siendo útil, solo que nunca se presenta como
-completo.
+camino (Tabla N°7 completa)". **Actualización (CRIT-A31, cierre de
+D-δ.33 para tees)**: con curvas/codos/válvulas/uniones/tubo
+saliente/reducciones (CRIT-A28/A30) Y tees (CRIT-A31) representables,
+más griferías deliberadamente excluida del balance (CRIT-A29, no es un
+vacío de cobertura), el subconjunto representable cubre TODA Tabla N°7.
+`acumularPerdidaLocalizadaDeCamino` corta con `'incompleta'` ante
+cualquier accesorio o tee sin relevar en el camino — así que cuando
+devuelve `'acumulada'`, esa cobertura ya es genuinamente completa para
+ese camino específico. `resolverPresionResidualDeCamino` pasó de
+envolver siempre `{tipo:'parcial', hf_mca}` a `{tipo:'completa',
+hf_mca}` en ese caso (el branch `'incompleta'` de
+`acumularPerdidaLocalizadaDeCamino` ya cortó antes, más arriba en la
+misma función, con `'perdidaLocalizadaIncompleta'` — nunca se llega a
+envolver un resultado parcial como si fuera completo). `'parcial'` sigue
+existiendo en el tipo para composiciones futuras/alternativas que no
+cubran todo el dominio (p. ej. el modo estimado, D-δ.40). La única
+barrera restante hacia `balanceCompleto` en el proyecto productivo hoy
+es `hfMedidor` (D-δ.35) — nunca más `hfLocalizada`.
 
 **Terminal hidráulicamente más desfavorable — primitiva agregada**:
 investigación previa confirmó que no existía ningún resolver ni
@@ -1452,15 +1490,17 @@ colapsados (`'determinado'` solo si TODOS los candidatos resolvieron
 `'balanceCompleto'`; `'candidatoProvisional'` si hay candidatos
 excluidos —el peor entre los completos podría no ser el real—;
 `'sinCandidatoDeterminable'` si ninguno resolvió `'balanceCompleto'`).
-Mientras D-δ.33 (tees) y D-δ.35 (medidor) sigan abiertas,
-`'balanceCompleto'` es estructuralmente inalcanzable en todo el
-proyecto, así que esta función siempre devuelve
-`'sinCandidatoDeterminable'` sobre datos reales hoy — verificado con un
-test de integración end-to-end (dos terminales reales vía
-`resolverPresionResidualDeCamino`): comportamiento correcto y
-esperable, no un bug. Sin integración a UI todavía (no hay ningún
-consumidor de `resolverPresionResidualDeCamino` en `MotorDemandaPantalla.tsx`
-por ahora).
+Desde CRIT-A31, `hfLocalizada` SI puede resolver `'completa'` para un
+camino con tees y accesorios relevados, pero `hfMedidor` (D-δ.35) sigue
+siempre `undefined`: por eso `'balanceCompleto'` sigue siendo
+estructuralmente inalcanzable en todo el proyecto hoy, y esta función
+sigue devolviendo `'sinCandidatoDeterminable'` sobre datos reales —
+verificado con un test de integración end-to-end (dos terminales reales
+vía `resolverPresionResidualDeCamino`, con tee configurada y accesorios
+relevados: ambos quedan `'balanceIncompleto'` con
+`terminosFaltantes=['hfMedidor']` exclusivamente). Sin integración a UI
+todavía (no hay ningún consumidor de `resolverPresionResidualDeCamino`
+en `MotorDemandaPantalla.tsx` por ahora).
 
 ### D-δ.37 — Alimentación ramificada como precondición hidráulica de M2 (recorrido hacia el origen) — CERRADA
 
@@ -1828,3 +1868,62 @@ física + auditoría + cálculo aguas abajo). Cambio de tipo de artefacto
 después de creado (`<select>` de `ArtefactoFormulario`) y el caso
 `inconsistente` (patrones físicos distintos entre instancias previas)
 quedan explícitamente fuera, documentados arriba.
+
+### D-δ.40 — Modo estándar/estimado de pérdidas localizadas (dos niveles metodológicos) — DECISIÓN REGISTRADA, NO IMPLEMENTADA
+
+**Contexto**: D-δ.33/CRIT-A28/CRIT-A30/CRIT-A31 cerraron el **modo
+detallado/experto**: el usuario declara explícitamente cada accesorio y
+cada tee, el motor calcula sobre la infraestructura física real
+declarada. Este registro deja fijado, para no perderlo, el criterio ya
+aprobado por el usuario para un **segundo modo alternativo**, pensado
+para el uso cotidiano — **sin implementar todavía ningún código**.
+
+**Los dos modos son ALTERNATIVOS, nunca aditivos**: no se suman pérdidas
+estimadas + pérdidas detalladas para las mismas singularidades — eso
+duplicaría la pérdida. La arquitectura futura deberá poder distinguir
+inequívocamente `estimado` vs. `detallado` (posiblemente un campo
+explícito a nivel Proyecto o Local/red), pero introducir ese campo no es
+parte de este registro.
+
+**Modo estándar/estimado — criterio aprobado**:
+
+- El usuario NO declara cada tee, orientación ni cada singularidad
+  física — IUAS estima las pérdidas localizadas según la complejidad de
+  cada `Local + red física` (AF/AC evaluadas por separado, nunca
+  cantidad bruta de `Artefacto`: un artefacto puede ser soloAF, AF+AC u
+  otra conectividad declarada, CRIT-A15).
+- **Tees estimadas**: para cada `Local + red`, con `n` = cantidad de
+  terminales físicos de esa red en ese Local:
+  ```text
+  N_tees_estimadas = max(0, n - 1)
+  ```
+  Ejemplos: 1 terminal → 0 tees; 2 → 1; 3 → 2; 4 → 3.
+- **`Ks` conservador de tee estimada**: `Ks_estimado_tee = 3,00` (el
+  MAYOR de las 3 variantes de Tabla N°7,
+  `teeEntradaCentralSalidasLaterales`). No afirma que todas las tees
+  reales tengan ese `Ks` — es una adopción deliberadamente conservadora
+  ante geometría no relevada, para no subestimar la pérdida localizada.
+
+**No decidido todavía (deliberadamente, fuera de este registro)**:
+
+- **Velocidad del modo estimado**: para calcular `N_tees·Ks·V²/(2g)` en
+  modo estándar falta decidir qué `V` representa un conjunto de tees
+  cuya posición física no está relevada — alternativas a investigar:
+  velocidad del tramo distribuidor del Local, velocidad máxima de los
+  tramos de esa red/Local, u otra magnitud técnicamente justificada.
+  **Esta decisión debe resolverse en conjunto con el método GENERAL de
+  pérdidas localizadas estimadas** (codos, curvas, llaves, etc. también
+  estimados) — no se cierra aisladamente solo para tees.
+- Cómo el modelo distingue `estimado` de `detallado` a nivel de
+  Proyecto/Local/red.
+- Semántica de completitud del modo estimado: un cálculo estimado
+  completo (todas las magnitudes del método estándar resueltas) **no
+  debe presentarse como incompleto** solo porque no se relevó cada
+  accesorio físico individual — es un nivel metodológico distinto de
+  `'parcial'`/`'completa'` del modo detallado, no una versión inferior
+  de la misma escala. Esta distinción se implementa recién cuando el
+  modo estándar quede completamente definido.
+
+**Estado**: criterio de dominio aprobado y registrado, cero código.
+Retomar primero decidiendo la velocidad de referencia del método
+estimado completo (tees + resto de accesorios), no tees en aislado.

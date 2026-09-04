@@ -1754,15 +1754,13 @@ accesorios de este subconjunto" — sin excepción para reducciones.
 
 **Alcance — qué NO resuelve este criterio:**
 
-- No decide tees — D-δ.33 sigue abierta para esa variante.
+- No decide tees en el momento de este cierre — quedó como el único
+  punto restante de D-δ.33 (cerrado después por CRIT-A31).
 - No valida cruzadamente que el Tramo declarado como lado menor sea
   efectivamente más angosto que su predecesor en la topología: es un
   dato declarado y confiado, igual que el resto de `AccesorioDeTramo`
   (ningún accesorio de este subconjunto se re-deriva ni se verifica
   contra otra propiedad estructural del Tramo).
-- No cambia `CoberturaDePerdidaLocalizada`: sigue siendo `'parcial'`
-  mientras tees no cierre — reducciones amplía el subconjunto cubierto,
-  no completa Tabla N°7.
 
 **Estado:** Firme como criterio operativo IUAS (interpretación de
 convención de velocidad, no transcripción normativa — ERAS no la
@@ -1772,3 +1770,133 @@ especifica). Implementado agregando `'reducciones'` a
 `resolverPerdidaLocalizadaDeTramo`, `acumularPerdidaLocalizadaDeCamino`
 ni `validarRedHidraulica`, que ya eran genéricos sobre el subconjunto.
 Ver D-δ.33 en `PENDIENTES-DE-ARQUITECTURA.md`.
+
+## CRIT-A31 — Tees en modo detallado: representación y velocidad por recorrido (Ks de Tabla N°7)
+
+**Artículo:** ERAS-2023 §2.12.1, Tabla N°7 (misma tabla de CRIT-A26). Los
+tres `Ks` de tee (`teePasoRecto=1,00`, `teeSalidaLateral=1,62`,
+`teeEntradaCentralSalidasLaterales=3,00`) ya son firmes por CRIT-A26 —
+este criterio no los reabre. Resuelve dos preguntas que la tabla no
+contesta: **dónde vive** la tee en el modelo de dominio (D-δ.33 la había
+excluido de `Tramo.accesorios` por esto) y **qué velocidad** corresponde
+a cada uno de los tres recorridos quando una tee conecta un tramo
+entrante con dos salientes.
+
+**Decisión de dominio aprobada por el usuario** (no una investigación
+normativa nueva — el punto que bloqueaba D-δ.33 no era evidencia
+faltante sino ausencia de geometría espacial en el modelo, ya
+diagnosticado en CRIT-A28): una tee es una singularidad del **Nodo** de
+bifurcación, no del Tramo — a diferencia del resto del subconjunto
+CRIT-A28/CRIT-A30, el `Ks` de una tee depende de la relación entre el
+tramo entrante y CADA tramo saliente, no de un único Tramo aislado.
+Alcance actual: exclusivamente nodos con **1 tramo entrante y 2 tramos
+salientes** — no se amplía a convergencias 2→1, redes malladas ni
+recirculación en este incremento.
+
+**Representación adoptada:** `Nodo.tee?: ConfiguracionDeTee`
+(`modelo/redHidraulica/index.ts`), con dos configuraciones:
+
+```text
+{ tipo: 'entradaPorExtremo', tramoSalidaRectaId: string }
+{ tipo: 'entradaCentral' }
+```
+
+- **`entradaPorExtremo`**: la entrada llega por un extremo del eje
+  principal de la tee. El tramo declarado en `tramoSalidaRectaId` usa
+  `Ks='teePasoRecto'`; el OTRO tramo saliente (nunca declarado
+  independientemente — una sola elección determina ambas) usa
+  `Ks='teeSalidaLateral'` por descarte.
+- **`entradaCentral`**: la entrada llega por la boca central/perpendicular
+  de la tee. AMBOS tramos salientes usan `Ks='teeEntradaCentralSalidasLaterales'`,
+  sin necesidad de elegir cuál es cuál.
+
+Deliberadamente NO persiste: `Ks` (se resuelve desde Tabla N°7 en cada
+cálculo, mismo criterio que el resto del modelo), coordenadas, ángulos,
+orientación absoluta, izquierda/derecha ni geometría gráfica — solo la
+mínima información para clasificar el recorrido hidráulico de cada
+tramo saliente. Nunca se infiere orientación desde ids, orden de
+arrays, orden de creación ni nombres.
+
+**`undefined` no equivale a "sin tee" — asimetría deliberada con el
+resto de `AccesorioDeTramo`:** una reducción, un codo o una curva
+PUEDEN estar genuinamente ausentes en un tramo recto (`accesorios: []`
+es un cero real). Una bifurcación 1→2 real, en cambio, **no puede**
+no tener algún tipo de pieza en T/Y — dos ramas no salen de un único
+caño sin una singularidad física ahí. Por eso `Nodo.tee` no tiene un
+equivalente a `[]`: `undefined` significa exclusivamente "bifurcación
+real, tee todavía no relevada", nunca "sin tee".
+
+**Velocidad de referencia:** `Js_tee = Ks(recorrido)·V²/2g`, con `V` la
+velocidad real (`velocidadReal_mps`) del TRAMO SALIENTE recorrido por
+el camino evaluado — nunca una "velocidad de tee" separada ni la del
+tramo entrante. Consecuencia importante: la MISMA tee física puede
+aportar un `Js` distinto a dos caminos terminales diferentes (Ks
+distinto por recorrido, V distinta por el `Qc` propio de cada rama) sin
+que la pieza se duplique en el modelo — se declara una única vez, sobre
+el Nodo, y cada camino la evalúa con su propio tramo saliente.
+
+**Resolver puro:** `resolverClasificacionDeTee(redHidraulica, nodoId,
+tramoSalienteId)` (`motor/tuberias/topologia/`) — deriva la
+clasificación (`'teePasoRecto' | 'teeSalidaLateral' |
+'teeEntradaCentralSalidasLaterales'`) desde `Nodo.tee` + la conectividad
+real. Devuelve `'sinConfigurar'` (bifurcación real sin relevar) o
+`'noEsBifurcacionDeTee'` (el Nodo no tiene exactamente 1 entrante + 2
+salientes — fuera de alcance, no es incompletitud) como estados de
+dominio; cualquier inconsistencia estructural (menos/más salientes de
+los esperados, `tramoSalidaRectaId` que no pertenece a los dos
+salientes reales) es una precondición imposible tras
+`validarRedHidraulica` — throw, no un estado a manejar.
+
+**Validación estructural** (`validarRedHidraulica`): un `Nodo.tee`
+declarado exige exactamente 1 tramo entrante y 2 salientes
+(`redHidraulicaNodoTeeEstructuraNoSoportada` si no) y, en
+`entradaPorExtremo`, que `tramoSalidaRectaId` sea uno de los dos
+salientes reales (`redHidraulicaNodoTeeTramoSalidaRectaInvalido` si no).
+Si la topología cambia y la declaración queda inconsistente, la
+próxima validación lo señala explícitamente — nunca se elige otra
+salida en silencio.
+
+**Integración con el camino:** `acumularPerdidaLocalizadaDeCamino`
+consulta `resolverClasificacionDeTee` sobre el `nodoOrigenId` de cada
+Tramo del camino. Si la bifurcación está sin configurar
+(`'sinConfigurar'`), el Tramo queda no resuelto con motivo
+`'teeSinConfigurar'` — misma barrera de completitud que accesorios sin
+relevar (`MotivoTramoSinPerdidaLocalizada`). Si está clasificada, su
+`Js_tee` se suma al `hf_m` propio de los accesorios en línea del mismo
+Tramo (ambos usan la misma `V`, composición lineal ya establecida por
+CRIT-A26). Si el Nodo no es una bifurcación de tee
+(`'noEsBifurcacionDeTee'`), no hay contribución — no es incompletitud.
+
+**Consecuencia sobre `CoberturaDePerdidaLocalizada` (cierre efectivo de
+D-δ.33 para pérdida localizada):** con tees resueltas, el subconjunto
+representable sobre `RedHidraulica` cubre TODA Tabla N°7 (griferías
+deliberadamente excluida del balance, CRIT-A29 — no es un vacío de
+cobertura). `acumularPerdidaLocalizadaDeCamino` ya cortaba con
+`'incompleta'` ante cualquier accesorio sin relevar; ahora también ante
+cualquier tee sin configurar. Por eso, cuando devuelve `'acumulada'`
+para un camino específico, esa cobertura YA es genuinamente completa —
+`resolverPresionResidualDeCamino` deja de envolver el resultado como
+`{tipo:'parcial'}` y pasa a `{tipo:'completa'}`. La única barrera
+restante para `balanceCompleto` en el proyecto productivo hoy es
+`hfMedidor` (D-δ.35), nunca más `hfLocalizada`.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- No decide el modo estándar/estimado de pérdidas localizadas (sin
+  declaración manual de cada tee/accesorio) — ver D-δ.40 en
+  `PENDIENTES-DE-ARQUITECTURA.md`, registrado pero no implementado.
+- No amplía el alcance a convergencias 2→1, redes malladas ni
+  recirculación.
+- No valida cruzadamente que la tee declarada corresponda a una
+  instalación físicamente plausible — es un dato declarado y confiado,
+  mismo criterio que el resto de `AccesorioDeTramo`.
+
+**Estado:** Firme como decisión de dominio aprobada (representación +
+convención de velocidad, no transcripción normativa adicional — los
+`Ks` ya eran firmes por CRIT-A26). Implementado en
+`modelo/redHidraulica/index.ts` (`ConfiguracionDeTee`, `Nodo.tee`),
+`validacion/redHidraulica/index.ts` (validación estructural),
+`motor/tuberias/topologia/resolverClasificacionDeTee.ts` (clasificación
+pura) y `motor/tuberias/presion/acumularPerdidaLocalizadaDeCamino.ts`
+(integración). Cierra D-δ.33 para el alcance 1→2 declarado. Ver D-δ.33
+en `PENDIENTES-DE-ARQUITECTURA.md`.
