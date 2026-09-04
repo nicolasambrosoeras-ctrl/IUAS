@@ -1433,6 +1433,35 @@ camino"). El valor parcial se sigue propagando en la traza auditable de
 — un cálculo parcial sigue siendo útil, solo que nunca se presenta como
 completo.
 
+**Terminal hidráulicamente más desfavorable — primitiva agregada**:
+investigación previa confirmó que no existía ningún resolver ni
+selección implícita de "el artefacto más desfavorable" en el motor —
+`alturaArtefactoMasDesfavorable_m` (`ParametrosProyecto`) es un campo
+legado sin ningún consumidor de cálculo, sustituto pre-topología, y la
+UI de Módulo 2 solo lista todos los Tramos/terminales en tabla sin
+comparar ninguno. Se agregó `resolverTerminalMasDesfavorable`
+(`motor/tuberias/presion/resolverTerminalMasDesfavorable.ts`): compone
+resultados ya producidos por `resolverPresionResidualDeCamino` (uno por
+terminal candidato, misma `Pdisponible`) y determina cuál tiene el
+**menor margen** (`presionResidual_mca - presionMinimaRequerida_mca`) —
+magnitud elegida deliberadamente sobre "mayor cota" o "más lejano": un
+terminal cercano y bajo puede ser más desfavorable que uno lejano y alto
+si acumula más pérdida localizada o exige mayor `Pmin`. Preserva la
+barrera de completitud explícitamente con tres resultados nunca
+colapsados (`'determinado'` solo si TODOS los candidatos resolvieron
+`'balanceCompleto'`; `'candidatoProvisional'` si hay candidatos
+excluidos —el peor entre los completos podría no ser el real—;
+`'sinCandidatoDeterminable'` si ninguno resolvió `'balanceCompleto'`).
+Mientras D-δ.33 (tees) y D-δ.35 (medidor) sigan abiertas,
+`'balanceCompleto'` es estructuralmente inalcanzable en todo el
+proyecto, así que esta función siempre devuelve
+`'sinCandidatoDeterminable'` sobre datos reales hoy — verificado con un
+test de integración end-to-end (dos terminales reales vía
+`resolverPresionResidualDeCamino`): comportamiento correcto y
+esperable, no un bug. Sin integración a UI todavía (no hay ningún
+consumidor de `resolverPresionResidualDeCamino` en `MotorDemandaPantalla.tsx`
+por ahora).
+
 ### D-δ.37 — Alimentación ramificada como precondición hidráulica de M2 (recorrido hacia el origen) — CERRADA
 
 **Decisión adoptada** (continuación de D-δ.32/D-δ.36, formalizada como
