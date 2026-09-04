@@ -1146,6 +1146,65 @@ tres se resuelve implementando slice A. Orden de investigación sugerido
 para retomar: (1) grifería vs. `Pmin` (normativa), (2) reducciones
 (convención hidráulica), (3) tees (representación más amplia).
 
+#### Investigación normativa — grifería vs. `Pmin` (sin resolver, ver checkpoint)
+
+**Limitación de fuente verificada**: se intentó acceder al texto completo
+de la Guía (Resolución ERAS 641/2023, `argentina.gob.ar`, AySA, InfoLeg,
+Boletín Oficial) vía búsqueda y fetch web. La Guía completa (el anexo
+técnico real, `IF-2023-141050544-APN-DNAPYS#MOP`) existe únicamente como
+PDF escaneado (imagen, no texto seleccionable) en todas las fuentes
+accedidas -- el Boletín Oficial publica solo la Resolución marco y
+declara explícitamente "El/los Anexo/s que integra/n esta Resolución no
+se publica/n" en esa vista. El entorno de esta sesión no cuenta con
+herramientas de OCR/renderizado de PDF (`poppler-utils` no instalado)
+para extraer el contenido de las imágenes. **No se pudo verificar
+literalmente** el texto de §2.9.1.4 (presiones mínimas) ni una eventual
+aclaración explícita sobre grifería más allá de lo ya transcripto en
+CRIT-A25/CRIT-A26 en incrementos previos.
+
+**Lo único confirmado literalmente** (ya transcripto en CRIT-A25/A26):
+§2.12.1 exige "determinar la pérdida de carga de los tramos de cañería
+**hasta** el artefacto más desfavorable, para verificar la presión mínima
+resultante", y "Los valores a adoptar Ks de acuerdo a la Tabla N°7" para
+"las pérdidas de carga singulares o localizadas". Tabla N°7 incluye
+`Griferías: Ks=9,18` como una de sus 12 filas, sin ninguna nota o
+excepción textual verificada que la excluya del cómputo para un artefacto
+terminal.
+
+**Corroboración externa (no ERAS, contexto general)**: fuentes de
+ingeniería sanitaria argentina de la misma tradición metodológica (OSN
+1981, que la Guía ERAS-2023 actualiza) tratan el mismo problema --
+determinación de presión en el "artefacto más desfavorable" -- **sin
+aclarar tampoco** si la presión mínima tabulada por artefacto ya incluye
+la pérdida de su propia grifería o si se suma aparte. La ambigüedad no es
+exclusiva de ERAS ni un vacío de esta investigación: parece ser un punto
+genuinamente subespecificado en esta tradición normativa.
+
+**Análisis hidráulico propio (inferencia, no norma)**:
+
+- *A favor de que la grifería YA está incluida en `Pmin`*: la convención
+  universal de códigos sanitarios define "presión mínima de
+  funcionamiento" de un artefacto como la presión residual exigida **en
+  el punto de conexión** del artefacto -- inclusiva de la resistencia
+  propia del artefacto (su grifería), porque no se mide "dentro" del
+  mecanismo. El propio texto de §2.12.1 ("pérdida... hasta el artefacto")
+  sugiere que el cómputo de pérdidas de cañería termina en la conexión,
+  no dentro del artefacto. Tabla N°7 lista **simultáneamente** "Llave de
+  paso" y "Griferías" con el mismo `Ks=9,18` -- si "Griferías" significara
+  lo mismo que "Llave de paso" (una válvula de corte en línea), la
+  duplicación no tendría sentido; son más coherentes como dos objetos
+  físicos distintos (válvula de corte en la cañería vs. grifo del propio
+  artefacto).
+- *A favor de sumarla aparte*: §2.12.1 instruye aplicar Tabla N°7 a las
+  singularidades presentes en el cálculo sin ninguna excepción textual
+  verificada para el caso "grifería del artefacto evaluado" -- el mismo
+  criterio de transcripción literal sin interpretación que ya rige
+  CRIT-A26 obligaría, en ausencia de una excepción confirmada, a tratar
+  "Griferías" igual que cualquier otro accesorio de la tabla.
+
+**No se pudo confirmar cuál lectura es la correcta** con las fuentes
+disponibles. Ver el checkpoint reportado al cerrar esta investigación.
+
 ### D-δ.34 — `n` no expuesto por `ResultadoPerdidaDistribuidaDeTramo` (N3) — CERRADA
 
 **Hallazgo original**: `ResultadoPerdidaDistribuidaDeTramo` (N3) no
