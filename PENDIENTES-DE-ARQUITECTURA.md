@@ -2040,3 +2040,133 @@ importar cuán separados estén dentro del Local).
 modo estandar/estimado de perdidas localizadas"). Sigue sin decidir
 —deliberadamente fuera de este alcance— si en el futuro conviene
 estimar además otros accesorios de Tabla N°7.
+
+### D-δ.41 — Completitud real de Módulo 2 (`EstadoModulo2`) — IMPLEMENTADA
+
+**Objetivo**: una primitiva de dominio, independiente de UI, que responda
+si M2 puede resolver la instalación hidráulica **dentro del alcance
+actualmente implementado** — nunca mediante heurísticas visuales
+("¿hay campos cargados?", "¿el usuario abrió la sección?"). Implementada
+en `motor/modulo2/resolverEstadoModulo2.ts`.
+
+**Investigación previa (no duplicar un segundo sistema)**: el repo ya
+tenía, distribuidas en al menos 8 uniones discriminadas independientes
+(`ResultadoPresionResidualDeCamino` con 9 variantes, `CoberturaDePerdidaLocalizada`
+con 4, `ResultadoTerminalMasDesfavorable` con 3, `AuditoriaDeCoberturaFisica`,
+`ResultadoValidacion`/`ProblemaValidacion`, etc.), toda la información
+atómica necesaria — pero ningún archivo las unificaba en un estado único
+de módulo. `EstadoModulo2` es exactamente ese vacío, implementado como
+función pura que **compone** esas primitivas (nunca reimplementa una
+fórmula ni una barrera ya expresada por ellas). El contrato genérico
+preexistente `motor/contrato.ts` (`FuncionDeCalculo`/`ResultadoDeCalculo`,
+Arquitectura Sec.10.1) es un nivel de abstracción distinto — memoria de
+cálculo por pasos/verificaciones para reporte, no estado de completitud
+de módulo — y no se reutiliza porque resuelve un problema distinto.
+
+**Contrato final**:
+
+```ts
+type EstadoModulo2 =
+  | { estado: 'noIniciado' }
+  | { estado: 'incompleto'; motivos: readonly DiagnosticoIncompletitudModulo2[] }
+  | { estado: 'error'; problemas: readonly DiagnosticoErrorModulo2[] }
+  | {
+      estado: 'completo'
+      terminalMasDesfavorable: Extract<ResultadoTerminalMasDesfavorable, { tipo: 'determinado' }>
+      terminalesFueraDeAlcance: readonly DiagnosticoTerminalFueraDeAlcanceModulo2[]
+    }
+
+function resolverEstadoModulo2(
+  proyecto: Proyecto,
+  presionDisponible_mca: number | undefined, // condición de borde explícita, D-δ.36 — igual que resolverPresionResidualDeCamino
+  hfMedidor_mca: number | undefined,          // dato externo explícito, D-δ.35 — idem
+  catalogoArtefactos, catalogoSistemasDeTuberia, catalogoMateriales,
+): EstadoModulo2
+```
+
+Los diagnósticos son datos estructurados (tipo + `nodoId`/`tramoId`/
+`problema` original), nunca strings de presentación — la futura UI
+decide cómo mostrarlos ("faltan longitudes en 3 tramos") sin volver a
+tocar hidráulica.
+
+**Semántica de cada estado**:
+
+- **`noIniciado`**: `proyecto.redHidraulica === undefined` — única señal
+  autoritativa de "M2 no empezó" (el propio modelo la documenta así). Es
+  un *gate* previo a todo lo demás, no un peldaño de la cadena
+  error>incompleto>completo: una red presente aunque vacía (`{nodos:[],
+  tramos:[]}`) ya cuenta como "iniciada" y cae en `incompleto`
+  (`sinTerminalesHidraulicos`), nunca en `noIniciado`.
+- **`error`**: (1) cualquier `ProblemaValidacion` de `validarRedHidraulica`
+  o `validarConfiguracionHidraulica` con `severidad==='error'` (ids
+  duplicados, referencia rota, tee mal formada, longitud incompatible
+  con cota — CRIT-A20, sistema de tubería inexistente/incompatible...);
+  se evalúa **antes** de tocar el pipeline por terminal, porque ese
+  pipeline asume como precondición que `validarRedHidraulica` ya pasó
+  (llamarlo sobre una red inválida podría lanzar). (2) `topologiaNoResoluble`
+  por terminal (`multiplesTramosEntrantes`/`ciclo`, CRIT-A27) — la
+  estructura, no un dato, es lo que está mal. Nunca se usa `error` por
+  simple ausencia de información.
+- **`incompleto`**: falta de información/resolución legítima, nunca
+  inconsistencia. Motivos reales encontrados por composición:
+  `sinTerminalesHidraulicos` (red iniciada, cero terminales aún),
+  `coberturaFisicaIncompleta` (D-δ.26, artefacto normativo de M1 sin
+  representar), `presionDisponibleNoProvista`, `desnivelIncompleto`,
+  `perdidaDistribuidaIncompleta`, `perdidaLocalizadaIncompleta` (modo
+  detallado) / `perdidaLocalizadaEstimadaIncompleta` (modo estimado),
+  `balanceIncompleto` (incluye falta de `hfMedidor_mca`), y
+  `sinTerminalesConPresionMinimaPublicada` (ver más abajo).
+- **`completo`**: todos los terminales relevantes resolvieron
+  `balanceCompleto` (bajo la metodología de pérdida localizada
+  configurada, `'detallado'` o `'estimado'` — **ambas cuentan igual**,
+  `estimada` nunca se trata como `parcial`) y
+  `resolverTerminalMasDesfavorable` sobre ellos resultó `'determinado'`.
+  El fallback de Vmin (CRIT-A24/D-δ.27, `velocidadPorDebajoDelMinimo=true`)
+  sigue siendo `conCandidato` en la capa comercial, así que nunca
+  degrada `completo` a `incompleto`/`error` — verificado por test de
+  regresión explícito.
+
+**Precedencia adoptada**: `noIniciado` (gate previo) → `error` →
+`incompleto` → `completo`. Un proyecto con una inconsistencia real Y
+además datos faltantes en otro terminal siempre resuelve `error` (nunca
+`incompleto`) — test explícito de coexistencia.
+
+**hfMedidor_mca (D-δ.35) y hfEquipoACS (D-δ.15) — alcance vs. features
+diferidas**: `hfMedidor_mca` es un parámetro externo explícito, igual que
+en `resolverPresionResidualDeCamino` — la inexistencia de M3 (quién lo
+calcula) NO impide llegar a `completo`; si el llamador lo provee (hoy,
+un test; mañana, quien sea), M2 puede cerrar. `hfEquipoACS` sigue
+diferido y ni siquiera aparece en la firma de `resolverBalanceDePresion`
+— por lo tanto tampoco en esta primitiva. Principio general adoptado:
+**completitud se evalúa contra el alcance ya implementado y aprobado de
+M2, nunca contra una feature explícitamente diferida.**
+
+**Decisión de diseño no trivial — terminal sin `presionMinima_kgcm2`
+publicada** (p.ej. `maquinaLavavajillas`, `piletaDeCocinaIndustrial`):
+`resolverPresionResidualDeCamino` ya documenta que esto "no es un error
+de uso... es un terminal que este balance no puede cerrar" — una
+limitación normativa **permanente** de ese artefacto (ERAS no publica su
+Pmin), no información que vaya a completarse después. Tratarlo como
+`incompleto` bloquearía `completo` para siempre en cualquier proyecto
+que incluya ese artefacto, lo cual vacía de sentido la primitiva.
+Composición adoptada: se **excluye** de los candidatos a
+`resolverTerminalMasDesfavorable` y se reporta aparte
+(`terminalesFueraDeAlcance`, diagnóstico informativo, nunca bloqueante)
+— mismo principio ya usado con griferías en CRIT-A29 (fuera de alcance
+normativo, no vacío de cobertura). Si **todos** los terminales de un
+proyecto quedan excluidos por este motivo, se devuelve `incompleto`
+(`sinTerminalesConPresionMinimaPublicada`) en vez de `completo` vacío —
+nunca se declara `completo` sin un `terminalMasDesfavorable` real.
+
+**Qué NO evalúa esta primitiva (deliberadamente, no reimplementado)**:
+validez de M1 en sí (`proyectoSinArtefactosComputables`, etc. — son
+barreras de M1, no de M2); Pdisponible/hfMedidor como *quién* los
+produce (bombeo, tanque, M3); redes malladas; hfEquipoACS; UI/tabs.
+
+**Tests**: `motor/modulo2/resolverEstadoModulo2.test.ts` — 13 casos:
+`noIniciado` (2, incluida red vacía), `incompleto` (5: dato faltante real,
+Pdisponible ausente, hfMedidor ausente, accesorios sin relevar, cobertura
+física incompleta), `error` (2: referencia rota, y coexistencia con un
+incompleto real para probar precedencia), `completo` (4: modo detallado,
+modo estimado con terminal crítico verificado contra el propio motor,
+regresión CRIT-A24/D-δ.27, y exclusión de terminal sin Pmin publicada).
