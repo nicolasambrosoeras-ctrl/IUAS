@@ -68,6 +68,17 @@ describe('resolverPerdidaLocalizadaDeTramo', () => {
     expect(altaVelocidad.hf_m).toBeCloseTo(4 * bajaVelocidad.hf_m, 12)
   })
 
+  it('reducciones (CRIT-A30): usa la velocidad de ESTE Tramo (el lado menor/aguas abajo de la transición), igual que cualquier otro accesorio del subconjunto -- ninguna lógica especial de dos velocidades', () => {
+    const resultado = resolverPerdidaLocalizadaDeTramo([accesorio('reducciones', 1)], 2.3)
+
+    const ksEsperado = obtenerKsDeAccesorio('reducciones')
+    expect(resultado).toEqual({
+      tipo: 'calculada',
+      ksTotal: ksEsperado,
+      hf_m: calcularPerdidaCargaLocalizada(ksEsperado, 2.3),
+    })
+  })
+
   it('varios tipos con cantidad>1 combinan suma y multiplicación correctamente', () => {
     const resultado = resolverPerdidaLocalizadaDeTramo(
       [accesorio('codo90', 2), accesorio('curva45', 3), accesorio('tuboSaliente', 1)],

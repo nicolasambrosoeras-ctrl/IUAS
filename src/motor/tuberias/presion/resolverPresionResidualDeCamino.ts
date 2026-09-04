@@ -21,18 +21,19 @@
 //
 // hfLocalizada SI tiene consumidor desde M2-C slice A (D-delta.33), pero
 // solo cubre el subconjunto inequivoco de Tabla N°7 (curvas, codos,
-// llave de paso, valvula esclusa, uniones, tubo saliente) -- tees,
-// reducciones y griferia siguen sin representacion. Por eso el valor que
-// produce acumularPerdidaLocalizadaDeCamino SIEMPRE se envuelve como
-// CoberturaDePerdidaLocalizada 'parcial' (nunca 'completa'): un numero
-// util y auditable (queda en la traza), pero que por si solo NUNCA puede
-// completar el balance mientras D-delta.33 no cierre el resto de Tabla
-// N°7 para este camino (auditoria de completitud, ver
+// llave de paso, valvula esclusa, uniones, tubo saliente, reducciones
+// -- CRIT-A30) -- tees siguen sin representacion, y griferia queda
+// deliberadamente excluida del balance de la red (CRIT-A29, no es un
+// pendiente). Por eso el valor que produce acumularPerdidaLocalizadaDeCamino
+// SIEMPRE se envuelve como CoberturaDePerdidaLocalizada 'parcial' (nunca
+// 'completa'): un numero util y auditable (queda en la traza), pero que
+// por si solo NUNCA puede completar el balance mientras D-delta.33 no
+// cierre tees para este camino (auditoria de completitud, ver
 // resolverBalanceDePresion). La rama 'balanceCompleto' es el mapeo fiel
 // del resultado 'completo' de resolverBalanceDePresion; hoy sigue
 // inalcanzable por este camino (hfMedidor abstracto Y hfLocalizada
 // siempre 'parcial'), y se vuelve alcanzable recien cuando D-delta.33
-// cierre por completo Y D-delta.35 conecte el medidor.
+// cierre tees Y D-delta.35 conecte el medidor.
 //
 // Cobertura fisica global del Proyecto (S1/auditarCoberturaFisica) sigue
 // siendo responsabilidad de la barrera de presentacion (S2), no de este

@@ -9,10 +9,12 @@ import { describe, it, expect } from 'vitest'
 import type { Artefacto, MetadatosProyecto, ParametrosProyecto, Proyecto, UnidadFuncional } from '../../../modelo/proyecto'
 import type { AccesorioDeTramo, Nodo, RedHidraulica, ReferenciaDeArtefacto, Tramo } from '../../../modelo/redHidraulica'
 import { catalogoArtefactos } from '../../../normativa/eras-2023/catalogo-artefactos'
+import { obtenerKsDeAccesorio } from '../../../normativa/eras-2023/tabla-07-perdidas-localizadas'
 import { validarRedHidraulica } from '../../../validacion/redHidraulica'
 import { catalogoSistemasDeTuberia, type SistemaDeTuberiaCatalogado } from '../sistemaDeTuberia'
 import { resolverDiametroComercialDeTramo } from '../resolverDiametroComercialDeTramo'
 import { resolverPerdidaLocalizadaDeTramo } from '../perdidaCarga/resolverPerdidaLocalizadaDeTramo'
+import { calcularPerdidaCargaLocalizada } from '../perdidaCarga/calcularPerdidaCargaLocalizada'
 import { obtenerCaminoHaciaOrigen, type CaminoHaciaOrigen } from '../topologia/obtenerCaminoHaciaOrigen'
 import { acumularPerdidaLocalizadaDeCamino } from './acumularPerdidaLocalizadaDeCamino'
 
@@ -273,5 +275,67 @@ describe('acumularPerdidaLocalizadaDeCamino', () => {
       { tramoId: 't0', hf_m: hfT0 },
       { tramoId: 't1', hf_m: hfT1 },
     ])
+  })
+
+  it('reducciones (CRIT-A30): declarada sobre el Tramo del lado menor/aguas abajo de una transición de diámetro real, usa la V de ESE Tramo -- nunca la del tramo padre de mayor diámetro', () => {
+    // Mismo fixture que el test anterior (t0 2 artefactos aguas abajo,
+    // t1 solo 1): con el catálogo/sistema productivos reales, t0 y t1
+    // resuelven diámetros comerciales efectivamente distintos (25mm/18,0mm
+    // vs 20mm/14,4mm) -- una transición de diámetro real, no fabricada.
+    // La reducción se declara sobre t1 (el lado menor, aguas abajo).
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'uf-1',
+      locales: [
+        {
+          id: 'local-1',
+          tipo: 'bano',
+          regimen: 'domiciliario',
+          artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+        },
+      ],
+    }
+    const nodos: Nodo[] = [
+      { id: 'n0' },
+      { id: 'n1' },
+      { id: 'n2', referencia: referenciaDe('uf-1', 'local-1', 'inst-lavatorio') },
+      { id: 'n3', referencia: referenciaDe('uf-1', 'local-1', 'inst-ducha') },
+    ]
+    const tramos: Tramo[] = [
+      { id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: 3, accesorios: [] },
+      { id: 't1', nodoOrigenId: 'n1', nodoDestinoId: 'n2', red: 'AF', longitud_m: 3, accesorios: [{ tipo: 'reducciones', cantidad: 1 }] },
+      { id: 't-ducha', nodoOrigenId: 'n1', nodoDestinoId: 'n3', red: 'AF', longitud_m: 3 },
+    ]
+    const proyecto = proyectoCon([uf], { nodos, tramos })
+    expect(validarRedHidraulica(proyecto)).toEqual([])
+    const camino = caminoResuelto(proyecto, 'n2')
+
+    const comercialT0 = resolverDiametroComercialDeTramo(proyecto, 't0', catalogoArtefactos, catalogoSistemasDeTuberia)
+    const comercialT1 = resolverDiametroComercialDeTramo(proyecto, 't1', catalogoArtefactos, catalogoSistemasDeTuberia)
+    if (comercialT0.tipo !== 'conCandidato' || comercialT1.tipo !== 'conCandidato') {
+      throw new Error('fixture inválida: se esperaba conCandidato en ambos tramos')
+    }
+    // Confirma la premisa: hay una transición de diámetro real entre t0 y
+    // t1 (no un caso trivial de mismo diámetro a ambos lados).
+    expect(comercialT0.candidato.diametroInteriorEfectivo_mm).not.toBe(comercialT1.candidato.diametroInteriorEfectivo_mm)
+    expect(comercialT0.velocidadReal_mps).not.toBeCloseTo(comercialT1.velocidadReal_mps, 6)
+
+    const resultado = acumularPerdidaLocalizadaDeCamino(proyecto, camino, catalogoArtefactos, catalogoSistemasDeTuberia)
+    if (resultado.tipo !== 'acumulada') throw new Error('se esperaba acumulada')
+
+    const ks = obtenerKsDeAccesorio('reducciones')
+    const hfT1Esperado = calcularPerdidaCargaLocalizada(ks, comercialT1.velocidadReal_mps)
+    const hfT1ConVDelPadreRechazado = calcularPerdidaCargaLocalizada(ks, comercialT0.velocidadReal_mps)
+
+    expect(resultado.porTramo).toEqual([
+      { tramoId: 't0', hf_m: 0 },
+      { tramoId: 't1', hf_m: hfT1Esperado },
+    ])
+    // La interpretación descartada (V del tramo padre, de mayor diámetro)
+    // hubiera dado un resultado numéricamente distinto y mayor -- confirma
+    // que la elección de V no es indiferente (CRIT-A30, consecuencia
+    // numérica documentada en CRITERIOS.md).
+    expect(hfT1Esperado).not.toBeCloseTo(hfT1ConVDelPadreRechazado, 6)
+    expect(hfT1ConVDelPadreRechazado).toBeGreaterThan(hfT1Esperado)
   })
 })

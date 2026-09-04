@@ -20,13 +20,14 @@
 // puede distinguir (auditoria M2-C, D-delta.33): "hay un valor calculado"
 // no es lo mismo que "ese valor representa TODA la perdida localizada
 // normativamente exigible para el camino (Tabla N°7 completa)". Desde
-// CRIT-A28, el subconjunto {curvas/codos/valvulas/uniones/tubo saliente}
-// SI produce un numero real y util -- pero mientras tees/reducciones/
-// griferia (D-delta.33) sigan sin representacion, ese numero es
+// CRIT-A28/CRIT-A30, el subconjunto {curvas/codos/valvulas/uniones/tubo
+// saliente/reducciones} SI produce un numero real y util -- pero mientras
+// tees (D-delta.33) sigan sin representacion, ese numero es
 // necesariamente PARCIAL: nunca puede por si solo completar el balance,
-// aunque se siga propagando como dato auditable. 'completa' hoy no tiene
-// ningun productor real en el motor -- se habilita recien cuando D-delta.33
-// cierre por completo para el camino evaluado.
+// aunque se siga propagando como dato auditable. Griferia queda
+// deliberadamente excluida del balance (CRIT-A29), no es parte de lo que
+// falta. 'completa' hoy no tiene ningun productor real en el motor -- se
+// habilita recien cuando D-delta.33 cierre tees para el camino evaluado.
 export type CoberturaDePerdidaLocalizada =
   | {
       readonly tipo: 'completa'

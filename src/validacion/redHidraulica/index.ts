@@ -93,8 +93,8 @@ export function validarRedHidraulica(proyecto: Proyecto): readonly ProblemaValid
     // TypeScript, pero datos persistidos/externos (JSON) pueden violarla
     // en runtime -- se verifica explícitamente contra idsAccesorioDeTramo
     // en vez de confiar únicamente en el compilador, porque este
-    // subconjunto está pensado para crecer (tees/reducciones/griferías,
-    // D-δ.33) y un tipo todavía no soportado nunca debe tratarse
+    // subconjunto está pensado para crecer (tees, D-δ.33) y un tipo
+    // todavía no soportado nunca debe tratarse
     // silenciosamente como si no existiera.
     if (tramo.accesorios !== undefined) {
       tramo.accesorios.forEach((accesorio, indiceAccesorio) => {

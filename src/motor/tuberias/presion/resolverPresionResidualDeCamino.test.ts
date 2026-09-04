@@ -3,8 +3,8 @@
 // perdida distribuida, perdida localizada) y que la barrera de
 // completitud sigue diciendo la verdad -- con hfMedidor sin consumidor
 // topologico todavia (D-delta.35) y hfLocalizada siempre 'parcial'
-// (auditoria M2-C: solo cubre el subconjunto CRIT-A28, D-delta.33 sigue
-// abierta para tees/reducciones/griferia), el resultado es siempre
+// (auditoria M2-C: solo cubre el subconjunto CRIT-A28/CRIT-A30,
+// D-delta.33 sigue abierta para tees), el resultado es siempre
 // 'balanceIncompleto', nunca una residual presentada como verificada.
 // Los fixtures de este archivo declaran accesorios=[] por defecto
 // (relevado, sin accesorios del subconjunto soportado) para poder llegar

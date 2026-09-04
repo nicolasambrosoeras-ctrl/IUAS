@@ -51,12 +51,16 @@ export type RedDeTramo = 'AF' | 'AC';
 // CRIT-A26) cuya pérdida localizada es representable hoy de forma
 // inequívoca como accesorio de un Tramo: ocurre a lo largo de su
 // recorrido físico y usa la velocidad real de ese mismo Tramo
-// (Js = Ks·V²/2g). Deliberadamente NO incluye las 3 variantes de tee
-// (Ks distinto según orientación, que RedHidraulica no puede distinguir
-// sin geometría espacial), reducciones (qué V corresponde -- lado
-// mayor/menor -- sigue sin decidir) ni griferías (podría duplicar
-// presionMinima_kgcm2 del catálogo -- pendiente de investigación
-// normativa). Ver PENDIENTES-DE-ARQUITECTURA.md, D-δ.33.
+// (Js = Ks·V²/2g). Incluye 'reducciones' (CRIT-A30): una reducción se
+// declara sobre el Tramo del LADO MENOR/aguas abajo de la transición de
+// diámetro -- ese mismo Tramo ya tiene, sin ambigüedad, la velocidad de
+// referencia correcta (convención hidráulica estándar para pérdida por
+// contracción, ver CRIT-A30; ERAS-2023 no la especifica). Deliberadamente
+// NO incluye las 3 variantes de tee (Ks distinto según orientación, que
+// RedHidraulica no puede distinguir sin geometría espacial) ni griferías
+// (CRIT-A29: su pérdida se entiende absorbida por presionMinima_kgcm2 del
+// artefacto, nunca se agrega al balance de la red). Ver
+// PENDIENTES-DE-ARQUITECTURA.md, D-δ.33.
 export type IdAccesorioDeTramo =
   | 'curva45'
   | 'curva90'
@@ -64,15 +68,16 @@ export type IdAccesorioDeTramo =
   | 'llaveDePaso'
   | 'valvulaEsclusa'
   | 'uniones'
-  | 'tuboSaliente';
+  | 'tuboSaliente'
+  | 'reducciones';
 
 // Lista en tiempo de ejecución de IdAccesorioDeTramo -- única fuente de
 // verdad compartida con validarRedHidraulica (no se duplica el listado
 // literal ahí): a diferencia de otras uniones cerradas del modelo
 // (RedDeTramo, MaterialTuberiaId), este subconjunto está pensado para
-// crecer cuando D-δ.33 resuelva tees/reducciones/griferías, así que datos
-// persistidos/externos sí necesitan verificación en tiempo de ejecución,
-// no solo del compilador.
+// crecer cuando D-δ.33 resuelva tees, así que datos persistidos/externos
+// sí necesitan verificación en tiempo de ejecución, no solo del
+// compilador.
 export const idsAccesorioDeTramo: readonly IdAccesorioDeTramo[] = [
   'curva45',
   'curva90',
@@ -81,6 +86,7 @@ export const idsAccesorioDeTramo: readonly IdAccesorioDeTramo[] = [
   'valvulaEsclusa',
   'uniones',
   'tuboSaliente',
+  'reducciones',
 ] as const;
 
 // Identidad normativa + cantidad -- nunca el coeficiente Ks persistido
@@ -119,8 +125,13 @@ export type Tramo = {
   // de accesorios NO realizado todavía -- NUNCA equivale a "sin
   // accesorios"; `[]` = relevamiento realizado, el Tramo efectivamente no
   // tiene accesorios de este subconjunto -- pérdida localizada real = 0.
-  // Tees, reducciones y griferías quedan deliberadamente fuera: no se
-  // declaran acá hasta que su representación se decida.
+  // Tees quedan deliberadamente fuera: no se declaran acá hasta que su
+  // representación se decida (D-δ.33). Una reducción se declara sobre
+  // este Tramo cuando ESTE Tramo es el lado menor/aguas abajo de una
+  // transición de diámetro real (CRIT-A30) -- nunca se infiere solo
+  // porque el Di resuelto de este Tramo difiera del de su predecesor: el
+  // cambio de diámetro es dato hidráulico, no prueba de que exista
+  // físicamente el accesorio.
   accesorios?: readonly AccesorioDeTramo[];
 };
 

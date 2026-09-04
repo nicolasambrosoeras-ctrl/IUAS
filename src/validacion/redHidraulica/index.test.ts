@@ -276,6 +276,17 @@ describe('validarRedHidraulica', () => {
     expect(validarRedHidraulica(proyecto)).toEqual([])
   })
 
+  it('reducciones (CRIT-A30) es un tipo soportado, con cantidad válida no genera problema', () => {
+    const red: RedHidraulica = {
+      nodos: [{ id: 'n0' }, { id: 'n1' }],
+      tramos: [
+        { id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', accesorios: [{ tipo: 'reducciones', cantidad: 1 }] },
+      ],
+    }
+    const proyecto = proyectoBase(unidadesFuncionalesDeEjemplo, red)
+    expect(validarRedHidraulica(proyecto)).toEqual([])
+  })
+
   it('accesorio con tipo no soportado (fuera del subconjunto, p. ej. dato persistido de una tee) falla explícitamente', () => {
     const red: RedHidraulica = {
       nodos: [{ id: 'n0' }, { id: 'n1' }],
