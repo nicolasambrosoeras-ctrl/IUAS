@@ -6,7 +6,10 @@ import { validarRedHidraulica } from '../../validacion/redHidraulica'
 import { auditarCoberturaFisica } from '../../motor/tuberias/cobertura/auditarCoberturaFisica'
 import { obtenerArtefactosAguasAbajo } from '../../motor/tuberias/topologia/obtenerArtefactosAguasAbajo'
 import { resolverHidraulicaDeTramo } from '../../motor/tuberias/resolverHidraulicaDeTramo'
-import { sincronizarConectividadFisicaDeArtefacto } from './sincronizarConectividadFisicaDeArtefacto'
+import {
+  sincronizarConectividadFisicaDeArtefacto,
+  sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas,
+} from './sincronizarConectividadFisicaDeArtefacto'
 
 function metadatos(): MetadatosProyecto {
   return {
@@ -356,5 +359,168 @@ describe('sincronizarConectividadFisicaDeArtefacto', () => {
     expect([...resultado.redesConectadas].sort()).toEqual(['AC', 'AF'])
     expect(resultado.redesPendientes).toEqual([])
     expect(resultado.proyecto).toBe(proyecto) // sin cambios: nada que agregar
+  })
+})
+
+describe('sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas', () => {
+  // Caso real que origino M2-D: primera instancia de un artefactoId en todo
+  // el proyecto (aqui, inodoroValvula en un Bano que ya tiene otro
+  // artefacto conectado a AF via bifurcacion). determinarRedesFisicasPorPrecedente
+  // devolveria 'sinPrecedente' -- esta variante recibe la Red declarada
+  // explicitamente por el usuario en lugar de deducirla.
+  it('primera instancia sin precedente, declarada AF: crea el terminal sobre el punto de insercion existente', () => {
+    const proyecto = proyectoBase()
+    const proyectoConInodoro: Proyecto = {
+      ...proyecto,
+      unidadesFuncionales: proyecto.unidadesFuncionales.map((uf) => ({
+        ...uf,
+        locales: uf.locales.map((l) =>
+          l.id === 'local-bano'
+            ? { ...l, artefactos: [...l.artefactos, artefacto('art-inodoro-valvula', 'inodoroValvula')] }
+            : l,
+        ),
+      })),
+    }
+    // Confirma la premisa: sin la declaracion explicita no hay precedente.
+    expect(sincronizarConectividadFisicaDeArtefacto(proyectoConInodoro, 'uf-1', 'local-bano', 'art-inodoro-valvula')).toEqual({
+      tipo: 'redesNoDeterminables',
+      motivo: 'sinPrecedente',
+    })
+
+    const resultado = sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(
+      proyectoConInodoro,
+      'uf-1',
+      'local-bano',
+      'art-inodoro-valvula',
+      ['AF'],
+    )
+
+    expect(resultado.tipo).toBe('sincronizado')
+    if (resultado.tipo !== 'sincronizado') return
+    expect(resultado.redesConectadas).toEqual(['AF'])
+    expect(resultado.redesPendientes).toEqual([])
+    expect(validarRedHidraulica(resultado.proyecto)).toEqual([])
+
+    const nuevoNodo = resultado.proyecto.redHidraulica!.nodos.find(
+      (n) =>
+        n.referencia?.tipo === 'artefacto' &&
+        n.referencia.unidadFuncionalId === 'uf-1' &&
+        n.referencia.localId === 'local-bano' &&
+        n.referencia.artefactoId === 'art-inodoro-valvula',
+    )
+    expect(nuevoNodo).toBeDefined()
+    const nuevoTramo = resultado.proyecto.redHidraulica!.tramos.find((t) => t.nodoDestinoId === nuevoNodo!.id)
+    expect(nuevoTramo?.red).toBe('AF')
+    expect(nuevoTramo?.nodoOrigenId).toBe('n0') // local-bano solo tenia un artefacto (lavatorio), sin bifurcacion dedicada
+
+    // Cobertura completa y el nuevo consumo participa realmente aguas abajo
+    // (no solo desaparece el aviso: obtenerArtefactosAguasAbajo lo alcanza
+    // realmente desde la raiz, y resolverHidraulicaDeTramo calcula sobre el).
+    expect(auditarCoberturaFisica(resultado.proyecto).completa).toBe(true)
+
+    const referenciasAguasAbajo = obtenerArtefactosAguasAbajo(resultado.proyecto, 't-general')
+    expect(referenciasAguasAbajo).toContainEqual({
+      tipo: 'artefacto',
+      unidadFuncionalId: 'uf-1',
+      localId: 'local-bano',
+      artefactoId: 'art-inodoro-valvula',
+    })
+
+    const hidraulica = resolverHidraulicaDeTramo(resultado.proyecto, 't-general', catalogoArtefactos)
+    if (hidraulica.tipo !== 'conDemanda') throw new Error('se esperaba conDemanda')
+    // CRIT-A8: local-bano paso a tener un artefacto con
+    // limpiezaConValvulaAutomatica (el inodoroValvula recien conectado) en
+    // un Local domiciliario -- ese subconjunto (no el lavatorio preexistente)
+    // es el que participa de n para ese Local. n = inodoroValvula (local-bano,
+    // subconjunto CRIT-A8) + canilla (local-patio).
+    expect(hidraulica.simultaneidad.n).toBe(2)
+  })
+
+  it('primera instancia sin precedente, declarada AF+AC: crea dos terminales referenciando la misma instancia', () => {
+    const proyecto = proyectoBase()
+    const proyectoConPileta: Proyecto = {
+      ...proyecto,
+      unidadesFuncionales: proyecto.unidadesFuncionales.map((uf) => ({
+        ...uf,
+        locales: uf.locales.map((l) =>
+          l.id === 'local-bano'
+            ? { ...l, artefactos: [...l.artefactos, artefacto('art-pileta', 'piletaDeCocina')] }
+            : l,
+        ),
+      })),
+    }
+
+    const resultado = sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(
+      proyectoConPileta,
+      'uf-1',
+      'local-bano',
+      'art-pileta',
+      ['AF', 'AC'],
+    )
+
+    expect(resultado.tipo).toBe('sincronizado')
+    if (resultado.tipo !== 'sincronizado') return
+    expect([...resultado.redesConectadas].sort()).toEqual(['AC', 'AF'])
+    expect(validarRedHidraulica(resultado.proyecto)).toEqual([])
+
+    const referenciaEsperada = {
+      tipo: 'artefacto' as const,
+      unidadFuncionalId: 'uf-1',
+      localId: 'local-bano',
+      artefactoId: 'art-pileta',
+    }
+    const nodosNuevos = resultado.proyecto.redHidraulica!.nodos.filter(
+      (n) => JSON.stringify(n.referencia) === JSON.stringify(referenciaEsperada),
+    )
+    expect(nodosNuevos).toHaveLength(2) // uno AF, uno AC
+  })
+
+  it('sin punto de insercion inequivoco: redesPendientes, no fabrica conexion', () => {
+    const proyecto = proyectoBase()
+    const proyectoConCanilla: Proyecto = {
+      ...proyecto,
+      unidadesFuncionales: proyecto.unidadesFuncionales.map((uf) => ({
+        ...uf,
+        locales: uf.locales.map((l) =>
+          l.id === 'local-vacio' ? { ...l, artefactos: [artefacto('art-canilla-nueva', 'inodoroValvula')] } : l,
+        ),
+      })),
+    }
+
+    const resultado = sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(
+      proyectoConCanilla,
+      'uf-1',
+      'local-vacio',
+      'art-canilla-nueva',
+      ['AF'],
+    )
+
+    expect(resultado.tipo).toBe('sincronizado')
+    if (resultado.tipo !== 'sincronizado') return
+    expect(resultado.redesConectadas).toEqual([])
+    expect(resultado.redesPendientes).toEqual(['AF'])
+    expect(resultado.proyecto).toBe(proyectoConCanilla) // sin cambios
+  })
+
+  it('proyecto sin redHidraulica: sinRedHidraulica', () => {
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'uf-1', locales: [{ id: 'l-1', tipo: 'bano', artefactos: [artefacto('a-1', 'inodoroValvula')] }] }
+    const proyecto: Proyecto = {
+      metadatos: metadatos(),
+      parametros: parametros(),
+      unidadesFuncionales: [uf],
+      configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
+    }
+
+    expect(sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(proyecto, 'uf-1', 'l-1', 'a-1', ['AF'])).toEqual({
+      tipo: 'sinRedHidraulica',
+    })
+  })
+
+  it('artefacto instancia inexistente: artefactoInexistente', () => {
+    const proyecto = proyectoBase()
+
+    expect(
+      sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(proyecto, 'uf-1', 'local-bano', 'inexistente', ['AF']),
+    ).toEqual({ tipo: 'artefactoInexistente' })
   })
 })

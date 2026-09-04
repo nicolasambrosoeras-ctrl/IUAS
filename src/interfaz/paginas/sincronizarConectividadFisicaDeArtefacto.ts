@@ -75,6 +75,46 @@ export function sincronizarConectividadFisicaDeArtefacto(
     return { tipo: 'redesNoDeterminables', motivo: precedente.tipo }
   }
 
+  return conectarArtefactoARedes(proyecto, redHidraulica, unidadFuncionalId, localId, artefactoInstanciaId, precedente.redes)
+}
+
+// Variante para cuando no hay precedente en el proyecto (`sinPrecedente`):
+// en vez de deducir las Redes de otra instancia, las recibe declaradas
+// explicitamente por quien llama (UI: el usuario elige AF/AC/ambas). CRIT-A15
+// exige que esa conectividad sea una decision de instalacion real -- nunca
+// inferida del catalogo -- y sin precedente no hay de donde mas tomarla.
+// Misma composicion aditiva/no destructiva que la variante por precedente;
+// solo cambia el origen de `redes`.
+export function sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(
+  proyecto: Proyecto,
+  unidadFuncionalId: string,
+  localId: string,
+  artefactoInstanciaId: string,
+  redesDeclaradas: readonly RedDeTramo[],
+): ResultadoSincronizacionDeArtefacto {
+  const { redHidraulica } = proyecto
+  if (redHidraulica === undefined) {
+    return { tipo: 'sinRedHidraulica' }
+  }
+
+  const unidadFuncional = proyecto.unidadesFuncionales.find((uf) => uf.id === unidadFuncionalId)
+  const local = unidadFuncional?.locales.find((l) => l.id === localId)
+  const artefactoInstancia = local?.artefactos.find((a) => a.id === artefactoInstanciaId)
+  if (artefactoInstancia === undefined) {
+    return { tipo: 'artefactoInexistente' }
+  }
+
+  return conectarArtefactoARedes(proyecto, redHidraulica, unidadFuncionalId, localId, artefactoInstanciaId, redesDeclaradas)
+}
+
+function conectarArtefactoARedes(
+  proyecto: Proyecto,
+  redHidraulica: NonNullable<Proyecto['redHidraulica']>,
+  unidadFuncionalId: string,
+  localId: string,
+  artefactoInstanciaId: string,
+  redes: readonly RedDeTramo[],
+): ResultadoSincronizacionDeArtefacto {
   const idsNodosDelArtefacto = new Set(
     redHidraulica.nodos
       .filter(
@@ -95,7 +135,7 @@ export function sincronizarConectividadFisicaDeArtefacto(
   const redesConectadas: RedDeTramo[] = []
   const redesPendientes: RedDeTramo[] = []
 
-  for (const red of precedente.redes) {
+  for (const red of redes) {
     if (redesYaConectadas.has(red)) {
       redesConectadas.push(red)
       continue

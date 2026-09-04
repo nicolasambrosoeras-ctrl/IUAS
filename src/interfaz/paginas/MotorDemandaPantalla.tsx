@@ -8,6 +8,7 @@
 // validarProyecto y calcularSimultaneidad y muestra lo que devuelven.
 import { useState } from 'react'
 import type { Proyecto, UnidadFuncional, Local, TipoDeLocal, RegimenLocal, Artefacto } from '../../modelo/proyecto'
+import type { RedDeTramo } from '../../modelo/redHidraulica'
 import type { ResultadoDeCalculo, Paso, ValorCalculado } from '../../modelo/resultado'
 import type { ProblemaValidacion, CodigoValidacion } from '../../validacion'
 import { validarProyecto } from '../../validacion'
@@ -23,7 +24,11 @@ import {
   textoValorCalculado,
 } from '../../presentacion/desarrolloDelCalculoDemanda'
 import { duplicarUnidadFuncionalEnProyecto, generarId } from './duplicarUnidadFuncional'
-import { sincronizarConectividadFisicaDeArtefacto } from './sincronizarConectividadFisicaDeArtefacto'
+import {
+  sincronizarConectividadFisicaDeArtefacto,
+  sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas,
+} from './sincronizarConectividadFisicaDeArtefacto'
+import { determinarRedesFisicasPorPrecedente } from '../../motor/tuberias/topologia/determinarRedesFisicasPorPrecedente'
 import { quitarConectividadFisicaDeArtefacto } from './quitarConectividadFisicaDeArtefacto'
 import { ResultadoHidraulicoDeTramo } from './ResultadoHidraulicoDeTramo'
 import { MetodologiaYFuentesTecnicas } from './MetodologiaYFuentesTecnicas'
@@ -145,6 +150,11 @@ function LocalFormulario({
   onCambiarProyecto: (proyecto: Proyecto) => void
   onEliminar: () => void
 }) {
+  // Solo se llena cuando agregarArtefacto() detecta que el nuevo artefacto
+  // no tiene ningún precedente físico en el proyecto: nada se crea todavía
+  // -- se espera la declaración explícita de Red del usuario (ver más abajo).
+  const [declaracionPendiente, setDeclaracionPendiente] = useState<{ artefactoIdCatalogo: string } | null>(null)
+
   // M2-D (sincronización funcional -> hidráulica, primer slice: ALTA):
   // agregar un Artefacto no solo actualiza la jerarquía funcional (Local)
   // sino que intenta conectarlo físicamente en redHidraulica -- solo
@@ -153,15 +163,18 @@ function LocalFormulario({
   // el artefacto queda igual creado funcionalmente pero sin conexión
   // física, y la barrera de cobertura (S1/S2) lo señala como siempre --
   // esta función nunca fabrica una conexión ni oculta esa señal.
-  function agregarArtefacto() {
-    const primerArtefacto = catalogoArtefactos[0]
-    if (!primerArtefacto) {
-      return
-    }
+  //
+  // Excepción: cuando no hay ningún precedente en todo el proyecto para
+  // este artefactoId (primera instancia de ese tipo), no hay de dónde
+  // deducir AF/AC (CRIT-A15 prohíbe inferirlo del catálogo) -- se pide al
+  // usuario que lo declare explícitamente antes de crear nada, en una
+  // única operación atómica (ver declaracionPendiente más abajo) en vez
+  // de crear el artefacto incompleto y repararlo después.
+  function crearYConectarArtefacto(artefactoIdCatalogo: string, redesDeclaradas?: readonly RedDeTramo[]) {
     const nuevoArtefactoId = generarId('artefacto')
     const nuevoArtefacto: Artefacto = {
       id: nuevoArtefactoId,
-      artefactoId: primerArtefacto.id,
+      artefactoId: artefactoIdCatalogo,
       cantidad: 1,
       origen: 'normativo',
     }
@@ -178,13 +191,30 @@ function LocalFormulario({
             },
       ),
     }
-    const sincronizacion = sincronizarConectividadFisicaDeArtefacto(
-      proyectoConArtefacto,
-      unidadFuncionalId,
-      local.id,
-      nuevoArtefactoId,
-    )
+    const sincronizacion = redesDeclaradas
+      ? sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(
+          proyectoConArtefacto,
+          unidadFuncionalId,
+          local.id,
+          nuevoArtefactoId,
+          redesDeclaradas,
+        )
+      : sincronizarConectividadFisicaDeArtefacto(proyectoConArtefacto, unidadFuncionalId, local.id, nuevoArtefactoId)
     onCambiarProyecto(sincronizacion.tipo === 'sincronizado' ? sincronizacion.proyecto : proyectoConArtefacto)
+    setDeclaracionPendiente(null)
+  }
+
+  function agregarArtefacto() {
+    const primerArtefacto = catalogoArtefactos[0]
+    if (!primerArtefacto) {
+      return
+    }
+    const precedente = determinarRedesFisicasPorPrecedente(proyecto, primerArtefacto.id)
+    if (precedente.tipo === 'sinPrecedente') {
+      setDeclaracionPendiente({ artefactoIdCatalogo: primerArtefacto.id })
+      return
+    }
+    crearYConectarArtefacto(primerArtefacto.id)
   }
 
   return (
@@ -271,6 +301,37 @@ function LocalFormulario({
       <button type="button" onClick={agregarArtefacto}>
         + Agregar artefacto
       </button>
+      {declaracionPendiente && (
+        <div role="alert">
+          <p>
+            Es la primera instancia de "
+            {catalogoArtefactos.find((c) => c.id === declaracionPendiente.artefactoIdCatalogo)?.nombre ??
+              declaracionPendiente.artefactoIdCatalogo}
+            " en el proyecto: no hay otra conexión física de la que deducir la Red. ¿A qué red se conecta?
+          </p>
+          <button
+            type="button"
+            onClick={() => crearYConectarArtefacto(declaracionPendiente.artefactoIdCatalogo, ['AF'])}
+          >
+            Agua fría (AF)
+          </button>{' '}
+          <button
+            type="button"
+            onClick={() => crearYConectarArtefacto(declaracionPendiente.artefactoIdCatalogo, ['AC'])}
+          >
+            Agua caliente (AC)
+          </button>{' '}
+          <button
+            type="button"
+            onClick={() => crearYConectarArtefacto(declaracionPendiente.artefactoIdCatalogo, ['AF', 'AC'])}
+          >
+            Agua fría y caliente (AF + AC)
+          </button>{' '}
+          <button type="button" onClick={() => setDeclaracionPendiente(null)}>
+            Cancelar
+          </button>
+        </div>
+      )}
     </article>
   )
 }
