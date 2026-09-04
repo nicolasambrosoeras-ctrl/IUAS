@@ -1,12 +1,17 @@
 // Orquestador de balance de presion sobre un camino: se verifican los
 // estados de corte de cada etapa (topologia, terminal/Pmin, desnivel,
-// perdida distribuida) y que la barrera de completitud sigue diciendo la
-// verdad -- con hfLocalizada/hfMedidor sin consumidor topologico todavia,
-// el resultado es siempre 'balanceIncompleto', nunca una residual
-// presentada como verificada.
+// perdida distribuida, perdida localizada) y que la barrera de
+// completitud sigue diciendo la verdad -- con hfMedidor sin consumidor
+// topologico todavia (D-delta.35), el resultado es siempre
+// 'balanceIncompleto', nunca una residual presentada como verificada.
+// hfLocalizada SI tiene consumidor desde M2-C slice A (D-delta.33): los
+// fixtures de este archivo declaran accesorios=[] por defecto (relevado,
+// sin accesorios del subconjunto soportado) para poder llegar a
+// 'balanceIncompleto' sin necesidad de cargar accesorios reales en cada
+// test que no los ejercita.
 import { describe, it, expect } from 'vitest'
 import type { Artefacto, MetadatosProyecto, ParametrosProyecto, Proyecto, UnidadFuncional } from '../../../modelo/proyecto'
-import type { Nodo, RedHidraulica, ReferenciaDeArtefacto, Tramo } from '../../../modelo/redHidraulica'
+import type { AccesorioDeTramo, Nodo, RedHidraulica, ReferenciaDeArtefacto, Tramo } from '../../../modelo/redHidraulica'
 import { catalogoArtefactos } from '../../../normativa/eras-2023/catalogo-artefactos'
 import { validarRedHidraulica } from '../../../validacion/redHidraulica'
 import { catalogoSistemasDeTuberia } from '../sistemaDeTuberia'
@@ -75,6 +80,13 @@ function proyectoCaminoCompleto(opts?: {
   omitCotaTerminal?: boolean
   omitLongT0?: boolean
   omitLongT1?: boolean
+  // Por defecto ambos tramos quedan "relevados sin accesorios" ([]) para
+  // que los tests que no ejercitan M2-C puedan llegar a
+  // 'balanceIncompleto' sin cargar accesorios. omitAccesoriosT1 simula el
+  // caso "todavia no relevado" (undefined).
+  accesoriosT0?: readonly AccesorioDeTramo[]
+  accesoriosT1?: readonly AccesorioDeTramo[]
+  omitAccesoriosT1?: boolean
 }): Proyecto {
   const o = opts ?? {}
   const cotaRaiz = o.cotaRaiz ?? 0
@@ -82,6 +94,8 @@ function proyectoCaminoCompleto(opts?: {
   const longT0 = o.longT0 ?? 4
   const longT1 = o.longT1 ?? 3
   const artefactoIdCatalogo = o.artefactoIdCatalogo ?? 'lavatorio'
+  const accesoriosT0 = o.accesoriosT0 ?? []
+  const accesoriosT1 = o.accesoriosT1 ?? []
 
   const uf: UnidadFuncional = {
     id: 'uf-1',
@@ -98,8 +112,22 @@ function proyectoCaminoCompleto(opts?: {
     },
   ]
   const tramos: Tramo[] = [
-    { id: 't0', nodoOrigenId: 'raiz', nodoDestinoId: 'mid', red: 'AF', ...(o.omitLongT0 ? {} : { longitud_m: longT0 }) },
-    { id: 't1', nodoOrigenId: 'mid', nodoDestinoId: 'terminal', red: 'AF', ...(o.omitLongT1 ? {} : { longitud_m: longT1 }) },
+    {
+      id: 't0',
+      nodoOrigenId: 'raiz',
+      nodoDestinoId: 'mid',
+      red: 'AF',
+      ...(o.omitLongT0 ? {} : { longitud_m: longT0 }),
+      accesorios: accesoriosT0,
+    },
+    {
+      id: 't1',
+      nodoOrigenId: 'mid',
+      nodoDestinoId: 'terminal',
+      red: 'AF',
+      ...(o.omitLongT1 ? {} : { longitud_m: longT1 }),
+      ...(o.omitAccesoriosT1 ? {} : { accesorios: accesoriosT1 }),
+    },
   ]
   return proyectoCon([uf], { nodos, tramos })
 }
@@ -120,14 +148,20 @@ describe('resolverPresionResidualDeCamino', () => {
       catalogoMaterialesTuberia,
     )
 
-    // Con hfLocalizada/hfMedidor sin consumidor topologico todavia, la
-    // barrera de resolverBalanceDePresion corta aca -- SIEMPRE.
+    // Con hfMedidor sin consumidor topologico todavia (D-delta.35), la
+    // barrera de resolverBalanceDePresion corta aca -- SIEMPRE. hfLocalizada
+    // SI resuelve (accesorios=[] por defecto -> 0 real, no ausente).
     expect(resultado.tipo).toBe('balanceIncompleto')
     if (resultado.tipo !== 'balanceIncompleto') return
-    expect([...resultado.terminosFaltantes].sort()).toEqual(['hfLocalizada', 'hfMedidor'])
+    expect([...resultado.terminosFaltantes].sort()).toEqual(['hfMedidor'])
     expect(resultado.raizId).toBe('raiz')
     expect(resultado.terminalId).toBe('terminal')
     expect(resultado.desnivel_m).toBe(8)
+    expect(resultado.hfLocalizada_mca).toBe(0)
+    expect(resultado.hfLocalizadaPorTramo).toEqual([
+      { tramoId: 't0', hf_m: 0 },
+      { tramoId: 't1', hf_m: 0 },
+    ])
 
     const camino = obtenerCaminoHaciaOrigen(proyecto.redHidraulica!, 'terminal') as CaminoHaciaOrigen
     const acum = acumularPerdidaDistribuidaDeCamino(
@@ -294,6 +328,48 @@ describe('resolverPresionResidualDeCamino', () => {
     expect(resultado.desnivel_m).toBe(0)
     expect(resultado.hfDistribuida_mca).toBe(0)
     expect(resultado.hfDistribuidaPorTramo).toEqual([])
+    expect(resultado.hfLocalizada_mca).toBe(0)
+    expect(resultado.hfLocalizadaPorTramo).toEqual([])
+  })
+
+  it('un Tramo con accesorios no relevados (undefined) -> perdidaLocalizadaIncompleta', () => {
+    const proyecto = proyectoCaminoCompleto({ omitAccesoriosT1: true })
+
+    const resultado = resolverPresionResidualDeCamino(
+      proyecto,
+      'terminal',
+      P_DISPONIBLE,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    expect(resultado).toEqual({
+      tipo: 'perdidaLocalizadaIncompleta',
+      tramosNoResueltos: [{ tramoId: 't1', motivo: 'sinRelevar' }],
+    })
+  })
+
+  it('accesorios declarados con instancias reales aumentan hfLocalizada_mca y quedan en la traza por tramo', () => {
+    const proyecto = proyectoCaminoCompleto({ accesoriosT0: [{ tipo: 'codo90', cantidad: 2 }] })
+
+    const resultado = resolverPresionResidualDeCamino(
+      proyecto,
+      'terminal',
+      P_DISPONIBLE,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    if (resultado.tipo !== 'balanceIncompleto') throw new Error('se esperaba balanceIncompleto')
+    expect(resultado.hfLocalizada_mca).toBeGreaterThan(0)
+    expect(resultado.hfLocalizadaPorTramo[0]!.hf_m).toBeGreaterThan(0)
+    expect(resultado.hfLocalizadaPorTramo[1]!.hf_m).toBe(0)
+    expect(resultado.hfLocalizada_mca).toBeCloseTo(
+      resultado.hfLocalizadaPorTramo[0]!.hf_m + resultado.hfLocalizadaPorTramo[1]!.hf_m,
+      12,
+    )
   })
 
   it('nodoTerminalId inexistente lanza excepcion', () => {
@@ -341,5 +417,8 @@ describe('resolverPresionResidualDeCamino', () => {
     expect(resultado.hfDistribuidaPorTramo[0]!.hf_m).toBeCloseTo(J_HAZEN_QC_0_2_DI_14_4_C_150 * L0, 9)
     expect(resultado.hfDistribuidaPorTramo[1]!.hf_m).toBeCloseTo(J_HAZEN_QC_0_2_DI_14_4_C_150 * L1, 9)
     expect(resultado.hfDistribuida_mca).toBeCloseTo(J_HAZEN_QC_0_2_DI_14_4_C_150 * (L0 + L1), 9)
+    // Sin accesorios declarados en este golden (accesorios=[] por defecto):
+    // hfLocalizada es un cero real, no un término ausente.
+    expect(resultado.hfLocalizada_mca).toBe(0)
   })
 })

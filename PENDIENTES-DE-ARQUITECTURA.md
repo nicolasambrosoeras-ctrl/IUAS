@@ -1101,39 +1101,50 @@ práctica constructiva tradicional de alimentación por tanque elevado.
 Ninguna hipótesis de esa investigación fue confirmada todavía — no
 adoptar ningún valor numérico de presión mínima sin esa revisión previa.
 
-### D-δ.33 — Pérdidas localizadas / accesorios — ABIERTA
+### D-δ.33 — Pérdidas localizadas / accesorios — PARCIALMENTE CERRADA (slice A)
 
-Pendiente completo: accesorios estructurales inferibles de la topología
-(tees de colector/derivación) vs. accesorios adicionales cargados por el
-usuario, `ΣK`, integración con la pérdida distribuida ya implementada
-(N3). **Nunca meter accesorios/codos/tees/válvulas/`Ks` dentro de
+**Nunca meter accesorios/codos/tees/válvulas/`Ks` dentro de
 `longitud_m`** (D-δ.22 ya lo prohíbe explícitamente; se reafirma acá
 porque es el punto de contacto directo con este pendiente).
 
-#### Investigación M2-B — dónde vive cada tipo de singularidad (por accesorio de Tabla N°7)
+#### CERRADO — subconjunto declarable sobre `Tramo` (M2-C slice A, CRIT-A28)
+
+Curvas (45°/90°), codo 90°, llave de paso, válvula esclusa, uniones y
+tubo saliente: representables de forma inequívoca como
+`Tramo.accesorios?: readonly AccesorioDeTramo[]`
+(`{ tipo: IdAccesorioDeTramo; cantidad: number }`), con `Ks` resuelto
+desde Tabla N°7 (nunca persistido) y `V = velocidadReal_mps` del propio
+`Tramo` (reutilizada de `resolverDiametroComercialDeTramo`, nunca
+recalculada). `undefined` = accesorios no relevados todavía (nunca "sin
+accesorios"); `[]` = relevado, efectivamente sin accesorios de este
+subconjunto (pérdida real = 0). Detalle completo, fundamento y alcance en
+**CRIT-A28** (`CRITERIOS.md`).
+
+Implementado: `resolverPerdidaLocalizadaDeTramo`
+(`motor/tuberias/perdidaCarga/`), `acumularPerdidaLocalizadaDeCamino`
+(`motor/tuberias/presion/`), integrado en `resolverPresionResidualDeCamino`
+como `hfLocalizada`. Validación de integridad en `validarRedHidraulica`
+(`redHidraulicaTramoAccesorioTipoNoSoportado`/
+`redHidraulicaTramoAccesorioCantidadNoPositiva`) — un `tipo` fuera del
+subconjunto soportado (p. ej. persistido de una versión futura con tees)
+se rechaza explícitamente, nunca se ignora ni se calcula como si no
+existiera.
+
+#### ABIERTO — el resto de Tabla N°7
 
 | Accesorio | Dónde ocurre físicamente | ¿Inferible de la topología actual? | Velocidad para `Js` |
 |---|---|---|---|
-| Curva 45°/90°, codo 90° | a lo largo del recorrido físico de un `Tramo` (cambio de dirección de la cañería) | No — depende del trazado real, `RedHidraulica` no tiene geometría 3D | `velocidadReal_mps` del `Tramo` — inequívoco |
-| Llave de paso, válvula esclusa, uniones, tubo saliente | instalados sobre el recorrido de un `Tramo` | No — declaración del instalador/usuario | `velocidadReal_mps` del `Tramo` — inequívoco |
 | Reducciones | en el cambio de diámetro entre dos `Tramo` consecutivos | Parcialmente: la topología sabe *que* hay un cambio de `Di` comercial entre tramo padre e hijo (ambos ya resueltos por N3), pero no decide qué `V` corresponde (¿lado mayor, lado menor, aguas arriba, aguas abajo?) | **Ambiguo** — criterio IUAS todavía sin fijar |
 | Tee paso recto / salida lateral / entrada central-salidas laterales | en el nodo de bifurcación/convergencia | La topología sabe que hay bifurcación (nodo con >1 tramo saliente/entrante), pero **no** cuál de los 3 `Ks` corresponde — `RedHidraulica` no tiene orientación espacial, así que no distingue "sigue recto" de "sale lateral" | Ambiguo (¿tramo entrante o cada saliente?) |
 | Griferías | en el terminal — ¿la propia llave del artefacto, o una llave de paso de artefacto distinta? | Posición sí (nodo terminal); si corresponde **contarla** depende de si `presionMinima_kgcm2` del catálogo (§2.9.1.4) ya incluye la pérdida propia de la grifería del artefacto | Del último `Tramo` del camino, si corresponde contarla |
 
-**Consecuencia**: el subconjunto {curva45, curva90, codo90, llaveDePaso,
-valvulaEsclusa, uniones, tuboSaliente} es representable de forma
-inequívoca como accesorios declarados por el usuario **sobre un
-`Tramo`**, con `Ks` de Tabla N°7 y `V = velocidadReal_mps` del tramo — el
-mismo patrón ya usado por `longitud_m` (D-δ.22): dato opcional explícito,
-ausencia ≠ cero. El subconjunto {reducciones, las 3 variantes de tee,
-griferías} depende de una decisión todavía no tomada (ubicación
-nodo/tramo, qué `Ks` de tee corresponde sin geometría, y si griferías
-duplica `presionMinima_kgcm2`) — no se resuelve acá.
-
-**No cierra**: si el primer slice de M2-C cubre solo el subconjunto
-inequívoco (con los demás explícitamente diferidos) o si corresponde
-diseñar el modelo completo de una vez. Ver el checkpoint reportado al
-cerrar esta investigación.
+**No decidido**: ubicación nodo/tramo de tees y reducciones; qué `Ks` de
+tee corresponde sin geometría espacial (o si hace falta declaración
+manual del usuario, sin introducir geometría 3D); qué velocidad usa una
+reducción; si griferías duplica `presionMinima_kgcm2`. Ninguna de las
+tres se resuelve implementando slice A. Orden de investigación sugerido
+para retomar: (1) grifería vs. `Pmin` (normativa), (2) reducciones
+(convención hidráulica), (3) tees (representación más amplia).
 
 ### D-δ.34 — `n` no expuesto por `ResultadoPerdidaDistribuidaDeTramo` (N3) — CERRADA
 

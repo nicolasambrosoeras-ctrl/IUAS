@@ -1484,3 +1484,69 @@ Implementado como precondición de `obtenerCaminoHaciaOrigen`
 explícitamente los estados de topología no resoluble
 (`multiplesTramosEntrantes`, `ciclo`) en vez de fabricar un camino o
 elegir un predecesor. Ver D-δ.37 en `PENDIENTES-DE-ARQUITECTURA.md`.
+
+## CRIT-A28 — Subconjunto de pérdidas localizadas representable sobre `Tramo` (M2-C slice A)
+
+**Artículo:** sin artículo ERAS directo. CRIT-A26 ya transcribe firme la
+fórmula (`Js = Ks·V²/2g`) y la Tabla N°7 completa (12 accesorios); este
+criterio no reabre ninguna de las dos. ERAS-2023 §2.12.1 no enuncia dónde
+ni cómo debe representarse cada accesorio en un modelo de datos — eso es
+alcance IUAS, igual que CRIT-A27.
+
+**Naturaleza:** criterio operativo / de alcance IUAS, derivado de una
+limitación real y verificable del modelo actual: `RedHidraulica` no tiene
+geometría espacial (orientación, ángulos, disposición 3D) — solo
+conectividad (`Nodo → Tramo → Nodo`). No es transcripción normativa ni
+interpretación de texto ERAS.
+
+**Criterio adoptado:** de los 12 accesorios de Tabla N°7, el subconjunto
+`{curva45, curva90, codo90, llaveDePaso, valvulaEsclusa, uniones,
+tuboSaliente}` es representable hoy de forma inequívoca como
+`AccesorioDeTramo` declarado sobre un `Tramo`, porque cada uno de ellos:
+
+- ocurre a lo largo del recorrido físico del `Tramo` (cambio de
+  dirección, elemento instalado en línea, o descarga en su extremo), no
+  en un punto de bifurcación/convergencia;
+- usa, sin ambigüedad, la velocidad real de ese mismo `Tramo`
+  (`velocidadReal_mps`, ya resuelta por `resolverDiametroComercialDeTramo`
+  — nunca recalculada).
+
+**Explícitamente fuera de este criterio** (Tabla N°7 completa, sin
+resolver — ver D-δ.33): las 3 variantes de tee (`Ks` depende de la
+orientación del flujo en la bifurcación, que `RedHidraulica` no puede
+distinguir sin geometría espacial — introducirla está fuera de alcance);
+reducciones (qué velocidad corresponde — lado mayor o menor — no está
+decidido); griferías (si su pérdida ya está incluida en
+`presionMinima_kgcm2` del catálogo normativo es una pregunta normativa
+sin verificar, no una cuestión de representación).
+
+**Representación adoptada:** `Tramo.accesorios?: readonly
+AccesorioDeTramo[]`, con `AccesorioDeTramo = { tipo: IdAccesorioDeTramo;
+cantidad: number }` — identidad normativa + cantidad, nunca el
+coeficiente `Ks` persistido (se resuelve desde Tabla N°7 en cada cálculo,
+mismo criterio que `materialTuberiaId`↔catálogo). Mismo patrón de
+opcionalidad que `longitud_m`/`cota_m` (D-δ.22/CRIT-A20): `undefined` =
+relevamiento de accesorios no realizado todavía, nunca "sin accesorios";
+`[]` = relevado, el `Tramo` efectivamente no tiene accesorios de este
+subconjunto — pérdida localizada real = 0.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- No decide la representación de tees, reducciones ni griferías —
+  D-δ.33 sigue abierta para esas tres.
+- No suma pérdida localizada con pérdida distribuida ni con el balance de
+  presión — eso lo hace `resolverPresionResidualDeCamino`, consumidor de
+  este criterio, no parte de él.
+- No investiga la interacción grifería/`presionMinima_kgcm2` — queda
+  como sub-pregunta explícita de D-δ.33.
+
+**Estado:** Firme como criterio operativo / de alcance IUAS. Implementado
+en `resolverPerdidaLocalizadaDeTramo`
+(`motor/tuberias/perdidaCarga/resolverPerdidaLocalizadaDeTramo.ts`,
+composición de accesorios + velocidad → `Ks_total` → `Js`) y
+`acumularPerdidaLocalizadaDeCamino`
+(`motor/tuberias/presion/acumularPerdidaLocalizadaDeCamino.ts`,
+acumulación por camino reutilizando `resolverDiametroComercialDeTramo`
+para la velocidad de cada Tramo, sin volver a resolver Qc/diámetro).
+Integrado en `resolverPresionResidualDeCamino` como `hfLocalizada`. Ver
+D-δ.33 en `PENDIENTES-DE-ARQUITECTURA.md`.

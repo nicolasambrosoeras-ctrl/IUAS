@@ -4,6 +4,7 @@
 //   obtenerCaminoHaciaOrigen  (camino raiz -> terminal, CRIT-A27)
 //   resolverDesnivelDeCamino  (Δz de extremos)
 //   acumularPerdidaDistribuidaDeCamino  (Σ hf distribuida, N3)
+//   acumularPerdidaLocalizadaDeCamino  (Σ hf localizada, subconjunto CRIT-A26/D-delta.33)
 //   resolverPresionMinimaDeArtefacto  (Pmin del terminal, SS2.9.1.4)
 //   resolverBalanceDePresion  (Pdisponible - Δz - Σperdidas vs Pmin)
 //
@@ -11,15 +12,20 @@
 // de donde sale (tanque elevado / red / bombeo siguen sin modelar,
 // D-delta.36). No conoce UI.
 //
-// Barrera de completitud intacta: hfLocalizada (CRIT-A26) y hfMedidor
-// (CRIT-A25) todavia NO tienen ningun consumidor que las derive desde la
-// topologia (M2-C, D-delta.33 / D-delta.35), asi que se pasan como
-// undefined y resolverBalanceDePresion devuelve 'incompleto'. Este
-// orquestador propaga ese estado tal cual ('balanceIncompleto') -- NUNCA
-// presenta una presion residual como verificada mientras falten terminos
-// obligatorios. La rama 'balanceCompleto' es el mapeo fiel del resultado
-// 'completo' de resolverBalanceDePresion; hoy es inalcanzable por este
-// camino y se vuelve alcanzable cuando M2-C conecte esas perdidas.
+// Barrera de completitud intacta: hfMedidor (CRIT-A25) todavia NO tiene
+// ningun consumidor que la derive desde la topologia (D-delta.35), asi
+// que se pasa como undefined y resolverBalanceDePresion devuelve
+// 'incompleto'. Este orquestador propaga ese estado tal cual
+// ('balanceIncompleto') -- NUNCA presenta una presion residual como
+// verificada mientras falten terminos obligatorios. hfLocalizada SI tiene
+// consumidor desde este incremento (M2-C slice A, D-delta.33): solo cubre
+// el subconjunto inequivoco de Tabla N7 (curvas, codos, llave de paso,
+// valvula esclusa, uniones, tubo saliente) -- tees, reducciones y
+// griferia siguen sin representacion y no aportan a este termino. La rama
+// 'balanceCompleto' es el mapeo fiel del resultado 'completo' de
+// resolverBalanceDePresion; hoy sigue inalcanzable por este camino
+// (hfMedidor abstracto), y se vuelve alcanzable cuando D-delta.35 conecte
+// esa perdida.
 //
 // Cobertura fisica global del Proyecto (S1/auditarCoberturaFisica) sigue
 // siendo responsabilidad de la barrera de presentacion (S2), no de este
@@ -37,6 +43,10 @@ import {
   acumularPerdidaDistribuidaDeCamino,
   type MotivoTramoSinPerdida,
 } from './acumularPerdidaDistribuidaDeCamino'
+import {
+  acumularPerdidaLocalizadaDeCamino,
+  type MotivoTramoSinPerdidaLocalizada,
+} from './acumularPerdidaLocalizadaDeCamino'
 import { resolverBalanceDePresion } from './resolverBalanceDePresion'
 
 type TrazaDeCamino = {
@@ -45,6 +55,8 @@ type TrazaDeCamino = {
   readonly desnivel_m: number
   readonly hfDistribuida_mca: number
   readonly hfDistribuidaPorTramo: readonly { readonly tramoId: string; readonly hf_m: number }[]
+  readonly hfLocalizada_mca: number
+  readonly hfLocalizadaPorTramo: readonly { readonly tramoId: string; readonly hf_m: number }[]
 }
 
 export type ResultadoPresionResidualDeCamino =
@@ -78,6 +90,13 @@ export type ResultadoPresionResidualDeCamino =
       readonly tramosNoResueltos: readonly {
         readonly tramoId: string
         readonly motivo: MotivoTramoSinPerdida
+      }[]
+    }
+  | {
+      readonly tipo: 'perdidaLocalizadaIncompleta'
+      readonly tramosNoResueltos: readonly {
+        readonly tramoId: string
+        readonly motivo: MotivoTramoSinPerdidaLocalizada
       }[]
     }
   | ({
@@ -161,12 +180,24 @@ export function resolverPresionResidualDeCamino(
     return { tipo: 'perdidaDistribuidaIncompleta', tramosNoResueltos: perdidaDistribuida.tramosNoResueltos }
   }
 
+  const perdidaLocalizada = acumularPerdidaLocalizadaDeCamino(
+    proyecto,
+    camino,
+    catalogoArtefactos,
+    catalogoSistemasDeTuberia,
+  )
+  if (perdidaLocalizada.tipo === 'incompleta') {
+    return { tipo: 'perdidaLocalizadaIncompleta', tramosNoResueltos: perdidaLocalizada.tramosNoResueltos }
+  }
+
   const traza: TrazaDeCamino = {
     raizId: camino.raizId,
     terminalId: camino.terminalId,
     desnivel_m: desnivel.desnivel_m,
     hfDistribuida_mca: perdidaDistribuida.hf_m,
     hfDistribuidaPorTramo: perdidaDistribuida.porTramo,
+    hfLocalizada_mca: perdidaLocalizada.hf_m,
+    hfLocalizadaPorTramo: perdidaLocalizada.porTramo,
   }
 
   const balance = resolverBalanceDePresion(
@@ -174,8 +205,9 @@ export function resolverPresionResidualDeCamino(
     desnivel.desnivel_m,
     {
       hfDistribuida_mca: perdidaDistribuida.hf_m,
-      // Sin consumidor topologico todavia (M2-C): undefined, nunca 0.
-      hfLocalizada_mca: undefined,
+      hfLocalizada_mca: perdidaLocalizada.hf_m,
+      // hfMedidor sigue sin consumidor topologico (D-delta.35): undefined,
+      // nunca 0 -- el balance sigue 'incompleto' hasta que se resuelva.
       hfMedidor_mca: undefined,
     },
     presionMinima_kgcm2,

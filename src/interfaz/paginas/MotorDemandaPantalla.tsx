@@ -628,6 +628,9 @@ const MENSAJES_DE_VALIDACION: Readonly<Record<CodigoValidacion, string>> = {
   redHidraulicaTramoLongitudNoPositiva: 'Un tramo de red hidráulica tiene una longitud menor o igual a cero.',
   redHidraulicaTramoLongitudIncompatibleConCota:
     'Un tramo de red hidráulica tiene una longitud menor a la diferencia de cota entre sus nodos.',
+  redHidraulicaTramoAccesorioTipoNoSoportado:
+    'Un accesorio de tramo tiene un tipo todavía no soportado para el cálculo de pérdida localizada.',
+  redHidraulicaTramoAccesorioCantidadNoPositiva: 'La cantidad de un accesorio de tramo debe ser mayor que cero.',
   configuracionHidraulicaSistemaDeTuberiaIdInexistente:
     'El sistema de tubería seleccionado no existe en el catálogo de sistemas comerciales vigente.',
   configuracionHidraulicaSistemaMaterialIncompatible:

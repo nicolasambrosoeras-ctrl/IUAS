@@ -47,6 +47,53 @@ export type Nodo = {
 
 export type RedDeTramo = 'AF' | 'AC';
 
+// Subconjunto de Tabla N°7 (normativa/eras-2023/tabla-07-perdidas-localizadas,
+// CRIT-A26) cuya pérdida localizada es representable hoy de forma
+// inequívoca como accesorio de un Tramo: ocurre a lo largo de su
+// recorrido físico y usa la velocidad real de ese mismo Tramo
+// (Js = Ks·V²/2g). Deliberadamente NO incluye las 3 variantes de tee
+// (Ks distinto según orientación, que RedHidraulica no puede distinguir
+// sin geometría espacial), reducciones (qué V corresponde -- lado
+// mayor/menor -- sigue sin decidir) ni griferías (podría duplicar
+// presionMinima_kgcm2 del catálogo -- pendiente de investigación
+// normativa). Ver PENDIENTES-DE-ARQUITECTURA.md, D-δ.33.
+export type IdAccesorioDeTramo =
+  | 'curva45'
+  | 'curva90'
+  | 'codo90'
+  | 'llaveDePaso'
+  | 'valvulaEsclusa'
+  | 'uniones'
+  | 'tuboSaliente';
+
+// Lista en tiempo de ejecución de IdAccesorioDeTramo -- única fuente de
+// verdad compartida con validarRedHidraulica (no se duplica el listado
+// literal ahí): a diferencia de otras uniones cerradas del modelo
+// (RedDeTramo, MaterialTuberiaId), este subconjunto está pensado para
+// crecer cuando D-δ.33 resuelva tees/reducciones/griferías, así que datos
+// persistidos/externos sí necesitan verificación en tiempo de ejecución,
+// no solo del compilador.
+export const idsAccesorioDeTramo: readonly IdAccesorioDeTramo[] = [
+  'curva45',
+  'curva90',
+  'codo90',
+  'llaveDePaso',
+  'valvulaEsclusa',
+  'uniones',
+  'tuboSaliente',
+] as const;
+
+// Identidad normativa + cantidad -- nunca el coeficiente Ks persistido
+// (se resuelve desde Tabla N°7 / obtenerKsDeAccesorio, CRIT-A26, mismo
+// criterio que materialTuberiaId↔catálogo). `cantidad` expresa cuántas
+// instancias iguales existen sobre el Tramo (mismo patrón que
+// Artefacto.cantidad): no hay identidad de instancia individual porque
+// Ks depende solo del tipo, nunca de una instancia concreta.
+export type AccesorioDeTramo = {
+  tipo: IdAccesorioDeTramo;
+  cantidad: number;
+};
+
 // Segmento dirigido: nodoOrigenId → nodoDestinoId representa la dirección
 // hidráulica nominal desde la fuente hacia el consumo. No prohíbe ciclos
 // en este incremento (ver D-δ, recirculación futura).
@@ -65,6 +112,16 @@ export type Tramo = {
   // a propósito, mismo criterio que `cota_m`: ausencia de longitud_m NO
   // equivale a longitud_m=0 ni a |Δz|.
   longitud_m?: number;
+  // Pérdidas localizadas declarables sobre el recorrido del Tramo
+  // (subconjunto inequívoco de Tabla N°7, ver IdAccesorioDeTramo). Mismo
+  // criterio de opcionalidad que longitud_m/cota_m, pero con una
+  // distinción adicional relevante (D-δ.33): `undefined` = relevamiento
+  // de accesorios NO realizado todavía -- NUNCA equivale a "sin
+  // accesorios"; `[]` = relevamiento realizado, el Tramo efectivamente no
+  // tiene accesorios de este subconjunto -- pérdida localizada real = 0.
+  // Tees, reducciones y griferías quedan deliberadamente fuera: no se
+  // declaran acá hasta que su representación se decida.
+  accesorios?: readonly AccesorioDeTramo[];
 };
 
 // Una sola topología física para AF y AC (D-δ.2): no existen redes

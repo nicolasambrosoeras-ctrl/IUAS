@@ -17,6 +17,8 @@ export type CodigoValidacion =
   | 'redHidraulicaReferenciaArtefactoInvalida'
   | 'redHidraulicaTramoLongitudNoPositiva'
   | 'redHidraulicaTramoLongitudIncompatibleConCota'
+  | 'redHidraulicaTramoAccesorioTipoNoSoportado'
+  | 'redHidraulicaTramoAccesorioCantidadNoPositiva'
   | 'configuracionHidraulicaSistemaDeTuberiaIdInexistente'
   | 'configuracionHidraulicaSistemaMaterialIncompatible';
 
@@ -87,6 +89,15 @@ export const codigosValidacion: Readonly<Record<CodigoValidacion, DescripcionCod
     severidad: 'error',
     descripcion:
       'Tramo con longitud_m menor a la diferencia de cota (en valor absoluto) entre su nodo origen y su nodo destino (CRIT-A20).',
+  },
+  redHidraulicaTramoAccesorioTipoNoSoportado: {
+    severidad: 'error',
+    descripcion:
+      'Un accesorio de Tramo tiene un tipo que no pertenece al subconjunto de Tabla N°7 representable hoy sobre Tramo (D-δ.33).',
+  },
+  redHidraulicaTramoAccesorioCantidadNoPositiva: {
+    severidad: 'error',
+    descripcion: 'Cantidad de accesorio de Tramo menor o igual a cero.',
   },
   configuracionHidraulicaSistemaDeTuberiaIdInexistente: {
     severidad: 'error',

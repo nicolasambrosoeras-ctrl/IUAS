@@ -4,6 +4,7 @@
 // propósito, ver PENDIENTES-DE-ARQUITECTURA.md sección D-δ).
 
 import type { Proyecto } from '../../modelo/proyecto';
+import { idsAccesorioDeTramo } from '../../modelo/redHidraulica';
 import { crearProblema, type ProblemaValidacion } from '../codigos';
 import { calcularDiferenciaDeCota } from '../../motor/tuberias/geometria/calcularDiferenciaDeCota';
 import { esLongitudGeometricamenteValida } from '../../motor/tuberias/geometria/esLongitudGeometricamenteValida';
@@ -84,6 +85,37 @@ export function validarRedHidraulica(proyecto: Proyecto): readonly ProblemaValid
       problemas.push(
         crearProblema('redHidraulicaTramoLongitudNoPositiva', `${campoTramo}.longitud_m`, tramo.longitud_m),
       );
+    }
+
+    // Accesorios (D-δ.33): ausencia (undefined) es "no relevado todavía",
+    // no se valida acá -- solo se valida lo efectivamente informado, mismo
+    // criterio que longitud_m/cota_m. `tipo` es una unión cerrada en
+    // TypeScript, pero datos persistidos/externos (JSON) pueden violarla
+    // en runtime -- se verifica explícitamente contra idsAccesorioDeTramo
+    // en vez de confiar únicamente en el compilador, porque este
+    // subconjunto está pensado para crecer (tees/reducciones/griferías,
+    // D-δ.33) y un tipo todavía no soportado nunca debe tratarse
+    // silenciosamente como si no existiera.
+    if (tramo.accesorios !== undefined) {
+      tramo.accesorios.forEach((accesorio, indiceAccesorio) => {
+        const campoAccesorio = `${campoTramo}.accesorios[${indiceAccesorio}]`;
+
+        if (!idsAccesorioDeTramo.includes(accesorio.tipo)) {
+          problemas.push(
+            crearProblema('redHidraulicaTramoAccesorioTipoNoSoportado', `${campoAccesorio}.tipo`, accesorio.tipo),
+          );
+        }
+
+        if (accesorio.cantidad <= 0) {
+          problemas.push(
+            crearProblema(
+              'redHidraulicaTramoAccesorioCantidadNoPositiva',
+              `${campoAccesorio}.cantidad`,
+              accesorio.cantidad,
+            ),
+          );
+        }
+      });
     }
 
     const nodoOrigen = nodosPorId.get(tramo.nodoOrigenId);

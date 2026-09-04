@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { Proyecto, UnidadFuncional } from '../../modelo/proyecto'
-import type { Nodo, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
+import type { AccesorioDeTramo, Nodo, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
 import { validarRedHidraulica } from './index'
 
 function proyectoBase(
@@ -236,5 +236,90 @@ describe('validarRedHidraulica', () => {
     const proyecto = proyectoBase(unidadesFuncionalesDeEjemplo, red)
     const codigos = validarRedHidraulica(proyecto).map((p) => p.codigo)
     expect(codigos).not.toContain('redHidraulicaTramoLongitudIncompatibleConCota')
+  })
+
+  it('accesorios ausente (undefined) no genera ningún problema -- relevamiento no realizado, no es error', () => {
+    const red: RedHidraulica = {
+      nodos: [{ id: 'n0' }, { id: 'n1' }],
+      tramos: [{ id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF' }],
+    }
+    const proyecto = proyectoBase(unidadesFuncionalesDeEjemplo, red)
+    expect(validarRedHidraulica(proyecto)).toEqual([])
+  })
+
+  it('accesorios=[] (relevado, sin accesorios) no genera ningún problema', () => {
+    const red: RedHidraulica = {
+      nodos: [{ id: 'n0' }, { id: 'n1' }],
+      tramos: [{ id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', accesorios: [] }],
+    }
+    const proyecto = proyectoBase(unidadesFuncionalesDeEjemplo, red)
+    expect(validarRedHidraulica(proyecto)).toEqual([])
+  })
+
+  it('accesorios del subconjunto soportado, con cantidad válida, no generan problema', () => {
+    const red: RedHidraulica = {
+      nodos: [{ id: 'n0' }, { id: 'n1' }],
+      tramos: [
+        {
+          id: 't0',
+          nodoOrigenId: 'n0',
+          nodoDestinoId: 'n1',
+          red: 'AF',
+          accesorios: [
+            { tipo: 'codo90', cantidad: 2 },
+            { tipo: 'llaveDePaso', cantidad: 1 },
+          ],
+        },
+      ],
+    }
+    const proyecto = proyectoBase(unidadesFuncionalesDeEjemplo, red)
+    expect(validarRedHidraulica(proyecto)).toEqual([])
+  })
+
+  it('accesorio con tipo no soportado (fuera del subconjunto, p. ej. dato persistido de una tee) falla explícitamente', () => {
+    const red: RedHidraulica = {
+      nodos: [{ id: 'n0' }, { id: 'n1' }],
+      tramos: [
+        {
+          id: 't0',
+          nodoOrigenId: 'n0',
+          nodoDestinoId: 'n1',
+          red: 'AF',
+          // Cast deliberado: simula un dato persistido/externo que viola
+          // el subconjunto soportado por TypeScript en tiempo de
+          // ejecución (p. ej. una tee, todavía sin representación).
+          accesorios: [{ tipo: 'teePasoRecto', cantidad: 1 }] as unknown as readonly AccesorioDeTramo[],
+        },
+      ],
+    }
+    const proyecto = proyectoBase(unidadesFuncionalesDeEjemplo, red)
+    const problemas = validarRedHidraulica(proyecto).filter(
+      (p) => p.codigo === 'redHidraulicaTramoAccesorioTipoNoSoportado',
+    )
+    expect(problemas).toHaveLength(1)
+    expect(problemas[0]?.valorRecibido).toBe('teePasoRecto')
+  })
+
+  it('accesorio con cantidad <= 0 falla (cero y negativa)', () => {
+    const red: RedHidraulica = {
+      nodos: [{ id: 'n0' }, { id: 'n1' }],
+      tramos: [
+        {
+          id: 't0',
+          nodoOrigenId: 'n0',
+          nodoDestinoId: 'n1',
+          red: 'AF',
+          accesorios: [
+            { tipo: 'codo90', cantidad: 0 },
+            { tipo: 'curva90', cantidad: -1 },
+          ],
+        },
+      ],
+    }
+    const proyecto = proyectoBase(unidadesFuncionalesDeEjemplo, red)
+    const problemas = validarRedHidraulica(proyecto).filter(
+      (p) => p.codigo === 'redHidraulicaTramoAccesorioCantidadNoPositiva',
+    )
+    expect(problemas).toHaveLength(2)
   })
 })
