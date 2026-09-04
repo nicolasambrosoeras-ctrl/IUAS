@@ -17,15 +17,22 @@
 // que se pasa como undefined y resolverBalanceDePresion devuelve
 // 'incompleto'. Este orquestador propaga ese estado tal cual
 // ('balanceIncompleto') -- NUNCA presenta una presion residual como
-// verificada mientras falten terminos obligatorios. hfLocalizada SI tiene
-// consumidor desde este incremento (M2-C slice A, D-delta.33): solo cubre
-// el subconjunto inequivoco de Tabla N7 (curvas, codos, llave de paso,
-// valvula esclusa, uniones, tubo saliente) -- tees, reducciones y
-// griferia siguen sin representacion y no aportan a este termino. La rama
-// 'balanceCompleto' es el mapeo fiel del resultado 'completo' de
-// resolverBalanceDePresion; hoy sigue inalcanzable por este camino
-// (hfMedidor abstracto), y se vuelve alcanzable cuando D-delta.35 conecte
-// esa perdida.
+// verificada mientras falten terminos obligatorios.
+//
+// hfLocalizada SI tiene consumidor desde M2-C slice A (D-delta.33), pero
+// solo cubre el subconjunto inequivoco de Tabla N°7 (curvas, codos,
+// llave de paso, valvula esclusa, uniones, tubo saliente) -- tees,
+// reducciones y griferia siguen sin representacion. Por eso el valor que
+// produce acumularPerdidaLocalizadaDeCamino SIEMPRE se envuelve como
+// CoberturaDePerdidaLocalizada 'parcial' (nunca 'completa'): un numero
+// util y auditable (queda en la traza), pero que por si solo NUNCA puede
+// completar el balance mientras D-delta.33 no cierre el resto de Tabla
+// N°7 para este camino (auditoria de completitud, ver
+// resolverBalanceDePresion). La rama 'balanceCompleto' es el mapeo fiel
+// del resultado 'completo' de resolverBalanceDePresion; hoy sigue
+// inalcanzable por este camino (hfMedidor abstracto Y hfLocalizada
+// siempre 'parcial'), y se vuelve alcanzable recien cuando D-delta.33
+// cierre por completo Y D-delta.35 conecte el medidor.
 //
 // Cobertura fisica global del Proyecto (S1/auditarCoberturaFisica) sigue
 // siendo responsabilidad de la barrera de presentacion (S2), no de este
@@ -55,6 +62,11 @@ type TrazaDeCamino = {
   readonly desnivel_m: number
   readonly hfDistribuida_mca: number
   readonly hfDistribuidaPorTramo: readonly { readonly tramoId: string; readonly hf_m: number }[]
+  // Solo el subconjunto CRIT-A28 de Tabla N°7 (D-delta.33 parcialmente
+  // cerrada) -- NUNCA la totalidad de la perdida localizada normativa de
+  // este camino. Dato auditable util, pero resolverBalanceDePresion lo
+  // recibe envuelto como 'parcial': nunca cuenta por si solo para
+  // completar el balance (ver comentario de archivo).
   readonly hfLocalizada_mca: number
   readonly hfLocalizadaPorTramo: readonly { readonly tramoId: string; readonly hf_m: number }[]
 }
@@ -205,7 +217,10 @@ export function resolverPresionResidualDeCamino(
     desnivel.desnivel_m,
     {
       hfDistribuida_mca: perdidaDistribuida.hf_m,
-      hfLocalizada_mca: perdidaLocalizada.hf_m,
+      // 'parcial', nunca 'completa': acumularPerdidaLocalizadaDeCamino
+      // solo cubre el subconjunto CRIT-A28 (D-delta.33 sigue abierta para
+      // tees/reducciones/griferia). Ver comentario de archivo.
+      hfLocalizada: { tipo: 'parcial', hf_mca: perdidaLocalizada.hf_m },
       // hfMedidor sigue sin consumidor topologico (D-delta.35): undefined,
       // nunca 0 -- el balance sigue 'incompleto' hasta que se resuelva.
       hfMedidor_mca: undefined,

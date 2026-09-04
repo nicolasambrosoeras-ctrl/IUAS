@@ -10,17 +10,43 @@
 // Barrera de completitud (mismo principio ya aplicado por S1/S2 en
 // cobertura fisica): si falta un termino de perdida obligatorio segun
 // ERAS-2023 SS2.12.1 (perdida localizada, CRIT-A26; perdida del medidor,
-// CRIT-A25 -- ninguna de las dos tiene todavia un consumidor real que
-// las calcule desde la topologia), esta funcion NUNCA los trata como 0:
-// devuelve 'incompleto' en vez de fabricar un 'Presidual' que parezca
-// una verificacion terminada sin serlo. hf_equipos (ACS) queda
-// deliberadamente fuera de esta firma -- D-delta.15 sigue sin fórmula
-// normativa, no se inventa una acá.
+// CRIT-A25), esta funcion NUNCA los trata como 0: devuelve 'incompleto'
+// en vez de fabricar un 'Presidual' que parezca una verificacion
+// terminada sin serlo. hf_equipos (ACS) queda deliberadamente fuera de
+// esta firma -- D-delta.15 sigue sin fórmula normativa, no se inventa
+// una acá.
+//
+// hfLocalizada distingue DOS ejes que un simple `number | undefined` no
+// puede distinguir (auditoria M2-C, D-delta.33): "hay un valor calculado"
+// no es lo mismo que "ese valor representa TODA la perdida localizada
+// normativamente exigible para el camino (Tabla N°7 completa)". Desde
+// CRIT-A28, el subconjunto {curvas/codos/valvulas/uniones/tubo saliente}
+// SI produce un numero real y util -- pero mientras tees/reducciones/
+// griferia (D-delta.33) sigan sin representacion, ese numero es
+// necesariamente PARCIAL: nunca puede por si solo completar el balance,
+// aunque se siga propagando como dato auditable. 'completa' hoy no tiene
+// ningun productor real en el motor -- se habilita recien cuando D-delta.33
+// cierre por completo para el camino evaluado.
+export type CoberturaDePerdidaLocalizada =
+  | {
+      readonly tipo: 'completa'
+      readonly hf_mca: number
+    }
+  | {
+      // Valor calculado (p.ej. solo el subconjunto CRIT-A28) pero que NO
+      // cubre todavia la totalidad de Tabla N°7 para este camino -- util
+      // como dato, pero nunca cuenta como termino "presente" a efectos
+      // de completar el balance.
+      readonly tipo: 'parcial'
+      readonly hf_mca: number
+    }
+  | {
+      readonly tipo: 'ausente'
+    }
+
 export type TerminosDePerdidaDeBalance = {
   readonly hfDistribuida_mca: number
-  // undefined = todavia no calculado desde la topologia real (M2-C sin
-  // implementar); nunca se interpreta como 0.
-  readonly hfLocalizada_mca: number | undefined
+  readonly hfLocalizada: CoberturaDePerdidaLocalizada
   // undefined = medidor todavia no modelado en RedHidraulica (D-delta.35);
   // nunca se interpreta como 0.
   readonly hfMedidor_mca: number | undefined
@@ -66,7 +92,10 @@ export function resolverBalanceDePresion(
   }
 
   const terminosFaltantes: ('hfLocalizada' | 'hfMedidor')[] = []
-  if (terminos.hfLocalizada_mca === undefined) {
+  // 'parcial' cuenta como faltante a proposito: un valor util pero que no
+  // cubre toda Tabla N°7 nunca alcanza para completar el balance (ver
+  // comentario de CoberturaDePerdidaLocalizada).
+  if (terminos.hfLocalizada.tipo !== 'completa') {
     terminosFaltantes.push('hfLocalizada')
   }
   if (terminos.hfMedidor_mca === undefined) {
@@ -77,10 +106,11 @@ export function resolverBalanceDePresion(
     return { tipo: 'incompleto', terminosFaltantes }
   }
 
-  // Angostamiento de tipos: el chequeo de arriba ya garantiza que ambos
-  // son number en este punto, pero TypeScript no lo infiere solo desde
-  // el array de faltantes.
-  const hfLocalizada_mca = terminos.hfLocalizada_mca as number
+  // Angostamiento de tipos: el chequeo de arriba ya garantiza
+  // hfLocalizada.tipo==='completa' y hfMedidor_mca es number en este
+  // punto, pero TypeScript no lo infiere solo desde el array de
+  // faltantes.
+  const hfLocalizada_mca = (terminos.hfLocalizada as { tipo: 'completa'; hf_mca: number }).hf_mca
   const hfMedidor_mca = terminos.hfMedidor_mca as number
 
   // Δz>0 (ascenso) consume carga; Δz<0 (descenso) la aporta -- signo ya

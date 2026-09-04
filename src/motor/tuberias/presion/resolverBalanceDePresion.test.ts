@@ -1,15 +1,39 @@
 import { describe, it, expect } from 'vitest'
-import { resolverBalanceDePresion } from './resolverBalanceDePresion'
+import { resolverBalanceDePresion, type CoberturaDePerdidaLocalizada } from './resolverBalanceDePresion'
+
+const HF_LOCALIZADA_COMPLETA_0_5: CoberturaDePerdidaLocalizada = { tipo: 'completa', hf_mca: 0.5 }
+const HF_LOCALIZADA_AUSENTE: CoberturaDePerdidaLocalizada = { tipo: 'ausente' }
 
 describe('resolverBalanceDePresion — barrera de completitud', () => {
-  it('falta hfLocalizada_mca (M2-C sin implementar) -> incompleto, nunca trata la ausencia como 0', () => {
-    const resultado = resolverBalanceDePresion(20, 3, { hfDistribuida_mca: 2, hfLocalizada_mca: undefined, hfMedidor_mca: 1 }, 0.6)
+  it('hfLocalizada ausente -> incompleto, nunca trata la ausencia como 0', () => {
+    const resultado = resolverBalanceDePresion(
+      20,
+      3,
+      { hfDistribuida_mca: 2, hfLocalizada: HF_LOCALIZADA_AUSENTE, hfMedidor_mca: 1 },
+      0.6,
+    )
+
+    expect(resultado).toEqual({ tipo: 'incompleto', terminosFaltantes: ['hfLocalizada'] })
+  })
+
+  it('hfLocalizada parcial (p.ej. solo subconjunto CRIT-A28) -> sigue incompleto: un valor util no equivale a cobertura completa', () => {
+    const resultado = resolverBalanceDePresion(
+      20,
+      3,
+      { hfDistribuida_mca: 2, hfLocalizada: { tipo: 'parcial', hf_mca: 0.3 }, hfMedidor_mca: 1 },
+      0.6,
+    )
 
     expect(resultado).toEqual({ tipo: 'incompleto', terminosFaltantes: ['hfLocalizada'] })
   })
 
   it('falta hfMedidor_mca (medidor sin modelar) -> incompleto', () => {
-    const resultado = resolverBalanceDePresion(20, 3, { hfDistribuida_mca: 2, hfLocalizada_mca: 0.5, hfMedidor_mca: undefined }, 0.6)
+    const resultado = resolverBalanceDePresion(
+      20,
+      3,
+      { hfDistribuida_mca: 2, hfLocalizada: HF_LOCALIZADA_COMPLETA_0_5, hfMedidor_mca: undefined },
+      0.6,
+    )
 
     expect(resultado).toEqual({ tipo: 'incompleto', terminosFaltantes: ['hfMedidor'] })
   })
@@ -18,20 +42,31 @@ describe('resolverBalanceDePresion — barrera de completitud', () => {
     const resultado = resolverBalanceDePresion(
       20,
       3,
-      { hfDistribuida_mca: 2, hfLocalizada_mca: undefined, hfMedidor_mca: undefined },
+      { hfDistribuida_mca: 2, hfLocalizada: HF_LOCALIZADA_AUSENTE, hfMedidor_mca: undefined },
       0.6,
     )
 
     expect(resultado).toEqual({ tipo: 'incompleto', terminosFaltantes: ['hfLocalizada', 'hfMedidor'] })
   })
-})
 
-describe('resolverBalanceDePresion — balance completo', () => {
-  it('todos los términos presentes, cumple el mínimo: Presidual=12,791446683479947 m.c.a. >= Pmin=6 m.c.a.', () => {
+  it('hfLocalizada parcial + hfMedidor SI provisto -> sigue incompleto (auditoria M2-C): suministrar el medidor no hace aparecer prematuramente balanceCompleto mientras Tabla N°7 no este cubierta por completo', () => {
     const resultado = resolverBalanceDePresion(
       20,
       3,
-      { hfDistribuida_mca: 2.4085533165200532, hfLocalizada_mca: 0.5, hfMedidor_mca: 1.3 },
+      { hfDistribuida_mca: 2, hfLocalizada: { tipo: 'parcial', hf_mca: 0.3 }, hfMedidor_mca: 1.3 },
+      0.6,
+    )
+
+    expect(resultado).toEqual({ tipo: 'incompleto', terminosFaltantes: ['hfLocalizada'] })
+  })
+})
+
+describe('resolverBalanceDePresion — balance completo', () => {
+  it('todos los términos presentes (hfLocalizada completa), cumple el mínimo: Presidual=12,791446683479947 m.c.a. >= Pmin=6 m.c.a.', () => {
+    const resultado = resolverBalanceDePresion(
+      20,
+      3,
+      { hfDistribuida_mca: 2.4085533165200532, hfLocalizada: { tipo: 'completa', hf_mca: 0.5 }, hfMedidor_mca: 1.3 },
       0.6,
     )
 
@@ -44,7 +79,12 @@ describe('resolverBalanceDePresion — balance completo', () => {
   })
 
   it('conversión kg/cm² -> m.c.a.: Pmin=1,5 kg/cm² (inodoroValvula) equivale a 15 m.c.a.', () => {
-    const resultado = resolverBalanceDePresion(20, 0, { hfDistribuida_mca: 1, hfLocalizada_mca: 0, hfMedidor_mca: 0 }, 1.5)
+    const resultado = resolverBalanceDePresion(
+      20,
+      0,
+      { hfDistribuida_mca: 1, hfLocalizada: { tipo: 'completa', hf_mca: 0 }, hfMedidor_mca: 0 },
+      1.5,
+    )
 
     if (resultado.tipo !== 'completo') {
       throw new Error('se esperaba completo')
@@ -53,7 +93,12 @@ describe('resolverBalanceDePresion — balance completo', () => {
   })
 
   it('no cumple el mínimo: Presidual negativo, Pmin=6 m.c.a. -> cumpleMinimo=false', () => {
-    const resultado = resolverBalanceDePresion(5, 3, { hfDistribuida_mca: 2, hfLocalizada_mca: 0.5, hfMedidor_mca: 1 }, 0.6)
+    const resultado = resolverBalanceDePresion(
+      5,
+      3,
+      { hfDistribuida_mca: 2, hfLocalizada: { tipo: 'completa', hf_mca: 0.5 }, hfMedidor_mca: 1 },
+      0.6,
+    )
 
     if (resultado.tipo !== 'completo') {
       throw new Error('se esperaba completo')
@@ -63,8 +108,18 @@ describe('resolverBalanceDePresion — balance completo', () => {
   })
 
   it('desnivel negativo (descenso) aporta carga en vez de consumirla', () => {
-    const conAscenso = resolverBalanceDePresion(20, 3, { hfDistribuida_mca: 1, hfLocalizada_mca: 0, hfMedidor_mca: 0 }, 0.6)
-    const conDescenso = resolverBalanceDePresion(20, -3, { hfDistribuida_mca: 1, hfLocalizada_mca: 0, hfMedidor_mca: 0 }, 0.6)
+    const conAscenso = resolverBalanceDePresion(
+      20,
+      3,
+      { hfDistribuida_mca: 1, hfLocalizada: { tipo: 'completa', hf_mca: 0 }, hfMedidor_mca: 0 },
+      0.6,
+    )
+    const conDescenso = resolverBalanceDePresion(
+      20,
+      -3,
+      { hfDistribuida_mca: 1, hfLocalizada: { tipo: 'completa', hf_mca: 0 }, hfMedidor_mca: 0 },
+      0.6,
+    )
 
     if (conAscenso.tipo !== 'completo' || conDescenso.tipo !== 'completo') {
       throw new Error('se esperaba completo en ambos')
@@ -78,13 +133,23 @@ describe('resolverBalanceDePresion — balance completo', () => {
 describe('resolverBalanceDePresion — validaciones', () => {
   it('presionMinimaRequerida_kgcm2 <= 0: throw', () => {
     expect(() =>
-      resolverBalanceDePresion(20, 0, { hfDistribuida_mca: 1, hfLocalizada_mca: 0, hfMedidor_mca: 0 }, 0),
+      resolverBalanceDePresion(
+        20,
+        0,
+        { hfDistribuida_mca: 1, hfLocalizada: { tipo: 'completa', hf_mca: 0 }, hfMedidor_mca: 0 },
+        0,
+      ),
     ).toThrow(/presionMinimaRequerida_kgcm2 debe ser mayor a 0/)
   })
 
   it('hfDistribuida_mca negativa: throw', () => {
     expect(() =>
-      resolverBalanceDePresion(20, 0, { hfDistribuida_mca: -1, hfLocalizada_mca: 0, hfMedidor_mca: 0 }, 0.6),
+      resolverBalanceDePresion(
+        20,
+        0,
+        { hfDistribuida_mca: -1, hfLocalizada: { tipo: 'completa', hf_mca: 0 }, hfMedidor_mca: 0 },
+        0.6,
+      ),
     ).toThrow(/hfDistribuida_mca no puede ser negativa/)
   })
 })

@@ -1299,6 +1299,30 @@ equivalente a "siempre hay un tanque elevado en el modelo".
 motor y su test para el estado exacto de qué términos ya calcula y
 cuáles exige explícitos.
 
+**Corrección de completitud (auditoría posterior a M2-C slice A)**:
+`TerminosDePerdidaDeBalance.hfLocalizada` dejó de ser `number | undefined`
+y pasó a ser `CoberturaDePerdidaLocalizada` (`'completa' | 'parcial' |
+'ausente'`, cada una con su `hf_mca` cuando corresponde). **Motivo**: un
+`number` definido no distinguía "hay un valor calculado" de "ese valor
+representa toda la pérdida localizada normativamente exigible para el
+camino (Tabla N°7 completa)". Desde CRIT-A28, `acumularPerdidaLocalizadaDeCamino`
+produce un número real y útil, pero solo del subconjunto declarable sobre
+`Tramo` — mientras tees/reducciones/griferías (D-δ.33) no tengan
+representación, ese número es necesariamente parcial. Sin esta
+distinción, el día que D-δ.35 conecte `hfMedidor`, el balance habría
+podido reportar `'completo'` con pérdidas localizadas todavía
+incompletas — una verificación de presión falsa. `resolverPresionResidualDeCamino`
+envuelve el resultado de `acumularPerdidaLocalizadaDeCamino` siempre como
+`{ tipo: 'parcial', hf_mca }` — nunca `'completa'`, porque ningún camino
+del código productivo puede hoy afirmar cobertura total de Tabla N°7.
+`'completa'` no tiene todavía ningún productor real: se habilita recién
+cuando D-δ.33 cierre por completo (o, en un incremento futuro, gane un
+mecanismo explícito de "sin singularidades de estas clases para este
+camino"). El valor parcial se sigue propagando en la traza auditable de
+`resolverPresionResidualDeCamino` (`hfLocalizada_mca`/`hfLocalizadaPorTramo`)
+— un cálculo parcial sigue siendo útil, solo que nunca se presenta como
+completo.
+
 ### D-δ.37 — Alimentación ramificada como precondición hidráulica de M2 (recorrido hacia el origen) — CERRADA
 
 **Decisión adoptada** (continuación de D-δ.32/D-δ.36, formalizada como
