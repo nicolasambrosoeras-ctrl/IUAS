@@ -1101,7 +1101,7 @@ práctica constructiva tradicional de alimentación por tanque elevado.
 Ninguna hipótesis de esa investigación fue confirmada todavía — no
 adoptar ningún valor numérico de presión mínima sin esa revisión previa.
 
-### D-δ.33 — Pérdidas localizadas / accesorios — PARCIALMENTE CERRADA (slice A)
+### D-δ.33 — Pérdidas localizadas / accesorios — PARCIALMENTE CERRADA (curvas/codos/válvulas/uniones/tubo saliente/reducciones; solo tees abierta)
 
 **Nunca meter accesorios/codos/tees/válvulas/`Ks` dentro de
 `longitud_m`** (D-δ.22 ya lo prohíbe explícitamente; se reafirma acá
@@ -1141,19 +1141,37 @@ resolverlo como criterio IUAS explícito en vez de transcripción
 normativa) en **CRIT-A29** (`CRITERIOS.md`) y en la investigación
 conservada más abajo en esta misma sección.
 
-#### ABIERTO — el resto de Tabla N°7
+#### CERRADO — reducciones: convención de velocidad (criterio IUAS explícito, CRIT-A30)
+
+La pregunta abierta no era el `Ks=0,75` (ya firme por CRIT-A26) sino qué
+velocidad usar en `Js=Ks·V²/2g` cuando la reducción conecta dos
+diámetros distintos. Verificación directa del texto completo de la Guía
+ERAS-2023 (extraído con `pdftotext`, no solo "inaccesible" como en la
+investigación de CRIT-A29) confirmó que la norma no lo especifica.
+Bibliografía hidráulica reconocida y convergente (Munson et al. 1994;
+Sotelo Ávila 1982, base de la tradición de cálculo sanitario argentina)
+fija la convención: `V` es la del diámetro MENOR — que en una reducción
+real es el lado aguas abajo. Consecuencia numérica verificada con datos
+reales del propio proyecto: la interpretación descartada (lado mayor)
+da un resultado ~2,56 veces mayor, confirmando que la elección era
+material. Representación: una reducción se declara como
+`AccesorioDeTramo` (`'reducciones'`, agregado a `IdAccesorioDeTramo`)
+sobre el Tramo del lado menor — mismo patrón que el resto del
+subconjunto CRIT-A28, sin necesidad de ningún concepto nuevo de
+transición/nodo. Nunca inferida automáticamente de `Di(padre)≠Di(hijo)`:
+sigue siendo una declaración explícita del usuario, igual que cualquier
+otro accesorio. Detalle completo, evidencia y consecuencia numérica en
+**CRIT-A30** (`CRITERIOS.md`).
+
+#### ABIERTO — tees (el resto de Tabla N°7)
 
 | Accesorio | Dónde ocurre físicamente | ¿Inferible de la topología actual? | Velocidad para `Js` |
 |---|---|---|---|
-| Reducciones | en el cambio de diámetro entre dos `Tramo` consecutivos | Parcialmente: la topología sabe *que* hay un cambio de `Di` comercial entre tramo padre e hijo (ambos ya resueltos por N3), pero no decide qué `V` corresponde (¿lado mayor, lado menor, aguas arriba, aguas abajo?) | **Ambiguo** — criterio IUAS todavía sin fijar |
 | Tee paso recto / salida lateral / entrada central-salidas laterales | en el nodo de bifurcación/convergencia | La topología sabe que hay bifurcación (nodo con >1 tramo saliente/entrante), pero **no** cuál de los 3 `Ks` corresponde — `RedHidraulica` no tiene orientación espacial, así que no distingue "sigue recto" de "sale lateral" | Ambiguo (¿tramo entrante o cada saliente?) |
 
-**No decidido**: ubicación nodo/tramo de tees y reducciones; qué `Ks` de
-tee corresponde sin geometría espacial (o si hace falta declaración
-manual del usuario, sin introducir geometría 3D); qué velocidad usa una
-reducción. Ninguna de las dos se resuelve implementando slice A. Orden
-de investigación sugerido para retomar: (1) reducciones (convención
-hidráulica), (2) tees (representación más amplia).
+**No decidido**: qué `Ks` de tee corresponde sin geometría espacial (o
+si hace falta declaración manual del usuario, sin introducir geometría
+3D). No se resuelve implementando slice A ni CRIT-A30.
 
 #### Investigación normativa — grifería vs. `Pmin` (CERRADA por criterio IUAS explícito, CRIT-A29)
 
@@ -1397,8 +1415,10 @@ y pasó a ser `CoberturaDePerdidaLocalizada` (`'completa' | 'parcial' |
 representa toda la pérdida localizada normativamente exigible para el
 camino (Tabla N°7 completa)". Desde CRIT-A28, `acumularPerdidaLocalizadaDeCamino`
 produce un número real y útil, pero solo del subconjunto declarable sobre
-`Tramo` — mientras tees/reducciones/griferías (D-δ.33) no tengan
-representación, ese número es necesariamente parcial. Sin esta
+`Tramo` (curvas/codos/válvulas/uniones/tubo saliente/reducciones,
+CRIT-A28/CRIT-A30; griferías deliberadamente excluida, CRIT-A29) — mientras
+tees (D-δ.33) no tengan representación, ese número es necesariamente
+parcial. Sin esta
 distinción, el día que D-δ.35 conecte `hfMedidor`, el balance habría
 podido reportar `'completo'` con pérdidas localizadas todavía
 incompletas — una verificación de presión falsa. `resolverPresionResidualDeCamino`

@@ -1624,7 +1624,8 @@ artefacto. En consecuencia:
 
 **Alcance — qué NO resuelve este criterio:**
 
-- No decide reducciones ni tees — D-δ.33 sigue abierta para esas dos.
+- No decide tees — D-δ.33 sigue abierta para esa variante (reducciones
+  se cerró después, como criterio aparte: ver CRIT-A30).
 - No reabre CRIT-A26: la fórmula y la Tabla N°7 completa permanecen
   intactas: "Griferías" sigue siendo una fila válida de la tabla para
   cualquier uso futuro que no sea la grifería terminal del artefacto
@@ -1639,3 +1640,135 @@ transcripción normativa verificada. Sin consumidor de código a modificar
 nunca sumó grifería). Cierra D-δ.33 respecto de grifería. No reabrir
 salvo evidencia normativa nueva que contradiga explícitamente este
 criterio.
+
+## CRIT-A30 — Velocidad de referencia de "Reducciones" (Ks=0,75, Tabla N°7)
+
+**Artículo:** ERAS-2023 §2.12.1, Tabla N°7 (misma tabla de CRIT-A26). El
+`Ks=0,75` de "Reducciones" ya es firme por CRIT-A26 — este criterio NO
+lo reabre ni lo reemplaza por otro coeficiente. Lo que resuelve es una
+pregunta distinta que la tabla, tal como está publicada, no contesta por
+sí sola: en `Js=Ks·V²/2g`, cuando una reducción conecta dos diámetros
+distintos, **¿qué `V` corresponde?**
+
+**Verificación directa de la fuente primaria (no solo "inaccesible"):**
+a diferencia de la limitación de OCR que impidió resolver CRIT-A29, en
+esta investigación se accedió y extrajo el texto completo de la Guía
+ERAS-2023 (`if-2023-141050544-APN-DNAPYSMOP-guia.pdf`,
+`argentina.gob.ar`, 182 páginas) — el PDF sí tiene texto seleccionable
+vía `pdftotext -layout`, contra lo registrado en la investigación previa
+de CRIT-A29. Se confirmó literalmente que Tabla N°7 (§2.12.1, página 29)
+es exactamente la ya transcripta en CRIT-A26, sin ninguna nota, columna
+adicional ni aclaración sobre qué diámetro/velocidad corresponde a cada
+fila. Se buscó además la palabra "reducci" en el documento completo: la
+única aparición junto a pérdida de carga es la fila desnuda de la tabla
+— ninguna otra mención, figura ni párrafo del documento aclara la
+convención. **Confirmado: ERAS-2023 no especifica la velocidad de
+referencia de "Reducciones"** (no es una limitación de acceso a la
+fuente, es la fuente misma agotada).
+
+**Antecedentes normativos argentinos (nivel 2 de evidencia):** no se
+pudo acceder a texto completo de OSN 1981 ni de una fuente académica
+argentina equivalente con la misma tabla — los documentos encontrados
+(`sedici.unlp.edu.ar`, cátedra de Instalaciones de la UNLP) son PDFs
+escaneados sin texto extraíble, mismo obstáculo que en CRIT-A29 para
+ese material puntual. Nivel 2 de evidencia: sin resultado.
+
+**Bibliografía hidráulica técnica reconocida (nivel 3 de evidencia) —
+convergente:**
+
+- Munson, B. R. et al., *Fundamentals of Fluid Mechanics* (1994):
+  fórmula de contracción brusca `K ≈ 0,421·(1 - D₂²/D₁²)`, con `D₂` el
+  diámetro MENOR (aguas abajo) y `K` aplicado sobre `V₂` (la velocidad en
+  ese mismo diámetro menor) — mismo patrón que la fórmula de expansión
+  brusca del mismo texto, donde `K` siempre se aplica sobre la velocidad
+  del lado de MENOR diámetro (aguas arriba en una expansión, aguas abajo
+  en una contracción).
+- Sotelo Ávila, G., *Hidráulica General* (1982) — la referencia clásica
+  de lengua española para esta materia, base directa de la tradición de
+  cálculo sanitario argentina: su tabla de coeficiente de pérdida `K`
+  para **contracción gradual** (la geometría real de una reducción
+  comercial de cañería, no un corte brusco de laboratorio) está descripta
+  textualmente como "en función de la **velocidad de salida**" — el lado
+  menor, aguas abajo.
+- Ambas fuentes, independientes entre sí (una norteamericana, una
+  latinoamericana/hispanoparlante) y citando geometrías distintas
+  (contracción brusca y gradual), coinciden sin excepción: la velocidad
+  de referencia de un coeficiente `K`/`Ks` de reducción es la del
+  diámetro MENOR — que en una reducción real es, por definición, el lado
+  aguas abajo (el flujo se angosta en el sentido de circulación).
+
+**Intento de refutación:** se buscó explícitamente evidencia de la
+convención contraria (V del lado mayor/aguas arriba) en literatura
+técnica y en tablas de coeficientes de accesorios comerciales (estilo
+Crane TP-410) — no se encontró ninguna fuente que refiera el `K` de una
+reducción/contracción a la velocidad del diámetro mayor. Se verificó
+también que la convención "V del lado menor" es la misma tanto para
+contracción brusca (Munson) como gradual (Sotelo) — no depende de si la
+transición real es abrupta o progresiva, lo que la hace robusta frente a
+la incertidumbre sobre qué geometría exacta modela el `Ks=0,75` de
+Tabla N°7.
+
+**Consecuencia numérica (caso real del propio proyecto, no hipotético):**
+fixture de dos Tramos consecutivos con 2 y 1 artefactos aguas abajo
+respectivamente (ver
+`motor/tuberias/presion/acumularPerdidaLocalizadaDeCamino.test.ts`,
+caso "reducciones (CRIT-A30)") resuelve, con el catálogo y sistema
+comercial productivos reales (Acqua System Magnum PN20): Tramo padre
+`Qc=0,50 l/s`, candidato 25mm/Di efectivo 18,00mm, `V=1,965 m/s`; Tramo
+hijo `Qc=0,20 l/s`, candidato 20mm/Di efectivo 14,40mm, `V=1,228 m/s`.
+
+```text
+Js (V del lado menor, adoptado) = 0,75 · 1,228² / (2·9,81) ≈ 0,0576 m.c.a.
+Js (V del lado mayor, descartado) = 0,75 · 1,965² / (2·9,81) ≈ 0,1476 m.c.a.
+```
+
+La interpretación descartada da un resultado **~2,56 veces mayor** —
+la elección no es indiferente, confirmando que valía la pena resolverla
+como criterio explícito en vez de elegir cualquiera de las dos por
+conveniencia.
+
+**Criterio adoptado:** el `Ks=0,75` de "Reducciones" se aplica sobre la
+velocidad real (`velocidadReal_mps`) del Tramo que representa el lado
+MENOR/aguas abajo de la transición de diámetro. En el modelo de dominio
+esto significa: una reducción se declara como `AccesorioDeTramo` sobre
+ESE Tramo (el más angosto de los dos, el más cercano al consumo) —
+exactamente el mismo patrón de representación que el resto del
+subconjunto CRIT-A28 (`Tramo.accesorios`, `Ks` resuelto desde Tabla N°7,
+`V` de ese mismo Tramo, `Js` compuesto por `resolverPerdidaLocalizadaDeTramo`
+sin ninguna lógica nueva). No hizo falta introducir un concepto de
+"transición" ni de accesorio nodal: una vez resuelta la convención de
+velocidad, el Tramo del lado menor YA tiene, sin ambigüedad, el dato
+correcto — mismo motivo de cierre que descartó las Opciones B/C/D en
+D-δ.33.
+
+**Declaración explícita, nunca inferida:** que dos Tramos consecutivos
+resuelvan diámetros comerciales distintos es un dato hidráulico (depende
+de `Qc`, que depende de cuántos artefactos hay aguas abajo de cada uno)
+— **no prueba por sí solo** que exista físicamente una reducción
+comercial en esa transición. El motor nunca agrega `Ks=0,75`
+automáticamente porque `Di(tramo padre) ≠ Di(tramo hijo)`: el usuario
+debe declarar `{ tipo: 'reducciones', cantidad }` en `accesorios`,
+igual que cualquier otro accesorio del subconjunto. `undefined` sigue
+significando "no relevado"; `[]` sigue significando "relevado, sin
+accesorios de este subconjunto" — sin excepción para reducciones.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- No decide tees — D-δ.33 sigue abierta para esa variante.
+- No valida cruzadamente que el Tramo declarado como lado menor sea
+  efectivamente más angosto que su predecesor en la topología: es un
+  dato declarado y confiado, igual que el resto de `AccesorioDeTramo`
+  (ningún accesorio de este subconjunto se re-deriva ni se verifica
+  contra otra propiedad estructural del Tramo).
+- No cambia `CoberturaDePerdidaLocalizada`: sigue siendo `'parcial'`
+  mientras tees no cierre — reducciones amplía el subconjunto cubierto,
+  no completa Tabla N°7.
+
+**Estado:** Firme como criterio operativo IUAS (interpretación de
+convención de velocidad, no transcripción normativa — ERAS no la
+especifica). Implementado agregando `'reducciones'` a
+`IdAccesorioDeTramo`/`idsAccesorioDeTramo`
+(`modelo/redHidraulica/index.ts`) — sin cambios en
+`resolverPerdidaLocalizadaDeTramo`, `acumularPerdidaLocalizadaDeCamino`
+ni `validarRedHidraulica`, que ya eran genéricos sobre el subconjunto.
+Ver D-δ.33 en `PENDIENTES-DE-ARQUITECTURA.md`.
