@@ -62,7 +62,27 @@ No se toca salvo bug real confirmado.
   `Vmax` sigue dura, `Vmin` deja de bloquear exclusivamente cuando el
   menor diámetro comercial normativamente evaluable ya la incumple;
 - selector de sistema comercial en la UI (D-δ.28), mismo patrón que el
-  selector de material ya existente.
+  selector de material ya existente;
+- motor puro de balance de presión con barrera de completitud
+  (`resolverBalanceDePresion` + `resolverPresionMinimaDeArtefacto`,
+  D-δ.36) — recibe `Pdisponible` explícito, no conoce el origen
+  hidráulico;
+- primitivas de pérdida de carga del medidor (CRIT-A25) y localizada
+  singular (CRIT-A26), aún sin consumidor topológico;
+- recorrido del camino hidráulico real hasta un terminal
+  (`obtenerCaminoHaciaOrigen`, CRIT-A27 / D-δ.37) — alimentación
+  ramificada como precondición de los motores hidráulicos de M2, sin
+  restringir el modelo `RedHidraulica` (recirculación ACS sigue
+  diferida); estados de topología no resoluble explícitos, nunca
+  elección silenciosa de predecesor;
+- desnivel Δz del camino (`resolverDesnivelDeCamino`, extremos
+  raíz↔terminal) y acumulación de pérdida distribuida a lo largo del
+  camino (`acumularPerdidaDistribuidaDeCamino`) — ambos con estado
+  incompleto explícito, nunca término ausente = 0;
+- orquestador `resolverPresionResidualDeCamino` que compone camino +
+  desnivel + Σhf distribuida + Pmin del terminal + balance; hoy siempre
+  `balanceIncompleto` (faltan pérdidas localizadas y de medidor desde la
+  topología — la barrera dice la verdad).
 
 **Pendiente**, organizado en subbloques (dependencias indicadas donde
 existen; sin orden absoluto fijado entre ellos salvo lo señalado):
@@ -83,13 +103,25 @@ existen; sin orden absoluto fijado entre ellos salvo lo señalado):
 Depende de tener resuelta (o al menos delimitada) la clase comercial de
 M2-A antes de cerrar la verificación de presión-temperatura de tubería.
 
+**Ya implementado** (ver lista "Completado" arriba): motor puro de
+balance, recorrido del camino hacia el origen (CRIT-A27), desnivel Δz de
+camino, acumulación de `hf` distribuida por camino, y el orquestador
+`resolverPresionResidualDeCamino` que los compone. El balance resultante
+es hoy siempre incompleto por diseño (barrera de completitud): faltan los
+términos de M2-C.
+
+**Pendiente:**
+
 - investigación normativa/bibliográfica previa obligatoria (presión
   mínima ERAS, antecedentes, tensión con alimentación por tanque
   elevado — sin verificar todavía);
-- origen hidráulico (tanque elevado / presión de red / bombeo);
-- cotas, presión estática;
-- presión residual, presión mínima requerida;
-- camino crítico;
+- origen hidráulico (tanque elevado / presión de red / bombeo) y de
+  dónde sale `Pdisponible` — deliberadamente diferido (D-δ.36);
+- camino crítico: selección del terminal más desfavorable entre varios
+  (hoy `resolverPresionResidualDeCamino` resuelve un terminal dado, no
+  elige cuál);
+- integración de las pérdidas de M2-C (localizada + medidor) para que el
+  balance pueda cerrar como completo;
 - redimensionamiento por presión — nunca reduciendo `Qc` para forzar el
   cumplimiento.
 
