@@ -230,7 +230,7 @@ function proyectoDosTerminales(): Proyecto {
 }
 
 describe('resolverTerminalMasDesfavorable (integración con el pipeline real)', () => {
-  it('dos terminales reales, con tee configurada y accesorios relevados -> sinCandidatoDeterminable, pero ahora exclusivamente por hfMedidor (D-delta.35) -- CRIT-A31 cerró hfLocalizada para este camino', () => {
+  it('dos terminales reales sin hfMedidor_mca -> sinCandidatoDeterminable, exclusivamente por esa barrera (CRIT-A31 ya cerró hfLocalizada para este camino)', () => {
     const proyecto = proyectoDosTerminales()
     expect(validarRedHidraulica(proyecto)).toEqual([])
 
@@ -240,6 +240,7 @@ describe('resolverTerminalMasDesfavorable (integración con el pipeline real)', 
         proyecto,
         nodoId,
         20,
+        undefined,
         catalogoArtefactos,
         catalogoSistemasDeTuberia,
         catalogoMaterialesTuberia,
@@ -250,8 +251,7 @@ describe('resolverTerminalMasDesfavorable (integración con el pipeline real)', 
     // fallan por topología ni por artefacto ni por pérdida localizada
     // incompleta -- la tee de 'mid' está configurada y los accesorios de
     // los 3 tramos están relevados), pero ninguno llega a
-    // 'balanceCompleto' -- la única barrera restante es hfMedidor
-    // (D-delta.35), nunca hfLocalizada.
+    // 'balanceCompleto' mientras el llamador no provea hfMedidor_mca.
     expect(candidatos.map((c) => c.resultado.tipo)).toEqual(['balanceIncompleto', 'balanceIncompleto'])
     for (const candidato of candidatos) {
       if (candidato.resultado.tipo !== 'balanceIncompleto') throw new Error('se esperaba balanceIncompleto')
@@ -264,5 +264,50 @@ describe('resolverTerminalMasDesfavorable (integración con el pipeline real)', 
       tipo: 'sinCandidatoDeterminable',
       terminalesExcluidos: ['terminal-lavatorio', 'terminal-ducha'],
     })
+  })
+
+  // Primer 'determinado' real de punta a punta (M2-B): dos terminales de
+  // un mismo Local, distinta cota (3 vs 8) y distinto camino (3 vs 8
+  // metros de tramo final), ambos con el mismo hfMedidor_mca -- un
+  // medidor general aguas arriba de la bifurcación ('mid') afecta a
+  // ambos por igual, tal como describe D-delta.38 para un medidor
+  // general en alimentación directa. HF_MEDIDOR_MCA es un valor
+  // sintetico de test (item 8), analogo a Pdisponible: no representa
+  // ningun medidor catalogado (D-delta.35 sigue abierta para eso).
+  it('dos terminales reales con hfMedidor_mca provisto -> ambos balanceCompleto, y el terminal con MENOR margen se determina como el más desfavorable', () => {
+    const HF_MEDIDOR_MCA = 1.3
+    const proyecto = proyectoDosTerminales()
+    expect(validarRedHidraulica(proyecto)).toEqual([])
+
+    const candidatos: CandidatoTerminal[] = (['terminal-lavatorio', 'terminal-ducha'] as const).map((nodoId) => ({
+      nodoId,
+      resultado: resolverPresionResidualDeCamino(
+        proyecto,
+        nodoId,
+        20,
+        HF_MEDIDOR_MCA,
+        catalogoArtefactos,
+        catalogoSistemasDeTuberia,
+        catalogoMaterialesTuberia,
+      ),
+    }))
+
+    expect(candidatos.map((c) => c.resultado.tipo)).toEqual(['balanceCompleto', 'balanceCompleto'])
+    const completos = candidatos.map((c) => {
+      if (c.resultado.tipo !== 'balanceCompleto') throw new Error('se esperaba balanceCompleto')
+      return { nodoId: c.nodoId, margen: c.resultado.presionResidual_mca - c.resultado.presionMinimaRequerida_mca }
+    })
+
+    const resultado = resolverTerminalMasDesfavorable(candidatos)
+
+    // El más desfavorable real es el de menor margen entre los dos
+    // calculados arriba a partir del propio resultado del motor -- no un
+    // valor hidráulico hardcodeado, para no fijar en el test una
+    // predicción manual de Hazen-Williams / tee que ya calcula el motor.
+    const peor = completos[0]!.margen <= completos[1]!.margen ? completos[0]! : completos[1]!
+    expect(resultado.tipo).toBe('determinado')
+    if (resultado.tipo !== 'determinado') return
+    expect(resultado.nodoId).toBe(peor.nodoId)
+    expect(resultado.margen_mca).toBeCloseTo(peor.margen, 12)
   })
 })

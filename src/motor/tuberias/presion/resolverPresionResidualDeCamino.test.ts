@@ -3,16 +3,22 @@
 // perdida distribuida, perdida localizada) y que la barrera de
 // completitud sigue diciendo la verdad. Desde CRIT-A31 (tees),
 // hfLocalizada resuelve 'completa' para un camino sin bifurcaciones de
-// tee sin configurar y con todos sus accesorios relevados -- la unica
-// barrera restante en los fixtures de este archivo (sin bifurcaciones)
-// es hfMedidor, sin consumidor topologico todavia (D-delta.35): el
-// resultado sigue siendo siempre 'balanceIncompleto', nunca una residual
-// presentada como verificada, pero ya NO por hfLocalizada. Los fixtures
+// tee sin configurar y con todos sus accesorios relevados. Los fixtures
 // de este archivo declaran accesorios=[] por defecto (relevado, sin
 // accesorios del subconjunto soportado) para que hfLocalizada resuelva
 // 'completa' sin necesidad de cargar accesorios reales en cada test que
 // no los ejercita -- el numero de hfLocalizada igual se calcula y queda
 // en la traza (0 real, no ausente).
+//
+// hfMedidor_mca ahora llega como parametro explicito del llamador
+// (contrato minimo M2<->M3, ver comentario de archivo de
+// resolverPresionResidualDeCamino.ts): la mayoria de los tests de este
+// archivo lo pasan como `undefined` a proposito -- no estan ejercitando
+// D-delta.35, solo las barreras anteriores -- y por eso siguen viendo
+// 'balanceIncompleto' con terminosFaltantes=['hfMedidor']. El ultimo
+// test del describe ("con hfMedidor_mca provisto...") es el que
+// demuestra que, con todos los terminos presentes, el orquestador SI
+// llega a 'balanceCompleto'.
 import { describe, it, expect } from 'vitest'
 import type { Artefacto, MetadatosProyecto, ParametrosProyecto, Proyecto, UnidadFuncional } from '../../../modelo/proyecto'
 import type { AccesorioDeTramo, Nodo, RedHidraulica, ReferenciaDeArtefacto, Tramo } from '../../../modelo/redHidraulica'
@@ -147,17 +153,18 @@ describe('resolverPresionResidualDeCamino', () => {
       proyecto,
       'terminal',
       P_DISPONIBLE,
+      undefined,
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
       catalogoMaterialesTuberia,
     )
 
-    // hfMedidor sin consumidor topologico todavia (D-delta.35) -- unica
-    // barrera restante para este camino desde CRIT-A31 (tees): sin
-    // bifurcaciones y con accesorios=[] por defecto (relevado, sin
-    // accesorios), hfLocalizada YA resuelve 'completa' -- deja de ser
-    // termino faltante. El numero de hfLocalizada SI se calcula (0 real,
-    // no ausente) y queda en la traza.
+    // hfMedidor_mca=undefined a proposito (el llamador todavia no lo
+    // provee) -- unica barrera restante para este camino desde CRIT-A31
+    // (tees): sin bifurcaciones y con accesorios=[] por defecto
+    // (relevado, sin accesorios), hfLocalizada YA resuelve 'completa' --
+    // deja de ser termino faltante. El numero de hfLocalizada SI se
+    // calcula (0 real, no ausente) y queda en la traza.
     expect(resultado.tipo).toBe('balanceIncompleto')
     if (resultado.tipo !== 'balanceIncompleto') return
     expect([...resultado.terminosFaltantes].sort()).toEqual(['hfMedidor'])
@@ -190,6 +197,7 @@ describe('resolverPresionResidualDeCamino', () => {
       proyecto,
       'terminal',
       P_DISPONIBLE,
+      undefined,
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
       catalogoMaterialesTuberia,
@@ -218,6 +226,7 @@ describe('resolverPresionResidualDeCamino', () => {
       proyecto,
       'terminal',
       P_DISPONIBLE,
+      undefined,
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
       catalogoMaterialesTuberia,
@@ -240,6 +249,7 @@ describe('resolverPresionResidualDeCamino', () => {
       proyecto,
       'hub',
       P_DISPONIBLE,
+      undefined,
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
       catalogoMaterialesTuberia,
@@ -255,6 +265,7 @@ describe('resolverPresionResidualDeCamino', () => {
       proyecto,
       'terminal',
       P_DISPONIBLE,
+      undefined,
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
       catalogoMaterialesTuberia,
@@ -274,6 +285,7 @@ describe('resolverPresionResidualDeCamino', () => {
       proyecto,
       'terminal',
       P_DISPONIBLE,
+      undefined,
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
       catalogoMaterialesTuberia,
@@ -289,6 +301,7 @@ describe('resolverPresionResidualDeCamino', () => {
       proyecto,
       'terminal',
       P_DISPONIBLE,
+      undefined,
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
       catalogoMaterialesTuberia,
@@ -307,6 +320,7 @@ describe('resolverPresionResidualDeCamino', () => {
       proyecto,
       'terminal',
       P_DISPONIBLE,
+      undefined,
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
       catalogoMaterialesTuberia,
@@ -324,6 +338,7 @@ describe('resolverPresionResidualDeCamino', () => {
       proyecto,
       'solo',
       P_DISPONIBLE,
+      undefined,
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
       catalogoMaterialesTuberia,
@@ -346,6 +361,7 @@ describe('resolverPresionResidualDeCamino', () => {
       proyecto,
       'terminal',
       P_DISPONIBLE,
+      undefined,
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
       catalogoMaterialesTuberia,
@@ -364,6 +380,7 @@ describe('resolverPresionResidualDeCamino', () => {
       proyecto,
       'terminal',
       P_DISPONIBLE,
+      undefined,
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
       catalogoMaterialesTuberia,
@@ -387,6 +404,7 @@ describe('resolverPresionResidualDeCamino', () => {
         proyecto,
         'inexistente',
         P_DISPONIBLE,
+        undefined,
         catalogoArtefactos,
         catalogoSistemasDeTuberia,
         catalogoMaterialesTuberia,
@@ -413,6 +431,7 @@ describe('resolverPresionResidualDeCamino', () => {
       proyecto,
       'terminal',
       P_DISPONIBLE,
+      undefined,
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
       catalogoMaterialesTuberia,
@@ -427,5 +446,37 @@ describe('resolverPresionResidualDeCamino', () => {
     // Sin accesorios declarados en este golden (accesorios=[] por defecto):
     // hfLocalizada es un cero real, no un término ausente.
     expect(resultado.hfLocalizada_mca).toBe(0)
+  })
+
+  // Demuestra que, con TODOS los terminos obligatorios presentes -- el
+  // ultimo de ellos, hfMedidor_mca, provisto explicitamente por el
+  // llamador (contrato minimo M2<->M3, D-delta.35: quien lo calcula
+  // queda fuera de este motor) -- el orquestador SI llega a
+  // 'balanceCompleto'. HF_MEDIDOR_MCA es un valor sintetico de test
+  // (item 8), analogo a P_DISPONIBLE: no representa ningun medidor
+  // catalogado ni ninguna derivacion topologica, solo satisface el
+  // contrato de entrada.
+  it('con hfMedidor_mca provisto por el llamador, el balance llega a balanceCompleto', () => {
+    const HF_MEDIDOR_MCA = 1.3
+    const proyecto = proyectoCaminoCompleto({ cotaRaiz: 0, cotaTerminal: 8, longT0: 4, longT1: 3 })
+    expect(validarRedHidraulica(proyecto)).toEqual([])
+
+    const resultado = resolverPresionResidualDeCamino(
+      proyecto,
+      'terminal',
+      P_DISPONIBLE,
+      HF_MEDIDOR_MCA,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    if (resultado.tipo !== 'balanceCompleto') throw new Error('se esperaba balanceCompleto')
+    expect(resultado.presionMinimaRequerida_mca).toBeCloseTo(6, 12) // lavatorio: 0,6 kgf/cm² * 10
+    expect(resultado.presionResidual_mca).toBeCloseTo(
+      P_DISPONIBLE - resultado.desnivel_m - resultado.hfDistribuida_mca - resultado.hfLocalizada_mca - HF_MEDIDOR_MCA,
+      12,
+    )
+    expect(resultado.cumpleMinimo).toBe(resultado.presionResidual_mca >= resultado.presionMinimaRequerida_mca)
   })
 })

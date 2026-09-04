@@ -12,12 +12,20 @@
 // de donde sale (tanque elevado / red / bombeo siguen sin modelar,
 // D-delta.36). No conoce UI.
 //
-// Barrera de completitud intacta: hfMedidor (CRIT-A25) todavia NO tiene
-// ningun consumidor que la derive desde la topologia (D-delta.35), asi
-// que se pasa como undefined y resolverBalanceDePresion devuelve
-// 'incompleto'. Este orquestador propaga ese estado tal cual
-// ('balanceIncompleto') -- NUNCA presenta una presion residual como
-// verificada mientras falten terminos obligatorios.
+// hfMedidor (CRIT-A25) llega tambien como parametro explicito
+// (hfMedidor_mca), exactamente con el mismo estatus que Pdisponible:
+// una condicion de borde que el llamador provee, no un valor que este
+// orquestador derive de la topologia. Sigue sin resolverse DONDE vive
+// el medidor en RedHidraulica -- medidor general vs. individual, su
+// posicion respecto del origen y del almacenamiento, que Qc le
+// corresponde y el catalogo comercial (Tabla N°6) siguen abiertos
+// (D-delta.35) y son responsabilidad de M3, no de este motor. Lo que
+// SI se cierra aca es el contrato minimo M2<->M3: el motor de M2 esta
+// hidraulicamente completo si recibe hfMedidor_mca; que M3 (o, hasta
+// que exista, un llamador/test) sepa calcularlo es un problema
+// distinto y diferido. Si el llamador no puede proveerlo todavia, pasa
+// undefined -- resolverBalanceDePresion sigue devolviendo 'incompleto'
+// tal como antes, nunca fabrica un 0.
 //
 // hfLocalizada (D-delta.33): desde CRIT-A31 (tees), el subconjunto
 // representable sobre RedHidraulica cubre TODA Tabla N°7 -- curvas,
@@ -32,9 +40,10 @@
 // acumularPerdidaLocalizadaDeCamino ya cortó antes con
 // 'perdidaLocalizadaIncompleta', mas arriba en esta misma funcion): se
 // envuelve como CoberturaDePerdidaLocalizada 'completa', no 'parcial'.
-// La rama 'balanceCompleto' sigue inalcanzable en la practica hoy porque
-// hfMedidor (D-delta.35) todavia se pasa siempre como undefined -- esa
-// es ahora la UNICA barrera restante para este camino, no hfLocalizada.
+// 'balanceCompleto' es alcanzable en la practica cuando, ademas, el
+// llamador provee hfMedidor_mca (ver comentario sobre D-delta.35 mas
+// arriba) -- ya no hay ninguna barrera estructural adicional para un
+// camino sin tramos pendientes.
 //
 // Cobertura fisica global del Proyecto (S1/auditarCoberturaFisica) sigue
 // siendo responsabilidad de la barrera de presentacion (S2), no de este
@@ -128,6 +137,9 @@ export function resolverPresionResidualDeCamino(
   proyecto: Proyecto,
   nodoTerminalId: string,
   presionDisponible_mca: number,
+  // undefined = el llamador todavia no puede proveer hfMedidor (D-delta.35
+  // sin resolver); nunca se interpreta como 0. Ver comentario de archivo.
+  hfMedidor_mca: number | undefined,
   catalogoArtefactos: readonly ArtefactoNormativo[],
   catalogoSistemasDeTuberia: readonly SistemaDeTuberiaCatalogado[],
   catalogoMateriales: readonly MaterialTuberia[],
@@ -226,9 +238,7 @@ export function resolverPresionResidualDeCamino(
       // Tabla N°7 para este camino específico está resuelto (accesorios +
       // tees). Ver comentario de archivo.
       hfLocalizada: { tipo: 'completa', hf_mca: perdidaLocalizada.hf_m },
-      // hfMedidor sigue sin consumidor topologico (D-delta.35): undefined,
-      // nunca 0 -- el balance sigue 'incompleto' hasta que se resuelva.
-      hfMedidor_mca: undefined,
+      hfMedidor_mca,
     },
     presionMinima_kgcm2,
   )
