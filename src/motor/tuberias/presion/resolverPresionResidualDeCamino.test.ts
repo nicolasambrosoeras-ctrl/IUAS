@@ -310,4 +310,36 @@ describe('resolverPresionResidualDeCamino', () => {
       ),
     ).toThrow()
   })
+
+  // Golden del slice completo sobre una topologia sintetica controlada
+  // (item 8: datos sinteticos de test, nunca datos productivos del demo).
+  // Valor independiente: J = 0.1307150589563208 m/m es la perdida unitaria
+  // Hazen ya verificada de forma independiente (script aparte, CRIT-A10/A17)
+  // en resolverPerdidaDistribuidaDeTramo.golden.test.ts para exactamente
+  // esta fixture: Qc=0.2 l/s (lavatorio unico, n=1 CRIT-A4), PPR + Acqua
+  // System Magnum PN20, candidato "20 mm" (Di=14.4mm), C=150. Aca solo se
+  // compone: hf_total = J * (L0 + L1), desnivel = cota_terminal - cota_raiz.
+  it('Golden — camino de 2 tramos: desnivel y Σhf distribuida Hazen compuestos linealmente', () => {
+    const J_HAZEN_QC_0_2_DI_14_4_C_150 = 0.1307150589563208
+    const L0 = 5
+    const L1 = 2
+    const proyecto = proyectoCaminoCompleto({ cotaRaiz: 0, cotaTerminal: 10, longT0: L0, longT1: L1 })
+    expect(validarRedHidraulica(proyecto)).toEqual([])
+
+    const resultado = resolverPresionResidualDeCamino(
+      proyecto,
+      'terminal',
+      P_DISPONIBLE,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    if (resultado.tipo !== 'balanceIncompleto') throw new Error('se esperaba balanceIncompleto')
+    expect(resultado.desnivel_m).toBe(10)
+    expect(resultado.hfDistribuidaPorTramo.map((e) => e.tramoId)).toEqual(['t0', 't1'])
+    expect(resultado.hfDistribuidaPorTramo[0]!.hf_m).toBeCloseTo(J_HAZEN_QC_0_2_DI_14_4_C_150 * L0, 9)
+    expect(resultado.hfDistribuidaPorTramo[1]!.hf_m).toBeCloseTo(J_HAZEN_QC_0_2_DI_14_4_C_150 * L1, 9)
+    expect(resultado.hfDistribuida_mca).toBeCloseTo(J_HAZEN_QC_0_2_DI_14_4_C_150 * (L0 + L1), 9)
+  })
 })
