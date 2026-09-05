@@ -2638,7 +2638,7 @@ público** de `resolverPresionResidualDeCamino`/`resolverEstadoModulo2`
 **Estado**: IMPLEMENTADA, 768/768 tests, verificada manualmente contra
 la web real (Playwright headless, cero errores de consola).
 
-### D-δ.45 — Plantilla típica de pérdidas localizadas del modo rápido — INVESTIGACIÓN COMPLETA, BUG DE UI CORREGIDO, PLANTILLA PENDIENTE DE DECISIÓN ROJA
+### D-δ.45 — Plantilla típica de pérdidas localizadas del modo rápido — IMPLEMENTADA
 
 **Objetivo de la corrida**: D-δ.44 cerró la granularidad de relevamiento
 físico, pero dejó abierta la pregunta de si `'simplificada'+'estimado'`
@@ -2744,7 +2744,7 @@ vía `npx`, proyecto demo, `'simplificada'+'estimado'`): 11 inputs de
 Longitud visibles y editables, resumen estimado presente, cero
 "Relevar accesorios"/"Tee" en pantalla, cero errores de consola.
 
-#### Decisión roja 1 — Singularidad del último terminal
+#### Decisión roja 1 — Singularidad del último terminal — RESUELTA por el usuario: `codo90`
 
 **Contexto físico** (§9/§17 del brief): en una distribución típica de
 `n` artefactos por Local+red, `n-1` uniones suelen resolverse con una
@@ -2795,7 +2795,15 @@ sentido opuesto (nunca subestima, +15%, coherente con el principio ya
 usado para `Ks_estimado_tee=3,00`). No hay una respuesta correcta sin
 una decisión de producto.
 
-#### Decisión roja 2 — Llave de paso por Local+red
+**Decisión del usuario**: `codo90` (Ks=1,35) — la opción más
+conservadora, coherente con el mismo criterio ya adoptado para
+`Ks_estimado_tee=3,00` (peor caso conocido ante geometría no relevada,
+nunca inventar geometría a favor de un resultado más optimista).
+Cardinalidad: exactamente 1 por Local+red cuando `n>=1` (nunca por
+terminal, nunca 0 con al menos 1 terminal físico) — a diferencia de las
+tees, no escala con `n`.
+
+#### Decisión roja 2 — Llave de paso por Local+red — RESUELTA por el usuario: SÍ incluirla, 1 por Local+red
 
 **Pregunta**: ¿debería el modo rápido asumir automáticamente 1 `llaveDePaso`
 (Ks=9,18) por Local+red, además de las tees estimadas?
@@ -2837,21 +2845,88 @@ conscientemente (un checkbox "Incluir llave de paso típica"), nunca
 como parte silenciosa de la estimación automática, dado el tamaño de su
 impacto y la ausencia de una cardinalidad estructuralmente deducible.
 
+**Decisión del usuario**: incluirla igual, automáticamente, 1 por
+Local+red (no la variante "1 por terminal", ni la opción de checkbox
+activable) — el usuario prefirió aceptar el impacto grande (+102% en el
+ejemplo) antes que dejarla fuera de la estimación automática o exigir
+un paso manual adicional en el modo rápido.
+
+#### Plantilla típica final adoptada (D-δ.45)
+
+Con las dos decisiones rojas resueltas, la plantilla típica del modo
+rápido queda, por Local+red, con `n = contarTerminalesFisicosDeLocal`:
+
+```text
+N_tees_estimadas       = max(0, n-1)     Ks = 3,00  (teeEntradaCentralSalidasLaterales, D-δ.40)
+N_singularidadTerminal = n>=1 ? 1 : 0    Ks = 1,35  (codo90, D-δ.45)
+N_llaveDePaso          = n>=1 ? 1 : 0    Ks = 9,18  (llaveDePaso, D-δ.45)
+
+Ks_equivalente_estimado = N_tees_estimadas·3,00 + N_singularidadTerminal·1,35 + N_llaveDePaso·9,18
+Js_estimada = Ks_equivalente_estimado · V_ref² / (2g)
+```
+
+`n=0` sigue siendo el único cero real (ningún componente aplica, no se
+resuelve velocidad). **Cambio de comportamiento respecto de D-δ.40**:
+`n=1` ya NO es cero — antes `N_tees=0` cortaba directo a `hf_m=0`; ahora
+`N_singularidadTerminal` y `N_llaveDePaso` aplican igual con un único
+terminal físico, así que `n=1` pasa a requerir resolver velocidad como
+cualquier otro caso con `n>=1`. Verificado manualmente contra el
+proyecto demo real: los 5 Local+red con `n=1` (Cocina AC, Lavadero AC,
+Toilette AC, Jardín AF) que antes reportaban `hf=0` ahora reportan un
+valor no nulo (p.ej. 0,291 m.c.a. con V=0,7 m/s).
+
+**Qué es decisión IUAS vs. qué proviene de ERAS** (mismo criterio que
+D-δ.40): `Ks=1,35` y `Ks=9,18` son valores de Tabla N°7 (ERAS-2023,
+CRIT-A26), firmes y sin cambios; **qué accesorio elegir** (`codo90`
+sobre `curva90`/`tuboSaliente`) y **si incluir la llave de paso
+automáticamente** (y con qué cardinalidad) son decisiones de producto
+IUAS explícitas del usuario, no transcripción normativa — documentadas
+acá para que nunca se les atribuya origen ERAS.
+
+**Implementación** (`motor/tuberias/presion/resolverPerdidaLocalizadaEstimadaDeLocal.ts`):
+- `KS_ESTIMADO_TEE`, `KS_ESTIMADO_SINGULARIDAD_TERMINAL`,
+  `KS_ESTIMADO_LLAVE_DE_PASO` ahora se derivan de
+  `obtenerKsDeAccesorio` (Tabla N°7) en vez de literales hardcodeados
+  — una sola fuente de verdad, sin riesgo de divergencia si la tabla
+  cambia. Se exportan para que la UI los reutilice sin duplicar el
+  valor como texto (antes `<p>Ks por tee estimada: 3,00</p>` era un
+  string fijo, ahora `formatearNumero(KS_ESTIMADO_TEE, 'adimensional')`).
+- El resultado `'estimada'` gana `nSingularidadTerminal` y
+  `nLlaveDePaso` (siempre 0 o 1), expuestos con la misma auditabilidad
+  que `nTeesEstimadas`.
+- `LocalYRedCard.tsx` (`ResumenEstimadoDeLocal`, sección "Ver cálculo"):
+  agrega las líneas de Singularidad terminal y Llave de paso con su Ks,
+  bajo el título "Configuración típica IUAS (D-δ.45)".
+- `CoberturaDePerdidaLocalizada='estimada'` sin cambios (D-δ.40): sigue
+  contando como completa dentro de su propia metodología.
+
+**Tests actualizados**: `resolverPerdidaLocalizadaEstimadaDeLocal.test.ts`
+reescrito contra la nueva fórmula (`ksEquivalenteEstimado` helper local,
+nunca un número mágico) más un caso nuevo `n=0` (único cero real) y el
+caso `n=1` ahora con expectativa explícita de `hf_m>0`. Los tests de
+`resolverPresionResidualDeCamino.test.ts`/`resolverEstadoModulo2.test.ts`
+que consumen el resultado a través de `TrazaHfLocalizada` no necesitaron
+cambios: ese tipo solo expone `hf_mca`/`nTerminalesLocal`/`nTeesEstimadas`/
+`velocidadReferencia_mps` (nunca los conteos nuevos) y sus aserciones ya
+comparaban contra el propio motor o valores no exactos (`toBeGreaterThan`),
+nunca un `hf` hardcodeado de la fórmula vieja. 775/775 tests, `tsc -b`
+limpio, `vite build` limpio, lint en baseline preexistente (9 errores,
+ninguno nuevo). Verificado manualmente contra la web real (Playwright
+headless vía `npx`, proyecto demo completo en `'simplificada'+'estimado'`):
+los 9 Local+red muestran "Configuración típica IUAS (D-δ.45)" con las 3
+líneas (tees/singularidad terminal/llave de paso) y su Ks, cero
+"Relevar accesorios"/editor de tee en pantalla, cero errores de consola.
+
 #### Estado de D-δ.45
 
-**NO cerrada.** Investigación completa, bug de UI corregido y commiteado
-como incremento funcional independiente. La plantilla típica de
-accesorios (más allá de tees, ya cerrado en D-δ.40) queda pendiente de
-que el usuario resuelva las dos decisiones rojas de arriba. Hasta
-entonces, el modo rápido (`'simplificada'+'estimado'`) sigue siendo
-utilizable end-to-end (bug corregido) pero solo con la plantilla mínima
-ya existente (tees).
+**CERRADA.** Investigación completa, bug de UI corregido, dos
+decisiones rojas presentadas y resueltas por el usuario, plantilla
+típica implementada y verificada (tests + manual). El modo rápido
+(`'simplificada'+'estimado'`) es utilizable end-to-end: el usuario carga
+Locales/artefactos/longitud representativa/cotas/alimentación y llega a
+`balanceCompleto` sin relevar un solo accesorio ni tee a mano.
 
 **Deuda restante**: igual que D-δ.44 (persistencia de Pdisponible/
 hfMedidor/granularidad entre recargas, tabs M1-M4, cota de piso + altura
-de conexión). Nueva: si el usuario aprueba alguna de las dos plantillas,
-falta implementar el accesorio elegido en
-`resolverPerdidaLocalizadaEstimadaDeLocal` (extender la fórmula agregada
-`Ks_total = N_tees·Ks_tee + N_extra·Ks_extra` sin rediseñar el
-contrato, ver alcance ya previsto en D-δ.40) y su exposición en "Ver
-cálculo".
+de conexión). Ninguna deuda nueva específica de D-δ.45 — la plantilla
+quedó cerrada, no parcialmente implementada.
