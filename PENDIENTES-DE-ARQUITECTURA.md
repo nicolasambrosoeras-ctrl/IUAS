@@ -2327,3 +2327,155 @@ nuevos**: `conAccesoriosDeTramo`, `conTeeDeNodo`, `conCotaDeNodo`
 (`actualizarConfiguracionHidraulica.ts`).
 
 **Estado**: IMPLEMENTADA y verificada manualmente contra la web real.
+
+### D-δ.43 — Rediseño funcional / UX hidráulica de Módulo 2 — IMPLEMENTADA
+
+**Objetivo**: D-δ.42 cerró que el motor hidráulico ya era accesible
+desde la web, pero la revisión visual posterior encontró que la
+interfaz seguía siendo una vista de depuración del grafo interno: tabla
+de 13 columnas con scroll horizontal, sección global "Tees
+(bifurcaciones)" con ids técnicos de Nodo/Tramo (`n-af-1`,
+`t-af-toilette-lavatorio`), AF/AC sin distinguir claramente, condición
+de borde de presión (`Pdisponible`/cota) demasiado abstracta para
+representar físicamente un tanque elevado. Este registro cierra esa
+brecha **sin tocar hidráulica ni el contrato del motor** -- todo lo que
+cambia es cómo React organiza y rotula lo que el motor ya devuelve.
+
+#### Local + Red como unidad de trabajo (slice 1)
+
+La tabla ancha y la sección global de tees desaparecen. En su lugar,
+`LocalYRedCard.tsx` agrupa toda la infraestructura de un `(Local, Red)`
+en una sola tarjeta:
+
+- `construirArbolDeLocal.ts` reconstruye la topología real de ese
+  Local+Red como árbol, partiendo del Tramo principal ya identificado
+  por `identificarFilasPrincipalesDeLocales` (sin heurística de string
+  de id). No asume binariedad: un nodo con más de 2 salientes (manifold
+  plano, como el Baño del proyecto de ejemplo -- 4 Artefactos desde un
+  único nodo) simplemente aparece con más de 2 ramales y sin tee que
+  declarar -- CRIT-A31 nunca aplicó ahí, no es una limitación nueva.
+- Cada nivel del árbol se presenta con `DimensionamientoDeTramo.tsx`
+  (reemplaza `FilaResultado`/`TablaDeFilas`): Qc/DN/V/Verificación
+  visibles sin scroll horizontal, con Refs. físicas/n/Di teórico/Di
+  real/Vmin-Vmax/hf en un `<details>` expandible. Mismo criterio ya
+  cerrado de D-δ.27/CRIT-A24 (nunca "no admisible" cuando
+  `velocidadPorDebajoDelMinimo` es cierto), verificado por test.
+- Cada nodo de bifurcación real (1 entrante + 2 salientes,
+  `identificarNodosDeBifurcacion`) muestra `TeeDeNodoEditor` **inline**,
+  dentro de la tarjeta de su Local+Red -- ya no en una sección aparte.
+  El editor recibe las etiquetas de cada salida ya humanizadas por el
+  llamador (`humanizarModulo2.nombresDeArtefactosAguasAbajo`, nombres de
+  Artefacto de catálogo) en vez de mostrar el tramoId.
+- Cada ramal terminal (Tramo hacia un Artefacto) tiene su propio
+  `AccesoriosDeTramoEditor` -- cierra la deuda que D-δ.42 había dejado
+  explícita (tramos terminales sin superficie de edición propia).
+- `humanizarModulo2.ts` centraliza `ETIQUETA_RED` (Agua fría/Agua
+  caliente) y el nombre de catálogo de un Artefacto referenciado -- la
+  UI normal deja de mostrar cualquier id de Nodo/Tramo.
+
+Verificado con Playwright headless contra la web real: tee de Cocina
+configurable ("Pileta de cocina es la recta"/"Máquina lavavajillas es
+la recta"), accesorios relevables en el tramo de alimentación y en cada
+ramal, ninguna sección "Tees (bifurcaciones)" en el HTML, cero errores
+de consola.
+
+#### Panel de presión: alimentación física + completitud accionable (slice 2)
+
+`PanelDePresionDeModulo2.tsx` se reorganiza sin tocar el contrato del
+motor (`Pdisponible`/`hfMedidor_mca` siguen siendo condiciones de borde
+externas, no persistidas en `Proyecto` -- D-δ.35/D-δ.36 no se
+reabrieron):
+
+- **Tipo de alimentación** (nuevo selector de presentación, NO una
+  entidad de dominio nueva): "Tanque elevado" fija `Pdisponible=0` y
+  pide únicamente la "Cota del pelo de agua mínimo de cálculo" (D-δ.38:
+  la raíz hidráulica es el pelo de agua **mínimo**, nunca el máximo, sin
+  reabrir esa decisión) -- oculta el input manual de Pdisponible, que no
+  tiene sentido físico en ese caso. "Presión conocida / alimentación
+  directa" conserva el contrato ya vigente (cota del punto de
+  alimentación + Pdisponible manual). Ambas opciones escriben sobre los
+  mismos campos que ya existían (`conCotaDeNodo`, estado local de
+  Pdisponible) -- ninguna persistencia nueva.
+- **Cota de conexión**: "Cota [m]" pasa a "Cota de conexión [m]" en
+  cada terminal (CRIT-A29: el punto de verificación es la boca/conexión
+  del artefacto, ya cerrado -- solo se hizo explícito en el rótulo).
+- **Completitud accionable**: `agruparMotivosDeModulo2.ts` agrupa
+  `EstadoModulo2.motivos` (ya estructurados por `resolverEstadoModulo2`,
+  D-δ.41) en líneas de texto por tipo con conteos deduplicados (p.ej.
+  "Faltan cotas de conexión en 17 puntos") -- puramente de presentación,
+  nunca infiere un motivo nuevo ni expone ids de Nodo/Tramo.
+- **Terminales como tarjetas**, no una fila más de una tabla de 11
+  columnas: `TarjetaDeTerminal` muestra Presidual/Pmin/margen/estado en
+  la superficie principal, con Δz/hfDistribuida/hfLocalizada
+  (+metodología)/hfMedidor/carga geométrica en un `<details>`. "Carga
+  geométrica" (`Pdisponible - Δz`) es el primer término parcial de la
+  misma resta que ya expone `resolverBalanceDePresion` -- no es una
+  fórmula nueva, es aritmética de presentación sobre dos operandos ya
+  conocidos.
+- **Terminal más desfavorable**: dejó de mostrar el `nodoId` crudo --
+  ahora usa `describirReferenciaPendiente` (mismo helper ya usado en el
+  resto de la UI), buscando el Nodo por id solo para resolver su
+  `referencia`.
+
+Verificado con Playwright headless: seleccionar "Tanque elevado" oculta
+el input manual de Pdisponible y pide la cota mínima; cambiar cotas de
+raíz/terminal actualiza el estado reactivamente (`resolverDesnivelDeCamino`
+resuelve Δz apenas ambos extremos tienen cota, sin necesitar cotas
+intermedias -- ver investigación abajo); "Terminal más desfavorable" y
+cada tarjeta de terminal nunca muestran un id crudo (`>n-`); cero
+errores de consola en toda la corrida.
+
+#### Investigación de cotas intermedias (sección 33 del brief) -- CERRADA sin cambios
+
+`resolverDesnivelDeCamino.ts` (ya productivo, sin tocar) documenta
+explícitamente que Δz se resuelve **solo con las cotas de los dos
+extremos** del camino (`cotaTerminal_m - cotaRaiz_m`) -- las cotas de
+nodos intermedios nunca se piden ni se usan; el comentario del archivo
+ya explica por qué (`Σ(cota[i+1]-cota[i])` telescopa exactamente a
+`cotaTerminal-cotaRaiz` cuando todas están presentes, pero exige *todas*
+las cotas del camino; la forma de extremos exige solo dos). La UI ya
+solo pedía cota de raíz + cota de terminal antes de este incremento, así
+que no había ninguna brecha que cerrar ni ninguna decisión roja que
+tomar acá -- se documenta el hallazgo porque el brief pedía
+explícitamente investigarlo, no porque haya cambiado algo.
+
+#### Qué sigue siendo exclusivamente dominio (no se tocó)
+
+Ninguna fórmula ni regla de validación cambió: Hazen-Williams/
+Darcy-Weisbach, Ks de Tabla N°7, clasificación de tee (CRIT-A31),
+`resolverBalanceDePresion`, `resolverTerminalMasDesfavorable`,
+`resolverDesnivelDeCamino`, `resolverEstadoModulo2`. El contrato
+`Pdisponible`/`cotaRaiz`/`hfMedidor_mca` del motor no cambió -- "Tipo de
+alimentación" es una traducción de presentación sobre ese mismo
+contrato, nunca una entidad `OrigenHidraulico` persistida (eso sigue
+fuera de alcance, ver D-δ.38).
+
+#### Deuda de UI restante (deliberadamente fuera de esta corrida)
+
+- Modelo "cota de piso + altura de conexión" (sección 32 del brief):
+  identificado explícitamente como decisión roja (exige nueva
+  persistencia/semántica sobre `Nodo.cota_m` o una entidad nueva) -- NO
+  implementado. La cota de conexión sigue siendo un único input manual
+  por terminal.
+- Sin persistencia de `Pdisponible`/`hfMedidor`/tipo de alimentación
+  entre recargas (mismo estado efímero que el resto del Proyecto hoy).
+- Tabs M1/M2/M3/M4, React Router, M3 funcional, selección comercial de
+  medidor, `hfEquipoACS`, presurizador, redes malladas, editor gráfico:
+  siguen explícitamente diferidos.
+- El modo estimado (D-δ.40) mantiene su resumen agregado por Local+Red
+  (ahora embebido en `LocalYRedCard`, ya no en una tabla aparte de todo
+  el proyecto) -- sigue sin editor de geometría detallada, por diseño.
+
+**Archivos nuevos**: `interfaz/paginas/construirArbolDeLocal.ts`,
+`interfaz/paginas/humanizarModulo2.ts`,
+`interfaz/paginas/resolverResultadoDeTramoParaUi.ts`,
+`interfaz/paginas/DimensionamientoDeTramo.tsx`,
+`interfaz/paginas/LocalYRedCard.tsx`,
+`interfaz/paginas/agruparMotivosDeModulo2.ts`. **Sin cambios de
+contrato del motor ni updaters nuevos** -- reutiliza `conCotaDeNodo`/
+`conLongitudDeTramo`/`conAccesoriosDeTramo`/`conTeeDeNodo` ya
+existentes.
+
+**Estado**: IMPLEMENTADA y verificada manualmente contra la web real
+(Playwright headless, dos corridas: slice 1 sobre Local+Red/tees/
+accesorios, slice 2 sobre el panel de presión).
