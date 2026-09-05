@@ -22,7 +22,7 @@ function proyectoCon(
       alturaArtefactoMasDesfavorable_m: 0,
     },
     unidadesFuncionales,
-    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'detallado', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
+    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'detallado', granularidadHidraulica: 'profesional', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
     ...(redHidraulica !== undefined ? { redHidraulica } : {}),
   }
 }

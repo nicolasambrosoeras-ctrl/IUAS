@@ -53,7 +53,7 @@ function proyectoCon(
     redHidraulica,
     configuracionHidraulica: {
       metodoPerdidaDistribuida: 'hazenWilliams',
-      metodoPerdidaLocalizada: 'detallado',
+      metodoPerdidaLocalizada: 'detallado', granularidadHidraulica: 'profesional',
       materialTuberiaId: 'ppr',
       sistemaDeTuberiaId,
     },
@@ -471,5 +471,170 @@ describe('acumularPerdidaLocalizadaDeCamino', () => {
       tipo: 'incompleta',
       tramosNoResueltos: [{ tramoId: 't-recta', motivo: 'teeSinConfigurar' }],
     })
+  })
+})
+
+// n0 (raíz, Distribución General) -> n1 (representativo de local-1/AF,
+// CON su propio Tramo.accesorios) -> n2 (tee, bifurca hacia lavatorio y
+// ducha) -- topología análoga a la Cocina del proyecto demo real
+// (t-af-cocina -> n-af-cocina-1 -tee-> pileta/lavavajillas), a diferencia
+// de proyectoConTee (donde la tee cuelga directo de la raíz sin ningún
+// Tramo "puro" de Local antes -- caso sintético que no ejercita el
+// truncamiento, ver comentario de proyectoConTee más arriba).
+function proyectoLocalConTeeYRamales(opciones: {
+  granularidad: 'simplificada' | 'profesional'
+  tee: Nodo['tee']
+  accesoriosRamalLavatorio?: readonly AccesorioDeTramo[]
+}): Proyecto {
+  const uf: UnidadFuncional = {
+    id: 'uf-1',
+    nombre: 'uf-1',
+    locales: [
+      {
+        id: 'local-1',
+        tipo: 'bano',
+        regimen: 'domiciliario',
+        artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+      },
+    ],
+  }
+  const nodos: Nodo[] = [
+    { id: 'n0' },
+    { id: 'n1' },
+    { id: 'n2', ...(opciones.tee !== undefined ? { tee: opciones.tee } : {}) },
+    { id: 'n3', referencia: referenciaDe('uf-1', 'local-1', 'inst-lavatorio') },
+    { id: 'n4', referencia: referenciaDe('uf-1', 'local-1', 'inst-ducha') },
+  ]
+  const tramos: Tramo[] = [
+    { id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: 3, accesorios: [] },
+    { id: 't1', nodoOrigenId: 'n1', nodoDestinoId: 'n2', red: 'AF', longitud_m: 3, accesorios: [] },
+    {
+      id: 't2',
+      nodoOrigenId: 'n2',
+      nodoDestinoId: 'n3',
+      red: 'AF',
+      longitud_m: 3,
+      ...(opciones.accesoriosRamalLavatorio !== undefined ? { accesorios: opciones.accesoriosRamalLavatorio } : {}),
+    },
+    { id: 't3', nodoOrigenId: 'n2', nodoDestinoId: 'n4', red: 'AF', longitud_m: 3 }, // sin accesorios a propósito
+  ]
+  const proyecto = proyectoCon([uf], { nodos, tramos })
+  return {
+    ...proyecto,
+    configuracionHidraulica: { ...proyecto.configuracionHidraulica, granularidadHidraulica: opciones.granularidad },
+  }
+}
+
+describe("acumularPerdidaLocalizadaDeCamino — granularidadHidraulica 'simplificada' (D-δ.44)", () => {
+  it("'simplificada': el ramal terminal (t2) NO requiere sus propios accesorios -- la tee sigue aportando Ks por rama real", () => {
+    const proyecto = proyectoLocalConTeeYRamales({
+      granularidad: 'simplificada',
+      tee: { tipo: 'entradaPorExtremo', tramoSalidaRectaId: 't2' },
+    })
+    expect(validarRedHidraulica(proyecto)).toEqual([])
+    const camino = caminoResuelto(proyecto, 'n3')
+    expect(camino.tramos.map((t) => t.id)).toEqual(['t0', 't1', 't2'])
+
+    const resultado = acumularPerdidaLocalizadaDeCamino(proyecto, camino, catalogoArtefactos, catalogoSistemasDeTuberia)
+
+    expect(resultado.tipo).toBe('acumulada')
+    if (resultado.tipo !== 'acumulada') return
+    // t2 aparece con hf_m = solo el aporte de la tee (Ks·V²/2g de su
+    // propia rama), nunca hf de accesorios propios (que ni siquiera
+    // estaban declarados).
+    const comercialT2 = resolverDiametroComercialDeTramo(proyecto, 't2', catalogoArtefactos, catalogoSistemasDeTuberia)
+    if (comercialT2.tipo !== 'conCandidato') throw new Error('fixture inválida')
+    const hfTeeT2 = calcularPerdidaCargaLocalizada(obtenerKsDeAccesorio('teePasoRecto'), comercialT2.velocidadReal_mps)
+    expect(resultado.porTramo.find((p) => p.tramoId === 't2')?.hf_m).toBeCloseTo(hfTeeT2, 12)
+  })
+
+  it("'simplificada': la tee sigue exigiendo configuración -- un ramal que sale de una bifurcación real sin tee configurar sigue bloqueando completitud", () => {
+    const proyecto = proyectoLocalConTeeYRamales({ granularidad: 'simplificada', tee: undefined })
+    const camino = caminoResuelto(proyecto, 'n3')
+
+    const resultado = acumularPerdidaLocalizadaDeCamino(proyecto, camino, catalogoArtefactos, catalogoSistemasDeTuberia)
+
+    expect(resultado).toEqual({
+      tipo: 'incompleta',
+      tramosNoResueltos: [{ tramoId: 't2', motivo: 'teeSinConfigurar' }],
+    })
+  })
+
+  it("'simplificada': si el ramal además tiene accesorios propios declarados, se ignoran igual (nunca se suman)", () => {
+    const proyecto = proyectoLocalConTeeYRamales({
+      granularidad: 'simplificada',
+      tee: { tipo: 'entradaPorExtremo', tramoSalidaRectaId: 't2' },
+      accesoriosRamalLavatorio: [{ tipo: 'codo90', cantidad: 5 }],
+    })
+    const camino = caminoResuelto(proyecto, 'n3')
+
+    const resultado = acumularPerdidaLocalizadaDeCamino(proyecto, camino, catalogoArtefactos, catalogoSistemasDeTuberia)
+    if (resultado.tipo !== 'acumulada') throw new Error('se esperaba acumulada')
+
+    const comercialT2 = resolverDiametroComercialDeTramo(proyecto, 't2', catalogoArtefactos, catalogoSistemasDeTuberia)
+    if (comercialT2.tipo !== 'conCandidato') throw new Error('fixture inválida')
+    const hfSoloTee = calcularPerdidaCargaLocalizada(obtenerKsDeAccesorio('teePasoRecto'), comercialT2.velocidadReal_mps)
+    // Si los 5 codos declarados en el ramal se hubieran sumado, el hf_m
+    // sería notablemente mayor que hfSoloTee.
+    expect(resultado.porTramo.find((p) => p.tramoId === 't2')?.hf_m).toBeCloseTo(hfSoloTee, 12)
+  })
+
+  it("'profesional' (default): el mismo camino SIGUE exigiendo accesorios propios del ramal t2 -- comportamiento sin cambios", () => {
+    const proyecto = proyectoLocalConTeeYRamales({
+      granularidad: 'profesional',
+      tee: { tipo: 'entradaPorExtremo', tramoSalidaRectaId: 't2' },
+    })
+    const camino = caminoResuelto(proyecto, 'n3')
+
+    const resultado = acumularPerdidaLocalizadaDeCamino(proyecto, camino, catalogoArtefactos, catalogoSistemasDeTuberia)
+
+    expect(resultado).toEqual({
+      tipo: 'incompleta',
+      tramosNoResueltos: [{ tramoId: 't2', motivo: 'sinRelevar' }],
+    })
+  })
+
+  it("'simplificada': un ramal que NO sale de ninguna bifurcación de tee (manifold plano, más de 2 salientes) contribuye 0 sin exigir nada", () => {
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'uf-1',
+      locales: [
+        {
+          id: 'local-1',
+          tipo: 'bano',
+          regimen: 'domiciliario',
+          artefactos: [
+            artefacto('inst-lavatorio', 'lavatorio'),
+            artefacto('inst-ducha', 'receptaculoDucha'),
+            artefacto('inst-bidet', 'bidet'),
+          ],
+        },
+      ],
+    }
+    const nodos: Nodo[] = [
+      { id: 'n0' },
+      { id: 'n1' },
+      { id: 'n2' }, // manifold plano: 3 salientes, noEsBifurcacionDeTee
+      { id: 'n3', referencia: referenciaDe('uf-1', 'local-1', 'inst-lavatorio') },
+      { id: 'n4', referencia: referenciaDe('uf-1', 'local-1', 'inst-ducha') },
+      { id: 'n5', referencia: referenciaDe('uf-1', 'local-1', 'inst-bidet') },
+    ]
+    const tramos: Tramo[] = [
+      { id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: 3, accesorios: [] },
+      { id: 't1', nodoOrigenId: 'n1', nodoDestinoId: 'n2', red: 'AF', longitud_m: 3, accesorios: [] },
+      { id: 't2', nodoOrigenId: 'n2', nodoDestinoId: 'n3', red: 'AF' }, // sin longitud ni accesorios
+      { id: 't3', nodoOrigenId: 'n2', nodoDestinoId: 'n4', red: 'AF' },
+      { id: 't4', nodoOrigenId: 'n2', nodoDestinoId: 'n5', red: 'AF' },
+    ]
+    const proyectoBase = proyectoCon([uf], { nodos, tramos })
+    const proyecto: Proyecto = {
+      ...proyectoBase,
+      configuracionHidraulica: { ...proyectoBase.configuracionHidraulica, granularidadHidraulica: 'simplificada' },
+    }
+    const camino = caminoResuelto(proyecto, 'n3')
+
+    const resultado = acumularPerdidaLocalizadaDeCamino(proyecto, camino, catalogoArtefactos, catalogoSistemasDeTuberia)
+
+    expect(resultado).toEqual({ tipo: 'acumulada', hf_m: 0, porTramo: [{ tramoId: 't0', hf_m: 0 }, { tramoId: 't1', hf_m: 0 }] })
   })
 })

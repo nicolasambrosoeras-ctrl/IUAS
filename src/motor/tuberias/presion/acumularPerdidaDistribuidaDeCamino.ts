@@ -16,12 +16,22 @@
 // motivo. La cobertura fisica del Proyecto (S1/auditarCoberturaFisica) es
 // responsabilidad del orquestador de presion que consuma esta funcion,
 // no de esta composicion por tramo.
+//
+// GranularidadHidraulica (D-δ.44): en 'profesional' esta función itera
+// TODO camino.tramos, sin cambios respecto del comportamiento original.
+// En 'simplificada', seleccionarTramosDeAcumulacion trunca el camino en
+// el Tramo representativo del (Local, Red) del terminal -- los Tramos
+// más profundos (ramales hacia cada Artefacto) NUNCA se iteran acá:
+// contribuyen 0 a hfDistribuida por definición del modelo simplificado,
+// nunca "tramo no resuelto". La regla hf=Σ J·L no cambia -- cambia
+// exclusivamente el conjunto de Tramos que la componen.
 import type { Proyecto } from '../../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../../normativa/eras-2023/catalogo-artefactos'
 import type { SistemaDeTuberiaCatalogado } from '../sistemaDeTuberia'
 import type { MaterialTuberia } from '../materialTuberia'
 import type { CaminoHaciaOrigen } from '../topologia/obtenerCaminoHaciaOrigen'
 import { resolverPerdidaDistribuidaDeTramo } from '../resolverPerdidaDistribuidaDeTramo'
+import { seleccionarTramosDeAcumulacion } from './seleccionarTramosDeAcumulacion'
 
 export type MotivoTramoSinPerdida = 'sinDemanda' | 'sinCandidatoAdmisible' | 'sinLongitud'
 
@@ -54,7 +64,9 @@ export function acumularPerdidaDistribuidaDeCamino(
   const porTramo: { tramoId: string; hf_m: number }[] = []
   const tramosNoResueltos: { tramoId: string; motivo: MotivoTramoSinPerdida }[] = []
 
-  for (const tramo of camino.tramos) {
+  const { tramosRelevables } = seleccionarTramosDeAcumulacion(proyecto, camino)
+
+  for (const tramo of tramosRelevables) {
     const resultadoTramo = resolverPerdidaDistribuidaDeTramo(
       proyecto,
       tramo.id,

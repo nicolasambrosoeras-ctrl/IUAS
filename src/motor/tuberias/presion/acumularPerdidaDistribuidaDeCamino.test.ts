@@ -50,7 +50,7 @@ function proyectoCon(
     redHidraulica,
     configuracionHidraulica: {
       metodoPerdidaDistribuida: 'hazenWilliams',
-      metodoPerdidaLocalizada: 'detallado',
+      metodoPerdidaLocalizada: 'detallado', granularidadHidraulica: 'profesional',
       materialTuberiaId: 'ppr',
       sistemaDeTuberiaId,
     },
@@ -257,5 +257,105 @@ describe('acumularPerdidaDistribuidaDeCamino', () => {
         { tramoId: 't1', motivo: 'sinLongitud' },
       ],
     })
+  })
+})
+
+// n0 (raiz, Distribucion General) -> n1 (representativo de local-1/AF) ->
+// n2 (bifurcacion: dos ramales hacia lavatorio y ducha). D-δ.44: la unidad
+// de relevamiento fisico "simplificada" es (Local, Red) -- t1 es el unico
+// Tramo relevable de este Local; t2/t3 (ramales hacia cada Artefacto) NO
+// requieren longitud propia bajo esa granularidad.
+function proyectoLocalConDosRamales(opciones?: {
+  granularidad?: 'simplificada' | 'profesional'
+  longitudRamalLavatorio?: number
+}): Proyecto {
+  const o = opciones ?? {}
+  const uf: UnidadFuncional = {
+    id: 'uf-1',
+    nombre: 'uf-1',
+    locales: [
+      {
+        id: 'local-1',
+        tipo: 'bano',
+        regimen: 'domiciliario',
+        artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+      },
+    ],
+  }
+  const nodos: Nodo[] = [
+    { id: 'n0' },
+    { id: 'n1' },
+    { id: 'n2' },
+    { id: 'n3', referencia: referenciaDe('uf-1', 'local-1', 'inst-lavatorio') },
+    { id: 'n4', referencia: referenciaDe('uf-1', 'local-1', 'inst-ducha') },
+  ]
+  const tramos: Tramo[] = [
+    { id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: 4 },
+    { id: 't1', nodoOrigenId: 'n1', nodoDestinoId: 'n2', red: 'AF', longitud_m: 3 },
+    {
+      id: 't2',
+      nodoOrigenId: 'n2',
+      nodoDestinoId: 'n3',
+      red: 'AF',
+      ...(o.longitudRamalLavatorio !== undefined ? { longitud_m: o.longitudRamalLavatorio } : {}),
+    },
+    { id: 't3', nodoOrigenId: 'n2', nodoDestinoId: 'n4', red: 'AF' }, // sin longitud_m a proposito
+  ]
+  const proyecto = proyectoCon([uf], { nodos, tramos })
+  return {
+    ...proyecto,
+    configuracionHidraulica: { ...proyecto.configuracionHidraulica, granularidadHidraulica: o.granularidad ?? 'profesional' },
+  }
+}
+
+describe("acumularPerdidaDistribuidaDeCamino — granularidadHidraulica 'simplificada' (D-δ.44)", () => {
+  it("'simplificada': el ramal terminal (t2) NO requiere longitud propia -- balance completo solo con t0+t1", () => {
+    const proyecto = proyectoLocalConDosRamales({ granularidad: 'simplificada' })
+    expect(validarRedHidraulica(proyecto)).toEqual([])
+    const camino = caminoResuelto(proyecto, 'n3')
+
+    const resultado = acumularPerdidaDistribuidaDeCamino(
+      proyecto,
+      camino,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    expect(resultado.tipo).toBe('acumulada')
+    if (resultado.tipo !== 'acumulada') return
+    expect(resultado.porTramo.map((p) => p.tramoId)).toEqual(['t0', 't1'])
+    expect(resultado.hf_m).toBeCloseTo(hfDeTramo(proyecto, 't0') + hfDeTramo(proyecto, 't1'), 12)
+  })
+
+  it("'simplificada': si además el ramal SÍ tiene longitud propia, esa longitud igual se ignora (no se suma dos veces la pérdida del Local)", () => {
+    const proyecto = proyectoLocalConDosRamales({ granularidad: 'simplificada', longitudRamalLavatorio: 999 })
+    const camino = caminoResuelto(proyecto, 'n3')
+
+    const resultado = acumularPerdidaDistribuidaDeCamino(
+      proyecto,
+      camino,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    if (resultado.tipo !== 'acumulada') throw new Error('se esperaba acumulada')
+    expect(resultado.porTramo.map((p) => p.tramoId)).toEqual(['t0', 't1'])
+  })
+
+  it("'profesional' (default): el mismo camino SIGUE exigiendo longitud propia del ramal t2 -- comportamiento sin cambios", () => {
+    const proyecto = proyectoLocalConDosRamales({ granularidad: 'profesional' })
+    const camino = caminoResuelto(proyecto, 'n3')
+
+    const resultado = acumularPerdidaDistribuidaDeCamino(
+      proyecto,
+      camino,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    expect(resultado).toEqual({ tipo: 'incompleta', tramosNoResueltos: [{ tramoId: 't2', motivo: 'sinLongitud' }] })
   })
 })

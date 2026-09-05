@@ -9,7 +9,7 @@
 // validarProyecto (gate en MotorDemandaPantalla), así que redHidraulica,
 // si existe, ya es estructuralmente válida y sus referencias a Artefactos
 // ya existen.
-import type { MaterialTuberiaId, MetodoPerdidaDistribuida, MetodoPerdidaLocalizada, Proyecto, TipoDeLocal } from '../../modelo/proyecto'
+import type { GranularidadHidraulica, MaterialTuberiaId, MetodoPerdidaDistribuida, MetodoPerdidaLocalizada, Proyecto, TipoDeLocal } from '../../modelo/proyecto'
 import type { ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { catalogoMaterialesTuberia, obtenerMaterialTuberia } from '../../motor/tuberias/materialTuberia'
@@ -22,6 +22,7 @@ import {
   identificarFilasPrincipalesDeLocales,
 } from './identificarFilasDeModulo2'
 import {
+  conGranularidadHidraulica,
   conMaterialTuberia,
   conMetodoPerdidaDistribuida,
   conMetodoPerdidaLocalizada,
@@ -30,6 +31,7 @@ import {
 import { conLongitudDeTramo } from './actualizarRedHidraulica'
 import { resolverResultadoDeTramoParaUi } from './resolverResultadoDeTramoParaUi'
 import { DimensionamientoDeTramo } from './DimensionamientoDeTramo'
+import { AccesoriosDeTramoEditor } from './AccesoriosDeTramoEditor'
 import { LocalYRedCard } from './LocalYRedCard'
 import { PanelDePresionDeModulo2 } from './PanelDePresionDeModulo2'
 
@@ -117,6 +119,25 @@ function ConfiguracionHidraulicaFormulario({
           <option value="estimado">Estimadas (cálculo habitual)</option>
         </select>
       </label>
+      <label>
+        Granularidad hidráulica:{' '}
+        <select
+          value={proyecto.configuracionHidraulica.granularidadHidraulica}
+          onChange={(evento) =>
+            onCambiar(conGranularidadHidraulica(proyecto, evento.target.value as GranularidadHidraulica))
+          }
+        >
+          <option value="simplificada">Simplificada (Local + red)</option>
+          <option value="profesional">Profesional (cada tramo real)</option>
+        </select>
+      </label>
+      <p>
+        <small>
+          Simplificada: longitud y accesorios se cargan una sola vez por Local+red -- los ramales hacia cada
+          Artefacto no piden datos propios. Profesional: cada tramo físico real (incluidos los ramales) admite su
+          propia longitud y accesorios, para modelar recorridos internos distintos hasta cada Artefacto.
+        </small>
+      </p>
       <label>
         Material de la tubería:{' '}
         <select
@@ -241,20 +262,33 @@ function DistribucionGeneral({
   if (filas.length === 0) {
     return null
   }
+  const modoDetallado = proyecto.configuracionHidraulica.metodoPerdidaLocalizada === 'detallado'
 
   return (
     <section>
       <h3>Distribución general</h3>
-      {filas.map((fila) => (
-        <DimensionamientoDeTramo
-          key={fila.tramoId}
-          etiqueta={fila.etiqueta}
-          red={fila.red}
-          resultado={resolverResultadoDeTramoParaUi(proyecto, fila.tramoId, catalogoArtefactos)}
-          longitud_m={proyecto.redHidraulica?.tramos.find((tramo) => tramo.id === fila.tramoId)?.longitud_m}
-          onCambiarLongitud={(longitud_m) => onCambiar(conLongitudDeTramo(proyecto, fila.tramoId, longitud_m))}
-        />
-      ))}
+      {filas.map((fila) => {
+        const resultado = resolverResultadoDeTramoParaUi(proyecto, fila.tramoId, catalogoArtefactos)
+        return (
+          <div key={fila.tramoId}>
+            <DimensionamientoDeTramo
+              etiqueta={fila.etiqueta}
+              red={fila.red}
+              resultado={resultado}
+              longitud_m={proyecto.redHidraulica?.tramos.find((tramo) => tramo.id === fila.tramoId)?.longitud_m}
+              onCambiarLongitud={(longitud_m) => onCambiar(conLongitudDeTramo(proyecto, fila.tramoId, longitud_m))}
+            />
+            {modoDetallado ? (
+              <AccesoriosDeTramoEditor
+                proyecto={proyecto}
+                tramoId={fila.tramoId}
+                velocidadReal_mps={resultado.velocidadReal_mps}
+                onCambiar={onCambiar}
+              />
+            ) : null}
+          </div>
+        )
+      })}
     </section>
   )
 }

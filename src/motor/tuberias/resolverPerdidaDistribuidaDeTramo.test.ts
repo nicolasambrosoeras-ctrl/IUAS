@@ -51,7 +51,7 @@ function proyectoCon(
     parametros: parametros(),
     unidadesFuncionales,
     redHidraulica,
-    configuracionHidraulica: { metodoPerdidaDistribuida, metodoPerdidaLocalizada: 'detallado', materialTuberiaId: 'ppr', sistemaDeTuberiaId },
+    configuracionHidraulica: { metodoPerdidaDistribuida, metodoPerdidaLocalizada: 'detallado', granularidadHidraulica: 'profesional', materialTuberiaId: 'ppr', sistemaDeTuberiaId },
   }
 }
 

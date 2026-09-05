@@ -61,7 +61,7 @@ function proyectoCon(unidadesFuncionales: readonly UnidadFuncional[], redHidraul
     redHidraulica,
     configuracionHidraulica: {
       metodoPerdidaDistribuida: 'hazenWilliams',
-      metodoPerdidaLocalizada: 'detallado',
+      metodoPerdidaLocalizada: 'detallado', granularidadHidraulica: 'profesional',
       materialTuberiaId: 'ppr',
       sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
     },
@@ -535,7 +535,7 @@ function proyectoEstimadoDosTerminales(opts?: { conAccesoriosDetallados?: boolea
     redHidraulica: { nodos, tramos },
     configuracionHidraulica: {
       metodoPerdidaDistribuida: 'hazenWilliams',
-      metodoPerdidaLocalizada: 'estimado',
+      metodoPerdidaLocalizada: 'estimado', granularidadHidraulica: 'profesional',
       materialTuberiaId: 'ppr',
       sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
     },
@@ -628,7 +628,7 @@ describe('resolverPresionResidualDeCamino — metodoPerdidaLocalizada=estimado (
       redHidraulica: { nodos: [{ id: 'solo', referencia: referenciaDe('uf-1', 'local-1', 'inst-1'), cota_m: 3 }], tramos: [] },
       configuracionHidraulica: {
         metodoPerdidaDistribuida: 'hazenWilliams',
-        metodoPerdidaLocalizada: 'estimado',
+        metodoPerdidaLocalizada: 'estimado', granularidadHidraulica: 'profesional',
         materialTuberiaId: 'ppr',
         sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
       },

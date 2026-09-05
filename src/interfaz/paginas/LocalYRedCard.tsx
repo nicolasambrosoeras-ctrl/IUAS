@@ -13,11 +13,25 @@
 // tee -- no es una limitación de este componente, es el alcance ya
 // cerrado de CRIT-A31.
 //
+// GranularidadHidraulica (D-δ.44, corrección de granularidad de D-δ.43):
+// ORTOGONAL al modo detallado/estimado -- decide, DENTRO del modo
+// detallado, si Longitud/Accesorios se piden por cada Tramo real (
+// 'profesional', comportamiento sin cambios) o solo sobre el Tramo
+// representativo del Local+red ('simplificada', la unidad de
+// relevamiento físico aprobada). En 'simplificada' los ramales
+// terminales NUNCA muestran su propio input de Longitud ni su propio
+// editor de Accesorios -- solo aparecen listados por nombre
+// ("Distribución: Lavatorio, Ducha, ...") y, si corresponde, con su tee
+// inline (CRIT-A31 no depende de la granularidad: la tee sigue
+// configurándose y aportando Ks por rama real en ambos modos).
+//
 // Modo estimado: sin editor de accesorios/tees (D-δ.40 ya cerró que
 // mostrarlo ahí sugeriría falsamente que esa geometría participa del
 // cálculo activo) -- solo el resumen agregado de
-// resolverPerdidaLocalizadaEstimadaDeLocal.
-import type { Proyecto } from '../../modelo/proyecto'
+// resolverPerdidaLocalizadaEstimadaDeLocal. GranularidadHidraulica no
+// aplica acá (ya es Local+red, D-δ.40 nunca tuvo relevamiento por
+// Artefacto).
+import type { GranularidadHidraulica, Proyecto } from '../../modelo/proyecto'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia'
@@ -39,12 +53,78 @@ const estiloCard = {
   marginBottom: '1rem',
 }
 
+function SeccionDeTeeInline({
+  proyecto,
+  catalogoArtefactos,
+  nodo,
+  onCambiar,
+}: {
+  proyecto: Proyecto
+  catalogoArtefactos: readonly ArtefactoNormativo[]
+  nodo: NodoDelArbolDeLocal
+  onCambiar: (proyecto: Proyecto) => void
+}) {
+  if (nodo.bifurcacion === undefined) {
+    return null
+  }
+  return (
+    <div style={{ marginLeft: '1rem', marginTop: '0.5rem' }}>
+      <strong>Tee</strong>
+      <TeeDeNodoEditor
+        proyecto={proyecto}
+        nodoDeBifurcacion={nodo.bifurcacion}
+        etiquetasDeSalida={Object.fromEntries(
+          nodo.bifurcacion.tramosSalientesIds.map((tramoSalienteId) => [
+            tramoSalienteId,
+            nombresDeArtefactosAguasAbajo(proyecto, catalogoArtefactos, tramoSalienteId),
+          ]),
+        )}
+        onCambiar={onCambiar}
+      />
+    </div>
+  )
+}
+
+// Granularidad 'simplificada' (D-δ.44): recorre los Nodos más profundos
+// que el representativo SOLO para encontrar tees reales que configurar
+// (CRIT-A31 no depende de la granularidad) -- nunca muestra
+// Dimensionamiento ni Accesorios de esos Nodos, ni siquiera cuando son
+// terminales. No es un árbol distinto: es la misma
+// construirArbolDeLocal, presentada distinto.
+function RamalesSimplificados({
+  proyecto,
+  catalogoArtefactos,
+  nodo,
+  onCambiar,
+}: {
+  proyecto: Proyecto
+  catalogoArtefactos: readonly ArtefactoNormativo[]
+  nodo: NodoDelArbolDeLocal
+  onCambiar: (proyecto: Proyecto) => void
+}) {
+  return (
+    <>
+      <SeccionDeTeeInline proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} nodo={nodo} onCambiar={onCambiar} />
+      {nodo.hijos.map((hijo) => (
+        <RamalesSimplificados
+          key={hijo.tramoId}
+          proyecto={proyecto}
+          catalogoArtefactos={catalogoArtefactos}
+          nodo={hijo}
+          onCambiar={onCambiar}
+        />
+      ))}
+    </>
+  )
+}
+
 function NodoDeArbol({
   proyecto,
   catalogoArtefactos,
   red,
   nodo,
   esRaiz,
+  granularidadHidraulica,
   onCambiar,
 }: {
   proyecto: Proyecto
@@ -52,6 +132,7 @@ function NodoDeArbol({
   red: RedDeTramo
   nodo: NodoDelArbolDeLocal
   esRaiz: boolean
+  granularidadHidraulica: GranularidadHidraulica
   onCambiar: (proyecto: Proyecto) => void
 }) {
   const resultado = resolverResultadoDeTramoParaUi(proyecto, nodo.tramoId, catalogoArtefactos)
@@ -81,33 +162,61 @@ function NodoDeArbol({
         velocidadReal_mps={resultado.velocidadReal_mps}
         onCambiar={onCambiar}
       />
-      {nodo.bifurcacion !== undefined ? (
-        <div style={{ marginLeft: '1rem', marginTop: '0.5rem' }}>
-          <strong>Tee</strong>
-          <TeeDeNodoEditor
-            proyecto={proyecto}
-            nodoDeBifurcacion={nodo.bifurcacion}
-            etiquetasDeSalida={Object.fromEntries(
-              nodo.bifurcacion.tramosSalientesIds.map((tramoSalienteId) => [
-                tramoSalienteId,
-                nombresDeArtefactosAguasAbajo(proyecto, catalogoArtefactos, tramoSalienteId),
-              ]),
-            )}
-            onCambiar={onCambiar}
-          />
-        </div>
-      ) : null}
-      {nodo.hijos.map((hijo) => (
-        <NodoDeArbol
-          key={hijo.tramoId}
-          proyecto={proyecto}
-          catalogoArtefactos={catalogoArtefactos}
-          red={red}
-          nodo={hijo}
-          esRaiz={false}
-          onCambiar={onCambiar}
-        />
-      ))}
+      <SeccionDeTeeInline proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} nodo={nodo} onCambiar={onCambiar} />
+      {granularidadHidraulica === 'simplificada'
+        ? nodo.hijos.map((hijo) => (
+            <RamalesSimplificados
+              key={hijo.tramoId}
+              proyecto={proyecto}
+              catalogoArtefactos={catalogoArtefactos}
+              nodo={hijo}
+              onCambiar={onCambiar}
+            />
+          ))
+        : nodo.hijos.map((hijo) => (
+            <NodoDeArbol
+              key={hijo.tramoId}
+              proyecto={proyecto}
+              catalogoArtefactos={catalogoArtefactos}
+              red={red}
+              nodo={hijo}
+              esRaiz={false}
+              granularidadHidraulica={granularidadHidraulica}
+              onCambiar={onCambiar}
+            />
+          ))}
+    </div>
+  )
+}
+
+// Lista de destinos del Local+red bajo granularidad 'simplificada' -- el
+// usuario nunca necesita el desglose por Tramo (D-δ.44): solo qué
+// Artefactos alcanza esta red. Se deriva de la topología real
+// (obtenerArtefactosAguasAbajo vía nombresDeArtefactosAguasAbajo), nunca
+// listada a mano.
+function ListaDeDistribucion({
+  proyecto,
+  catalogoArtefactos,
+  tramoPrincipalId,
+}: {
+  proyecto: Proyecto
+  catalogoArtefactos: readonly ArtefactoNormativo[]
+  tramoPrincipalId: string
+}) {
+  const nombres = nombresDeArtefactosAguasAbajo(proyecto, catalogoArtefactos, tramoPrincipalId)
+    .split(', ')
+    .filter((nombre) => nombre.length > 0)
+  if (nombres.length === 0) {
+    return null
+  }
+  return (
+    <div style={{ marginTop: '0.5rem' }}>
+      <strong>Distribución</strong>
+      <ul style={{ margin: '0.25rem 0' }}>
+        {nombres.map((nombre) => (
+          <li key={nombre}>{nombre}</li>
+        ))}
+      </ul>
     </div>
   )
 }
@@ -190,6 +299,7 @@ export function LocalYRedCard({
   onCambiar: (proyecto: Proyecto) => void
 }) {
   const modoDetallado = proyecto.configuracionHidraulica.metodoPerdidaLocalizada === 'detallado'
+  const granularidadHidraulica = proyecto.configuracionHidraulica.granularidadHidraulica
 
   return (
     <article style={estiloCard}>
@@ -198,14 +308,24 @@ export function LocalYRedCard({
       </h4>
       {modoDetallado ? (
         proyecto.redHidraulica !== undefined ? (
-          <NodoDeArbol
-            proyecto={proyecto}
-            catalogoArtefactos={catalogoArtefactos}
-            red={red}
-            nodo={construirArbolDeLocal(proyecto.redHidraulica, tramoPrincipalId)}
-            esRaiz
-            onCambiar={onCambiar}
-          />
+          <>
+            <NodoDeArbol
+              proyecto={proyecto}
+              catalogoArtefactos={catalogoArtefactos}
+              red={red}
+              nodo={construirArbolDeLocal(proyecto.redHidraulica, tramoPrincipalId)}
+              esRaiz
+              granularidadHidraulica={granularidadHidraulica}
+              onCambiar={onCambiar}
+            />
+            {granularidadHidraulica === 'simplificada' ? (
+              <ListaDeDistribucion
+                proyecto={proyecto}
+                catalogoArtefactos={catalogoArtefactos}
+                tramoPrincipalId={tramoPrincipalId}
+              />
+            ) : null}
+          </>
         ) : null
       ) : (
         <ResumenEstimadoDeLocal

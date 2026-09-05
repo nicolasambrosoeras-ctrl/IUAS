@@ -10,6 +10,7 @@ import type {
 } from '../../modelo/proyecto'
 import type { AccesorioDeTramo, Nodo, RedHidraulica, ReferenciaDeArtefacto, Tramo } from '../../modelo/redHidraulica'
 import { catalogoArtefactos, type ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
+import { validarRedHidraulica } from '../../validacion/redHidraulica'
 import { catalogoSistemasDeTuberia } from '../tuberias/sistemaDeTuberia'
 import { catalogoMaterialesTuberia } from '../tuberias/materialTuberia'
 import { resolverPresionResidualDeCamino } from '../tuberias/presion/resolverPresionResidualDeCamino'
@@ -45,6 +46,7 @@ function configuracion(metodoPerdidaLocalizada: MetodoPerdidaLocalizada): Config
   return {
     metodoPerdidaDistribuida: 'hazenWilliams',
     metodoPerdidaLocalizada,
+    granularidadHidraulica: 'profesional',
     materialTuberiaId: 'ppr',
     sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
   }
@@ -501,5 +503,100 @@ describe('resolverEstadoModulo2 — completo', () => {
     expect(resultado.terminalesFueraDeAlcance).toEqual([
       { tipo: 'sinPresionMinimaPublicada', nodoId: 'terminal-lavavajillas', artefactoIdCatalogo: 'maquinaLavavajillas' },
     ])
+  })
+})
+
+// Test clave de regresión de D-δ.44 (corrección de granularidad de
+// D-δ.43): un Local con 3 Artefactos (Lavatorio, Ducha, Inodoro a
+// depósito) tras DOS tees anidadas -- exactamente el escenario que D-δ.43
+// convirtió incorrectamente en unidades de relevamiento por Artefacto.
+// Topología: raiz -> t0 (representativo de local-1/AF, CON su propia
+// longitud/accesorios) -> n-tee1 (tee1) -bifurca-> lavatorio y n-tee2;
+// n-tee2 (tee2) -bifurca-> ducha e inodoro. NINGÚN Tramo más profundo que
+// t0 tiene longitud_m ni accesorios propios -- ambas tees SÍ están
+// configuradas (CRIT-A31 no depende de la granularidad). El balance debe
+// completarse igual, sin ese dato "por artefacto".
+function proyectoLocalTresArtefactosConTeesAnidadas(granularidad: 'simplificada' | 'profesional'): Proyecto {
+  const uf: UnidadFuncional = {
+    id: 'uf-1',
+    nombre: 'uf-1',
+    locales: [
+      {
+        id: 'local-1',
+        tipo: 'bano',
+        regimen: 'domiciliario',
+        artefactos: [
+          artefacto('inst-lavatorio', 'lavatorio'),
+          artefacto('inst-ducha', 'receptaculoDucha'),
+          artefacto('inst-inodoro', 'inodoroDeposito'),
+        ],
+      },
+    ],
+  }
+  const nodos: Nodo[] = [
+    // raiz -> n-0 es Distribución General (mismo patrón que t-general ->
+    // n-0 en el proyecto demo real, MotorDemandaPantalla.tsx) -- SIN este
+    // nivel intermedio, t0 (el primer Tramo tras la raíz absoluta) queda
+    // misclasificado como si fuera él mismo el representativo de
+    // local-1, exactamente el mismo caso límite documentado en
+    // acumularPerdidaLocalizadaDeCamino.test.ts (proyectoConTee).
+    { id: 'raiz', cota_m: 0 },
+    { id: 'n-0' },
+    { id: 'n-tee1', tee: { tipo: 'entradaCentral' } },
+    { id: 'n-tee2', tee: { tipo: 'entradaCentral' } },
+    { id: 'terminal-lavatorio', referencia: referenciaDe('uf-1', 'local-1', 'inst-lavatorio'), cota_m: 3 },
+    { id: 'terminal-ducha', referencia: referenciaDe('uf-1', 'local-1', 'inst-ducha'), cota_m: 3 },
+    { id: 'terminal-inodoro', referencia: referenciaDe('uf-1', 'local-1', 'inst-inodoro'), cota_m: 3 },
+  ]
+  const tramos: Tramo[] = [
+    { id: 't-general', nodoOrigenId: 'raiz', nodoDestinoId: 'n-0', red: 'AF', longitud_m: 2, accesorios: [] },
+    // Único Tramo "relevable" bajo granularidad simplificada: representativo de local-1/AF.
+    { id: 't0', nodoOrigenId: 'n-0', nodoDestinoId: 'n-tee1', red: 'AF', longitud_m: 4, accesorios: [] },
+    // Ramales -- deliberadamente SIN longitud_m ni accesorios.
+    { id: 't-lavatorio', nodoOrigenId: 'n-tee1', nodoDestinoId: 'terminal-lavatorio', red: 'AF' },
+    { id: 't-a-tee2', nodoOrigenId: 'n-tee1', nodoDestinoId: 'n-tee2', red: 'AF' },
+    { id: 't-ducha', nodoOrigenId: 'n-tee2', nodoDestinoId: 'terminal-ducha', red: 'AF' },
+    { id: 't-inodoro', nodoOrigenId: 'n-tee2', nodoDestinoId: 'terminal-inodoro', red: 'AF' },
+  ]
+  const proyecto = proyectoCon([uf], { nodos, tramos })
+  return {
+    ...proyecto,
+    configuracionHidraulica: { ...proyecto.configuracionHidraulica, granularidadHidraulica: granularidad },
+  }
+}
+
+describe("resolverEstadoModulo2 — granularidadHidraulica 'simplificada' (D-δ.44, test clave de regresión)", () => {
+  it('Local con 3 Artefactos y 2 tees anidadas llega a completo SIN longitud/accesorios en ningún ramal terminal', () => {
+    const proyecto = proyectoLocalTresArtefactosConTeesAnidadas('simplificada')
+    expect(validarRedHidraulica(proyecto)).toEqual([])
+
+    const resultado = resolverEstadoModulo2(
+      proyecto,
+      P_DISPONIBLE,
+      HF_MEDIDOR_MCA,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    expect(resultado.estado).toBe('completo')
+    if (resultado.estado !== 'completo') return
+    expect(resultado.terminalMasDesfavorable.tipo).toBe('determinado')
+    expect(resultado.terminalesFueraDeAlcance).toEqual([])
+  })
+
+  it("'profesional' (default): la MISMA topología, sin longitud/accesorios en los ramales, queda incompleta -- confirma que el cambio de comportamiento es exclusivo de 'simplificada'", () => {
+    const proyecto = proyectoLocalTresArtefactosConTeesAnidadas('profesional')
+
+    const resultado = resolverEstadoModulo2(
+      proyecto,
+      P_DISPONIBLE,
+      HF_MEDIDOR_MCA,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    expect(resultado.estado).toBe('incompleto')
   })
 })

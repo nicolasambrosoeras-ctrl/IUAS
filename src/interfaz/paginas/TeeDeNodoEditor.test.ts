@@ -41,7 +41,7 @@ function proyectoConBifurcacion(teeDelNodoMid?: Nodo['tee']): Proyecto {
     redHidraulica,
     configuracionHidraulica: {
       metodoPerdidaDistribuida: 'hazenWilliams',
-      metodoPerdidaLocalizada: 'detallado',
+      metodoPerdidaLocalizada: 'detallado', granularidadHidraulica: 'profesional',
       materialTuberiaId: 'ppr',
       sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
     },

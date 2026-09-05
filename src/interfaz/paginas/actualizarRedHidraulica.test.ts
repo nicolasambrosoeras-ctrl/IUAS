@@ -19,7 +19,7 @@ function proyectoDePrueba(redHidraulica?: RedHidraulica): Proyecto {
       alturaArtefactoMasDesfavorable_m: 3,
     },
     unidadesFuncionales: [{ id: 'uf-1', nombre: 'UF 1', locales: [] }],
-    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'detallado', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
+    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'detallado', granularidadHidraulica: 'profesional', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
     ...(redHidraulica !== undefined ? { redHidraulica } : {}),
   }
 }

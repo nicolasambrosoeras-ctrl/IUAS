@@ -4,7 +4,7 @@
 // reconstruye el objeto desde cero, para no pisar un campo que no le
 // corresponde modificar. No generaliza a un updater generico: son campos
 // con semantica distinta cada uno, no una lista abierta.
-import type { MaterialTuberiaId, MetodoPerdidaDistribuida, MetodoPerdidaLocalizada, Proyecto } from '../../modelo/proyecto'
+import type { GranularidadHidraulica, MaterialTuberiaId, MetodoPerdidaDistribuida, MetodoPerdidaLocalizada, Proyecto } from '../../modelo/proyecto'
 
 export function conMetodoPerdidaDistribuida(proyecto: Proyecto, metodo: MetodoPerdidaDistribuida): Proyecto {
   return {
@@ -23,6 +23,20 @@ export function conMetodoPerdidaLocalizada(proyecto: Proyecto, metodo: MetodoPer
   return {
     ...proyecto,
     configuracionHidraulica: { ...proyecto.configuracionHidraulica, metodoPerdidaLocalizada: metodo },
+  }
+}
+
+// Ortogonal a conMetodoPerdidaLocalizada (D-δ.44): decide QUÉ Tramos
+// físicos participan de la acumulación de pérdida, nunca CÓMO se calcula
+// la pérdida localizada -- mismo criterio de no-pérdida-de-datos que el
+// resto de este archivo (alternar granularidad no borra longitud_m ni
+// accesorios ya declarados sobre ningún Tramo, incluidos los ramales:
+// simplemente esos ramales dejan de participar de la acumulación
+// mientras la granularidad activa sea 'simplificada').
+export function conGranularidadHidraulica(proyecto: Proyecto, granularidad: GranularidadHidraulica): Proyecto {
+  return {
+    ...proyecto,
+    configuracionHidraulica: { ...proyecto.configuracionHidraulica, granularidadHidraulica: granularidad },
   }
 }
 

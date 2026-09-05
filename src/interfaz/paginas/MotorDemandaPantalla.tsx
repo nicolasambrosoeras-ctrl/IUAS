@@ -727,6 +727,12 @@ const proyectoInicial: Proyecto = {
   configuracionHidraulica: {
     metodoPerdidaDistribuida: 'hazenWilliams',
     metodoPerdidaLocalizada: 'detallado',
+    // Simplificada por defecto (D-δ.44): el proyecto de ejemplo debe
+    // reflejar la experiencia recomendada de un proyectista típico --
+    // longitud/accesorios a nivel Local+red, nunca por Artefacto. El
+    // modo profesional sigue disponible desde el selector sin perder
+    // ningún dato ya cargado.
+    granularidadHidraulica: 'simplificada',
     materialTuberiaId: 'ppr',
     sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
   },

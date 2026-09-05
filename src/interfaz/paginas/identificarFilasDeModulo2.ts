@@ -1,16 +1,15 @@
-// Agrupamiento de topología física para la vista principal de Módulo 2:
-// identifica, de forma puramente estructural (sin heurísticas de string
-// de ID de Tramo/Nodo), qué Tramos representan la Distribución general del
-// proyecto y cuál es el Tramo principal de cada (Local, Red). No calcula
-// nada hidráulico ni reimplementa el traversal topológico: usa
-// obtenerArtefactosAguasAbajo tal cual para decidir, por Tramo, a qué
-// Local pertenece en exclusiva. Esto es exclusivamente una selección de
-// presentación -- la topología completa (incluidos los Tramos terminales
-// que esta selección deja fuera de la vista principal) sigue existiendo
-// íntegra en RedHidraulica para el motor.
-import type { Local, Proyecto } from '../../modelo/proyecto'
-import type { Nodo, RedDeTramo, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
-import { obtenerArtefactosAguasAbajo } from '../../motor/tuberias/topologia/obtenerArtefactosAguasAbajo'
+// Agrupamiento de presentación para la vista principal de Módulo 2: qué
+// Tramos representan la Distribución general del proyecto y cuál es el
+// Tramo principal de cada (Local, Red). La clasificación estructural en sí
+// (qué Tramo es "representativo" de un Local+Red) ahora vive en el motor
+// -- motor/tuberias/topologia/identificarTramoRepresentativoDeLocal.ts,
+// D-δ.44 -- porque acumularPerdidaDistribuidaDeCamino/
+// acumularPerdidaLocalizadaDeCamino también la necesitan (granularidad
+// 'simplificada'); este archivo solo la envuelve para producir las
+// etiquetas/estructuras que la UI consume, sin duplicar el algoritmo.
+import type { Proyecto, Local } from '../../modelo/proyecto'
+import type { Nodo, RedDeTramo, Tramo } from '../../modelo/redHidraulica'
+import { identificarTramosRepresentativosDeLocales } from '../../motor/tuberias/topologia/identificarTramoRepresentativoDeLocal'
 
 export type FilaDistribucionGeneral = {
   readonly etiqueta: string
@@ -25,61 +24,12 @@ export type FilaPrincipalDeLocal = {
   readonly tramoId: string
 }
 
-type IdentidadDeLocal = {
-  readonly unidadFuncionalId: string
-  readonly localId: string
-}
-
-// Un Tramo es "puro" de un Local cuando la totalidad de los Artefactos
-// alcanzables aguas abajo (ya deduplicados por obtenerArtefactosAguasAbajo)
-// pertenece a un único Local. No se compara contra el inventario completo
-// del Local: un Tramo AC puro solo alcanza los Artefactos con conectividad
-// física AC de ese Local (CRIT-A15), y eso es exactamente lo esperado --
-// un Local sin ningún Artefacto conectado a AC simplemente no produce
-// ningún Tramo "puro" en esa Red.
-function localUnicoDeTramo(proyecto: Proyecto, tramoId: string): IdentidadDeLocal | undefined {
-  const referencias = obtenerArtefactosAguasAbajo(proyecto, tramoId)
-  if (referencias.length === 0) {
-    return undefined
-  }
-
-  // JSON.stringify de la tupla, mismo criterio que obtenerArtefactosAguasAbajo:
-  // un separador de texto simple no puede descartar colisiones si el modelo
-  // no prohíbe "::" dentro de un id.
-  const claves = new Set(referencias.map((r) => JSON.stringify([r.unidadFuncionalId, r.localId])))
-  if (claves.size !== 1) {
-    return undefined
-  }
-
-  const primera = referencias[0]!
-  return { unidadFuncionalId: primera.unidadFuncionalId, localId: primera.localId }
-}
-
-// Selección de presentación, NO autoridad hidráulica: devuelve el primer
-// Tramo cuyo nodoDestinoId coincide con el nodoOrigenId de `tramo`, sólo
-// para decidir si dos Tramos consecutivos son "puros del mismo Local" y
-// colapsarlos en una fila. El recorrido hidráulico real hacia el origen
-// (desnivel, Σhf, balance de presión) NO usa este `find()`: lo resuelve
-// `obtenerCaminoHaciaOrigen` (CRIT-A27), que ante múltiples tramos
-// entrantes en un nodo devuelve un estado no resoluble en vez de elegir
-// uno. Sobre la topología ramificada que los motores hidráulicos
-// declaran resoluble (un tramo entrante por nodo) este `find()` es
-// exacto; una topología con convergencia/paralelos ya no produce ningún
-// resultado hidráulico presentable, así que no hay fila que agrupar.
-function buscarTramoPadre(redHidraulica: RedHidraulica, tramo: Tramo): Tramo | undefined {
-  return redHidraulica.tramos.find((candidato) => candidato.nodoDestinoId === tramo.nodoOrigenId)
-}
-
 // Clasificación estructural de un Tramo como perteneciente a la
 // Distribución general (raíz de toda la topología, o alimentación hacia
 // produccionACS), sin depender de ningún id literal de la topología demo
-// (t-general/t-af-acs). Se calcula una sola vez y se comparte entre
-// identificarFilasDistribucionGeneral e identificarFilasPrincipalesDeLocales:
-// un Tramo de Distribución general nunca debe además aparecer como
-// principal de un Local, aunque su conjunto aguas abajo resulte "puro" de
-// un único Local (caso límite: un proyecto donde un único Local concentra
-// toda el agua caliente del edificio -- t-af-acs seguiría siendo la fila
-// de Alimentación ACS, nunca una fila de ese Local).
+// (t-general/t-af-acs). Usada solo para identificarFilasDistribucionGeneral
+// -- identificarTramosRepresentativosDeLocales ya aplica el mismo criterio
+// internamente para excluir estos Tramos de sus resultados.
 function clasificarTramoDeDistribucionGeneral(
   idsConTramoEntrante: ReadonlySet<string>,
   nodosPorId: ReadonlyMap<string, Nodo>,
@@ -127,50 +77,30 @@ export function identificarFilasDistribucionGeneral(proyecto: Proyecto): readonl
   return filas
 }
 
-// Tramo principal de cada (Local, Red): el Tramo "puro" de ese Local más
-// cercano a la raíz -- aquel cuyo Tramo padre (si existe) ya no es puro de
-// ese mismo Local (porque no es puro de ningún Local, al alcanzar más de
-// uno). Los Tramos puros más profundos (terminales hacia cada Artefacto)
-// quedan excluidos porque su padre ya cubre exactamente el mismo Local.
+// Tramo principal de cada (Local, Red): envuelve
+// identificarTramosRepresentativosDeLocales (motor) agregando `red` --
+// la única información que ese primitivo de dominio no necesita conocer,
+// porque no participa de la clasificación (solo de la etiqueta de fila).
 export function identificarFilasPrincipalesDeLocales(proyecto: Proyecto): readonly FilaPrincipalDeLocal[] {
   const { redHidraulica } = proyecto
   if (redHidraulica === undefined) {
     return []
   }
 
-  const idsConTramoEntrante = new Set(redHidraulica.tramos.map((tramo) => tramo.nodoDestinoId))
-  const nodosPorId = new Map(redHidraulica.nodos.map((nodo) => [nodo.id, nodo]))
-  const esDeDistribucionGeneral = (tramo: Tramo): boolean =>
-    clasificarTramoDeDistribucionGeneral(idsConTramoEntrante, nodosPorId, tramo) !== undefined
+  const representativos = identificarTramosRepresentativosDeLocales(proyecto)
+  const tramosPorId = new Map(redHidraulica.tramos.map((tramo) => [tramo.id, tramo]))
 
   const filas: FilaPrincipalDeLocal[] = []
-
-  for (const tramo of redHidraulica.tramos) {
-    // Un Tramo de Distribución general (raíz, o alimentación a
-    // produccionACS) nunca es la fila principal de un Local, aunque su
-    // conjunto aguas abajo resulte "puro" de uno solo -- ver el comentario
-    // de clasificarTramoDeDistribucionGeneral.
-    if (esDeDistribucionGeneral(tramo)) {
+  for (const [tramoId, identidad] of representativos) {
+    const tramo = tramosPorId.get(tramoId)
+    if (tramo === undefined) {
       continue
     }
-
-    const identidad = localUnicoDeTramo(proyecto, tramo.id)
-    if (identidad === undefined) {
-      continue
-    }
-
-    const padre = buscarTramoPadre(redHidraulica, tramo)
-    const padreEsMismoLocal =
-      padre !== undefined && !esDeDistribucionGeneral(padre) && localUnicoDeTramo(proyecto, padre.id) !== undefined
-    if (padreEsMismoLocal) {
-      continue
-    }
-
     filas.push({
       unidadFuncionalId: identidad.unidadFuncionalId,
       localId: identidad.localId,
       red: tramo.red,
-      tramoId: tramo.id,
+      tramoId,
     })
   }
 

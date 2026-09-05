@@ -27,7 +27,7 @@ function proyectoCon(unidadesFuncionales: readonly UnidadFuncional[]): Proyecto 
       alturaArtefactoMasDesfavorable_m: 0,
     },
     unidadesFuncionales,
-    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'detallado', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
+    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'detallado', granularidadHidraulica: 'profesional', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
   }
 }
 
@@ -132,7 +132,7 @@ function proyectoConToilette(): Proyecto {
     redHidraulica,
     configuracionHidraulica: {
       metodoPerdidaDistribuida: 'hazenWilliams',
-      metodoPerdidaLocalizada: 'detallado',
+      metodoPerdidaLocalizada: 'detallado', granularidadHidraulica: 'profesional',
       materialTuberiaId: 'ppr',
       sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
     },
@@ -184,7 +184,7 @@ describe('ResultadoHidraulicoDeTramo (UI) — D-δ.43', () => {
     expect(html).not.toContain('t-af-toilette-lavatorio')
   })
 
-  it('el ramal terminal hacia cada Artefacto tiene su propio editor de accesorios (deuda de D-δ.42 cerrada)', () => {
+  it("'profesional': el ramal terminal hacia cada Artefacto tiene su propio editor de accesorios (deuda de D-δ.42 cerrada)", () => {
     const proyecto = proyectoConToilette()
 
     const html = renderToStaticMarkup(
@@ -192,7 +192,84 @@ describe('ResultadoHidraulicoDeTramo (UI) — D-δ.43', () => {
     )
 
     // "Relevar accesorios" aparece una vez por tramo con accesorios===undefined
-    // (tramo de alimentación + 2 ramales = 3 en este fixture).
-    expect(html.match(/Relevar accesorios/g)?.length).toBe(3)
+    // (Distribución general + tramo de alimentación + 2 ramales = 4 en
+    // este fixture).
+    expect(html.match(/Relevar accesorios/g)?.length).toBe(4)
+  })
+})
+
+describe("ResultadoHidraulicoDeTramo (UI) — granularidadHidraulica 'simplificada' (D-δ.44, corrección de granularidad de D-δ.43)", () => {
+  function proyectoConToiletteSimplificado(): Proyecto {
+    const proyecto = proyectoConToilette()
+    return {
+      ...proyecto,
+      configuracionHidraulica: { ...proyecto.configuracionHidraulica, granularidadHidraulica: 'simplificada' },
+    }
+  }
+
+  it('un único input de Longitud por Local+red -- ningún ramal terminal pide longitud propia', () => {
+    const proyecto = proyectoConToiletteSimplificado()
+
+    const html = renderToStaticMarkup(
+      createElement(ResultadoHidraulicoDeTramo, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
+    )
+
+    // Distribución general (2: general + ACS, aunque este fixture solo
+    // tiene AF asi que 1) + el único Tramo de alimentación del Toilette:
+    // el input de Longitud [m] vive en el <details> de Detalle técnico de
+    // DimensionamientoDeTramo -- se cuenta por cuántos aparecen, no debe
+    // haber uno por cada Ramal.
+    expect(html.match(/Longitud \[m\]/g)?.length).toBe(2) // Alimentación general + Tramo de alimentación del Toilette
+    expect(html).not.toContain('Ramal Lavatorio')
+    expect(html).not.toContain('Ramal Inodoro')
+  })
+
+  it('un único editor de accesorios por Local+red -- ningún ramal terminal tiene su propio "Relevar accesorios"', () => {
+    const proyecto = proyectoConToiletteSimplificado()
+
+    const html = renderToStaticMarkup(
+      createElement(ResultadoHidraulicoDeTramo, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
+    )
+
+    // Distribución general (siempre exige su propio relevamiento, en
+    // ambas granularidades) + el único Tramo de alimentación del Toilette
+    // -- nunca uno por cada Ramal (Lavatorio/Inodoro).
+    expect(html.match(/Relevar accesorios/g)?.length).toBe(2)
+  })
+
+  it('los Artefactos siguen listados por nombre bajo "Distribución", y AF/AC siguen distinguidos', () => {
+    const proyecto = proyectoConToiletteSimplificado()
+
+    const html = renderToStaticMarkup(
+      createElement(ResultadoHidraulicoDeTramo, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
+    )
+
+    expect(html).toContain('Distribución')
+    expect(html).toContain('Lavatorio')
+    expect(html).toContain('Inodoro a depósito')
+    expect(html).toContain('Agua fría')
+  })
+
+  it('la tee sigue inline dentro del Local+red, sin sección global -- CRIT-A31 no depende de la granularidad', () => {
+    const proyecto = proyectoConToiletteSimplificado()
+
+    const html = renderToStaticMarkup(
+      createElement(ResultadoHidraulicoDeTramo, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
+    )
+
+    expect(html).not.toContain('Tees (bifurcaciones)')
+    expect(html).toContain('Tee')
+    expect(html).toContain('Bifurcación sin configurar')
+  })
+
+  it('nunca expone ids técnicos de Nodo/Tramo, igual que en modo profesional', () => {
+    const proyecto = proyectoConToiletteSimplificado()
+
+    const html = renderToStaticMarkup(
+      createElement(ResultadoHidraulicoDeTramo, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
+    )
+
+    expect(html).not.toContain('n-toilette-1')
+    expect(html).not.toContain('t-af-toilette-lavatorio')
   })
 })

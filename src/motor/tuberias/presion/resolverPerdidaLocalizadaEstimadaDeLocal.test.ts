@@ -46,7 +46,7 @@ function proyectoCon(
     redHidraulica,
     configuracionHidraulica: {
       metodoPerdidaDistribuida: 'hazenWilliams',
-      metodoPerdidaLocalizada: 'estimado',
+      metodoPerdidaLocalizada: 'estimado', granularidadHidraulica: 'profesional',
       materialTuberiaId: 'ppr',
       sistemaDeTuberiaId,
     },

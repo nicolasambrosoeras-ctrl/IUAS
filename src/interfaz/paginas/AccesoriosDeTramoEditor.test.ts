@@ -29,7 +29,7 @@ function proyectoConTramo(tramo: Tramo): Proyecto {
   const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n1' }]
   const redHidraulica: RedHidraulica = { nodos, tramos: [tramo] }
   const unidadesFuncionales: UnidadFuncional[] = []
-  return { metadatos: metadatos(), parametros: parametros(), unidadesFuncionales, redHidraulica, configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'detallado', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' } }
+  return { metadatos: metadatos(), parametros: parametros(), unidadesFuncionales, redHidraulica, configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'detallado', granularidadHidraulica: 'profesional', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' } }
 }
 
 describe('nombreDeAccesorio', () => {

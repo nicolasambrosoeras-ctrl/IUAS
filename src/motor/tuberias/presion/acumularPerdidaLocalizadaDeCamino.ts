@@ -31,15 +31,30 @@
 // algún Tramo del camino no llega a tener su pérdida localizada
 // calculada, la acumulación NO devuelve una suma parcial -- devuelve
 // 'incompleta' listando todos los tramos no resueltos con su motivo.
+//
+// GranularidadHidraulica (D-δ.44): en 'profesional', comportamiento
+// original sin cambios -- cada Tramo del camino exige su propia
+// resolución comercial + clasificación de tee + accesorios relevados.
+// En 'simplificada', seleccionarTramosDeAcumulacion separa los Tramos
+// "ramal" (aguas abajo del representativo del Local+red): la tee (CRIT-
+// A31) sigue evaluándose sobre ellos (sigue siendo una singularidad
+// nodal real, independiente de la granularidad), pero sus accesorios en
+// línea NUNCA se exigen ni se suman -- contribuyen 0 a esa parte de
+// hfLocalizada por definición del modelo simplificado. Si el Nodo de
+// origen de un ramal no es una bifurcación de tee, el ramal entero
+// contribuye 0 sin necesitar siquiera resolver su diámetro comercial
+// (nada que computar sobre él).
 import type { Proyecto } from '../../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../../normativa/eras-2023/catalogo-artefactos'
 import { obtenerKsDeAccesorio } from '../../../normativa/eras-2023/tabla-07-perdidas-localizadas'
 import type { SistemaDeTuberiaCatalogado } from '../sistemaDeTuberia'
+import type { Tramo } from '../../../modelo/redHidraulica'
 import type { CaminoHaciaOrigen } from '../topologia/obtenerCaminoHaciaOrigen'
 import { resolverClasificacionDeTee } from '../topologia/resolverClasificacionDeTee'
 import { resolverDiametroComercialDeTramo } from '../resolverDiametroComercialDeTramo'
 import { resolverPerdidaLocalizadaDeTramo } from '../perdidaCarga/resolverPerdidaLocalizadaDeTramo'
 import { calcularPerdidaCargaLocalizada } from '../perdidaCarga/calcularPerdidaCargaLocalizada'
+import { seleccionarTramosDeAcumulacion } from './seleccionarTramosDeAcumulacion'
 
 export type MotivoTramoSinPerdidaLocalizada = 'sinDemanda' | 'sinCandidatoAdmisible' | 'sinRelevar' | 'teeSinConfigurar'
 
@@ -68,18 +83,25 @@ export function acumularPerdidaLocalizadaDeCamino(
   catalogoArtefactos: readonly ArtefactoNormativo[],
   catalogoSistemasDeTuberia: readonly SistemaDeTuberiaCatalogado[],
 ): ResultadoPerdidaLocalizadaDeCamino {
-  const { redHidraulica } = proyecto
-  if (redHidraulica === undefined) {
+  const redHidraulicaOpcional = proyecto.redHidraulica
+  if (redHidraulicaOpcional === undefined) {
     // Precondición imposible: un camino real (CaminoHaciaOrigen) solo se
     // obtiene de una RedHidraulica ya existente -- mismo criterio que
     // resolverPresionResidualDeCamino.
     throw new Error('acumularPerdidaLocalizadaDeCamino requiere un proyecto con redHidraulica definida')
   }
+  // Reasignado a un const nuevo para que las funciones anidadas de más
+  // abajo (resolverTeeYVelocidad) conserven el angostamiento: TypeScript
+  // no propaga la narrowing de una desestructuración directa hacia el
+  // interior de un closure.
+  const redHidraulica = redHidraulicaOpcional
 
   const porTramo: { tramoId: string; hf_m: number }[] = []
   const tramosNoResueltos: { tramoId: string; motivo: MotivoTramoSinPerdidaLocalizada }[] = []
 
-  for (const tramo of camino.tramos) {
+  function resolverTeeYVelocidad(
+    tramo: Tramo,
+  ): { tipo: 'noResuelto' } | { tipo: 'resuelto'; hfTee_m: number; velocidadReal_mps: number } {
     const resultadoComercial = resolverDiametroComercialDeTramo(
       proyecto,
       tramo.id,
@@ -89,28 +111,40 @@ export function acumularPerdidaLocalizadaDeCamino(
 
     if (resultadoComercial.tipo === 'sinDemanda') {
       tramosNoResueltos.push({ tramoId: tramo.id, motivo: 'sinDemanda' })
-      continue
+      return { tipo: 'noResuelto' }
     }
     if (resultadoComercial.tipo === 'sinCandidatoAdmisible') {
       tramosNoResueltos.push({ tramoId: tramo.id, motivo: 'sinCandidatoAdmisible' })
-      continue
+      return { tipo: 'noResuelto' }
     }
     const { velocidadReal_mps } = resultadoComercial
 
-    // Tee (CRIT-A31): se evalúa antes que los accesorios propios del
-    // Tramo -- ambas barreras son independientes, pero un Tramo que sale
-    // de una bifurcación de tee sin configurar se reporta por ese motivo
-    // específico, sin necesidad de evaluar además sus accesorios en
-    // línea (que igual podrían estar sin relevar).
     const clasificacionTee = resolverClasificacionDeTee(redHidraulica, tramo.nodoOrigenId, tramo.id)
     if (clasificacionTee.tipo === 'sinConfigurar') {
       tramosNoResueltos.push({ tramoId: tramo.id, motivo: 'teeSinConfigurar' })
-      continue
+      return { tipo: 'noResuelto' }
     }
     const hfTee_m =
       clasificacionTee.tipo === 'clasificado'
         ? calcularPerdidaCargaLocalizada(obtenerKsDeAccesorio(clasificacionTee.idAccesorioTabla07), velocidadReal_mps)
         : 0
+
+    return { tipo: 'resuelto', hfTee_m, velocidadReal_mps }
+  }
+
+  const { tramosRelevables, tramosRamal } = seleccionarTramosDeAcumulacion(proyecto, camino)
+
+  for (const tramo of tramosRelevables) {
+    // Tee (CRIT-A31): se evalúa antes que los accesorios propios del
+    // Tramo -- ambas barreras son independientes, pero un Tramo que sale
+    // de una bifurcación de tee sin configurar se reporta por ese motivo
+    // específico, sin necesidad de evaluar además sus accesorios en
+    // línea (que igual podrían estar sin relevar).
+    const resolucion = resolverTeeYVelocidad(tramo)
+    if (resolucion.tipo !== 'resuelto') {
+      continue
+    }
+    const { hfTee_m, velocidadReal_mps } = resolucion
 
     const resultadoLocalizada = resolverPerdidaLocalizadaDeTramo(tramo.accesorios, velocidadReal_mps)
 
@@ -120,6 +154,26 @@ export function acumularPerdidaLocalizadaDeCamino(
     }
 
     porTramo.push({ tramoId: tramo.id, hf_m: resultadoLocalizada.hf_m + hfTee_m })
+  }
+
+  // Ramales (granularidadHidraulica 'simplificada'): la tee sigue siendo
+  // una singularidad nodal real (CRIT-A31 no depende de la granularidad),
+  // pero sus accesorios en línea propios NUNCA se exigen -- se ignoran
+  // por completo (nunca se llama a resolverPerdidaLocalizadaDeTramo).
+  // Si el Nodo de origen no es una bifurcación de tee, el ramal entero
+  // contribuye 0 sin necesidad de resolver siquiera su diámetro
+  // comercial: no hay nada que computar sobre él bajo este modelo.
+  for (const tramo of tramosRamal) {
+    const clasificacionTee = resolverClasificacionDeTee(redHidraulica, tramo.nodoOrigenId, tramo.id)
+    if (clasificacionTee.tipo === 'noEsBifurcacionDeTee') {
+      continue
+    }
+
+    const resolucion = resolverTeeYVelocidad(tramo)
+    if (resolucion.tipo !== 'resuelto') {
+      continue
+    }
+    porTramo.push({ tramoId: tramo.id, hf_m: resolucion.hfTee_m })
   }
 
   if (tramosNoResueltos.length > 0) {

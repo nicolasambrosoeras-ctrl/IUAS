@@ -58,7 +58,7 @@ function proyectoConFallbackDeVelocidadPorVmin(): { proyecto: Proyecto; tramoId:
     parametros,
     unidadesFuncionales: [uf],
     redHidraulica: { nodos, tramos },
-    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'detallado', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
+    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'detallado', granularidadHidraulica: 'profesional', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
   }
   return { proyecto, tramoId: 't1' }
 }

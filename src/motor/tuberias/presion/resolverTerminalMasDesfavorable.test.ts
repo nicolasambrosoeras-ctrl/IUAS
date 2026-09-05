@@ -222,7 +222,7 @@ function proyectoDosTerminales(): Proyecto {
     redHidraulica: { nodos, tramos },
     configuracionHidraulica: {
       metodoPerdidaDistribuida: 'hazenWilliams',
-      metodoPerdidaLocalizada: 'detallado',
+      metodoPerdidaLocalizada: 'detallado', granularidadHidraulica: 'profesional',
       materialTuberiaId: 'ppr',
       sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
     },
