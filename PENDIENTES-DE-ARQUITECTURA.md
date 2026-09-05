@@ -3216,7 +3216,7 @@ terminal critico (D-delta.47)`.
   falsos positivos en modo simplificado (donde los Nodos terminales
   normalmente no tienen `cota_m` propio).
 
-#### DECISIÓN ROJA PENDIENTE — coma decimal en inputs numéricos (§33)
+#### DECISIÓN ROJA — coma decimal en inputs numéricos (§33) — RESUELTA: queda como deuda, sin tocar código
 
 **Evidencia**: todos los inputs numéricos de M2 usan
 `<input type="number">`. Probado con Playwright (Chromium, configuración
@@ -3266,16 +3266,22 @@ es mecánico). Pero es una decisión de producto (cuánto esfuerzo dedicar
 a esto ahora vs. documentarlo como deuda) que no corresponde tomar
 unilateralmente.
 
-**Pregunta pendiente para el usuario**: ¿corresponde implementar la
-opción 2 (aceptar coma Y punto en todos los inputs numéricos de M2,
-independiente del locale del navegador) ahora, o dejarlo documentado
-como deuda (categoría B/C) para una corrida futura?
+**Decisión del usuario**: dejarlo documentado como deuda por ahora --
+NO tocar código en esta corrida (opción 1 de la lista, statu quo). No
+implementar la migración a texto+parseo propio (opción 2) hasta que se
+decida abordarlo explícitamente en una corrida futura.
 
 #### DEUDA CLASIFICADA
 
-**B. UX menor (documentar, no corregido esta corrida)**:
-- Coma decimal (ver decisión roja arriba) -- pendiente de la respuesta
-  del usuario para decidir si se corrige ahora.
+**B. UX menor (documentado, no corregido — decisión explícita del usuario)**:
+- Coma decimal en `<input type="number">` de M2 (Longitud, Cota UF,
+  Cota terminal, Pdisponible, hfMedidor, cantidad de accesorio): el
+  comportamiento de aceptar "," como separador decimal depende del
+  locale del navegador/SO del usuario, no está garantizado por el
+  código. Alternativa recomendada si se retoma: migrar a `type="text"`
+  + `inputMode="decimal"` + extender `resolverCambioDeLongitud`/
+  `parsearCota`/`parsearEntradaHidraulica` para aceptar "," como alias
+  de "." antes de `Number(...)`.
 
 **D. Diferido / fuera de alcance (no tocar)**:
 - Persistencia entre recargas de Pdisponible/hfMedidor/tipo de
@@ -3313,9 +3319,10 @@ como deuda (categoría B/C) para una corrida futura?
 
 **Estado**: D-δ.47 queda **ABIERTA / PARCIAL** -- dos bugs reales
 encontrados y corregidos con tests/verificación manual, una decisión
-roja pendiente de respuesta del usuario, y una lista de áreas del brief
-todavía sin recorrer explícitamente en esta corrida (ver arriba). El
-repo queda verde (804/804 tests, `tsc -b` y `vite build` limpios, lint
-en baseline 11) y el working tree limpio. Recomendado continuar desde
-"NO AUDITADO" en la próxima corrida, priorizando la matriz de
-combinaciones completa y cambio de material/sistema con datos cargados.
+roja presentada y resuelta (coma decimal: queda como deuda documentada,
+sin tocar código), y una lista de áreas del brief todavía sin recorrer
+explícitamente en esta corrida (ver arriba). El repo queda verde
+(804/804 tests, `tsc -b` y `vite build` limpios, lint en baseline 11) y
+el working tree limpio. Recomendado continuar desde "NO AUDITADO" en la
+próxima corrida, priorizando la matriz de combinaciones completa y
+cambio de material/sistema con datos cargados.
