@@ -724,3 +724,142 @@ describe('resolverPresionResidualDeCamino — metodoPerdidaLocalizada=estimado (
     expect(resultado.tramosNoResueltos[0]!.tramoId).toBe('t-bidet')
   })
 })
+
+// D-delta.46: granularidadHidraulica='simplificada' hace que la cota del
+// terminal salga de UnidadFuncional.cotaHidraulicaReferencia_m en vez de
+// Nodo.cota_m -- estos tests fijan cotas DISTINTAS en el Nodo y en la UF
+// a propósito, para demostrar sin ambigüedad cuál efectivamente participa.
+describe("resolverPresionResidualDeCamino — granularidadHidraulica='simplificada' (D-delta.46, cota por UF)", () => {
+  // raiz(cota 0) -> mid -> dos terminales hermanos (AF y AC) del mismo
+  // Artefacto -- ambos con cota_m propia DISTINTA de la de la UF, para
+  // demostrar que en 'simplificada' esa cota propia se ignora por completo.
+  function proyectoTerminalesAFyAC(cotaHidraulicaReferenciaUF_m: number | undefined): Proyecto {
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'uf-1',
+      ...(cotaHidraulicaReferenciaUF_m !== undefined ? { cotaHidraulicaReferencia_m: cotaHidraulicaReferenciaUF_m } : {}),
+      locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', 'receptaculoDucha')] }],
+    }
+    // Caminos AF y AC totalmente independientes (nunca comparten un Nodo
+    // con 2 tramos salientes): mezclar ambas redes en un mismo nodo
+    // "mid" lo convertiría en una bifurcacion real (CRIT-A31, exige tee
+    // configurada) -- ruido ajeno a lo que este test quiere demostrar.
+    const nodos: Nodo[] = [
+      { id: 'raiz-af', cota_m: 0 },
+      { id: 'raiz-ac', cota_m: 0 },
+      { id: 'mid-af' },
+      { id: 'mid-ac' },
+      { id: 'terminal-af', referencia: referenciaDe('uf-1', 'local-1', 'inst-1'), cota_m: 999 },
+      { id: 'terminal-ac', referencia: referenciaDe('uf-1', 'local-1', 'inst-1'), cota_m: -999 },
+    ]
+    const tramos: Tramo[] = [
+      { id: 't0-af', nodoOrigenId: 'raiz-af', nodoDestinoId: 'mid-af', red: 'AF', longitud_m: 4, accesorios: [] },
+      { id: 't-af', nodoOrigenId: 'mid-af', nodoDestinoId: 'terminal-af', red: 'AF', longitud_m: 3, accesorios: [] },
+      { id: 't0-ac', nodoOrigenId: 'raiz-ac', nodoDestinoId: 'mid-ac', red: 'AC', longitud_m: 4, accesorios: [] },
+      { id: 't-ac', nodoOrigenId: 'mid-ac', nodoDestinoId: 'terminal-ac', red: 'AC', longitud_m: 3, accesorios: [] },
+    ]
+    const proyecto = proyectoCon([uf], { nodos, tramos })
+    return { ...proyecto, configuracionHidraulica: { ...proyecto.configuracionHidraulica, granularidadHidraulica: 'simplificada' } }
+  }
+
+  it('usa la cota de la UF, ignorando por completo la cota propia (distinta) del Nodo terminal', () => {
+    const proyecto = proyectoTerminalesAFyAC(7)
+
+    const resultado = resolverPresionResidualDeCamino(
+      proyecto,
+      'terminal-af',
+      P_DISPONIBLE,
+      undefined,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    if (resultado.tipo !== 'balanceIncompleto') throw new Error('se esperaba balanceIncompleto')
+    // desnivel = cotaTerminal(7, de la UF) - cotaRaiz(0) = 7, NUNCA 999
+    // (la cota propia del Nodo, deliberadamente distinta en el fixture).
+    expect(resultado.desnivel_m).toBe(7)
+  })
+
+  it('AF y AC del mismo Artefacto reciben la MISMA cota de la UF, aunque sus Nodos tengan cota_m distinta', () => {
+    const proyecto = proyectoTerminalesAFyAC(7)
+
+    const resultadoAF = resolverPresionResidualDeCamino(
+      proyecto, 'terminal-af', P_DISPONIBLE, undefined, catalogoArtefactos, catalogoSistemasDeTuberia, catalogoMaterialesTuberia,
+    )
+    const resultadoAC = resolverPresionResidualDeCamino(
+      proyecto, 'terminal-ac', P_DISPONIBLE, undefined, catalogoArtefactos, catalogoSistemasDeTuberia, catalogoMaterialesTuberia,
+    )
+
+    if (resultadoAF.tipo !== 'balanceIncompleto' || resultadoAC.tipo !== 'balanceIncompleto') {
+      throw new Error('se esperaba balanceIncompleto en ambos')
+    }
+    expect(resultadoAF.desnivel_m).toBe(7)
+    expect(resultadoAC.desnivel_m).toBe(7)
+  })
+
+  it('UF sin cotaHidraulicaReferencia_m -> unidadFuncionalSinCotaDeReferencia (nunca desnivelIncompleto, nunca asume 0)', () => {
+    const proyecto = proyectoTerminalesAFyAC(undefined)
+
+    const resultado = resolverPresionResidualDeCamino(
+      proyecto,
+      'terminal-af',
+      P_DISPONIBLE,
+      undefined,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    expect(resultado).toEqual({ tipo: 'unidadFuncionalSinCotaDeReferencia', unidadFuncionalId: 'uf-1' })
+  })
+
+  it('cambiar la cota de la UF cambia reactivamente el desnivel (y por lo tanto Presidual) de todos sus terminales', () => {
+    const proyectoA = proyectoTerminalesAFyAC(1)
+    const proyectoB = proyectoTerminalesAFyAC(2)
+
+    const resultadoA = resolverPresionResidualDeCamino(
+      proyectoA, 'terminal-af', P_DISPONIBLE, undefined, catalogoArtefactos, catalogoSistemasDeTuberia, catalogoMaterialesTuberia,
+    )
+    const resultadoB = resolverPresionResidualDeCamino(
+      proyectoB, 'terminal-af', P_DISPONIBLE, undefined, catalogoArtefactos, catalogoSistemasDeTuberia, catalogoMaterialesTuberia,
+    )
+
+    if (resultadoA.tipo !== 'balanceIncompleto' || resultadoB.tipo !== 'balanceIncompleto') {
+      throw new Error('se esperaba balanceIncompleto en ambos')
+    }
+    expect(resultadoA.desnivel_m).toBe(1)
+    expect(resultadoB.desnivel_m).toBe(2)
+  })
+
+  it('caso degenerado (terminal ES la raiz, sin ningun tramo entrante): conserva su propia cota_m, NUNCA la de la UF', () => {
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'uf-1',
+      cotaHidraulicaReferencia_m: 999,
+      locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', 'lavatorio')] }],
+    }
+    const nodos: Nodo[] = [{ id: 'solo', referencia: referenciaDe('uf-1', 'local-1', 'inst-1'), cota_m: 3 }]
+    const proyectoBase = proyectoCon([uf], { nodos, tramos: [] })
+    const proyecto: Proyecto = {
+      ...proyectoBase,
+      configuracionHidraulica: { ...proyectoBase.configuracionHidraulica, granularidadHidraulica: 'simplificada' },
+    }
+
+    const resultado = resolverPresionResidualDeCamino(
+      proyecto,
+      'solo',
+      P_DISPONIBLE,
+      undefined,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    if (resultado.tipo !== 'balanceIncompleto') throw new Error('se esperaba balanceIncompleto')
+    // desnivel 0 porque raiz===terminal (misma cota_m=3 en ambos roles) --
+    // NUNCA se sustituye por la cota de la UF (999), que colapsaria el
+    // rol de "punto de alimentacion" de este Nodo degenerado.
+    expect(resultado.desnivel_m).toBe(0)
+  })
+})

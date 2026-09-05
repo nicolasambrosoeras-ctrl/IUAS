@@ -47,6 +47,31 @@ export type Local = {
 export type UnidadFuncional = {
   id: string;
   nombre: string;
+  // Nivel/planta de la UF (D-δ.46): convención IUAS, PB=0, Piso 1=1,
+  // Piso 2=2... Representación numérica para no limitar la cantidad de
+  // pisos con una unión cerrada. Opcional: proyectos existentes o UFs
+  // todavía sin clasificar no tienen nivel -- ausencia nunca equivale a
+  // PB (0), es "sin clasificar todavía". Ver
+  // interfaz/paginas/nivelUnidadFuncional.ts (nombreDeNivel,
+  // calcularCotaHidraulicaDefaultDeNivel).
+  nivel?: number;
+  // Cota hidráulica de referencia de la UF, en metros respecto del datum
+  // del Proyecto (misma convención que Nodo.cota_m). Bajo
+  // GranularidadHidraulica='simplificada' (D-δ.46), esta es la ÚNICA
+  // cota que participa del cálculo de presión para TODOS los terminales
+  // AF/AC de esta UF -- reemplaza la cota individual por Artefacto que
+  // 'profesional' sigue exigiendo (ver
+  // motor/tuberias/geometria/resolverCotaTerminalEfectiva.ts). Ausente
+  // != 0 (CRIT-A20, mismo criterio que Nodo.cota_m): dato físico no
+  // provisto todavía, nunca se asume 0. Se propone automáticamente al
+  // asignar/cambiar `nivel`, pero el usuario puede editarla libremente
+  // -- el valor guardado acá es el que efectivamente participa del
+  // cálculo, nunca la fórmula del default recalculada en cada uso. Esta
+  // es una aproximación deliberada del modo rápido (no redefine CRIT-A29:
+  // el punto físico de verificación de presión sigue siendo la conexión
+  // del Artefacto -- simplificada solo deja de exigir conocer su altura
+  // exacta, adoptando una cota representativa común a toda la UF).
+  cotaHidraulicaReferencia_m?: number;
   locales: readonly Local[];
 };
 

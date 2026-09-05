@@ -32,6 +32,8 @@ import { determinarRedesFisicasPorPrecedente } from '../../motor/tuberias/topolo
 import { quitarConectividadFisicaDeArtefacto } from './quitarConectividadFisicaDeArtefacto'
 import { ResultadoHidraulicoDeTramo } from './ResultadoHidraulicoDeTramo'
 import { MetodologiaYFuentesTecnicas } from './MetodologiaYFuentesTecnicas'
+import { parsearCota } from './parsearCota'
+import { calcularCotaHidraulicaDefaultDeNivel, nombreDeNivel } from './nivelUnidadFuncional'
 
 const TIPOS_DE_LOCAL: readonly TipoDeLocal[] = [
   'bano',
@@ -44,6 +46,17 @@ const TIPOS_DE_LOCAL: readonly TipoDeLocal[] = [
 ]
 
 const REGIMENES_DE_LOCAL: readonly RegimenLocal[] = ['domiciliario', 'noDomiciliario']
+
+// Rango de niveles ofrecido por el <select> (D-δ.46): puramente de
+// presentación -- UnidadFuncional.nivel sigue siendo un `number` sin
+// límite (nunca una unión cerrada, ver modelo/proyecto). 0..15 cubre
+// cualquier edificio típico; si el nivel actual ya supera ese rango
+// (dato cargado por otra vía), se extiende para incluirlo siempre --
+// el <select> nunca deja de mostrar el valor ya elegido.
+function opcionesDeNivel(nivelActual: number | undefined): readonly number[] {
+  const maximo = Math.max(15, nivelActual ?? 0)
+  return Array.from({ length: maximo + 1 }, (_valor, indice) => indice)
+}
 
 // Solo texto visible: los valores internos (value de cada <option>,
 // local.tipo, local.regimen) siguen siendo los literales del modelo.
@@ -380,6 +393,59 @@ function UnidadFuncionalFormulario({
           onChange={(evento) => onCambiar({ ...uf, nombre: evento.target.value })}
         />
       </h3>
+      <p>
+        <label>
+          Nivel:{' '}
+          <select
+            value={uf.nivel ?? ''}
+            onChange={(evento) => {
+              if (evento.target.value === '') {
+                const { nivel: _nivel, ...ufSinNivel } = uf
+                onCambiar(ufSinNivel)
+                return
+              }
+              const nivel = Number(evento.target.value)
+              // D-δ.46: cambiar explícitamente el nivel siempre actualiza la
+              // cota al default de ese nivel (preferencia simple del brief,
+              // sin dirty-tracking) -- después el usuario puede editarla.
+              onCambiar({ ...uf, nivel, cotaHidraulicaReferencia_m: calcularCotaHidraulicaDefaultDeNivel(nivel) })
+            }}
+          >
+            <option value="">— sin clasificar —</option>
+            {opcionesDeNivel(uf.nivel).map((nivel) => (
+              <option key={nivel} value={nivel}>
+                {nombreDeNivel(nivel)}
+              </option>
+            ))}
+          </select>
+        </label>{' '}
+        <label>
+          Cota hidráulica de referencia [m]:{' '}
+          <input
+            type="number"
+            step="any"
+            value={uf.cotaHidraulicaReferencia_m ?? ''}
+            onChange={(evento) => {
+              const resultado = parsearCota(evento.target.value)
+              if (resultado === 'ignorar') {
+                return
+              }
+              if (resultado === undefined) {
+                const { cotaHidraulicaReferencia_m: _cotaAnterior, ...ufSinCota } = uf
+                onCambiar(ufSinCota)
+                return
+              }
+              onCambiar({ ...uf, cotaHidraulicaReferencia_m: resultado })
+            }}
+            style={{ width: '5rem' }}
+          />
+        </label>
+        <br />
+        <small>
+          En modo rápido (granularidad simplificada), esta cota se utiliza para todos los puntos de consumo de la
+          unidad funcional.
+        </small>
+      </p>
       <button type="button" onClick={onDuplicar}>
         Duplicar unidad funcional
       </button>{' '}
@@ -425,9 +491,16 @@ function ProyectoFormulario({
   }
 
   function agregarUnidadFuncional() {
+    // D-δ.46: nivel inicial por orden de creación (UF1→PB, UF2→Piso1...)
+    // -- solo un default de creación, el nivel sigue siendo completamente
+    // editable después (puede haber varias UF en un mismo piso, ninguna
+    // en otro, subsuelos, etc., ver PENDIENTES-DE-ARQUITECTURA.md D-δ.46).
+    const nivel = unidadesFuncionales.length
     const nuevaUf: UnidadFuncional = {
       id: generarId('uf'),
       nombre: `Unidad funcional ${unidadesFuncionales.length + 1}`,
+      nivel,
+      cotaHidraulicaReferencia_m: calcularCotaHidraulicaDefaultDeNivel(nivel),
       locales: [],
     }
     cambiarUnidadesFuncionales([...unidadesFuncionales, nuevaUf])
@@ -500,6 +573,12 @@ const proyectoInicial: Proyecto = {
     {
       id: 'uf-1',
       nombre: 'Unidad funcional 1',
+      // D-δ.46: PB, cota hidráulica de referencia por defecto de ese
+      // nivel (1,00 m) -- participa del cálculo de presión de todos los
+      // terminales de esta UF mientras el proyecto esté en granularidad
+      // 'simplificada' (default de este proyecto de ejemplo).
+      nivel: 0,
+      cotaHidraulicaReferencia_m: 1,
       locales: [
         {
           id: 'local-bano',

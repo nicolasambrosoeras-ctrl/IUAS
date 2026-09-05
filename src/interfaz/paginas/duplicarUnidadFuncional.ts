@@ -27,6 +27,15 @@ function duplicarLocal(local: Local): Local {
   return { ...local, id: generarId('local'), artefactos: local.artefactos.map(duplicarArtefacto) }
 }
 
+// nivel/cotaHidraulicaReferencia_m (D-δ.46) se preservan tal cual por el
+// spread -- mismo criterio que cualquier otro campo no listado acá
+// explícitamente (ver comentario de archivo: "copia profunda", no una
+// reasignación de identidad/posición). Duplicar una UF asume que la
+// copia representa la MISMA unidad física (mismo nivel, misma cota) que
+// el usuario luego edita a mano si corresponde -- no hay ninguna regla
+// de negocio que determine automáticamente un nivel "siguiente" para una
+// copia (a diferencia de agregarUnidadFuncional, que sí ordena por
+// cantidad ya existente).
 export function duplicarUnidadFuncional(unidadFuncional: UnidadFuncional): UnidadFuncional {
   return {
     ...unidadFuncional,

@@ -520,6 +520,12 @@ function proyectoLocalTresArtefactosConTeesAnidadas(granularidad: 'simplificada'
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
+    // D-delta.46: bajo granularidad 'simplificada' los terminales ya no
+    // usan su propio cota_m (ver mas abajo) -- toman la de la UF. Se fija
+    // igual a la de los terminales (3) para no alterar el desnivel
+    // esperado por este test (que sigue siendo sobre 'profesional' con
+    // la misma topologia, ver el describe de mas abajo).
+    cotaHidraulicaReferencia_m: 3,
     locales: [
       {
         id: 'local-1',
@@ -598,5 +604,59 @@ describe("resolverEstadoModulo2 — granularidadHidraulica 'simplificada' (D-δ.
     )
 
     expect(resultado.estado).toBe('incompleto')
+  })
+})
+
+// D-delta.46: cota hidraulica de referencia por UnidadFuncional bajo
+// granularidad 'simplificada'.
+describe("resolverEstadoModulo2 — cota por UnidadFuncional en granularidadHidraulica 'simplificada' (D-delta.46)", () => {
+  it('UF sin cotaHidraulicaReferencia_m -> incompleto con UN solo motivo unidadFuncionalSinCotaDeReferencia, aunque la UF tenga 3 terminales', () => {
+    // Reutiliza el fixture de 3 terminales (Lavatorio/Ducha/Inodoro) de
+    // D-delta.44 pero SIN fijar cotaHidraulicaReferencia_m en la UF --
+    // los 3 terminales comparten la misma UF, asi que deben deduplicar a
+    // UN unico motivo, nunca 3 (uno por Artefacto).
+    const proyecto = proyectoLocalTresArtefactosConTeesAnidadas('simplificada')
+    const proyectoSinCotaUF: Proyecto = {
+      ...proyecto,
+      // Reconstruye cada UF sin cotaHidraulicaReferencia_m explícitamente
+      // (en vez de desestructurar para descartarla): exactOptionalPropertyTypes
+      // no admite asignarle `undefined`, y desestructurar dejaría una
+      // variable sin usar.
+      unidadesFuncionales: proyecto.unidadesFuncionales.map((uf) => ({
+        id: uf.id,
+        nombre: uf.nombre,
+        locales: uf.locales,
+      })),
+    }
+
+    const resultado = resolverEstadoModulo2(
+      proyectoSinCotaUF,
+      P_DISPONIBLE,
+      HF_MEDIDOR_MCA,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    expect(resultado).toEqual({
+      estado: 'incompleto',
+      motivos: [{ tipo: 'unidadFuncionalSinCotaDeReferencia', unidadFuncionalId: 'uf-1' }],
+    })
+  })
+
+  it('UF CON cotaHidraulicaReferencia_m -> completo, sin pedir cota individual a ninguno de los 3 terminales', () => {
+    const proyecto = proyectoLocalTresArtefactosConTeesAnidadas('simplificada')
+    expect(proyecto.unidadesFuncionales[0]!.cotaHidraulicaReferencia_m).toBeDefined()
+
+    const resultado = resolverEstadoModulo2(
+      proyecto,
+      P_DISPONIBLE,
+      HF_MEDIDOR_MCA,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
+    expect(resultado.estado).toBe('completo')
   })
 })

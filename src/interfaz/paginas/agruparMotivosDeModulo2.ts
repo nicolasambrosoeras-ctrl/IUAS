@@ -5,6 +5,7 @@
 // líneas legibles ("Faltan cotas de conexión en 12 terminales"), nunca
 // infiere un motivo nuevo ni reinterpreta ninguno existente. No expone
 // ningún id de Nodo/Tramo -- solo cantidades.
+import type { UnidadFuncional } from '../../modelo/proyecto'
 import type { DiagnosticoIncompletitudModulo2 } from '../../motor/modulo2/resolverEstadoModulo2'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 
@@ -12,7 +13,15 @@ function pluralizar(n: number, singular: string, plural: string): string {
   return n === 1 ? singular : plural
 }
 
-export function agruparMotivosDeModulo2(motivos: readonly DiagnosticoIncompletitudModulo2[]): readonly string[] {
+// unidadesFuncionales SOLO se usa para resolver id -> nombre de
+// 'unidadFuncionalSinCotaDeReferencia' (D-δ.46) -- a diferencia del
+// resto de este archivo, esa línea SÍ nombra la entidad exacta en vez
+// de solo contarla (no es un id técnico de Nodo/Tramo, es el mismo
+// nombre que el usuario ya ve en "Datos del proyecto").
+export function agruparMotivosDeModulo2(
+  motivos: readonly DiagnosticoIncompletitudModulo2[],
+  unidadesFuncionales: readonly UnidadFuncional[],
+): readonly string[] {
   const lineas: string[] = []
 
   const coberturaFisicaIncompleta = motivos.find((m) => m.tipo === 'coberturaFisicaIncompleta')
@@ -35,6 +44,17 @@ export function agruparMotivosDeModulo2(motivos: readonly DiagnosticoIncompletit
   if (desnivelIncompleto.length > 0) {
     const n = new Set(desnivelIncompleto.flatMap((m) => (m.tipo === 'desnivelIncompleto' ? m.nodosSinCota : []))).size
     lineas.push(`Faltan cotas de conexión en ${formatearNumero(n, 'conteo')} ${pluralizar(n, 'punto', 'puntos')}.`)
+  }
+
+  const idsUFSinCota = new Set(
+    motivos.flatMap((m) => (m.tipo === 'unidadFuncionalSinCotaDeReferencia' ? [m.unidadFuncionalId] : [])),
+  )
+  if (idsUFSinCota.size > 0) {
+    for (const uf of unidadesFuncionales) {
+      if (idsUFSinCota.has(uf.id)) {
+        lineas.push(`Falta la cota hidráulica de referencia de ${uf.nombre}.`)
+      }
+    }
   }
 
   const perdidaDistribuidaIncompleta = motivos.filter((m) => m.tipo === 'perdidaDistribuidaIncompleta')

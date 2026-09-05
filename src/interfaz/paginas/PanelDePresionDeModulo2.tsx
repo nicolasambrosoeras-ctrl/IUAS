@@ -19,16 +19,23 @@
 // cálculo como cota de la raíz (Δz hace el resto, D-δ.38: raíz = pelo de
 // agua mínimo, nunca el máximo). Presión conocida pide cota del punto de
 // alimentación + Pdisponible manual, exactamente el contrato ya vigente.
-import { useState, type CSSProperties } from 'react'
+//
+// D-δ.46: bajo GranularidadHidraulica='simplificada', cada TarjetaDeTerminal
+// (TarjetaDeTerminal.tsx) deja de pedir su propia "Cota de conexión [m]"
+// -- el motor ya usa la cota de la UnidadFuncional del terminal
+// (resolverCotaTerminalEfectiva), así que ese input individual editaría
+// un dato que el cálculo activo ni siquiera lee. En su lugar se muestra,
+// dentro de "Detalle", la cota de referencia de la UF como dato derivado
+// de solo lectura -- se edita en "Datos del proyecto"
+// (MotorDemandaPantalla.tsx), no acá. En 'profesional' el input
+// individual se conserva sin cambios.
+import { useState } from 'react'
 import type { Proyecto } from '../../modelo/proyecto'
 import type { Nodo, ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { catalogoMaterialesTuberia } from '../../motor/tuberias/materialTuberia'
 import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia'
-import {
-  resolverPresionResidualDeCamino,
-  type ResultadoPresionResidualDeCamino,
-} from '../../motor/tuberias/presion/resolverPresionResidualDeCamino'
+import { resolverPresionResidualDeCamino } from '../../motor/tuberias/presion/resolverPresionResidualDeCamino'
 import {
   resolverTerminalMasDesfavorable,
   type CandidatoTerminal,
@@ -37,21 +44,10 @@ import { resolverEstadoModulo2, type EstadoModulo2 } from '../../motor/modulo2/r
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 import { describirReferenciaPendiente } from './ResultadoHidraulicoDeTramo'
 import { agruparMotivosDeModulo2 } from './agruparMotivosDeModulo2'
+import { parsearCota } from './parsearCota'
 import { conCotaDeNodo } from './actualizarRedHidraulica'
-
-const estiloCard: CSSProperties = {
-  border: '1px solid #ddd',
-  borderRadius: '0.5rem',
-  padding: '0.6rem 1rem',
-  marginBottom: '0.6rem',
-}
-
-const estiloFila: CSSProperties = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: '0.5rem 1.25rem',
-  alignItems: 'baseline',
-}
+import { TarjetaDeTerminal } from './TarjetaDeTerminal'
+import { resolverInfoCotaDeTerminal } from './resolverInfoCotaDeTerminal'
 
 // Mismo criterio que resolverCambioDeLongitud (resolverResultadoDeTramoParaUi.ts):
 // campo vacío = "no provisto todavía" (undefined, nunca 0); NaN o negativo
@@ -66,50 +62,6 @@ function parsearEntradaHidraulica(texto: string): number | undefined | 'ignorar'
     return 'ignorar'
   }
   return valor
-}
-
-// cota_m SÍ admite negativos (un punto puede estar por debajo del datum,
-// p.ej. un subsuelo) -- a diferencia de parsearEntradaHidraulica, solo se
-// descarta NaN.
-function parsearCota(texto: string): number | undefined | 'ignorar' {
-  if (texto === '') {
-    return undefined
-  }
-  const valor = Number(texto)
-  return Number.isNaN(valor) ? 'ignorar' : valor
-}
-
-type TrazaExtraida = Extract<ResultadoPresionResidualDeCamino, { tipo: 'balanceIncompleto' } | { tipo: 'balanceCompleto' }>
-
-function tieneTraza(resultado: ResultadoPresionResidualDeCamino): resultado is TrazaExtraida {
-  return resultado.tipo === 'balanceIncompleto' || resultado.tipo === 'balanceCompleto'
-}
-
-// Texto de estado por terminal -- deriva exclusivamente del tipo ya
-// discriminado por el motor, nunca de una heurística nueva. No colapsa
-// 'terminalSinPresionMinima' con 'incompleto': D-δ.41 ya cerró que es una
-// limitación normativa permanente (no bloqueante), se muestra tal cual.
-function textoDeEstadoDeTerminal(resultado: ResultadoPresionResidualDeCamino): string {
-  switch (resultado.tipo) {
-    case 'topologiaNoResoluble':
-      return 'Topología no resoluble'
-    case 'terminalSinArtefacto':
-      return 'Sin artefacto asociado'
-    case 'terminalSinPresionMinima':
-      return 'Sin presión mínima normativa publicada para verificación.'
-    case 'desnivelIncompleto':
-      return 'Incompleto (falta cota de conexión)'
-    case 'perdidaDistribuidaIncompleta':
-      return 'Incompleto (pérdida distribuida)'
-    case 'perdidaLocalizadaIncompleta':
-      return 'Incompleto (pérdida localizada detallada)'
-    case 'perdidaLocalizadaEstimadaIncompleta':
-      return 'Incompleto (pérdida localizada estimada)'
-    case 'balanceIncompleto':
-      return `Incompleto (falta ${resultado.terminosFaltantes.join(', ')})`
-    case 'balanceCompleto':
-      return resultado.cumpleMinimo ? 'Cumple' : 'No cumple'
-  }
 }
 
 function esTerminalDeArtefacto(nodo: Nodo): nodo is Nodo & { referencia: ReferenciaDeArtefacto } {
@@ -130,98 +82,6 @@ function textoDeEstadoModulo2(estado: EstadoModulo2): string {
 }
 
 type TipoDeAlimentacion = 'tanqueElevado' | 'presionConocida'
-
-function TarjetaDeTerminal({
-  etiqueta,
-  cota_m,
-  onCambiarCota,
-  presionDisponible_mca,
-  hfMedidor_mca,
-  resultado,
-}: {
-  etiqueta: string
-  cota_m: number | undefined
-  onCambiarCota: (cota_m: number | undefined) => void
-  presionDisponible_mca: number
-  hfMedidor_mca: number | undefined
-  resultado: ResultadoPresionResidualDeCamino
-}) {
-  const traza = tieneTraza(resultado) ? resultado : undefined
-  const completo = resultado.tipo === 'balanceCompleto' ? resultado : undefined
-  // Carga geométrica disponible = Pdisponible - Δz: mismos dos operandos
-  // ya conocidos (uno provisto por el usuario, el otro devuelto tal cual
-  // por resolverDesnivelDeCamino) -- no es una fórmula hidráulica nueva,
-  // es el primer término parcial de la misma resta que ya expone
-  // resolverBalanceDePresion (Presidual = Pdisponible - Δz - hfDistribuida
-  // - hfLocalizada - hfMedidor).
-  const cargaGeometrica_mca = traza !== undefined ? presionDisponible_mca - traza.desnivel_m : undefined
-
-  return (
-    <div style={estiloCard}>
-      <div style={estiloFila}>
-        <strong>{etiqueta}</strong>
-        {completo !== undefined ? (
-          <>
-            <span>Presidual: {formatearNumero(completo.presionResidual_mca, 'm')} m.c.a.</span>
-            <span>Pmin: {formatearNumero(completo.presionMinimaRequerida_mca, 'm')} m.c.a.</span>
-            <span>
-              Margen: {formatearNumero(completo.presionResidual_mca - completo.presionMinimaRequerida_mca, 'm')} m.c.a.
-            </span>
-          </>
-        ) : null}
-        <span>{textoDeEstadoDeTerminal(resultado)}</span>
-      </div>
-      <label>
-        Cota de conexión [m]:{' '}
-        <input
-          type="number"
-          step="any"
-          value={cota_m ?? ''}
-          onChange={(evento) => {
-            const resultadoCambio = parsearCota(evento.target.value)
-            if (resultadoCambio !== 'ignorar') {
-              onCambiarCota(resultadoCambio)
-            }
-          }}
-          style={{ width: '4.5rem' }}
-        />
-      </label>
-      <details>
-        <summary>Detalle</summary>
-        <table style={{ borderCollapse: 'collapse' }}>
-          <tbody>
-            <tr>
-              <th style={{ textAlign: 'left', paddingRight: '1rem' }}>Δz</th>
-              <td>{traza !== undefined ? `${formatearNumero(traza.desnivel_m, 'm')} m` : '—'}</td>
-            </tr>
-            <tr>
-              <th style={{ textAlign: 'left', paddingRight: '1rem' }}>Carga geométrica</th>
-              <td>{cargaGeometrica_mca !== undefined ? `${formatearNumero(cargaGeometrica_mca, 'm')} m.c.a.` : '—'}</td>
-            </tr>
-            <tr>
-              <th style={{ textAlign: 'left', paddingRight: '1rem' }}>hfDistribuida</th>
-              <td>{traza !== undefined ? `${formatearNumero(traza.hfDistribuida_mca, 'm')} m.c.a.` : '—'}</td>
-            </tr>
-            <tr>
-              <th style={{ textAlign: 'left', paddingRight: '1rem' }}>hfLocalizada</th>
-              <td>
-                {traza !== undefined
-                  ? `${formatearNumero(traza.hfLocalizada.hf_mca, 'm')} m.c.a. (${
-                      traza.hfLocalizada.metodologia === 'detallado' ? 'detallada' : 'estimada'
-                    })`
-                  : '—'}
-              </td>
-            </tr>
-            <tr>
-              <th style={{ textAlign: 'left', paddingRight: '1rem' }}>hfMedidor</th>
-              <td>{hfMedidor_mca !== undefined ? `${formatearNumero(hfMedidor_mca, 'm')} m.c.a.` : '—'}</td>
-            </tr>
-          </tbody>
-        </table>
-      </details>
-    </div>
-  )
-}
 
 export function PanelDePresionDeModulo2({
   proyecto,
@@ -303,7 +163,7 @@ export function PanelDePresionDeModulo2({
         <div>
           <p>Para completar Módulo 2:</p>
           <ul>
-            {agruparMotivosDeModulo2(estadoModulo2.motivos).map((texto) => (
+            {agruparMotivosDeModulo2(estadoModulo2.motivos, proyecto.unidadesFuncionales).map((texto) => (
               <li key={texto}>{texto}</li>
             ))}
           </ul>
@@ -428,12 +288,13 @@ export function PanelDePresionDeModulo2({
               nodoDelTerminal !== undefined
                 ? describirReferenciaPendiente(proyecto, catalogoArtefactos, nodoDelTerminal.referencia)
                 : nodoId
+            const esRaizDelCamino = nodosRaiz.some((n) => n.id === nodoId)
+            const infoCota = resolverInfoCotaDeTerminal(proyecto, nodoId, nodoDelTerminal, esRaizDelCamino, onCambiar)
             return (
               <TarjetaDeTerminal
                 key={nodoId}
                 etiqueta={etiqueta}
-                cota_m={nodoDelTerminal?.cota_m}
-                onCambiarCota={(cota_m) => onCambiar(conCotaDeNodo(proyecto, nodoId, cota_m))}
+                infoCota={infoCota}
                 presionDisponible_mca={presionDisponible_mca}
                 hfMedidor_mca={hfMedidor_mca}
                 resultado={resultado}

@@ -62,6 +62,19 @@
 // Cobertura fisica global del Proyecto (S1/auditarCoberturaFisica) sigue
 // siendo responsabilidad de la barrera de presentacion (S2), no de este
 // orquestador por terminal.
+//
+// Cota terminal efectiva (D-delta.46): GranularidadHidraulica tambien
+// decide de donde sale la cota del terminal para Δz -- 'profesional'
+// sigue usando Nodo.cota_m (sin cambios); 'simplificada' usa
+// UnidadFuncional.cotaHidraulicaReferencia_m para TODOS los terminales
+// de esa UF (ver resolverCotaTerminalEfectiva.ts), excepto el caso
+// degenerado donde el terminal consultado es tambien la raiz del camino
+// (sin ningun tramo entrante), que conserva su propia cota_m en ambas
+// granularidades. Si la UF no tiene cotaHidraulicaReferencia_m cargada,
+// se corta con 'unidadFuncionalSinCotaDeReferencia' -- distinto de
+// 'desnivelIncompleto' (que sigue reportando la cota de la RAIZ/
+// alimentacion faltante, no afectada por esta granularidad) para que
+// resolverEstadoModulo2 pueda deduplicar por UF.
 import type { Proyecto } from '../../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../../normativa/eras-2023/catalogo-artefactos'
 import type { SistemaDeTuberiaCatalogado } from '../sistemaDeTuberia'
@@ -71,6 +84,7 @@ import {
   type CaminoHaciaOrigenNoResoluble,
 } from '../topologia/obtenerCaminoHaciaOrigen'
 import { resolverDesnivelDeCamino } from '../geometria/resolverDesnivelDeCamino'
+import { resolverCotaTerminalEfectiva } from '../geometria/resolverCotaTerminalEfectiva'
 import {
   acumularPerdidaDistribuidaDeCamino,
   type MotivoTramoSinPerdida,
@@ -140,6 +154,18 @@ export type ResultadoPresionResidualDeCamino =
   | {
       readonly tipo: 'desnivelIncompleto'
       readonly nodosSinCota: readonly string[]
+    }
+  | {
+      // Analogo a 'desnivelIncompleto' pero especifico de granularidad
+      // 'simplificada' (D-delta.46): la UF del terminal no tiene
+      // cotaHidraulicaReferencia_m cargada. Se distingue de
+      // 'desnivelIncompleto' (que sigue existiendo para la cota de la
+      // RAIZ/alimentacion, no afectada por esta granularidad) para que
+      // resolverEstadoModulo2 pueda deduplicar por UF en vez de reportar
+      // un motivo por cada terminal de esa UF -- ver comentario de
+      // archivo de resolverCotaTerminalEfectiva.
+      readonly tipo: 'unidadFuncionalSinCotaDeReferencia'
+      readonly unidadFuncionalId: string
     }
   | {
       readonly tipo: 'perdidaDistribuidaIncompleta'
@@ -219,6 +245,14 @@ export function resolverPresionResidualDeCamino(
         `Artefacto (uf="${referencia.unidadFuncionalId}", local="${referencia.localId}", artefacto="${referencia.artefactoId}")`,
     )
   }
+  if (unidadFuncional === undefined) {
+    // Inalcanzable: artefactoInstancia solo resuelve si local existe, que
+    // a su vez solo existe si unidadFuncional existe (ver la cadena de
+    // `?.` de arriba) -- chequeo explicito unicamente para el
+    // angostamiento de tipos de TypeScript (D-delta.46, resolverCotaTerminalEfectiva
+    // necesita unidadFuncional ya angostada mas abajo).
+    throw new Error('resolverPresionResidualDeCamino: inconsistencia interna (unidadFuncional indefinida)')
+  }
 
   const artefactoIdCatalogo = artefactoInstancia.artefactoId
   const artefactoNormativo = catalogoArtefactos.find((candidato) => candidato.id === artefactoIdCatalogo)
@@ -233,7 +267,35 @@ export function resolverPresionResidualDeCamino(
   }
   const presionMinima_kgcm2 = artefactoNormativo.presionMinima_kgcm2
 
-  const desnivel = resolverDesnivelDeCamino(camino)
+  // Cota efectiva del terminal (D-delta.46): 'profesional' usa
+  // camino sin modificar (comportamiento previo, byte a byte). En
+  // 'simplificada', el terminal toma la cota de su UnidadFuncional en
+  // vez de la propia -- EXCEPTO cuando el terminal ES la raiz del
+  // camino (nodo sin ningun tramo entrante que ademas referencia un
+  // Artefacto, caso degenerado ya cubierto por un test existente): ese
+  // nodo funciona como punto de alimentacion, no como "conexion de
+  // Artefacto dentro de una UF", asi que conserva su propia cota_m
+  // igual que en profesional -- sustituirla colapsaria Δz a 0 y
+  // descartaria silenciosamente el dato de alimentacion ya cargado.
+  let caminoParaDesnivel = camino
+  if (proyecto.configuracionHidraulica.granularidadHidraulica === 'simplificada' && camino.raizId !== camino.terminalId) {
+    const cotaEfectiva_m = resolverCotaTerminalEfectiva(
+      proyecto.configuracionHidraulica.granularidadHidraulica,
+      unidadFuncional,
+      nodoTerminal.cota_m,
+    )
+    if (cotaEfectiva_m === undefined) {
+      return { tipo: 'unidadFuncionalSinCotaDeReferencia', unidadFuncionalId: unidadFuncional.id }
+    }
+    caminoParaDesnivel = {
+      ...camino,
+      nodos: camino.nodos.map((nodo, indice) =>
+        indice === camino.nodos.length - 1 ? { ...nodo, cota_m: cotaEfectiva_m } : nodo,
+      ),
+    }
+  }
+
+  const desnivel = resolverDesnivelDeCamino(caminoParaDesnivel)
   if (desnivel.tipo === 'incompleto') {
     return { tipo: 'desnivelIncompleto', nodosSinCota: desnivel.nodosSinCota }
   }

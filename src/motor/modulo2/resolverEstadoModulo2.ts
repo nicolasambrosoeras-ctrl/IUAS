@@ -80,6 +80,11 @@ export type DiagnosticoIncompletitudModulo2 =
   | { readonly tipo: 'coberturaFisicaIncompleta'; readonly artefactosSinReferencia: readonly ReferenciaDeArtefacto[] }
   | { readonly tipo: 'presionDisponibleNoProvista' }
   | { readonly tipo: 'desnivelIncompleto'; readonly nodoId: string; readonly nodosSinCota: readonly string[] }
+  // Granularidad 'simplificada' (D-delta.46): la UF de este terminal no
+  // tiene cotaHidraulicaReferencia_m cargada. Deduplicado por
+  // unidadFuncionalId ANTES de llegar acá -- nunca un motivo por cada
+  // terminal de la misma UF (ver el loop mas abajo).
+  | { readonly tipo: 'unidadFuncionalSinCotaDeReferencia'; readonly unidadFuncionalId: string }
   | ({ readonly tipo: 'perdidaDistribuidaIncompleta'; readonly nodoId: string } & Pick<
       PerdidaDistribuidaIncompleta,
       'tramosNoResueltos'
@@ -178,6 +183,11 @@ export function resolverEstadoModulo2(
   const errores: DiagnosticoErrorModulo2[] = []
   const candidatos: CandidatoTerminal[] = []
   const terminalesFueraDeAlcance: DiagnosticoTerminalFueraDeAlcanceModulo2[] = []
+  // D-delta.46: varios terminales de la MISMA UF reportan
+  // independientemente 'unidadFuncionalSinCotaDeReferencia' -- se
+  // deduplica por id acá y se agrega UN motivo por UF despues del loop,
+  // nunca uno por terminal (ver comentario del tipo mas arriba).
+  const unidadesFuncionalesSinCotaIds = new Set<string>()
 
   for (const nodo of nodosTerminales) {
     const resultado = resolverPresionResidualDeCamino(
@@ -213,6 +223,9 @@ export function resolverEstadoModulo2(
       case 'desnivelIncompleto':
         motivos.push({ tipo: 'desnivelIncompleto', nodoId: nodo.id, nodosSinCota: resultado.nodosSinCota })
         break
+      case 'unidadFuncionalSinCotaDeReferencia':
+        unidadesFuncionalesSinCotaIds.add(resultado.unidadFuncionalId)
+        break
       case 'perdidaDistribuidaIncompleta':
         motivos.push({ tipo: 'perdidaDistribuidaIncompleta', nodoId: nodo.id, tramosNoResueltos: resultado.tramosNoResueltos })
         break
@@ -233,6 +246,10 @@ export function resolverEstadoModulo2(
         candidatos.push({ nodoId: nodo.id, resultado })
         break
     }
+  }
+
+  for (const unidadFuncionalId of unidadesFuncionalesSinCotaIds) {
+    motivos.push({ tipo: 'unidadFuncionalSinCotaDeReferencia', unidadFuncionalId })
   }
 
   if (errores.length > 0) {

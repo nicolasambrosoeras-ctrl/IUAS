@@ -6,7 +6,7 @@ describe('agruparMotivosDeModulo2', () => {
   it('sinTerminalesHidraulicos: una línea fija, sin cantidades inventadas', () => {
     const motivos: DiagnosticoIncompletitudModulo2[] = [{ tipo: 'sinTerminalesHidraulicos' }]
 
-    expect(agruparMotivosDeModulo2(motivos)).toEqual(['El proyecto no tiene ningún terminal hidráulico conectado todavía.'])
+    expect(agruparMotivosDeModulo2(motivos, [])).toEqual(['El proyecto no tiene ningún terminal hidráulico conectado todavía.'])
   })
 
   it('coberturaFisicaIncompleta: cuenta los artefactos sin referencia de la única entrada (nunca ids)', () => {
@@ -20,7 +20,7 @@ describe('agruparMotivosDeModulo2', () => {
       },
     ]
 
-    const resultado = agruparMotivosDeModulo2(motivos)
+    const resultado = agruparMotivosDeModulo2(motivos, [])
 
     expect(resultado).toContain('Faltan conectar físicamente 2 artefactos a la red hidráulica.')
     expect(resultado.some((linea) => linea.includes('uf-1') || linea.includes('a1'))).toBe(false)
@@ -34,7 +34,33 @@ describe('agruparMotivosDeModulo2', () => {
 
     // 'raiz' se repite en ambos motivos -- el conjunto deduplicado es
     // {raiz, terminal1, terminal2} = 3, no 4 (suma ingenua).
-    expect(agruparMotivosDeModulo2(motivos)).toEqual(['Faltan cotas de conexión en 3 puntos.'])
+    expect(agruparMotivosDeModulo2(motivos, [])).toEqual(['Faltan cotas de conexión en 3 puntos.'])
+  })
+
+  it('unidadFuncionalSinCotaDeReferencia (D-δ.46): nombra la UF por su nombre, no por id técnico', () => {
+    const motivos: DiagnosticoIncompletitudModulo2[] = [
+      { tipo: 'unidadFuncionalSinCotaDeReferencia', unidadFuncionalId: 'uf-2' },
+    ]
+    const unidadesFuncionales = [
+      { id: 'uf-1', nombre: 'Unidad funcional 1', locales: [] },
+      { id: 'uf-2', nombre: 'Unidad funcional 2', locales: [] },
+    ]
+
+    const resultado = agruparMotivosDeModulo2(motivos, unidadesFuncionales)
+
+    expect(resultado).toEqual(['Falta la cota hidráulica de referencia de Unidad funcional 2.'])
+  })
+
+  it('unidadFuncionalSinCotaDeReferencia: ya deduplicado aguas arriba, pero una sola línea por UF aunque se repita el id', () => {
+    const motivos: DiagnosticoIncompletitudModulo2[] = [
+      { tipo: 'unidadFuncionalSinCotaDeReferencia', unidadFuncionalId: 'uf-1' },
+      { tipo: 'unidadFuncionalSinCotaDeReferencia', unidadFuncionalId: 'uf-1' },
+    ]
+    const unidadesFuncionales = [{ id: 'uf-1', nombre: 'Unidad funcional 1', locales: [] }]
+
+    expect(agruparMotivosDeModulo2(motivos, unidadesFuncionales)).toEqual([
+      'Falta la cota hidráulica de referencia de Unidad funcional 1.',
+    ])
   })
 
   it('perdidaLocalizadaIncompleta: singular cuando el conjunto deduplicado de tramos es 1', () => {
@@ -42,7 +68,7 @@ describe('agruparMotivosDeModulo2', () => {
       { tipo: 'perdidaLocalizadaIncompleta', nodoId: 't1', tramosNoResueltos: [{ tramoId: 'tramo-a', motivo: 'sinRelevar' }] },
     ]
 
-    expect(agruparMotivosDeModulo2(motivos)).toEqual(['Falta relevar accesorios o tees en 1 tramo.'])
+    expect(agruparMotivosDeModulo2(motivos, [])).toEqual(['Falta relevar accesorios o tees en 1 tramo.'])
   })
 
   it('balanceIncompleto: cuenta terminales distintos (nodoId), no la cantidad de entradas', () => {
@@ -51,13 +77,13 @@ describe('agruparMotivosDeModulo2', () => {
       { tipo: 'balanceIncompleto', nodoId: 't2', terminosFaltantes: ['hfMedidor'] },
     ]
 
-    expect(agruparMotivosDeModulo2(motivos)).toEqual(['Hay 2 terminales con el balance de presión todavía incompleto.'])
+    expect(agruparMotivosDeModulo2(motivos, [])).toEqual(['Hay 2 terminales con el balance de presión todavía incompleto.'])
   })
 
   it('sinTerminalesConPresionMinimaPublicada: una línea fija', () => {
     const motivos: DiagnosticoIncompletitudModulo2[] = [{ tipo: 'sinTerminalesConPresionMinimaPublicada' }]
 
-    expect(agruparMotivosDeModulo2(motivos)).toEqual(['Ningún terminal del proyecto tiene presión mínima normativa publicada para verificar.'])
+    expect(agruparMotivosDeModulo2(motivos, [])).toEqual(['Ningún terminal del proyecto tiene presión mínima normativa publicada para verificar.'])
   })
 
   it('combina múltiples tipos de motivo en líneas independientes, en un orden estable', () => {
@@ -66,7 +92,7 @@ describe('agruparMotivosDeModulo2', () => {
       { tipo: 'desnivelIncompleto', nodoId: 't1', nodosSinCota: ['a'] },
     ]
 
-    expect(agruparMotivosDeModulo2(motivos)).toEqual([
+    expect(agruparMotivosDeModulo2(motivos, [])).toEqual([
       'Falta indicar el tipo de alimentación y sus datos.',
       'Faltan cotas de conexión en 1 punto.',
     ])
