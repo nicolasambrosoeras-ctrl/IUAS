@@ -7,24 +7,27 @@
 // (p.ej. tramoSalidaRectaId inválido), la inconsistencia la reporta
 // validarRedHidraulica -- este editor no infiere ni corrige nada
 // silenciosamente.
+//
+// D-δ.43: las etiquetas de cada salida las resuelve el llamador (nombres
+// humanos de los Artefactos aguas abajo, ver humanizarModulo2.ts) -- este
+// editor no conoce ids de Tramo/Nodo en su presentación, solo los usa
+// internamente para identificar cuál salida es cuál al invocar
+// conTeeDeNodo.
 import type { Proyecto } from '../../modelo/proyecto'
-import { obtenerArtefactosAguasAbajo } from '../../motor/tuberias/topologia/obtenerArtefactosAguasAbajo'
 import type { NodoDeBifurcacion } from '../../motor/tuberias/topologia/identificarNodosDeBifurcacion'
-import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 import { conTeeDeNodo } from './actualizarRedHidraulica'
-
-function etiquetaDeSaliente(proyecto: Proyecto, tramoSalienteId: string): string {
-  const cantidad = obtenerArtefactosAguasAbajo(proyecto, tramoSalienteId).length
-  return `${tramoSalienteId} (${formatearNumero(cantidad, 'conteo')} artefacto${cantidad === 1 ? '' : 's'} aguas abajo)`
-}
 
 export function TeeDeNodoEditor({
   proyecto,
   nodoDeBifurcacion,
+  etiquetasDeSalida,
   onCambiar,
 }: {
   proyecto: Proyecto
   nodoDeBifurcacion: NodoDeBifurcacion
+  // Nombre humano de cada tramo saliente (p.ej. "Lavatorio"), indexado por
+  // tramoId -- nunca se muestra el tramoId directamente.
+  etiquetasDeSalida: Readonly<Record<string, string>>
   onCambiar: (proyecto: Proyecto) => void
 }) {
   const nodo = proyecto.redHidraulica?.nodos.find((candidato) => candidato.id === nodoDeBifurcacion.nodoId)
@@ -33,13 +36,14 @@ export function TeeDeNodoEditor({
   }
   const { tee } = nodo
   const [salienteA, salienteB] = nodoDeBifurcacion.tramosSalientesIds
+  const etiquetaA = etiquetasDeSalida[salienteA] ?? salienteA
+  const etiquetaB = etiquetasDeSalida[salienteB] ?? salienteB
 
   if (tee === undefined) {
     return (
       <div>
         <p>
-          <strong>Bifurcación sin configurar</strong> — nodo <code>{nodoDeBifurcacion.nodoId}</code>. Salidas:{' '}
-          {etiquetaDeSaliente(proyecto, salienteA)} y {etiquetaDeSaliente(proyecto, salienteB)}.
+          <strong>Bifurcación sin configurar</strong> — se divide hacia {etiquetaA} y {etiquetaB}.
         </p>
         <p>
           <button
@@ -60,7 +64,7 @@ export function TeeDeNodoEditor({
               )
             }
           >
-            {salienteA} es la recta
+            {etiquetaA} es la recta
           </button>{' '}
           <button
             type="button"
@@ -70,7 +74,7 @@ export function TeeDeNodoEditor({
               )
             }
           >
-            {salienteB} es la recta
+            {etiquetaB} es la recta
           </button>
         </p>
       </div>
@@ -80,14 +84,14 @@ export function TeeDeNodoEditor({
   const descripcion =
     tee.tipo === 'entradaCentral'
       ? 'Entrada central — ambas salidas laterales'
-      : `Entrada por extremo — recta: ${tee.tramoSalidaRectaId}, lateral: ${
-          tee.tramoSalidaRectaId === salienteA ? salienteB : salienteA
+      : `Entrada por extremo — recta: ${tee.tramoSalidaRectaId === salienteA ? etiquetaA : etiquetaB}, lateral: ${
+          tee.tramoSalidaRectaId === salienteA ? etiquetaB : etiquetaA
         }`
 
   return (
     <div>
       <p>
-        Nodo <code>{nodoDeBifurcacion.nodoId}</code>: {descripcion}.{' '}
+        Se divide hacia {etiquetaA} y {etiquetaB}. {descripcion}.{' '}
         <button type="button" onClick={() => onCambiar(conTeeDeNodo(proyecto, nodoDeBifurcacion.nodoId, undefined))}>
           Reconfigurar
         </button>
