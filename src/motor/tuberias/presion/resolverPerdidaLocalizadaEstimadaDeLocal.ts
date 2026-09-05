@@ -1,46 +1,62 @@
-// Perdida de carga localizada ESTIMADA de un Local+red (D-delta.40, modo
-// estandar): unica magnitud del modo estimado implementada hasta ahora --
-// tees estimadas. El resto de Tabla N7 (codos, curvas, llaves...) NO se
-// estima: no hay en el dominio ninguna base normativa ni topologica para
-// inferir cantidades de esos accesorios sin relevamiento fisico, y modo
-// estandar debe simplificar el relevamiento, no inventar infraestructura
-// con falsa precision (ver PENDIENTES-DE-ARQUITECTURA.md, D-delta.40).
+// Perdida de carga localizada ESTIMADA de un Local+red (D-delta.40 tees +
+// D-delta.45 plantilla tipica del modo rapido): el resto de Tabla N7
+// (curvas, uniones, valvula esclusa, reducciones) sigue SIN estimarse --
+// no hay en el dominio ninguna base normativa ni topologica para inferir
+// esas cantidades sin relevamiento fisico. La plantilla D-delta.45 agrega
+// dos componentes mas, ambos decisiones de producto IUAS explicitas
+// (decisiones rojas presentadas y resueltas por el usuario, ver
+// PENDIENTES-DE-ARQUITECTURA.md D-delta.45): una singularidad terminal
+// fija y una llave de paso, ambas de cardinalidad 1 por Local+red
+// (nunca por terminal) cuando hay al menos 1 terminal fisico.
 //
 // Formula (decision IUAS, conservadora -- ninguna parte de esta seccion
 // es transcripcion de ERAS-2023):
-//   N_tees_estimadas = max(0, n-1)          n = contarTerminalesFisicosDeLocal
-//   Ks_estimado_tee = 3,00                  peor Ks de las 3 variantes de tee de Tabla N7
+//   n = contarTerminalesFisicosDeLocal
+//   N_tees_estimadas          = max(0, n-1)
+//   N_singularidadTerminal    = n >= 1 ? 1 : 0   -- el ultimo terminal de la linea
+//   N_llaveDePaso             = n >= 1 ? 1 : 0   -- una por Local+red, no por terminal
+//   Ks_estimado_tee           = 3,00  (Tabla N7: teeEntradaCentralSalidasLaterales,
+//                                      peor Ks de las 3 variantes de tee, D-delta.40)
+//   Ks_singularidadTerminal   = 1,35  (Tabla N7: codo90 -- decision roja D-delta.45,
+//                                      resuelta por el usuario a favor de la opcion
+//                                      mas conservadora entre curva90/codo90/tuboSaliente)
+//   Ks_llaveDePaso            = 9,18  (Tabla N7: llaveDePaso -- decision roja D-delta.45,
+//                                      resuelta por el usuario: SI incluirla, 1 por Local+red)
 //   V_ref = MAX velocidadReal_mps entre los tramos que alimentan
 //           directamente cada terminal fisico de este Local+red (nunca
 //           toda la traza hasta la raiz: eso mezclaria velocidades de
 //           tramos troncales compartidos con OTROS Locales). Nunca
 //           subestima Js (Js proporcional a V^2): mismo principio
-//           conservador que Ks=3,00, ver checkpoint rojo resuelto en
-//           D-delta.40.
-//   Js_estimada = (N_tees_estimadas * Ks_estimado_tee) * V_ref^2 / (2g)
+//           conservador ya usado para Ks_estimado_tee, D-delta.40.
+//   Ks_equivalente_estimado = N_tees_estimadas*Ks_estimado_tee
+//                            + N_singularidadTerminal*Ks_singularidadTerminal
+//                            + N_llaveDePaso*Ks_llaveDePaso
+//   Js_estimada = Ks_equivalente_estimado * V_ref^2 / (2g)
 //
 // Unico valor por Local+red: se aplica igual a todos los terminales de
 // ese Local+red (no se distribuye por tramo -- no hay relevamiento de
-// DONDE, dentro del Local, esta cada tee estimada).
+// DONDE, dentro del Local, esta cada componente estimado).
 //
-// N_tees_estimadas=0 (0 o 1 terminal fisico en esta red/Local) es un cero
-// real que NUNCA requiere resolver velocidad: Js=0 independientemente de
-// V, asi que se corta antes de tocar la capa comercial -- evita exigir
-// que esos tramos tengan demanda/diametro resuelto cuando el resultado
-// final no depende de eso.
+// n=0 (ningun terminal fisico en esta red/Local) es el UNICO cero real
+// que nunca requiere resolver velocidad: Ks_equivalente_estimado=0
+// independientemente de V, asi que se corta antes de tocar la capa
+// comercial. A partir de D-delta.45, n=1 YA NO es un cero -- aunque
+// N_tees_estimadas siga siendo 0, la singularidad terminal y la llave de
+// paso SI aplican con un unico terminal, asi que ahora requiere resolver
+// velocidad igual que n>=2 (cambio de comportamiento respecto de
+// D-delta.40, ver PENDIENTES-DE-ARQUITECTURA.md D-delta.45).
 import type { Proyecto } from '../../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../../normativa/eras-2023/catalogo-artefactos'
 import type { RedDeTramo } from '../../../modelo/redHidraulica'
 import type { SistemaDeTuberiaCatalogado } from '../sistemaDeTuberia'
+import { obtenerKsDeAccesorio } from '../../../normativa/eras-2023/tabla-07-perdidas-localizadas'
 import { resolverDiametroComercialDeTramo } from '../resolverDiametroComercialDeTramo'
 import { calcularPerdidaCargaLocalizada } from '../perdidaCarga/calcularPerdidaCargaLocalizada'
 import { contarTerminalesFisicosDeLocal } from '../topologia/contarTerminalesFisicosDeLocal'
 
-// Peor Ks de las 3 variantes de tee de Tabla N7 (teeEntradaCentralSalidasLaterales,
-// ver normativa/eras-2023/tabla-07-perdidas-localizadas y CRIT-A31) --
-// adopcion deliberadamente conservadora ante geometria no relevada, NO
-// afirma que toda tee real tenga este Ks.
-const KS_ESTIMADO_TEE = 3.0
+export const KS_ESTIMADO_TEE = obtenerKsDeAccesorio('teeEntradaCentralSalidasLaterales')
+export const KS_ESTIMADO_SINGULARIDAD_TERMINAL = obtenerKsDeAccesorio('codo90')
+export const KS_ESTIMADO_LLAVE_DE_PASO = obtenerKsDeAccesorio('llaveDePaso')
 
 export type MotivoTramoSinPerdidaLocalizadaEstimada = 'sinDemanda' | 'sinCandidatoAdmisible'
 
@@ -50,8 +66,10 @@ export type ResultadoPerdidaLocalizadaEstimadaDeLocal =
       readonly hf_m: number
       readonly nTerminalesLocal: number
       readonly nTeesEstimadas: number
-      // 0 cuando nTeesEstimadas=0: Js=0 no depende de V, nunca se resolvio
-      // ningun candidato comercial para llegar a este resultado.
+      readonly nSingularidadTerminal: number
+      readonly nLlaveDePaso: number
+      // 0 cuando nTerminalesLocal=0: Js=0 no depende de V, nunca se
+      // resolvio ningun candidato comercial para llegar a este resultado.
       readonly velocidadReferencia_mps: number
     }
   | {
@@ -78,11 +96,22 @@ export function resolverPerdidaLocalizadaEstimadaDeLocal(
   }
 
   const nTerminalesLocal = contarTerminalesFisicosDeLocal(redHidraulica, unidadFuncionalId, localId, red)
-  const nTeesEstimadas = Math.max(0, nTerminalesLocal - 1)
 
-  if (nTeesEstimadas === 0) {
-    return { tipo: 'estimada', hf_m: 0, nTerminalesLocal, nTeesEstimadas: 0, velocidadReferencia_mps: 0 }
+  if (nTerminalesLocal === 0) {
+    return {
+      tipo: 'estimada',
+      hf_m: 0,
+      nTerminalesLocal: 0,
+      nTeesEstimadas: 0,
+      nSingularidadTerminal: 0,
+      nLlaveDePaso: 0,
+      velocidadReferencia_mps: 0,
+    }
   }
+
+  const nTeesEstimadas = Math.max(0, nTerminalesLocal - 1)
+  const nSingularidadTerminal = 1
+  const nLlaveDePaso = 1
 
   // Tramos que alimentan DIRECTAMENTE cada terminal fisico de este
   // Local+red (aquellos cuyo nodoDestinoId es uno de esos terminales) --
@@ -124,7 +153,19 @@ export function resolverPerdidaLocalizadaEstimadaDeLocal(
     return { tipo: 'incompleta', tramosNoResueltos }
   }
 
-  const hf_m = calcularPerdidaCargaLocalizada(nTeesEstimadas * KS_ESTIMADO_TEE, velocidadReferencia_mps)
+  const ksEquivalenteEstimado =
+    nTeesEstimadas * KS_ESTIMADO_TEE +
+    nSingularidadTerminal * KS_ESTIMADO_SINGULARIDAD_TERMINAL +
+    nLlaveDePaso * KS_ESTIMADO_LLAVE_DE_PASO
+  const hf_m = calcularPerdidaCargaLocalizada(ksEquivalenteEstimado, velocidadReferencia_mps)
 
-  return { tipo: 'estimada', hf_m, nTerminalesLocal, nTeesEstimadas, velocidadReferencia_mps }
+  return {
+    tipo: 'estimada',
+    hf_m,
+    nTerminalesLocal,
+    nTeesEstimadas,
+    nSingularidadTerminal,
+    nLlaveDePaso,
+    velocidadReferencia_mps,
+  }
 }

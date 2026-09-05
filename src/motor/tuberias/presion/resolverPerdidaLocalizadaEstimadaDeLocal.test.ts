@@ -9,7 +9,12 @@ import { catalogoArtefactos } from '../../../normativa/eras-2023/catalogo-artefa
 import { catalogoSistemasDeTuberia, type SistemaDeTuberiaCatalogado } from '../sistemaDeTuberia'
 import { resolverDiametroComercialDeTramo } from '../resolverDiametroComercialDeTramo'
 import { calcularPerdidaCargaLocalizada } from '../perdidaCarga/calcularPerdidaCargaLocalizada'
-import { resolverPerdidaLocalizadaEstimadaDeLocal } from './resolverPerdidaLocalizadaEstimadaDeLocal'
+import {
+  resolverPerdidaLocalizadaEstimadaDeLocal,
+  KS_ESTIMADO_TEE,
+  KS_ESTIMADO_SINGULARIDAD_TERMINAL,
+  KS_ESTIMADO_LLAVE_DE_PASO,
+} from './resolverPerdidaLocalizadaEstimadaDeLocal'
 
 function metadatos(): MetadatosProyecto {
   return {
@@ -90,11 +95,16 @@ function velocidadRealDe(proyecto: Proyecto, tramoId: string): number {
   return resultado.velocidadReal_mps
 }
 
-const KS_ESTIMADO_TEE = 3.0
+// Ks equivalente estimado (D-delta.45): tees (n-1) + 1 singularidad
+// terminal fija + 1 llave de paso por Local+red, esta ultima solo
+// cuando hay al menos 1 terminal fisico.
+function ksEquivalenteEstimado(nTees: number): number {
+  return nTees * KS_ESTIMADO_TEE + KS_ESTIMADO_SINGULARIDAD_TERMINAL + KS_ESTIMADO_LLAVE_DE_PASO
+}
 
 describe('resolverPerdidaLocalizadaEstimadaDeLocal', () => {
-  it('1 terminal fisico -> 0 tees estimadas, hf=0, no requiere resolver velocidad', () => {
-    const { proyecto } = proyectoConTerminalesEnEstrella(['lavatorio'])
+  it('1 terminal fisico -> 0 tees estimadas, pero SI singularidad terminal + llave de paso (D-delta.45): hf>0, requiere resolver velocidad', () => {
+    const { proyecto, tramoIds } = proyectoConTerminalesEnEstrella(['lavatorio'])
 
     const resultado = resolverPerdidaLocalizadaEstimadaDeLocal(
       proyecto,
@@ -105,10 +115,45 @@ describe('resolverPerdidaLocalizadaEstimadaDeLocal', () => {
       catalogoSistemasDeTuberia,
     )
 
-    expect(resultado).toEqual({ tipo: 'estimada', hf_m: 0, nTerminalesLocal: 1, nTeesEstimadas: 0, velocidadReferencia_mps: 0 })
+    const vMax = Math.max(...tramoIds.map((id) => velocidadRealDe(proyecto, id)))
+    const hfEsperado = calcularPerdidaCargaLocalizada(ksEquivalenteEstimado(0), vMax)
+
+    expect(resultado).toEqual({
+      tipo: 'estimada',
+      hf_m: hfEsperado,
+      nTerminalesLocal: 1,
+      nTeesEstimadas: 0,
+      nSingularidadTerminal: 1,
+      nLlaveDePaso: 1,
+      velocidadReferencia_mps: vMax,
+    })
   })
 
-  it('2 terminales fisicos -> 1 tee estimada, V_ref = maxima velocidad real entre los tramos terminales', () => {
+  it('0 terminales fisicos -> unico cero real, no requiere resolver velocidad', () => {
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'uf-1', locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [] }] }
+    const proyecto = proyectoCon([uf], { nodos: [], tramos: [] })
+
+    const resultado = resolverPerdidaLocalizadaEstimadaDeLocal(
+      proyecto,
+      'uf-1',
+      'local-1',
+      'AF',
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+    )
+
+    expect(resultado).toEqual({
+      tipo: 'estimada',
+      hf_m: 0,
+      nTerminalesLocal: 0,
+      nTeesEstimadas: 0,
+      nSingularidadTerminal: 0,
+      nLlaveDePaso: 0,
+      velocidadReferencia_mps: 0,
+    })
+  })
+
+  it('2 terminales fisicos -> 1 tee estimada + singularidad terminal + llave de paso, V_ref = maxima velocidad real entre los tramos terminales', () => {
     const { proyecto, tramoIds } = proyectoConTerminalesEnEstrella(['lavatorio', 'inodoroDeposito'])
 
     const resultado = resolverPerdidaLocalizadaEstimadaDeLocal(
@@ -121,16 +166,18 @@ describe('resolverPerdidaLocalizadaEstimadaDeLocal', () => {
     )
 
     const vMax = Math.max(...tramoIds.map((id) => velocidadRealDe(proyecto, id)))
-    const hfEsperado = calcularPerdidaCargaLocalizada(1 * KS_ESTIMADO_TEE, vMax)
+    const hfEsperado = calcularPerdidaCargaLocalizada(ksEquivalenteEstimado(1), vMax)
 
     if (resultado.tipo !== 'estimada') throw new Error('se esperaba estimada')
     expect(resultado.nTerminalesLocal).toBe(2)
     expect(resultado.nTeesEstimadas).toBe(1)
+    expect(resultado.nSingularidadTerminal).toBe(1)
+    expect(resultado.nLlaveDePaso).toBe(1)
     expect(resultado.velocidadReferencia_mps).toBeCloseTo(vMax, 12)
     expect(resultado.hf_m).toBeCloseTo(hfEsperado, 12)
   })
 
-  it('4 terminales fisicos -> 3 tees estimadas', () => {
+  it('4 terminales fisicos -> 3 tees estimadas + singularidad terminal + llave de paso', () => {
     const { proyecto, tramoIds } = proyectoConTerminalesEnEstrella([
       'lavatorio',
       'inodoroDeposito',
@@ -148,11 +195,13 @@ describe('resolverPerdidaLocalizadaEstimadaDeLocal', () => {
     )
 
     const vMax = Math.max(...tramoIds.map((id) => velocidadRealDe(proyecto, id)))
-    const hfEsperado = calcularPerdidaCargaLocalizada(3 * KS_ESTIMADO_TEE, vMax)
+    const hfEsperado = calcularPerdidaCargaLocalizada(ksEquivalenteEstimado(3), vMax)
 
     if (resultado.tipo !== 'estimada') throw new Error('se esperaba estimada')
     expect(resultado.nTerminalesLocal).toBe(4)
     expect(resultado.nTeesEstimadas).toBe(3)
+    expect(resultado.nSingularidadTerminal).toBe(1)
+    expect(resultado.nLlaveDePaso).toBe(1)
     expect(resultado.hf_m).toBeCloseTo(hfEsperado, 12)
   })
 
@@ -206,7 +255,11 @@ describe('resolverPerdidaLocalizadaEstimadaDeLocal', () => {
     expect(resultadoAF.nTeesEstimadas).toBe(1)
     expect(resultadoAC.nTerminalesLocal).toBe(1)
     expect(resultadoAC.nTeesEstimadas).toBe(0)
-    expect(resultadoAC.hf_m).toBe(0)
+    // D-delta.45: 1 terminal ya no es hf=0 -- singularidad terminal +
+    // llave de paso aplican igual con un unico terminal fisico.
+    expect(resultadoAC.nSingularidadTerminal).toBe(1)
+    expect(resultadoAC.nLlaveDePaso).toBe(1)
+    expect(resultadoAC.hf_m).toBeGreaterThan(0)
   })
 
   const SISTEMA_INSUFICIENTE: readonly SistemaDeTuberiaCatalogado[] = [

@@ -45,7 +45,12 @@ import type { RedDeTramo } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia'
 import { contarTerminalesFisicosDeLocal } from '../../motor/tuberias/topologia/contarTerminalesFisicosDeLocal'
-import { resolverPerdidaLocalizadaEstimadaDeLocal } from '../../motor/tuberias/presion/resolverPerdidaLocalizadaEstimadaDeLocal'
+import {
+  resolverPerdidaLocalizadaEstimadaDeLocal,
+  KS_ESTIMADO_TEE,
+  KS_ESTIMADO_SINGULARIDAD_TERMINAL,
+  KS_ESTIMADO_LLAVE_DE_PASO,
+} from '../../motor/tuberias/presion/resolverPerdidaLocalizadaEstimadaDeLocal'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 import { ETIQUETA_RED, nombresDeArtefactosAguasAbajo } from './humanizarModulo2'
 import { construirArbolDeLocal, type NodoDelArbolDeLocal } from './construirArbolDeLocal'
@@ -293,7 +298,12 @@ function ResumenEstimadoDeLocal({
       </p>
       <details>
         <summary>Ver cálculo</summary>
-        <p>Ks por tee estimada: 3,00</p>
+        <p>Configuración típica IUAS (D-δ.45)</p>
+        <p>Tees estimadas: {formatearNumero(resultado.nTeesEstimadas, 'conteo')} · Ks por tee: {formatearNumero(KS_ESTIMADO_TEE, 'adimensional')}</p>
+        <p>
+          Singularidad terminal: {formatearNumero(resultado.nSingularidadTerminal, 'conteo')} · Ks: {formatearNumero(KS_ESTIMADO_SINGULARIDAD_TERMINAL, 'adimensional')}
+        </p>
+        <p>Llave de paso: {formatearNumero(resultado.nLlaveDePaso, 'conteo')} · Ks: {formatearNumero(KS_ESTIMADO_LLAVE_DE_PASO, 'adimensional')}</p>
         <p>V referencia: {formatearNumero(resultado.velocidadReferencia_mps, 'm/s')} m/s (máxima velocidad real entre los tramos que alimentan directamente los terminales de este Local+red)</p>
         <p>Cobertura: estimada (completa dentro de esta metodología)</p>
       </details>
