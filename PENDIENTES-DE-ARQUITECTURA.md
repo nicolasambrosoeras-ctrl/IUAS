@@ -2170,3 +2170,160 @@ física incompleta), `error` (2: referencia rota, y coexistencia con un
 incompleto real para probar precedencia), `completo` (4: modo detallado,
 modo estimado con terminal crítico verificado contra el propio motor,
 regresión CRIT-A24/D-δ.27, y exclusión de terminal sin Pmin publicada).
+
+### D-δ.42 — Cierre funcional de la UI de Módulo 2 (velocidad, pérdidas localizadas, presión) — IMPLEMENTADA
+
+**Objetivo**: el motor hidráulico de M2 estaba muy avanzado (D-δ.32 a
+D-δ.41) pero la web local no exponía capacidades ya cerradas —
+verificación de velocidad, gestión de accesorios/tees, y balance de
+presión eran invisibles para el usuario aunque el dominio ya las
+resolvía. Este registro cierra esa brecha **sin tocar hidráulica**:
+React edita entradas, invoca primitivas existentes y muestra resultados
+existentes — ninguna fórmula ni regla de validación (Vmin/Vmax, Ks,
+selección de DN, cobertura, balance, terminal crítico) se duplicó en un
+componente.
+
+**Verificado manualmente contra la web real** (Playwright headless, no
+solo tests unitarios): se llevó un terminal real del proyecto de
+ejemplo (`Unidad funcional 1 → Jardín → Canilla de servicio`) hasta
+`balanceCompleto` cargando únicamente datos por UI — longitud de dos
+tramos, cota de dos nodos, relevamiento de accesorios (`[]`), Pdisponible
+y hfMedidor — sin recargar la página ni tocar código. Resultado
+correcto y consistente con la fórmula ya cerrada
+(`Presidual = Pdisponible − Δz − hfDistribuida − hfLocalizada − hfMedidor`),
+`Terminal más desfavorable` mostró `candidatoProvisional` (correcto:
+solo 1 de ~16 terminales completo) hasta corregir un error real
+detectado en esta misma verificación (ver más abajo). Cero errores de
+consola en toda la corrida.
+
+**Bug real encontrado y corregido durante la verificación manual**: la
+primera versión de `PanelDePresionDeModulo2` prefiltraba los candidatos
+a `resolverTerminalMasDesfavorable` (solo pasaba los ya `balanceCompleto`),
+lo que forzaba siempre `'determinado'` aunque el resto de los terminales
+del proyecto siguiera incompleto — exactamente la distinción que esa
+primitiva fue diseñada para expresar (M2-B: `'determinado'` vs.
+`'candidatoProvisional'`). Corregido pasando **todos** los candidatos sin
+prefiltrar. Este es el tipo de defecto que la instrucción del usuario
+("no copiar lógica de... terminal crítico") buscaba evitar — se coló por
+una integración apresurada, no por reinterpretar la fórmula, y la propia
+prueba manual end-to-end lo expuso antes de cerrar el incremento.
+
+#### Capacidades del motor que quedaron expuestas
+
+- **Verificación de velocidad (CRIT-A19/CRIT-A24)**: nuevas columnas "V
+  admisible [m/s]" y "Verificación" en la tabla de tramos de
+  `ResultadoHidraulicoDeTramo.tsx`. Nunca se recalcula Vmin/Vmax ni el
+  resultado de admisibilidad — se leen tal cual de
+  `ResultadoVerificacionVelocidad`. Distinción de UX deliberada (no de
+  cálculo): mientras `velocidadPorDebajoDelMinimo` sea `true` (fallback
+  terminal de CRIT-A24/D-δ.27), el texto nunca dice "no admisible" ni usa
+  lenguaje de advertencia — se presenta como "Aceptada en el menor
+  diámetro comercial (CRIT-A24)", una aceptación normativa explícita, no
+  una alarma accionable (no hay ninguna acción de dimensionamiento
+  posible en ese caso). Verificado por test y por la corrida manual
+  (aparece naturalmente en el proyecto de ejemplo, en Cocina/Lavadero
+  AC).
+- **Selector de metodología de pérdida localizada (D-δ.40)**: `<select>`
+  "Pérdidas localizadas: Detalladas / Estimadas" en
+  `ConfiguracionHidraulicaFormulario`, ligado a `conMetodoPerdidaLocalizada`
+  (nuevo updater, mismo patrón que `conMetodoPerdidaDistribuida`). Cambiar
+  de método nunca borra `Tramo.accesorios`/`Nodo.tee` ya persistidos —
+  solo deja de usarlos mientras el modo activo sea `'estimado'`.
+- **Editor de accesorios de Tramo (CRIT-A26/A28/A30)**: `AccesoriosDeTramoEditor.tsx`,
+  montado como fila expandible bajo cada tramo de la tabla (solo modo
+  `'detallado'`). Persiste únicamente `{tipo, cantidad}` vía el nuevo
+  updater `conAccesoriosDeTramo` — nunca Ks (se resuelve siempre desde
+  Tabla N°7). Distingue "no relevado" (`undefined`, botón "Relevar
+  accesorios") de "relevado sin accesorios" (`[]`, texto explícito) tal
+  como exige el modelo. Alcance: cubre los tramos ya visibles en las
+  tablas de M2 (distribución general + principal de cada Local) — los
+  tramos terminales individuales hacia cada Artefacto (ocultos de esas
+  tablas por diseño, ver `identificarFilasDeModulo2.ts`) no tienen
+  todavía superficie de edición propia (deuda, ver abajo).
+- **Editor de tees (CRIT-A31)**: `TeeDeNodoEditor.tsx` + primitiva nueva
+  `identificarNodosDeBifurcacion` (motor/tuberias/topologia/, estructural,
+  1 entrante + 2 salientes). Sección "Tees (bifurcaciones)" separada de
+  la tabla de tramos (las tees viven en Nodo, no en Tramo) que lista
+  **todas** las bifurcaciones de la red completa, no solo las de los
+  tramos "principales". Persiste únicamente `ConfiguracionDeTee` vía el
+  nuevo updater `conTeeDeNodo` — nunca Ks, ángulos, coordenadas ni
+  orientación absoluta. Si la topología queda incoherente, la
+  inconsistencia la reporta `validarRedHidraulica` (S2 ya existente); el
+  editor no infiere ni corrige nada.
+- **Resumen del modo estimado (D-δ.40)**: `ResumenEstimadoPorLocal`, una
+  tabla por `(Local, red)` con `n`, tees estimadas, `V_ref`, `hf` —
+  producida por `resolverPerdidaLocalizadaEstimadaDeLocal` sin ningún
+  editor de geometría detallada (D-δ.40 ya cerró que eso sería falsa
+  precisión). La palabra "estimada" queda siempre explícita en la
+  cobertura mostrada, nunca "parcial"/"incompleta".
+- **Verificación de presión (M2-B)**: `PanelDePresionDeModulo2.tsx`, la
+  pieza central de este incremento. Por cada terminal (nodo con
+  referencia a Artefacto): Δz, hfDistribuida, hfLocalizada (con su
+  metodología activa), hfMedidor, Presidual, Pmin, margen y un estado
+  textual derivado 1:1 del `tipo` de `ResultadoPresionResidualDeCamino`
+  (nunca una heurística nueva). Debajo, `Terminal más desfavorable`
+  usando `resolverTerminalMasDesfavorable` sobre **todos** los
+  candidatos (ver corrección de bug arriba).
+- **`Pdisponible` y `hfMedidor` como inputs manuales**: dos `<input
+  type="number">` con unidad visible (m.c.a.) en el propio panel, **sin
+  persistirse en `Proyecto`** — viven como `useState` local del panel.
+  Esta fue la decisión de diseño explícita para evitar la decisión roja
+  que el brief anticipaba ("si esto exige nueva persistencia de dominio,
+  puede ser decisión roja"): como el modelo ya declara `Pdisponible`
+  como condición de borde abstracta (D-δ.36) y `hfMedidor_mca` como dato
+  externo (D-δ.35) — ninguno de los dos tiene, ni debe tener todavía, un
+  campo persistido en `Proyecto` — mantenerlos como estado efímero de UI
+  es la opción **consistente con el propio modelo de dominio**, no un
+  atajo. Se pierden al recargar la página, igual que el resto del
+  Proyecto (que tampoco persiste hoy). El input de hfMedidor rotula
+  explícitamente: "dato hidráulico de entrada para M2 — no representa
+  una selección comercial de medidor" (M3 no existe todavía).
+- **Cota de Nodo, nueva capacidad menor no listada originalmente**: al
+  intentar demostrar `balanceCompleto` end-to-end (ver prueba manual)
+  se descubrió que el proyecto de ejemplo no tiene ningún `cota_m`
+  seteado y no había ninguna forma de editarlo desde la UI —
+  `resolverDesnivelDeCamino` no podía resolver Δz para NINGÚN terminal
+  real, bloqueando permanentemente el criterio de éxito de esta corrida.
+  Se agregó el updater `conCotaDeNodo` (mismo patrón que
+  `conLongitudDeTramo`) y un input de cota tanto para cada terminal
+  (dentro de la tabla de presión) como para los nodos raíz (sección
+  "Cota del nodo raíz", identificados estructuralmente por no tener
+  ningún tramo entrante). Consecuencia técnica necesaria del objetivo ya
+  aprobado, no ampliación de alcance.
+- **`resolverEstadoModulo2` (D-δ.41, secundario)**: una línea de estado
+  ("Estado de Módulo 2: Completo/Incompleto (N motivos)/Error (N
+  problemas)/No iniciado") en la parte superior del panel de presión —
+  sin diseño visual nuevo, sin tabs, tal como pedía el alcance.
+
+#### Qué sigue siendo exclusivamente dominio (no se tocó)
+
+Ninguna fórmula: Hazen-Williams/Darcy-Weisbach, Ks de Tabla N°7,
+selección de DN comercial (CRIT-A23/A24), clasificación de tee
+(CRIT-A31), `resolverBalanceDePresion`, `resolverTerminalMasDesfavorable`,
+`resolverPerdidaLocalizadaEstimadaDeLocal`. Ningún componente reimplementa
+ninguna de estas reglas ni recalcula lo que el motor ya devuelve.
+
+#### Deuda de UI restante (deliberadamente fuera de esta corrida)
+
+- Accesorios sobre tramos terminales individuales (ocultos de las tablas
+  de M2 por diseño) sin superficie de edición propia.
+- Sin selector de Local/UF amigable en el panel de presión más allá del
+  texto ya producido por `describirReferenciaPendiente` (reutilizado, no
+  duplicado).
+- Sin persistencia de `Pdisponible`/`hfMedidor` entre recargas (mismo
+  estado que el resto del Proyecto hoy).
+- Tabs M1/M2/M3/M4, React Router, M3 funcional, selección comercial de
+  medidor, `hfEquipoACS`, presurizador, redes malladas, editor gráfico:
+  explícitamente diferidos, sin cambios en esta corrida. Las tabs quedan
+  diferidas hasta después de este cierre funcional porque no tenía
+  sentido reorganizar la navegación de una UI que todavía no exponía las
+  capacidades centrales del módulo que se está por reorganizar.
+
+**Archivos nuevos**: `interfaz/paginas/AccesoriosDeTramoEditor.tsx`,
+`interfaz/paginas/TeeDeNodoEditor.tsx`, `interfaz/paginas/PanelDePresionDeModulo2.tsx`,
+`motor/tuberias/topologia/identificarNodosDeBifurcacion.ts`. **Updaters
+nuevos**: `conAccesoriosDeTramo`, `conTeeDeNodo`, `conCotaDeNodo`
+(`actualizarRedHidraulica.ts`), `conMetodoPerdidaLocalizada`
+(`actualizarConfiguracionHidraulica.ts`).
+
+**Estado**: IMPLEMENTADA y verificada manualmente contra la web real.
