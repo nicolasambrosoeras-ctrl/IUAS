@@ -30,6 +30,8 @@ import {
 } from './sincronizarConectividadFisicaDeArtefacto'
 import { determinarRedesFisicasPorPrecedente } from '../../motor/tuberias/topologia/determinarRedesFisicasPorPrecedente'
 import { quitarConectividadFisicaDeArtefacto } from './quitarConectividadFisicaDeArtefacto'
+import { quitarConectividadFisicaDeLocal } from './quitarConectividadFisicaDeLocal'
+import { quitarConectividadFisicaDeUnidadFuncional } from './quitarConectividadFisicaDeUnidadFuncional'
 import { ResultadoHidraulicoDeTramo } from './ResultadoHidraulicoDeTramo'
 import { MetodologiaYFuentesTecnicas } from './MetodologiaYFuentesTecnicas'
 import { parsearCota } from './parsearCota'
@@ -467,7 +469,22 @@ function UnidadFuncionalFormulario({
             cambiarLocales(locales.map((l) => (l.id === local.id ? localActualizado : l)))
           }
           onCambiarProyecto={onCambiarProyecto}
-          onEliminar={() => cambiarLocales(locales.filter((l) => l.id !== local.id))}
+          onEliminar={() => {
+            // M2-D (BAJA de Local completo, D-δ.47): mismo principio que la
+            // baja de un Artefacto individual, pero además poda la cabecera
+            // de bifurcación exclusiva del Local (que ya no puede reutilizar
+            // ningún consumidor futuro, a diferencia de la baja de un solo
+            // Artefacto) para no dejar topología muerta en redHidraulica.
+            const proyectoSinConectividad = quitarConectividadFisicaDeLocal(proyecto, uf.id, local.id)
+            onCambiarProyecto({
+              ...proyectoSinConectividad,
+              unidadesFuncionales: proyectoSinConectividad.unidadesFuncionales.map((unidad) =>
+                unidad.id !== uf.id
+                  ? unidad
+                  : { ...unidad, locales: unidad.locales.filter((l) => l.id !== local.id) },
+              ),
+            })
+          }}
         />
       ))}
       <button type="button" onClick={agregarLocal}>
@@ -542,9 +559,16 @@ function ProyectoFormulario({
             )
           }
           onCambiarProyecto={onCambiar}
-          onEliminar={() =>
-            cambiarUnidadesFuncionales(unidadesFuncionales.filter((u) => u.id !== uf.id))
-          }
+          onEliminar={() => {
+            // M2-D (BAJA de UnidadFuncional completa, D-δ.47): mismo
+            // principio que la baja de un Local completo, aplicado a todos
+            // los Locales de la UF.
+            const proyectoSinConectividad = quitarConectividadFisicaDeUnidadFuncional(proyecto, uf.id)
+            onCambiar({
+              ...proyectoSinConectividad,
+              unidadesFuncionales: proyectoSinConectividad.unidadesFuncionales.filter((u) => u.id !== uf.id),
+            })
+          }}
           onDuplicar={() => duplicarUnidadFuncional(uf.id)}
         />
       ))}
