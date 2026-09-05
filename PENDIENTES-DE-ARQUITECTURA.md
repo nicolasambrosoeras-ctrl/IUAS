@@ -2930,3 +2930,153 @@ Locales/artefactos/longitud representativa/cotas/alimentación y llega a
 hfMedidor/granularidad entre recargas, tabs M1-M4, cota de piso + altura
 de conexión). Ninguna deuda nueva específica de D-δ.45 — la plantilla
 quedó cerrada, no parcialmente implementada.
+
+### D-δ.46 — Cota hidráulica por Unidad Funcional en modo simplificado — IMPLEMENTADA
+
+**Objetivo**: la UI de M2 todavía pedía una `Cota de conexión` individual
+por cada terminal, incluso en granularidad `'simplificada'` (D-δ.44) --
+contradiciendo el propio principio de esa granularidad ("una única
+longitud/lista de accesorios por Local+red", nunca por Artefacto). Este
+incremento extiende esa misma idea a las cotas: en modo rápido, todos
+los terminales AF/AC de una `UnidadFuncional` comparten una única cota
+hidráulica de referencia.
+
+**Decisión del usuario** (instrucción explícita, sin decisión roja
+necesaria durante la corrida):
+
+```text
+GranularidadHidraulica también decide de dónde sale la cota del terminal:
+  'profesional'  -> Nodo.cota_m individual (sin cambios)
+  'simplificada' -> UnidadFuncional.cotaHidraulicaReferencia_m (una sola
+                     por UF, compartida por TODOS sus terminales AF/AC)
+```
+
+**Modelo** (`modelo/proyecto/index.ts`): `UnidadFuncional` gana dos
+campos opcionales (mismo criterio "ausente ≠ 0" que `Nodo.cota_m`,
+CRIT-A20 -- ninguno de los dos es obligatorio, así que ningún proyecto
+ni fixture existente se rompe):
+
+- `nivel?: number` -- convención IUAS, PB=0, Piso 1=1, Piso 2=2... Nunca
+  una unión cerrada (no limita la cantidad de pisos). `nombreDeNivel`
+  (`interfaz/paginas/nivelUnidadFuncional.ts`) lo traduce a texto humano
+  para cualquier entero, sin enumerar pisos a mano.
+- `cotaHidraulicaReferencia_m?: number` -- la cota que participa
+  efectivamente del cálculo en `'simplificada'`. Se propone
+  automáticamente al asignar/cambiar `nivel` mediante
+  `calcularCotaHidraulicaDefaultDeNivel(nivel) = 1 + 3·nivel` (PB=1,00m,
+  Piso1=4,00m, Piso2=7,00m...) -- **convención IUAS de carga rápida,
+  explícitamente NO atribuible a ERAS-2023** (ninguna fuente normativa
+  fija alturas típicas de conexión ni de entrepiso), documentada como tal
+  en el propio código. El valor queda siempre editable libremente
+  después; lo guardado es lo que se usa, nunca la fórmula recalculada.
+
+**Motor** (`motor/tuberias/geometria/resolverCotaTerminalEfectiva.ts`,
+nuevo, puro y testeado en aislamiento): decide, dado
+`GranularidadHidraulica` + la `UnidadFuncional` del terminal + su
+`cota_m` individual, cuál cota corresponde. `resolverPresionResidualDeCamino.ts`
+lo invoca justo antes de `resolverDesnivelDeCamino` y, si corresponde,
+sustituye la cota del ÚLTIMO nodo del camino (el terminal) por la
+efectiva -- `resolverDesnivelDeCamino` en sí mismo sigue sin saber nada
+de UF/granularidad, ORTOGONAL como toda la familia de primitivas de
+D-δ.44. Nunca se persisten copias del valor de la UF en cada Nodo
+terminal: la sustitución es transitoria, solo para ese cálculo.
+
+**Caso degenerado preservado** (un terminal que ADEMÁS es la raíz del
+camino -- sin ningún tramo entrante, ej. artefacto conectado
+directamente al origen sin tubería intermedia): conserva su cota
+individual en AMBAS granularidades. Esa cota funciona ahí como "punto de
+alimentación", no como "conexión de Artefacto dentro de una UF" --
+sustituirla por la de la UF colapsaría Δz a 0 y descartaría
+silenciosamente un dato de alimentación ya cargado. Cubierto por test
+dedicado (`resolverPresionResidualDeCamino.test.ts`) y espejado en la UI
+(`resolverInfoCotaDeTerminal`, ver abajo).
+
+**Cambio de comportamiento respecto de D-δ.40/D-δ.44**: ninguno en la
+fórmula hidráulica en sí (`Δz`, `Js`, `hf` no cambian) -- el cambio es
+exclusivamente CUÁL cota alimenta a `resolverDesnivelDeCamino` cuando
+`granularidadHidraulica==='simplificada'`.
+
+**Diagnóstico de completitud** (`resolverPresionResidualDeCamino.ts` +
+`resolverEstadoModulo2.ts`): nuevo resultado `unidadFuncionalSinCotaDeReferencia`
+(análogo a `desnivelIncompleto` pero a nivel UF, nunca por Nodo/terminal
+individual). `resolverEstadoModulo2` deduplica por `unidadFuncionalId`
+con un `Set` antes de agregar `motivos` -- una UF con N terminales sin
+cota nunca genera N motivos, siempre exactamente 1. `agruparMotivosDeModulo2.ts`
+(que ahora recibe `unidadesFuncionales` para resolver id→nombre, único
+lugar de este archivo que nombra una entidad en vez de solo contarla)
+produce "Falta la cota hidráulica de referencia de `<nombre de UF>`.",
+igual al texto pedido explícitamente por el usuario.
+
+**UI**:
+- `MotorDemandaPantalla.tsx` (`UnidadFuncionalFormulario`): nuevo
+  selector "Nivel" (rango de presentación 0..15, extendido si el valor
+  ya elegido lo supera -- el modelo en sí nunca limita el rango) + input
+  "Cota hidráulica de referencia [m]", con ayuda inline. Cambiar el
+  nivel siempre reescribe la cota al default de ese nivel (preferencia
+  simple pedida explícitamente, sin dirty-tracking); el input de cota
+  sigue editable libremente después. `agregarUnidadFuncional` asigna
+  nivel por orden de creación (UF1→PB, UF2→Piso1...) -- solo un default,
+  nunca una relación permanente (puede haber varias UF en un mismo piso,
+  ninguna en otro, subsuelos). `duplicarUnidadFuncional` preserva
+  nivel/cota tal cual por el spread ya existente -- mismo criterio que
+  cualquier otro campo no listado explícitamente ("copia profunda", ver
+  comentario de archivo); no se consideró ambiguo: una UF duplicada es
+  la MISMA unidad física hasta que el usuario la edite a mano.
+- `PanelDePresionDeModulo2.tsx` (`TarjetaDeTerminal.tsx`, extraído a su
+  propio archivo por legibilidad/testabilidad -- mismo criterio que
+  `DimensionamientoDeTramo.tsx`): en `'simplificada'` ya NO pide "Cota de
+  conexión [m]" por terminal -- muestra, dentro de "Detalle", "Cota de
+  referencia: `<valor>` (`<nombre de UF>`)" de solo lectura. En
+  `'profesional'` el input individual se conserva sin cambios. La
+  decisión de cuál mostrar (`resolverInfoCotaDeTerminal.ts`, puro,
+  testeado en aislamiento) respeta el caso degenerado raíz=terminal.
+
+**Tanque elevado** (D-δ.38, sin cambios de fórmula): `Pdisponible=0` en
+el pelo de agua mínimo sigue igual; en `'simplificada'`, todos los
+terminales de una UF comparten inicialmente la misma carga geométrica
+(`z_peloAguaMin - z_UF`), aunque sus márgenes finales puedan diferir por
+camino/pérdidas/Pmin distintos.
+
+**Tests**: 4 archivos nuevos (`nivelUnidadFuncional.test.ts`,
+`resolverCotaTerminalEfectiva.test.ts`, `resolverInfoCotaDeTerminal.test.ts`,
+`TarjetaDeTerminal.test.ts`) + extensiones en `resolverPresionResidualDeCamino.test.ts`
+(caso UF real, AF/AC comparten cota, UF sin cota, reactividad al cambiar
+la cota, caso degenerado raíz=terminal preservado), `resolverEstadoModulo2.test.ts`
+(deduplicación de motivos por UF) y `agruparMotivosDeModulo2.test.ts`
+(texto nombrando la UF). Fixture de regresión de D-δ.44
+(`proyectoLocalTresArtefactosConTeesAnidadas`) actualizado con
+`cotaHidraulicaReferencia_m` para seguir alcanzando `completo` en
+`'simplificada'` bajo la nueva regla. 801/801 tests, `tsc -b` limpio,
+`vite build` limpio. Verificado manualmente contra la web real
+(Playwright headless vía `npx`, proyecto demo completo,
+`'simplificada'+'estimado'`, tanque elevado): cota UF=1m + pelo de
+agua=11m → los 16 terminales muestran `Carga geométrica: 10,000 m.c.a.`;
+cambiar la cota de la UF a 2m actualiza reactivamente los 16 a
+`9,000 m.c.a.`; cero "Cota de conexión [m]" en pantalla, "Cota de
+referencia" presente; `Estado de Módulo 2: Completo`; cero errores de
+consola.
+
+**Lint**: +2 sobre el baseline anterior (9→11) -- ambos son la MISMA
+convención ya usada 5 veces en el repo (`_regimen`/`_longitudAnterior`/
+`_cotaAnterior`×2/`_accesoriosAnteriores`/`_teeAnterior`) para omitir
+una propiedad opcional bajo `exactOptionalPropertyTypes` (desestructurar
+para descartar la clave, ya que asignar `undefined` explícito no tipa).
+Los dos nuevos (`_nivel`, `_cotaAnterior` en `MotorDemandaPantalla.tsx`)
+son instancias adicionales del mismo patrón, no un problema nuevo de
+diseño. Se evitó además duplicar el error `react-refresh/only-export-components`
+(ya presente en `AccesoriosDeTramoEditor.tsx`/`ResultadoHidraulicoDeTramo.tsx`)
+separando `resolverInfoCotaDeTerminal.ts` (puro) de `TarjetaDeTerminal.tsx`
+(solo componente) en vez de mezclarlos en un único archivo.
+
+**No se atribuye a ERAS**: `calcularCotaHidraulicaDefaultDeNivel` (1+3·nivel)
+es una convención de producto IUAS para acelerar la carga en modo
+rápido, documentada como tal en el código -- no hay ninguna cláusula de
+ERAS-2023 sobre alturas típicas de conexión ni de entrepiso.
+
+**Deuda restante**: igual que D-δ.45 (persistencia entre recargas, tabs
+M1-M4). Nueva: `nivel`/`cotaHidraulicaReferencia_m` tampoco persisten
+entre recargas de página (ningún campo del Proyecto lo hace hoy, mismo
+alcance ya conocido). El rango 0..15 del `<select>` de Nivel es
+puramente de presentación (documentado en el propio código) -- si en el
+futuro se modela algún caso con niveles negativos (subsuelos) de forma
+más rica que "Piso -1" como texto, es un incremento aparte.
