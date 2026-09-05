@@ -1,20 +1,24 @@
-// Panel de verificación de presión de Módulo 2 (M2-B): primera superficie
-// de UI que llega hasta balanceCompleto usando exclusivamente primitivas
-// ya productivas -- resolverPresionResidualDeCamino, resolverTerminalMasDesfavorable,
+// Panel de verificación de presión de Módulo 2 (M2-B): superficie de UI
+// que llega hasta balanceCompleto usando exclusivamente primitivas ya
+// productivas -- resolverPresionResidualDeCamino, resolverTerminalMasDesfavorable,
 // resolverEstadoModulo2. Este componente NO calcula hidráulica: arma los
 // candidatos (un llamado por terminal), formatea lo que el motor ya
-// devuelve, y persiste únicamente dos números de entrada.
+// devuelve, y persiste únicamente los números de entrada.
 //
 // Pdisponible y hfMedidor_mca son condiciones de borde EXTERNAS (D-δ.36/
 // D-δ.35) -- deliberadamente NO se persisten en Proyecto (no existe ese
 // campo en el modelo, y agregarlo sería decidir una entidad de dominio
 // nueva no prevista, ver PENDIENTES-DE-ARQUITECTURA.md). Viven como
 // estado local de este panel: se pierden al recargar la página, igual
-// que el resto del Proyecto (que tampoco persiste hoy, ver proyectoInicial
-// en MotorDemandaPantalla.tsx) -- no es una regresión de este incremento.
-// hfMedidor_mca es explícitamente un dato hidráulico de entrada para M2,
-// NO una selección comercial de medidor (M3 no existe todavía) -- ver
-// etiqueta del input más abajo.
+// que el resto del Proyecto (que tampoco persiste hoy).
+//
+// D-δ.43: "Tipo de alimentación" (Tanque elevado / Presión conocida) es
+// una traducción física de presentación sobre ese mismo contrato, NO una
+// entidad nueva -- ver PENDIENTES-DE-ARQUITECTURA.md D-δ.43. Tanque
+// elevado fija Pdisponible=0 y pide la cota del pelo de agua mínimo de
+// cálculo como cota de la raíz (Δz hace el resto, D-δ.38: raíz = pelo de
+// agua mínimo, nunca el máximo). Presión conocida pide cota del punto de
+// alimentación + Pdisponible manual, exactamente el contrato ya vigente.
 import { useState, type CSSProperties } from 'react'
 import type { Proyecto } from '../../modelo/proyecto'
 import type { Nodo, ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
@@ -32,16 +36,24 @@ import {
 import { resolverEstadoModulo2, type EstadoModulo2 } from '../../motor/modulo2/resolverEstadoModulo2'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 import { describirReferenciaPendiente } from './ResultadoHidraulicoDeTramo'
+import { agruparMotivosDeModulo2 } from './agruparMotivosDeModulo2'
 import { conCotaDeNodo } from './actualizarRedHidraulica'
 
-function estiloEncabezado(alineacion: CSSProperties['textAlign']): CSSProperties {
-  return { padding: '0.5rem 0.9rem', textAlign: alineacion, borderBottom: '2px solid #333', fontWeight: 'bold', whiteSpace: 'nowrap' }
-}
-function estiloCelda(alineacion: CSSProperties['textAlign']): CSSProperties {
-  return { padding: '0.4rem 0.9rem', textAlign: alineacion, borderBottom: '1px solid #ddd', whiteSpace: 'nowrap' }
+const estiloCard: CSSProperties = {
+  border: '1px solid #ddd',
+  borderRadius: '0.5rem',
+  padding: '0.6rem 1rem',
+  marginBottom: '0.6rem',
 }
 
-// Mismo criterio que resolverCambioDeLongitud (ResultadoHidraulicoDeTramo.tsx):
+const estiloFila: CSSProperties = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: '0.5rem 1.25rem',
+  alignItems: 'baseline',
+}
+
+// Mismo criterio que resolverCambioDeLongitud (resolverResultadoDeTramoParaUi.ts):
 // campo vacío = "no provisto todavía" (undefined, nunca 0); NaN o negativo
 // = no se actualiza el estado -- Pdisponible/hfMedidor nunca admiten un
 // valor negativo con sentido físico.
@@ -86,7 +98,7 @@ function textoDeEstadoDeTerminal(resultado: ResultadoPresionResidualDeCamino): s
     case 'terminalSinPresionMinima':
       return 'Sin presión mínima normativa publicada para verificación.'
     case 'desnivelIncompleto':
-      return 'Incompleto (falta cota de nodo)'
+      return 'Incompleto (falta cota de conexión)'
     case 'perdidaDistribuidaIncompleta':
       return 'Incompleto (pérdida distribuida)'
     case 'perdidaLocalizadaIncompleta':
@@ -117,6 +129,100 @@ function textoDeEstadoModulo2(estado: EstadoModulo2): string {
   }
 }
 
+type TipoDeAlimentacion = 'tanqueElevado' | 'presionConocida'
+
+function TarjetaDeTerminal({
+  etiqueta,
+  cota_m,
+  onCambiarCota,
+  presionDisponible_mca,
+  hfMedidor_mca,
+  resultado,
+}: {
+  etiqueta: string
+  cota_m: number | undefined
+  onCambiarCota: (cota_m: number | undefined) => void
+  presionDisponible_mca: number
+  hfMedidor_mca: number | undefined
+  resultado: ResultadoPresionResidualDeCamino
+}) {
+  const traza = tieneTraza(resultado) ? resultado : undefined
+  const completo = resultado.tipo === 'balanceCompleto' ? resultado : undefined
+  // Carga geométrica disponible = Pdisponible - Δz: mismos dos operandos
+  // ya conocidos (uno provisto por el usuario, el otro devuelto tal cual
+  // por resolverDesnivelDeCamino) -- no es una fórmula hidráulica nueva,
+  // es el primer término parcial de la misma resta que ya expone
+  // resolverBalanceDePresion (Presidual = Pdisponible - Δz - hfDistribuida
+  // - hfLocalizada - hfMedidor).
+  const cargaGeometrica_mca = traza !== undefined ? presionDisponible_mca - traza.desnivel_m : undefined
+
+  return (
+    <div style={estiloCard}>
+      <div style={estiloFila}>
+        <strong>{etiqueta}</strong>
+        {completo !== undefined ? (
+          <>
+            <span>Presidual: {formatearNumero(completo.presionResidual_mca, 'm')} m.c.a.</span>
+            <span>Pmin: {formatearNumero(completo.presionMinimaRequerida_mca, 'm')} m.c.a.</span>
+            <span>
+              Margen: {formatearNumero(completo.presionResidual_mca - completo.presionMinimaRequerida_mca, 'm')} m.c.a.
+            </span>
+          </>
+        ) : null}
+        <span>{textoDeEstadoDeTerminal(resultado)}</span>
+      </div>
+      <label>
+        Cota de conexión [m]:{' '}
+        <input
+          type="number"
+          step="any"
+          value={cota_m ?? ''}
+          onChange={(evento) => {
+            const resultadoCambio = parsearCota(evento.target.value)
+            if (resultadoCambio !== 'ignorar') {
+              onCambiarCota(resultadoCambio)
+            }
+          }}
+          style={{ width: '4.5rem' }}
+        />
+      </label>
+      <details>
+        <summary>Detalle</summary>
+        <table style={{ borderCollapse: 'collapse' }}>
+          <tbody>
+            <tr>
+              <th style={{ textAlign: 'left', paddingRight: '1rem' }}>Δz</th>
+              <td>{traza !== undefined ? `${formatearNumero(traza.desnivel_m, 'm')} m` : '—'}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: 'left', paddingRight: '1rem' }}>Carga geométrica</th>
+              <td>{cargaGeometrica_mca !== undefined ? `${formatearNumero(cargaGeometrica_mca, 'm')} m.c.a.` : '—'}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: 'left', paddingRight: '1rem' }}>hfDistribuida</th>
+              <td>{traza !== undefined ? `${formatearNumero(traza.hfDistribuida_mca, 'm')} m.c.a.` : '—'}</td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: 'left', paddingRight: '1rem' }}>hfLocalizada</th>
+              <td>
+                {traza !== undefined
+                  ? `${formatearNumero(traza.hfLocalizada.hf_mca, 'm')} m.c.a. (${
+                      traza.hfLocalizada.metodologia === 'detallado' ? 'detallada' : 'estimada'
+                    })`
+                  : '—'}
+              </td>
+            </tr>
+            <tr>
+              <th style={{ textAlign: 'left', paddingRight: '1rem' }}>hfMedidor</th>
+              <td>{hfMedidor_mca !== undefined ? `${formatearNumero(hfMedidor_mca, 'm')} m.c.a.` : '—'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </details>
+    </div>
+  )
+}
+
 export function PanelDePresionDeModulo2({
   proyecto,
   catalogoArtefactos,
@@ -126,13 +232,19 @@ export function PanelDePresionDeModulo2({
   catalogoArtefactos: readonly ArtefactoNormativo[]
   onCambiar: (proyecto: Proyecto) => void
 }) {
+  const [tipoAlimentacion, setTipoAlimentacion] = useState<TipoDeAlimentacion>('presionConocida')
   const [presionDisponibleTexto, setPresionDisponibleTexto] = useState('')
   const [hfMedidorTexto, setHfMedidorTexto] = useState('')
 
   const presionDisponibleParseada = parsearEntradaHidraulica(presionDisponibleTexto)
   const hfMedidorParseado = parsearEntradaHidraulica(hfMedidorTexto)
-  const presionDisponible_mca = presionDisponibleParseada === 'ignorar' ? undefined : presionDisponibleParseada
+  const presionDisponibleManual_mca = presionDisponibleParseada === 'ignorar' ? undefined : presionDisponibleParseada
   const hfMedidor_mca = hfMedidorParseado === 'ignorar' ? undefined : hfMedidorParseado
+  // Tanque elevado (D-δ.38): la raíz hidráulica es el pelo de agua mínimo
+  // de cálculo -- Pdisponible se fija en 0 y toda la carga estática queda
+  // expresada por Δz (cotaRaiz = cota del pelo de agua mínimo). Presión
+  // conocida conserva el input manual tal cual ya existía.
+  const presionDisponible_mca = tipoAlimentacion === 'tanqueElevado' ? 0 : presionDisponibleManual_mca
 
   const nodosTerminales = proyecto.redHidraulica?.nodos.filter(esTerminalDeArtefacto) ?? []
   // Nodos raiz (sin ningun Tramo entrante): resolverDesnivelDeCamino
@@ -174,6 +286,10 @@ export function PanelDePresionDeModulo2({
   // acá lo forzaria siempre a 'determinado', perdiendo esa distincion que
   // el propio motor fue diseñado para expresar (M2-B).
   const terminalMasDesfavorable = candidatos.length > 0 ? resolverTerminalMasDesfavorable(candidatos) : undefined
+  const nodoMasDesfavorable =
+    terminalMasDesfavorable !== undefined && terminalMasDesfavorable.tipo !== 'sinCandidatoDeterminable'
+      ? nodosTerminales.find((nodo) => nodo.id === terminalMasDesfavorable.nodoId)
+      : undefined
 
   return (
     <section>
@@ -183,51 +299,105 @@ export function PanelDePresionDeModulo2({
           Estado de Módulo 2: <strong>{textoDeEstadoModulo2(estadoModulo2)}</strong>
         </small>
       </p>
-
-      <label>
-        Presión disponible (Pdisponible) [m.c.a.]:{' '}
-        <input
-          type="number"
-          min={0}
-          step="any"
-          value={presionDisponibleTexto}
-          onChange={(evento) => setPresionDisponibleTexto(evento.target.value)}
-          style={{ width: '6rem' }}
-        />
-      </label>
-      <p>
-        <small>
-          Condición de borde hidráulica del origen (tanque, red pública, bombeo — sin modelar todavía, D-δ.36):
-          ingresar el valor conocido en m.c.a. en el nodo raíz del camino.
-        </small>
-      </p>
-
-      {nodosRaiz.length > 0 ? (
-        <p>
-          <small>
-            Cota del nodo raíz (necesaria para Δz):{' '}
-            {nodosRaiz.map((nodo) => (
-              <label key={nodo.id} style={{ marginRight: '1rem' }}>
-                {nodo.id}:{' '}
-                <input
-                  type="number"
-                  step="any"
-                  value={nodo.cota_m ?? ''}
-                  onChange={(evento) => {
-                    const resultado = parsearCota(evento.target.value)
-                    if (resultado !== 'ignorar') {
-                      onCambiar(conCotaDeNodo(proyecto, nodo.id, resultado))
-                    }
-                  }}
-                  style={{ width: '4.5rem' }}
-                />{' '}
-                m
-              </label>
+      {estadoModulo2.estado === 'incompleto' ? (
+        <div>
+          <p>Para completar Módulo 2:</p>
+          <ul>
+            {agruparMotivosDeModulo2(estadoModulo2.motivos).map((texto) => (
+              <li key={texto}>{texto}</li>
             ))}
-          </small>
-        </p>
+          </ul>
+        </div>
       ) : null}
 
+      <h4>Alimentación</h4>
+      <p>
+        <label>
+          <input
+            type="radio"
+            name="tipoDeAlimentacion"
+            checked={tipoAlimentacion === 'tanqueElevado'}
+            onChange={() => setTipoAlimentacion('tanqueElevado')}
+          />{' '}
+          Tanque elevado
+        </label>{' '}
+        <label>
+          <input
+            type="radio"
+            name="tipoDeAlimentacion"
+            checked={tipoAlimentacion === 'presionConocida'}
+            onChange={() => setTipoAlimentacion('presionConocida')}
+          />{' '}
+          Presión conocida / alimentación directa
+        </label>
+      </p>
+
+      {tipoAlimentacion === 'tanqueElevado' ? (
+        <>
+          {nodosRaiz.map((nodo, indice) => (
+            <label key={nodo.id} style={{ marginRight: '1rem' }}>
+              Cota del pelo de agua mínimo de cálculo{nodosRaiz.length > 1 ? ` (alimentación ${indice + 1})` : ''} [m]:{' '}
+              <input
+                type="number"
+                step="any"
+                value={nodo.cota_m ?? ''}
+                onChange={(evento) => {
+                  const resultado = parsearCota(evento.target.value)
+                  if (resultado !== 'ignorar') {
+                    onCambiar(conCotaDeNodo(proyecto, nodo.id, resultado))
+                  }
+                }}
+                style={{ width: '4.5rem' }}
+              />
+            </label>
+          ))}
+          <p>
+            <small>
+              La carga disponible se obtiene de la diferencia de nivel entre el pelo de agua mínimo y la conexión del
+              artefacto.
+            </small>
+          </p>
+        </>
+      ) : (
+        <>
+          {nodosRaiz.map((nodo, indice) => (
+            <label key={nodo.id} style={{ marginRight: '1rem' }}>
+              Cota del punto de alimentación{nodosRaiz.length > 1 ? ` (alimentación ${indice + 1})` : ''} [m]:{' '}
+              <input
+                type="number"
+                step="any"
+                value={nodo.cota_m ?? ''}
+                onChange={(evento) => {
+                  const resultado = parsearCota(evento.target.value)
+                  if (resultado !== 'ignorar') {
+                    onCambiar(conCotaDeNodo(proyecto, nodo.id, resultado))
+                  }
+                }}
+                style={{ width: '4.5rem' }}
+              />
+            </label>
+          ))}
+          <label>
+            Presión disponible (Pdisponible) [m.c.a.]:{' '}
+            <input
+              type="number"
+              min={0}
+              step="any"
+              value={presionDisponibleTexto}
+              onChange={(evento) => setPresionDisponibleTexto(evento.target.value)}
+              style={{ width: '6rem' }}
+            />
+          </label>
+          <p>
+            <small>
+              Condición de borde hidráulica del origen (red pública, bombeo — sin modelar todavía, D-δ.36): ingresar
+              el valor conocido en m.c.a. en el punto de alimentación.
+            </small>
+          </p>
+        </>
+      )}
+
+      <h4>Medidor</h4>
       <label>
         Pérdida de carga del medidor (hfMedidor) [m.c.a.]:{' '}
         <input
@@ -242,8 +412,7 @@ export function PanelDePresionDeModulo2({
       <p>
         <small>
           Dato hidráulico de entrada para M2 (D-δ.35) — <strong>no representa una selección comercial de medidor</strong>.
-          M3 (selección/dimensionamiento del medidor) todavía no existe; este valor se ingresa manualmente hasta que
-          exista un productor automático.
+          Valor manual hasta completar M3.
         </small>
       </p>
 
@@ -253,83 +422,24 @@ export function PanelDePresionDeModulo2({
         <p>El proyecto no tiene terminales hidráulicos (nodos con referencia a Artefacto) todavía.</p>
       ) : (
         <>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  <th style={estiloEncabezado('left')}>Terminal</th>
-                  <th style={estiloEncabezado('right')}>Cota [m]</th>
-                  <th style={estiloEncabezado('right')}>Δz [m]</th>
-                  <th style={estiloEncabezado('right')}>hfDistribuida [m.c.a.]</th>
-                  <th style={estiloEncabezado('right')}>hfLocalizada [m.c.a.]</th>
-                  <th style={estiloEncabezado('left')}>Metodología</th>
-                  <th style={estiloEncabezado('right')}>hfMedidor [m.c.a.]</th>
-                  <th style={estiloEncabezado('right')}>Presidual [m.c.a.]</th>
-                  <th style={estiloEncabezado('right')}>Pmin [m.c.a.]</th>
-                  <th style={estiloEncabezado('right')}>Margen [m.c.a.]</th>
-                  <th style={estiloEncabezado('left')}>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {candidatos.map(({ nodoId, resultado }) => {
-                  const nodoDelTerminal = nodosTerminales.find((n) => n.id === nodoId)
-                  const etiqueta =
-                    nodoDelTerminal !== undefined
-                      ? describirReferenciaPendiente(proyecto, catalogoArtefactos, nodoDelTerminal.referencia)
-                      : nodoId
-                  const traza = tieneTraza(resultado) ? resultado : undefined
-                  const completo = resultado.tipo === 'balanceCompleto' ? resultado : undefined
-
-                  return (
-                    <tr key={nodoId}>
-                      <td style={estiloCelda('left')}>{etiqueta}</td>
-                      <td style={estiloCelda('right')}>
-                        <input
-                          type="number"
-                          step="any"
-                          value={nodoDelTerminal?.cota_m ?? ''}
-                          onChange={(evento) => {
-                            const resultado = parsearCota(evento.target.value)
-                            if (resultado !== 'ignorar') {
-                              onCambiar(conCotaDeNodo(proyecto, nodoId, resultado))
-                            }
-                          }}
-                          style={{ width: '4.5rem' }}
-                        />
-                      </td>
-                      <td style={estiloCelda('right')}>{traza !== undefined ? formatearNumero(traza.desnivel_m, 'm') : '—'}</td>
-                      <td style={estiloCelda('right')}>
-                        {traza !== undefined ? formatearNumero(traza.hfDistribuida_mca, 'm') : '—'}
-                      </td>
-                      <td style={estiloCelda('right')}>
-                        {traza !== undefined ? formatearNumero(traza.hfLocalizada.hf_mca, 'm') : '—'}
-                      </td>
-                      <td style={estiloCelda('left')}>
-                        {traza !== undefined
-                          ? traza.hfLocalizada.metodologia === 'detallado'
-                            ? 'Detallada'
-                            : 'Estimada'
-                          : '—'}
-                      </td>
-                      <td style={estiloCelda('right')}>{hfMedidor_mca !== undefined ? formatearNumero(hfMedidor_mca, 'm') : '—'}</td>
-                      <td style={estiloCelda('right')}>
-                        {completo !== undefined ? formatearNumero(completo.presionResidual_mca, 'm') : '—'}
-                      </td>
-                      <td style={estiloCelda('right')}>
-                        {completo !== undefined ? formatearNumero(completo.presionMinimaRequerida_mca, 'm') : '—'}
-                      </td>
-                      <td style={estiloCelda('right')}>
-                        {completo !== undefined
-                          ? formatearNumero(completo.presionResidual_mca - completo.presionMinimaRequerida_mca, 'm')
-                          : '—'}
-                      </td>
-                      <td style={estiloCelda('left')}>{textoDeEstadoDeTerminal(resultado)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          {candidatos.map(({ nodoId, resultado }) => {
+            const nodoDelTerminal = nodosTerminales.find((n) => n.id === nodoId)
+            const etiqueta =
+              nodoDelTerminal !== undefined
+                ? describirReferenciaPendiente(proyecto, catalogoArtefactos, nodoDelTerminal.referencia)
+                : nodoId
+            return (
+              <TarjetaDeTerminal
+                key={nodoId}
+                etiqueta={etiqueta}
+                cota_m={nodoDelTerminal?.cota_m}
+                onCambiarCota={(cota_m) => onCambiar(conCotaDeNodo(proyecto, nodoId, cota_m))}
+                presionDisponible_mca={presionDisponible_mca}
+                hfMedidor_mca={hfMedidor_mca}
+                resultado={resultado}
+              />
+            )
+          })}
 
           {terminalMasDesfavorable !== undefined ? (
             <div>
@@ -338,8 +448,12 @@ export function PanelDePresionDeModulo2({
                 <p>Ningún terminal alcanzó balanceCompleto todavía.</p>
               ) : (
                 <p>
-                  <strong>{terminalMasDesfavorable.nodoId}</strong> — Presidual:{' '}
-                  {formatearNumero(terminalMasDesfavorable.presionResidual_mca, 'm')}, Pmin:{' '}
+                  <strong>
+                    {nodoMasDesfavorable !== undefined
+                      ? describirReferenciaPendiente(proyecto, catalogoArtefactos, nodoMasDesfavorable.referencia)
+                      : terminalMasDesfavorable.nodoId}
+                  </strong>{' '}
+                  — Presidual: {formatearNumero(terminalMasDesfavorable.presionResidual_mca, 'm')}, Pmin:{' '}
                   {formatearNumero(terminalMasDesfavorable.presionMinimaRequerida_mca, 'm')}, margen:{' '}
                   {formatearNumero(terminalMasDesfavorable.margen_mca, 'm')} —{' '}
                   {terminalMasDesfavorable.cumpleMinimo ? 'Cumple' : 'No cumple'}
@@ -347,8 +461,8 @@ export function PanelDePresionDeModulo2({
                     <>
                       {' '}
                       <small>
-                        (provisional: {terminalMasDesfavorable.terminalesExcluidos.length} terminal(es) todavía sin
-                        balanceCompleto podrían resultar más desfavorables)
+                        (resultado provisional: {terminalMasDesfavorable.terminalesExcluidos.length} terminal(es)
+                        todavía sin balanceCompleto podrían resultar más desfavorables)
                       </small>
                     </>
                   ) : null}

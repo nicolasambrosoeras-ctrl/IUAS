@@ -101,4 +101,53 @@ describe('PanelDePresionDeModulo2 (UI)', () => {
     expect(html).toContain('Estado de Módulo 2')
     expect(html).toContain('No iniciado')
   })
+
+  it('D-δ.43: ofrece el selector de Tipo de alimentación (Tanque elevado / Presión conocida)', () => {
+    const proyecto = proyectoCon([])
+
+    const html = renderToStaticMarkup(
+      createElement(PanelDePresionDeModulo2, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
+    )
+
+    expect(html).toContain('Tanque elevado')
+    expect(html).toContain('Presión conocida / alimentación directa')
+  })
+
+  it('D-δ.43: por defecto (Presión conocida) pide cota del punto de alimentación, no la de tanque', () => {
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'uf-1',
+      locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', 'lavatorio')] }],
+    }
+    const nodos: Nodo[] = [{ id: 'raiz' }, { id: 'terminal', referencia: referenciaDe('uf-1', 'local-1', 'inst-1') }]
+    const tramos: Tramo[] = [{ id: 't0', nodoOrigenId: 'raiz', nodoDestinoId: 'terminal', red: 'AF' }]
+    const proyecto = proyectoCon([uf], { nodos, tramos })
+
+    const html = renderToStaticMarkup(
+      createElement(PanelDePresionDeModulo2, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
+    )
+
+    expect(html).toContain('Cota del punto de alimentación')
+    expect(html).not.toContain('Cota del pelo de agua mínimo de cálculo')
+  })
+
+  it('D-δ.43: agrupa los motivos de incompletitud en una lista accionable, sin exponer ids de Nodo/Tramo', () => {
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'uf-1',
+      locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', 'lavatorio')] }],
+    }
+    const nodos: Nodo[] = [{ id: 'raiz' }, { id: 'terminal', referencia: referenciaDe('uf-1', 'local-1', 'inst-1') }]
+    const tramos: Tramo[] = [{ id: 't0', nodoOrigenId: 'raiz', nodoDestinoId: 'terminal', red: 'AF' }]
+    const proyecto = proyectoCon([uf], { nodos, tramos })
+
+    const html = renderToStaticMarkup(
+      createElement(PanelDePresionDeModulo2, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
+    )
+
+    expect(html).toContain('Para completar Módulo 2:')
+    expect(html).toContain('Falta indicar el tipo de alimentación')
+    expect(html).not.toContain('>raiz<')
+    expect(html).not.toContain('>terminal<')
+  })
 })
