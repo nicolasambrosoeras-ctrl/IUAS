@@ -2637,3 +2637,221 @@ público** de `resolverPresionResidualDeCamino`/`resolverEstadoModulo2`
 
 **Estado**: IMPLEMENTADA, 768/768 tests, verificada manualmente contra
 la web real (Playwright headless, cero errores de consola).
+
+### D-δ.45 — Plantilla típica de pérdidas localizadas del modo rápido — INVESTIGACIÓN COMPLETA, BUG DE UI CORREGIDO, PLANTILLA PENDIENTE DE DECISIÓN ROJA
+
+**Objetivo de la corrida**: D-δ.44 cerró la granularidad de relevamiento
+físico, pero dejó abierta la pregunta de si `'simplificada'+'estimado'`
+constituye realmente un "modo rápido" utilizable de punta a punta sin
+relevar accesorios a mano. Este registro documenta la investigación
+completa pedida (inventario de Tabla N°7, reconstrucción del estimador
+D-δ.40, clasificación de candidatos a plantilla típica) y dos resultados
+concretos: un bug de UI real corregido (no ameritaba decisión roja) y
+dos decisiones rojas presentadas al usuario y **todavía sin resolver**.
+
+#### Inventario completo de Tabla N°7 (`normativa/eras-2023/tabla-07-perdidas-localizadas`)
+
+| id | nombre | Ks | uso actual en el motor |
+|---|---|---|---|
+| `griferias` | Griferías | 9,18 | **Excluida a propósito** del balance de red (CRIT-A29, cerrado): se considera resistencia interna del artefacto, ya absorbida por `presionMinima_kgcm2`. Sigue siendo una fila válida de la tabla para cualquier otro uso, pero nunca se agrega como pérdida localizada terminal. |
+| `curva45` | Curva a 45º | 0,43 | Solo modo detallado (accesorio declarado a mano) |
+| `curva90` | Curva a 90º | 0,81 | Solo modo detallado |
+| `codo90` | Codo a 90º | 1,35 | Solo modo detallado |
+| `teePasoRecto` | Tee paso recto | 1,00 | Vive nodalmente (CRIT-A31), no en `Tramo.accesorios` |
+| `teeSalidaLateral` | Tee salida lateral | 1,62 | ídem |
+| `teeEntradaCentralSalidasLaterales` | Tee entrada central, salidas laterales | 3,00 | ídem — además es el `Ks_estimado_tee` conservador de D-δ.40 |
+| `llaveDePaso` | Llave de paso | 9,18 | Solo modo detallado — **candidato analizado en esta corrida, ver decisión roja abajo** |
+| `uniones` | Uniones | 0,10 | Solo modo detallado |
+| `valvulaEsclusa` | Válvula esclusa | 0,17 | Solo modo detallado |
+| `reducciones` | Reducciones | 0,75 | Solo modo detallado (CRIT-A30 fija la convención de velocidad, no la estima) |
+| `tuboSaliente` | Tubo saliente | 1,00 | Solo modo detallado — **candidato analizado en esta corrida (singularidad del último terminal), ver decisión roja abajo** |
+
+#### Reconstrucción del estimador D-δ.40 vigente
+
+`resolverPerdidaLocalizadaEstimadaDeLocal` (`motor/tuberias/presion/`)
+implementa **únicamente** tees estimadas: `N_tees=max(0,n-1)`,
+`Ks_estimado_tee=3,00`, `V_ref=` máxima velocidad real entre los tramos
+que alimentan directamente cada terminal físico del Local+red (ver
+D-δ.40 arriba, sin cambios). `n<=1` corta antes de resolver velocidad
+(`hf_m=0` exacto, no aproximado). La UI (`LocalYRedCard.tsx`,
+`ResumenEstimadoDeLocal`) ya expone esto con auditabilidad completa
+("Ver cálculo": Ks por tee, V referencia, cobertura).
+
+#### Clasificación de candidatos a plantilla típica
+
+- **A. Estructuralmente deducibles**: solo `N_tees=n-1` (ya cerrado,
+  D-δ.40). Ninguna otra fila de Tabla N°7 tiene una cantidad que se
+  pueda inferir de la topología sin inventar geometría.
+- **B. Típicos pero no universales — analizados esta corrida, ver
+  decisiones rojas**: singularidad del último terminal (curva90/
+  codo90/tuboSaliente) y llave de paso.
+- **C. Dependientes de geometría, descartados para el modo rápido**:
+  `curva45`, `uniones`, `valvulaEsclusa`, `reducciones` — su cantidad
+  depende del recorrido físico real (cuántos codos hace la cañería,
+  si hay una reducción de diámetro en el camino) sin ninguna base
+  topológica para inferirla; incluirlos automáticamente sería
+  fabricar geometría no relevada, exactamente lo que D-δ.40 ya
+  rechazó para el alcance actual.
+
+#### Bug de UI encontrado y corregido (NO era decisión roja — consecuencia técnica normal)
+
+**Problema**: `LocalYRedCard.tsx` renderizaba, en
+`metodoPerdidaLocalizada==='estimado'`, **únicamente**
+`ResumenEstimadoDeLocal` — todo el árbol de Tramos (incluido el único
+input de `Longitud [m]` del Tramo representativo, obligatorio para
+`hfDistribuida` en AMBAS metodologías de pérdida localizada, D-δ.44) se
+saltaba por completo. Consecuencia real: **ningún Local+red podía
+llegar a `balanceCompleto` en modo estimado** — el usuario no tenía
+forma, vía UI, de cargar la longitud que `resolverEstadoModulo2` exige
+(confirmado contra `resolverEstadoModulo2.test.ts`, que sí exige
+longitud regardless de método). Esto contradice directamente el
+objetivo de D-δ.45 (§11/§27/§30 del brief): el modo rápido debe permitir
+cargar "longitud representativa de cada Local+red" y llegar a completo.
+
+**Causa raíz**: D-δ.40 diseñó `ResumenEstimadoDeLocal` como reemplazo
+completo del árbol en vez de un complemento — la intención real (ya
+documentada en el comentario de archivo previo a esta corrida) era
+ocultar solo accesorios/tees, no la longitud.
+
+**Fix aplicado** (`LocalYRedCard.tsx`): el árbol de Tramos
+(`NodoDeArbol`/`RamalesSimplificados`) ahora se renderiza siempre que
+existe `redHidraulica`, independientemente del método. `modoDetallado`
+pasó a ser una prop explícita de ambos componentes que gatea
+únicamente `AccesoriosDeTramoEditor` y `SeccionDeTeeInline` (el editor
+de tee) en cada nivel — nunca `DimensionamientoDeTramo` (Qc/DN/V +
+input de Longitud), que es independiente del método (D-δ.44).
+`ResumenEstimadoDeLocal` pasó de ser la alternativa exclusiva del árbol
+a un complemento que se agrega debajo cuando `metodoPerdidaLocalizada
+==='estimado'`. `ListaDeDistribucion` (nombres de Artefactos) ahora se
+muestra en `'simplificada'` independientemente del método (antes solo
+en detallado), por consistencia y auditabilidad — no estaba pedido
+explícitamente pero no contradice ningún criterio cerrado.
+
+**Por qué no era decisión roja**: D-δ.40 y D-δ.44 ya habían cerrado que
+(a) la longitud es obligatoria en ambas metodologías y (b) el método
+estimado ignora accesorios/tees. El bug era una desincronización
+mecánica entre esas dos reglas ya cerradas dentro de un mismo
+componente, no una interpretación normativa ni una elección de dominio
+nueva.
+
+**Tests nuevos**: 6 tests en `ResultadoHidraulicoDeTramo.test.ts`
+(`describe` nuevo, D-δ.45), cubriendo ambas granularidades × 3
+aserciones (Longitud presente, accesorios/tee ausentes, resumen
+estimado presente). 774/774 tests totales, `tsc -b` limpio, `vite
+build` limpio, lint en baseline preexistente (9 errores, ninguno
+nuevo). Verificado manualmente contra la web real (Playwright headless
+vía `npx`, proyecto demo, `'simplificada'+'estimado'`): 11 inputs de
+Longitud visibles y editables, resumen estimado presente, cero
+"Relevar accesorios"/"Tee" en pantalla, cero errores de consola.
+
+#### Decisión roja 1 — Singularidad del último terminal
+
+**Contexto físico** (§9/§17 del brief): en una distribución típica de
+`n` artefactos por Local+red, `n-1` uniones suelen resolverse con una
+tee (ya estimado, D-δ.40) y el último artefacto de la línea normalmente
+requiere algún accesorio de cambio de dirección o salida para conectar
+con la grifería (que a su vez queda excluida del balance por CRIT-A29).
+
+**Alternativas no equivalentes en Tabla N°7** (única entrada, un solo
+accesorio por Local+red si se adopta):
+
+| Accesorio | Ks | Significado físico |
+|---|---|---|
+| `curva90` | 0,81 | Cambio de dirección de radio amplio |
+| `codo90` | 1,35 | Cambio de dirección de radio corto (accesorio roscado/soldado) |
+| `tuboSaliente` | 1,00 | Salida de pared/piso sin cambio de dirección adicional |
+
+**Por qué es genuinamente ambigua**: las tres son físicamente plausibles
+según el tipo de instalación (empotrada vs. vista, salida de pared vs.
+de piso, radio de curvatura del accesorio efectivamente instalado) y no
+hay ninguna base topológica en el modelo de IUAS para preferir una sobre
+otra — a diferencia de la tee (`N_tees=n-1` sí es estructuralmente
+deducible), este accesorio no depende de cuántos terminales hay sino de
+CÓMO se resuelve la conexión final, que el modelo no releva.
+
+**Impacto numérico** (ejemplo Baño con 4 terminales, `V_ref=1,72 m/s`,
+mismo caso que la maqueta de auditabilidad del brief; `Ks_tee_total =
+3×3,00=9,00`; `hf=Ks·V²/2g`, `2g=19,62`):
+
+| Escenario | `Ks_total` | `hf_m` | Variación vs. solo tees |
+|---|---|---|---|
+| Solo tees (actual) | 9,00 | 1,357 | — |
+| + `curva90` | 9,81 | 1,479 | +9,0% |
+| + `tuboSaliente` | 10,00 | 1,508 | +11,1% |
+| + `codo90` | 10,35 | 1,561 | +15,0% |
+
+Adicionalmente, si se adopta, el caso `n=1` (hoy `hf_m=0` exacto, sin
+resolver velocidad) dejaría de ser cero: incluso un único terminal
+tendría una singularidad final, lo que reabriría el atajo de
+`nTeesEstimadas===0` en el código actual — un cambio de comportamiento
+no trivial que tampoco corresponde decidir unilateralmente.
+
+**Recomendación técnica**: si el usuario quiere adoptar una, `curva90`
+(Ks=0,81, la más conservadora hidráulicamente hablando en el sentido de
+menor sobreestimación, y la más frecuente en instalaciones domiciliarias
+de agua fría/caliente con caños flexibles o semirrígidos) es la opción
+de impacto más moderado (+9%); `codo90` sería la más conservadora en el
+sentido opuesto (nunca subestima, +15%, coherente con el principio ya
+usado para `Ks_estimado_tee=3,00`). No hay una respuesta correcta sin
+una decisión de producto.
+
+#### Decisión roja 2 — Llave de paso por Local+red
+
+**Pregunta**: ¿debería el modo rápido asumir automáticamente 1 `llaveDePaso`
+(Ks=9,18) por Local+red, además de las tees estimadas?
+
+**Evidencia a favor**: es común en instalaciones domiciliarias
+argentinas tener una llave de corte por ambiente húmedo (baño, cocina)
+para mantenimiento sin cortar el suministro general.
+
+**Evidencia en contra / motivos de ambigüedad**:
+- No es normativamente obligatoria en esta granularidad — ninguna
+  transcripción de ERAS-2023 en `CRITERIOS.md` exige su presencia como
+  cantidad fija por Local.
+- Su cardinalidad real es tan variable como su ausencia: algunas
+  instalaciones ponen una llave de paso por Local, otras una llave de
+  escuadra por artefacto (que sería una cantidad `n`, no `1`), otras la
+  concentran en la Distribución General (que ya es un Tramo aparte,
+  fuera de este Local+red) y otras no tienen ninguna en absoluto.
+- `Ks=9,18` es igual de grande que `griferias` (excluido por CRIT-A29)
+  y **3 veces mayor que el Ks de tee** — su impacto no es un ajuste
+  fino, es dominante.
+
+**Impacto numérico** (mismo ejemplo, agregando 1 llave de paso a la
+plantilla ya con tees):
+
+| Escenario | `Ks_total` | `hf_m` | Variación vs. solo tees |
+|---|---|---|---|
+| Solo tees (actual) | 9,00 | 1,357 | — |
+| + 1 `llaveDePaso` | 18,18 | 2,741 | **+102,0%** |
+
+Duplicar la pérdida localizada estimada por una sola decisión de
+plantilla es un cambio demasiado grande para adoptar sin aprobación
+explícita — mucho mayor que cualquiera de las variantes de singularidad
+terminal.
+
+**Recomendación técnica**: no incluirla en la plantilla típica del modo
+rápido. Si el usuario la considera físicamente habitual igual, sugerir
+tratarla como un accesorio **opcional** que el usuario puede activar
+conscientemente (un checkbox "Incluir llave de paso típica"), nunca
+como parte silenciosa de la estimación automática, dado el tamaño de su
+impacto y la ausencia de una cardinalidad estructuralmente deducible.
+
+#### Estado de D-δ.45
+
+**NO cerrada.** Investigación completa, bug de UI corregido y commiteado
+como incremento funcional independiente. La plantilla típica de
+accesorios (más allá de tees, ya cerrado en D-δ.40) queda pendiente de
+que el usuario resuelva las dos decisiones rojas de arriba. Hasta
+entonces, el modo rápido (`'simplificada'+'estimado'`) sigue siendo
+utilizable end-to-end (bug corregido) pero solo con la plantilla mínima
+ya existente (tees).
+
+**Deuda restante**: igual que D-δ.44 (persistencia de Pdisponible/
+hfMedidor/granularidad entre recargas, tabs M1-M4, cota de piso + altura
+de conexión). Nueva: si el usuario aprueba alguna de las dos plantillas,
+falta implementar el accesorio elegido en
+`resolverPerdidaLocalizadaEstimadaDeLocal` (extender la fórmula agregada
+`Ks_total = N_tees·Ks_tee + N_extra·Ks_extra` sin rediseñar el
+contrato, ver alcance ya previsto en D-δ.40) y su exposición en "Ver
+cálculo".
