@@ -3080,3 +3080,242 @@ alcance ya conocido). El rango 0..15 del `<select>` de Nivel es
 puramente de presentación (documentado en el propio código) -- si en el
 futuro se modela algún caso con niveles negativos (subsuelos) de forma
 más rica que "Piso -1" como texto, es un incremento aparte.
+
+### D-δ.47 — Auditoría funcional y robustez de Módulo 2 — ABIERTA / PARCIAL
+
+**Objetivo**: no agregar funcionalidad -- intentar romper M2 antes de
+congelarlo, con foco en combinaciones de modo, entradas límite, datos
+ocultos entre modos, resultados stale y coherencia UI↔dominio.
+
+**Alcance de esta corrida**: auditoría dirigida por código + verificación
+manual (Playwright headless contra el proyecto demo real), priorizando
+las áreas de mayor riesgo (cambios de D-δ.44/45/46 recientes) sobre
+cobertura exhaustiva de los 65 puntos del brief. Ver AUDITADO/NO AUDITADO
+más abajo.
+
+#### BUGS ENCONTRADOS Y CORREGIDOS (categoría A)
+
+**1. Pdisponible/hfMedidor: texto inválido persistía visible sin
+participar del cálculo.** `PanelDePresionDeModulo2.tsx` guardaba el
+texto crudo del input incondicionalmente (`setPresionDisponibleTexto(evento.target.value)`),
+sin pasar primero por `parsearEntradaHidraulica`. Un usuario podía
+teclear "-5" y verlo persistir en el campo mientras el cálculo, al
+parsear, lo trataba como `'ignorar'` (Pdisponible no provisto) --
+bloqueando el balance con "Falta indicar el tipo de alimentación" sin
+ningún indicio de que el "-5" visible no participaba. Corregido: el
+estado local solo se actualiza cuando el resultado del parseo no es
+`'ignorar'`, mismo criterio que `conLongitudDeTramo`/`conCotaDeNodo`
+(nunca dejar un valor inválido visible y desconectado del cálculo
+activo). Verificado manualmente: tras el fix, "-5" deja el campo vacío
+en vez de mostrarlo; un valor válido previo (p.ej. "10") sobrevive
+intacto a un intento posterior de "-3". Sin test automatizado dedicado
+(este archivo no tiene jsdom/testing-library, no se puede simular
+`onChange` real -- mismo límite ya documentado en sus tests existentes).
+
+**2. Terminal crítico contaminado por terminales sin Pmin publicada
+(D-δ.41).** `PanelDePresionDeModulo2.tsx` pasaba TODOS los candidatos a
+`resolverTerminalMasDesfavorable` sin excluir
+`'terminalSinPresionMinima'` -- una limitación normativa PERMANENTE
+(D-δ.41: ese terminal nunca va a resolver, no es "dato pendiente" como
+`'balanceIncompleto'`). Reproducido en el proyecto demo real
+(profesional+detallado, "Máquina lavavajillas" sin Pmin publicada): con
+los otros 17 terminales en `balanceCompleto`/`Cumple`,
+`EstadoModulo2` ya decía `'completo'` (correcto, D-δ.41 ya excluye ese
+caso de sus propios candidatos) pero el panel seguía mostrando
+`"Terminal más desfavorable ... (resultado provisional: 1 terminal(es)
+todavía sin balanceCompleto podrían resultar más desfavorables)"` --
+sugiriendo falsamente que faltaba información, cuando ese terminal
+nunca iba a completarse por diseño. Corregido extrayendo
+`filtrarCandidatosParaTerminalCritico` (nuevo,
+`interfaz/paginas/filtrarCandidatosParaTerminalCritico.ts`, con test
+unitario dedicado): filtra `'terminalSinPresionMinima'` ANTES de
+`resolverTerminalMasDesfavorable`, replicando exactamente el criterio
+que `resolverEstadoModulo2` ya aplicaba correctamente en su propio
+ranking interno. La tarjeta de ese terminal se sigue mostrando igual
+("Sin presión mínima normativa publicada para verificación.") -- solo
+se excluye del ranking de criticidad.
+
+**Commit**: `fix: validacion de Pdisponible/hfMedidor y contaminacion de
+terminal critico (D-delta.47)`.
+
+#### HALLAZGOS SIN BUG (verificados, comportamiento correcto)
+
+- **`EstadoModulo2='completo'` vs. "cumple" (§36 del brief)**: NO hay
+  ambigüedad real. `'completo'` significa "el cálculo del balance de
+  presión está resuelto para todos los terminales dentro del alcance
+  actual" -- nunca "el diseño cumple normativamente". La UI ya distingue
+  esto explícitamente: `textoDeEstadoDeTerminal` devuelve "Cumple"/"No
+  cumple" (`resultado.cumpleMinimo`) como un dato SEPARADO del estado
+  "Completo"/"Incompleto"/"Error" de `EstadoModulo2`. `resolverBalanceDePresion`
+  nunca clampea ni lanza excepción ante `presionResidual_mca` negativo o
+  por debajo de `presionMinimaRequerida_mca` -- el álgebra fluye normal y
+  `cumpleMinimo` simplemente da `false`. Sin decisión roja: ya cerrado.
+- **Cargas geométricas/Δz negativos (§13, tanque elevado)**: verificado
+  que `calcularDiferenciaDeCota`/`resolverBalanceDePresion` no rechazan
+  ni transforman un desnivel negativo (artefacto por encima del pelo de
+  agua) -- el resultado fluye a `presionResidual_mca` más bajo y
+  eventualmente "No cumple", nunca a un error estructural. Correcto.
+- **Cota UF negativa (§11)**: probado con `cotaHidraulicaReferencia_m=-5`
+  en el proyecto demo real -- el balance se recalcula correctamente y
+  `EstadoModulo2` sigue en `'completo'` con la nueva Δz. Confirma que el
+  dominio nunca prohibió negativos (correcto, no requiere decisión roja).
+- **Pdisponible/hfMedidor negativos (§14/§15)**: `parsearEntradaHidraulica`
+  YA rechazaba `valor < 0` antes de esta corrida -- es un cierre de
+  diseño preexistente (Pdisponible/hfMedidor son magnitudes físicas que
+  no tienen sentido negativo en este contrato), no una ambigüedad nueva.
+  0 sigue siendo válido y distinto de vacío (verificado: hfMedidor="0" ->
+  persiste "0"; hfMedidor="" -> `undefined`). El bug real no era la
+  regla de validación en sí (correcta) sino que no se aplicaba
+  consistentemente en el `onChange` (ver bug #1 arriba).
+- **Cambio de modo (granularidad/método) no contamina ni pierde datos**:
+  verificado en el proyecto demo real -- cargar longitudes+cotas en
+  `simplificada+estimado`, pasar a `profesional+detallado` (los
+  diagnósticos cambian correctamente a "faltan cotas de conexión",
+  nunca mezclan texto de ambos modos), y volver a
+  `simplificada+estimado` recupera `'completo'` sin volver a cargar
+  nada. `actualizarConfiguracionHidraulica.ts` nunca borra
+  `Tramo.longitud_m`/`accesorios`/`Nodo.tee`/`cota_m` al cambiar de
+  modo -- solo cambia qué primitiva de lectura los consume (ya cerrado
+  desde D-δ.44).
+- **Duplicar UF (§26)**: `nivel`/`cotaHidraulicaReferencia_m` se
+  duplican tal cual (deep copy) y son independientes tras la
+  duplicación -- editar la cota de la copia no afecta al original.
+  Comportamiento ya documentado y decidido en D-δ.46, confirmado sin
+  ambigüedad.
+- **Agregar/eliminar UF (§27)**: nivel asignado por orden de creación
+  (UF2→Piso1/4m, UF3→Piso2/7m), edición de una UF no afecta a las
+  demás, eliminar reduce el conteo correctamente. Sin NaN/undefined.
+- **Agregar artefacto con precedente físico (M2-D, §24)**: al agregar un
+  artefacto cuyo tipo YA tiene precedente en el proyecto,
+  `sincronizarConectividadFisicaDeArtefacto` lo conecta automáticamente
+  (mismo patrón AF/AC que el precedente) y `EstadoModulo2` se
+  recalcula reactivamente sin intervención adicional -- comportamiento
+  correcto de M2-D, no bug.
+- **Modo rápido y modo profesional end-to-end (§47/§48/§50)**: ambos
+  verificados completos contra el proyecto demo real (18 terminales:
+  17 con Pmin + 1 sin Pmin). Rápido:
+  `simplificada+estimado`, 11 tramos con longitud, tanque elevado ->
+  `Completo`. Profesional: `profesional+detallado`, 24 tramos con
+  longitud+accesorios relevados, 3 tees configuradas, 17 cotas
+  individuales, tanque elevado -> `Completo`, terminal crítico
+  correcto (Baño → Receptáculo de ducha). Cero NaN/Infinity/undefined,
+  cero errores de consola en ambos.
+- **Stale state (§31)**: borrar la longitud de "Alimentación general"
+  (afecta los 16-18 terminales) revierte `EstadoModulo2` a `'incompleto'`
+  inmediatamente, sin dejar "Presidual"/"Cumple" residual de ningún
+  terminal en pantalla; restaurar el valor recompone `'completo'` sin
+  refresh. Mismo patrón verificado para la cota del pelo de agua del
+  tanque elevado. Ningún dato derivado sobrevive a la invalidación de su
+  entrada.
+- **`AccesoriosDeTramoEditor`**: cantidad ya rechaza `<1` y no-finito
+  (`Number.isFinite`) antes de actualizar estado -- sin gap.
+- **Validación geométrica cota/longitud** (`redHidraulicaTramoLongitudIncompatibleConCota`,
+  `validarRedHidraulica`): opera exclusivamente sobre `Nodo.cota_m` real
+  -- nunca ve la cota efectiva sustituida de D-δ.46 (que es transitoria,
+  solo dentro de `resolverPresionResidualDeCamino`), así que no genera
+  falsos positivos en modo simplificado (donde los Nodos terminales
+  normalmente no tienen `cota_m` propio).
+
+#### DECISIÓN ROJA PENDIENTE — coma decimal en inputs numéricos (§33)
+
+**Evidencia**: todos los inputs numéricos de M2 usan
+`<input type="number">`. Probado con Playwright (Chromium, configuración
+de este entorno): tipear "1,5" (coma) carácter por carácter SÍ actualiza
+`input.value` a `"1.5"` -- pero esto depende de la configuración de
+idioma/región del navegador/SO del usuario, no del código de IUAS. La UI
+misma **muestra** los resultados con coma decimal (`formatearNumero`,
+locale `es-AR`), pero el comportamiento de **entrada** con coma en
+`type="number"` es responsabilidad exclusiva del navegador/SO -- en un
+navegador/SO configurado con separador decimal "." (común incluso entre
+usuarios argentinos con Windows en inglés), la tecla "," probablemente
+se descarta en silencio sin ningún mensaje, y el usuario podría terminar
+escribiendo un número distinto al que creía ingresar (p.ej. "15" en vez
+de "1,5"), sin ninguna señal de error visible.
+
+**No es un bug de esta corrida** (el comportamiento no cambió por
+D-δ.44/45/46/47) pero **es una inconsistencia UX real** entre lo que la
+app muestra (coma) y lo que garantiza aceptar al escribir (depende del
+entorno del usuario, no está garantizado).
+
+**Alternativas no equivalentes**:
+1. Dejar `type="number"` tal cual -- cero costo, pero el comportamiento
+   sigue dependiendo silenciosamente del SO/navegador del usuario.
+2. Migrar los inputs numéricos de M2 a `type="text"` con
+   `inputMode="decimal"` + parseo propio que acepte tanto "," como "."
+   -- elimina la dependencia de locale, pero toca todos los inputs
+   numéricos de M2 (Longitud, Cota UF, Cota terminal, Pdisponible,
+   hfMedidor, cantidad de accesorio) y sus funciones de parseo.
+3. Mantener `type="number"` pero agregar una ayuda visual ("usá punto
+   decimal") -- bajo costo, pero no elimina el problema, solo lo
+   documenta para el usuario.
+4. Detectar el locale del navegador y adaptar dinámicamente -- mayor
+   complejidad, comportamiento menos predecible entre usuarios.
+
+**Impacto**: bajo en frecuencia (la mayoría de los valores de M2 son
+enteros o con .5, y muchos usuarios argentinos SÍ tienen su SO
+configurado en es-AR, donde la coma funciona), pero potencialmente alto
+en severidad cuando ocurre (un valor mal interpretado sin ningún error
+visible podría alterar un cálculo de dimensionamiento silenciosamente).
+
+**Recomendación técnica**: opción 2 (texto + `inputMode="decimal"` +
+parseo propio) es la más robusta y ya sigue el patrón existente del
+proyecto (todos los parseos de M2 ya son funciones puras dedicadas,
+`resolverCambioDeLongitud`/`parsearCota`/`parsearEntradaHidraulica` --
+extenderlas para aceptar "," como alias de "." antes de `Number(...)`
+es mecánico). Pero es una decisión de producto (cuánto esfuerzo dedicar
+a esto ahora vs. documentarlo como deuda) que no corresponde tomar
+unilateralmente.
+
+**Pregunta pendiente para el usuario**: ¿corresponde implementar la
+opción 2 (aceptar coma Y punto en todos los inputs numéricos de M2,
+independiente del locale del navegador) ahora, o dejarlo documentado
+como deuda (categoría B/C) para una corrida futura?
+
+#### DEUDA CLASIFICADA
+
+**B. UX menor (documentar, no corregido esta corrida)**:
+- Coma decimal (ver decisión roja arriba) -- pendiente de la respuesta
+  del usuario para decidir si se corrige ahora.
+
+**D. Diferido / fuera de alcance (no tocar)**:
+- Persistencia entre recargas de Pdisponible/hfMedidor/tipo de
+  alimentación (deliberado, D-δ.35/36).
+- Tabs M1-M4, M3, M4, hfEquipoACS, presurizador (fuera de alcance
+  explícito de esta corrida).
+
+#### NO AUDITADO EN ESTA CORRIDA (queda para la próxima)
+
+- Matriz de combinaciones completa con verificación exhaustiva de las 4
+  filas del brief §8 en un único documento tabular (se verificaron
+  simplificada+estimado y profesional+detallado end-to-end; NO se probó
+  explícitamente simplificada+detallada ni profesional+estimado en esta
+  corrida, aunque D-δ.44/45 ya las habían probado por unidad -- falta la
+  verificación manual explícita post-D-δ.47).
+- Cambio de material/sistema de tubería con datos ya cargados (§16/§17) --
+  no probado en esta corrida.
+- Vmin/Vmax fallback CRIT-A24 en la UI real (§18) -- cubierto por
+  golden tests existentes, no reverificado manualmente esta corrida.
+- Agregar/eliminar Local (§25) -- no probado esta corrida (sí se probó
+  agregar artefacto y agregar/eliminar/duplicar UF).
+- Cambio de tipo de artefacto que altere sus redes físicas (§40).
+- Auditoría de red de agua caliente dedicada (§39) -- confirmado
+  indirectamente por los end-to-end (Cocina AC, Lavadero AC, Toilette AC
+  con n=1 cada uno, valores correctos) pero sin un pase dedicado a
+  buscar duplicación/Qc incorrecto específicamente en AC.
+- Accesibilidad básica (§55), performance básica (§57), auditoría
+  exhaustiva de `as any`/assertions (§58, se hizo un grep inicial sin
+  hallazgos relevantes fuera de patrones ya documentados).
+- Prueba de refresh de página real (§54).
+- Documentación exhaustiva de cada input principal en una tabla
+  dedicada (§59) -- la semántica de cada uno ya quedó documentada en
+  comentarios de código y en los registros de D-δ.44/45/46, pero no se
+  consolidó en una tabla única.
+
+**Estado**: D-δ.47 queda **ABIERTA / PARCIAL** -- dos bugs reales
+encontrados y corregidos con tests/verificación manual, una decisión
+roja pendiente de respuesta del usuario, y una lista de áreas del brief
+todavía sin recorrer explícitamente en esta corrida (ver arriba). El
+repo queda verde (804/804 tests, `tsc -b` y `vite build` limpios, lint
+en baseline 11) y el working tree limpio. Recomendado continuar desde
+"NO AUDITADO" en la próxima corrida, priorizando la matriz de
+combinaciones completa y cambio de material/sistema con datos cargados.
