@@ -2479,3 +2479,161 @@ existentes.
 **Estado**: IMPLEMENTADA y verificada manualmente contra la web real
 (Playwright headless, dos corridas: slice 1 sobre Local+Red/tees/
 accesorios, slice 2 sobre el panel de presión).
+
+### D-δ.44 — Corrección de granularidad de relevamiento físico de D-δ.43 — IMPLEMENTADA
+
+**Problema**: la revisión posterior a D-δ.43 detectó que el slice 1
+había convertido los ramales terminales internos (Tramo hacia cada
+Artefacto) en unidades de relevamiento del usuario -- cada ramal
+mostraba su propio input de Longitud y su propio editor de Accesorios.
+Investigación (no una interpretación libre, ver evidencia): ese
+requisito -- que **cada Tramo físico real del camino** (incluida la
+rama final hacia el Artefacto) tenga su propia `longitud_m`/`accesorios`
+para llegar a `balanceCompleto` -- ya existía desde antes de D-δ.43 en
+`acumularPerdidaDistribuidaDeCamino`/`acumularPerdidaLocalizadaDeCamino`
+(D-δ.25/D-δ.33), confirmado por un golden test ya existente y sin
+tocar (`resolverPresionResidualDeCamino.test.ts`, `hfDistribuida =
+J·(L0+L1)` sumando dos Tramos reales de un mismo camino) y por
+arqueología de commits: antes de D-δ.43 ningún Local con más de un
+Artefacto (Baño, Cocina, Toilette, Lavadero del proyecto demo) podía
+llegar nunca a `balanceCompleto` -- solo Jardín (un único Artefacto por
+red, donde el Tramo "principal" y el terminal son el mismo Tramo)
+podía completarse, coincidiendo exactamente con el "1 de 16" que
+reportó D-δ.42. D-δ.43 no introdujo el requisito: expuso un editor que
+lo hacía satisfacible, pero con la granularidad equivocada.
+
+**Decisión del usuario**: dos granularidades de cálculo hidráulico,
+seleccionables por Proyecto, NUNCA fusionadas silenciosamente con
+`MetodoPerdidaLocalizada`:
+
+```ts
+export type GranularidadHidraulica = 'simplificada' | 'profesional';
+```
+
+- **'profesional'**: comportamiento ya existente, sin cambios -- cada
+  Tramo real del camino exige su propia longitud/accesorios (permite
+  modelar recorridos internos distintos hasta cada Artefacto).
+- **'simplificada'** (nuevo default del proyecto de ejemplo): la unidad
+  de relevamiento físico es `(Local, Red)` -- una única
+  longitud/lista de accesorios sobre el Tramo **representativo** de
+  ese Local+red. Los Tramos más profundos (ramales hacia cada
+  Artefacto, incluidos los que salen de una tee anidada) contribuyen
+  **0** a hfDistribuida/hfLocalizada por definición del modelo, nunca
+  "dato faltante" -- nunca se fabrica `longitud_m=0`/`accesorios=[]`
+  ficticios, simplemente esos Tramos no participan de la acumulación.
+
+**Ortogonalidad con `MetodoPerdidaLocalizada` -- investigada, confirmada,
+documentada** (no se fusionaron los dos ejes): `MetodoPerdidaLocalizada`
+decide CÓMO se calcula la pérdida localizada (relevamiento real vs.
+fórmula agregada D-δ.40); `GranularidadHidraulica` decide QUÉ Tramos
+físicos participan de la acumulación (distribuida Y localizada). Las 4
+combinaciones son coherentes: 'simplificada'+'detallado' es el modo
+recomendado por defecto; 'simplificada'+'estimado' es el más rápido;
+'profesional'+'detallado' es el comportamiento pre-D-δ.44 íntegro;
+'profesional'+'estimado' es válido (precisión profesional en
+distribuida, estimación agregada en localizada) aunque menos común. La
+tee (CRIT-A31) NUNCA depende de esta granularidad -- sigue
+configurándose y aportando Ks por rama real (usa la velocidad propia
+de esa rama) en ambos modos; lo único que cambia es si, además del Ks
+de la tee, esa rama exige tener sus PROPIOS accesorios en línea
+relevados.
+
+**Implementación** (dominio primero, UI después, tal como exigía el
+brief):
+
+- `motor/tuberias/topologia/identificarTramoRepresentativoDeLocal.ts`
+  (nuevo): promueve la clasificación "qué Tramo es representativo de
+  un (Local, Red)" desde `interfaz/paginas/identificarFilasDeModulo2.ts`
+  (antes solo una selección de presentación) al motor -- ahora es una
+  primitiva de dominio real, porque los acumuladores de pérdida
+  también la necesitan. `identificarFilasDeModulo2.ts` pasó a ser un
+  envoltorio delgado sobre esta primitiva (sin duplicar el algoritmo);
+  sus 15 tests existentes siguen pasando sin modificar una sola
+  aserción.
+- `motor/tuberias/presion/seleccionarTramosDeAcumulacion.ts` (nuevo):
+  dado un camino ya resuelto, separa `tramosRelevables` (Distribución
+  General + el representativo, inclusive -- exigen su propia
+  longitud/accesorios en ambas granularidades) de `tramosRamal` (solo
+  aparece no vacío en 'simplificada'). Defensivo: si ningún Tramo del
+  camino es representativo de un Local (topología degenerada), no
+  inventa un punto de corte -- preserva el comportamiento 'profesional'
+  completo.
+- `acumularPerdidaDistribuidaDeCamino.ts`: itera solo
+  `tramosRelevables` -- los `tramosRamal` nunca se evalúan, nunca
+  aparecen en `porTramo`, nunca bloquean completitud.
+- `acumularPerdidaLocalizadaDeCamino.ts`: los `tramosRamal` SÍ se
+  evalúan, pero solo para el Ks de tee (si el Nodo de origen es una
+  bifurcación real sin tee configurar, sigue bloqueando completitud --
+  la tee no depende de la granularidad); su propio
+  `Tramo.accesorios` nunca se exige ni se suma. Un ramal que no sale de
+  ninguna tee (manifold plano, >2 salientes) contribuye 0 sin necesitar
+  siquiera resolver su diámetro comercial.
+- Modelo: `GranularidadHidraulica` + `ConfiguracionHidraulica.granularidadHidraulica`
+  (obligatorio, mismo criterio que `metodoPerdidaLocalizada`);
+  updater `conGranularidadHidraulica` (mismo patrón que los demás en
+  `actualizarConfiguracionHidraulica.ts`).
+- UI: nuevo selector "Granularidad hidráulica" en
+  `ConfiguracionHidraulicaFormulario`. `LocalYRedCard`/`NodoDeArbol`
+  (D-δ.43) ahora reciben `granularidadHidraulica`: en 'simplificada',
+  solo el Tramo representativo (raíz del árbol) muestra
+  Dimensionamiento + editor de Accesorios -- los Nodos más profundos
+  (`RamalesSimplificados`, nuevo) se recorren únicamente para
+  encontrar tees reales que configurar (inline, sin sección global,
+  CRIT-A31 intacto), y al final se lista "Distribución: Lavatorio,
+  Ducha, ..." (nombres de Artefacto, nunca ids) sin ningún input
+  propio. En 'profesional', comportamiento de D-δ.43 sin cambios.
+- **Bug real encontrado y corregido durante esta corrida** (no
+  relacionado con granularidad, pre-existente desde D-δ.43 slice 1):
+  `DistribucionGeneral` (Alimentación general/ACS) nunca tuvo editor de
+  Accesorios -- D-δ.43 lo extrajo de la tabla ancha original sin
+  reincorporarlo. Detectado recién al intentar completar
+  `balanceCompleto` end-to-end en la prueba manual (ver abajo);
+  corregido agregando `AccesoriosDeTramoEditor` a cada fila de
+  Distribución General, gateado por `metodoPerdidaLocalizada==='detallado'`
+  igual que el resto de la UI.
+
+**Test clave de regresión** (obligatorio, `resolverEstadoModulo2.test.ts`):
+un Local con 3 Artefactos (Lavatorio, Ducha, Inodoro a depósito) tras
+DOS tees anidadas, con longitud/accesorios SOLO en el Tramo
+representativo -- llega a `estado: 'completo'` en 'simplificada' y
+queda `'incompleto'` en 'profesional' sobre la MISMA topología
+(confirma que el cambio de comportamiento es exclusivo de la
+granularidad, no un efecto colateral). Cobertura adicional: 10 tests
+nuevos en los acumuladores (`acumularPerdidaDistribuidaDeCamino.test.ts`,
+`acumularPerdidaLocalizadaDeCamino.test.ts`) y 5 en la UI
+(`ResultadoHidraulicoDeTramo.test.ts`).
+
+**Prueba manual end-to-end** (Playwright headless, sin datos físicos
+por Artefacto): con el proyecto demo en 'simplificada' (nuevo default),
+se completó longitud+accesorios de "Alimentación general" y del
+"Tramo de alimentación" de Baño+AF (2 inputs en total), más
+Pdisponible/hfMedidor/cota del punto de alimentación y la cota de
+conexión de los 4 terminales del Baño (Lavatorio, Ducha, Bidet,
+Inodoro) -- **sin tocar ningún dato de los 4 ramales**. Los 4
+terminales resolvieron `Cumple`, `Terminal más desfavorable` mostró el
+Lavatorio con `Presidual: 31,34 m.c.a., Pmin: 6,00, margen: 25,34
+m.c.a., candidatoProvisional` (distinción D-δ.42 intacta). Cero errores
+de consola.
+
+**Decisiones rojas**: ninguna durante esta corrida -- la ortogonalidad
+con `MetodoPerdidaLocalizada` se investigó y resultó no ambigua (una
+sola semántica plausible, documentada arriba), así que no hizo falta
+consultar al usuario.
+
+**Deuda restante**: igual que D-δ.43 (persistencia de Pdisponible/
+hfMedidor/granularidad entre recargas, tabs M1-M4, cota de piso +
+altura de conexión). Nueva: no se completó `balanceCompleto` para los
+9 Local+Red del proyecto demo, solo para Baño+AF (mismo criterio de
+alcance que la prueba manual de D-δ.42, que tampoco completó los 16
+terminales).
+
+**Archivos nuevos**: `motor/tuberias/topologia/identificarTramoRepresentativoDeLocal.ts`
+(+test), `motor/tuberias/presion/seleccionarTramosDeAcumulacion.ts`.
+**Archivos de test nuevos/extendidos**: `acumularPerdidaDistribuidaDeCamino.test.ts`,
+`acumularPerdidaLocalizadaDeCamino.test.ts`, `resolverEstadoModulo2.test.ts`,
+`ResultadoHidraulicoDeTramo.test.ts`. **Sin cambios de contrato
+público** de `resolverPresionResidualDeCamino`/`resolverEstadoModulo2`
+(ambos ya recibían `proyecto` completo).
+
+**Estado**: IMPLEMENTADA, 768/768 tests, verificada manualmente contra
+la web real (Playwright headless, cero errores de consola).
