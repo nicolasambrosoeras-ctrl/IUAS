@@ -48,11 +48,22 @@ import { parsearCota } from './parsearCota'
 import { conCotaDeNodo } from './actualizarRedHidraulica'
 import { TarjetaDeTerminal } from './TarjetaDeTerminal'
 import { resolverInfoCotaDeTerminal } from './resolverInfoCotaDeTerminal'
+import { filtrarCandidatosParaTerminalCritico } from './filtrarCandidatosParaTerminalCritico'
 
 // Mismo criterio que resolverCambioDeLongitud (resolverResultadoDeTramoParaUi.ts):
 // campo vacío = "no provisto todavía" (undefined, nunca 0); NaN o negativo
 // = no se actualiza el estado -- Pdisponible/hfMedidor nunca admiten un
 // valor negativo con sentido físico.
+//
+// Bug corregido (D-δ.47): los onChange de estos dos inputs llamaban
+// set*Texto con el texto crudo INCONDICIONALMENTE, sin pasar por esta
+// función primero -- un usuario podía teclear "-5" y verlo persistir
+// visualmente en el campo mientras el cálculo, al parsear, lo trataba
+// como 'ignorar' (Pdisponible/hfMedidor no provistos), sin ningún
+// indicio de que ese texto no participaba. Ahora el estado solo se
+// actualiza cuando el resultado NO es 'ignorar' -- mismo principio ya
+// usado por conLongitudDeTramo/conCotaDeNodo (nunca dejar un valor
+// inválido visible y desconectado del cálculo activo).
 function parsearEntradaHidraulica(texto: string): number | undefined | 'ignorar' {
   if (texto === '') {
     return undefined
@@ -140,12 +151,9 @@ export function PanelDePresionDeModulo2({
           ),
         }))
 
-  // Se le pasan TODOS los candidatos (no solo los balanceCompleto): la
-  // distincion 'determinado' vs. 'candidatoProvisional' depende
-  // exclusivamente de que existan o no candidatos excluidos -- prefiltrar
-  // acá lo forzaria siempre a 'determinado', perdiendo esa distincion que
-  // el propio motor fue diseñado para expresar (M2-B).
-  const terminalMasDesfavorable = candidatos.length > 0 ? resolverTerminalMasDesfavorable(candidatos) : undefined
+  const candidatosParaTerminalCritico = filtrarCandidatosParaTerminalCritico(candidatos)
+  const terminalMasDesfavorable =
+    candidatosParaTerminalCritico.length > 0 ? resolverTerminalMasDesfavorable(candidatosParaTerminalCritico) : undefined
   const nodoMasDesfavorable =
     terminalMasDesfavorable !== undefined && terminalMasDesfavorable.tipo !== 'sinCandidatoDeterminable'
       ? nodosTerminales.find((nodo) => nodo.id === terminalMasDesfavorable.nodoId)
@@ -244,7 +252,12 @@ export function PanelDePresionDeModulo2({
               min={0}
               step="any"
               value={presionDisponibleTexto}
-              onChange={(evento) => setPresionDisponibleTexto(evento.target.value)}
+              onChange={(evento) => {
+                const texto = evento.target.value
+                if (parsearEntradaHidraulica(texto) !== 'ignorar') {
+                  setPresionDisponibleTexto(texto)
+                }
+              }}
               style={{ width: '6rem' }}
             />
           </label>
@@ -265,7 +278,12 @@ export function PanelDePresionDeModulo2({
           min={0}
           step="any"
           value={hfMedidorTexto}
-          onChange={(evento) => setHfMedidorTexto(evento.target.value)}
+          onChange={(evento) => {
+            const texto = evento.target.value
+            if (parsearEntradaHidraulica(texto) !== 'ignorar') {
+              setHfMedidorTexto(texto)
+            }
+          }}
           style={{ width: '6rem' }}
         />
       </label>
