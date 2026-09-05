@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Proyecto } from '../../modelo/proyecto'
 import type { Nodo, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
-import { conLongitudDeTramo } from './actualizarRedHidraulica'
+import { conAccesoriosDeTramo, conCotaDeNodo, conLongitudDeTramo, conTeeDeNodo } from './actualizarRedHidraulica'
 
 function proyectoDePrueba(redHidraulica?: RedHidraulica): Proyecto {
   return {
@@ -108,5 +108,136 @@ describe('conLongitudDeTramo', () => {
 
     expect(actualizado).toBe(original)
     expect(actualizado.redHidraulica).toBeUndefined()
+  })
+})
+
+describe('conAccesoriosDeTramo', () => {
+  it('setea accesorios en un tramo sin relevar (undefined) -> [] es un relevado real, no un no-op', () => {
+    const original = proyectoDePrueba(redDeDosTramos())
+
+    const actualizado = conAccesoriosDeTramo(original, 't1', [])
+
+    const tramoActualizado = actualizado.redHidraulica?.tramos.find((t) => t.id === 't1')
+    expect(tramoActualizado?.accesorios).toEqual([])
+  })
+
+  it('agrega/reemplaza la lista completa de accesorios', () => {
+    const original = proyectoDePrueba(redDeDosTramos())
+
+    const actualizado = conAccesoriosDeTramo(original, 't1', [{ tipo: 'codo90', cantidad: 2 }])
+
+    const tramoActualizado = actualizado.redHidraulica?.tramos.find((t) => t.id === 't1')
+    expect(tramoActualizado?.accesorios).toEqual([{ tipo: 'codo90', cantidad: 2 }])
+  })
+
+  it('vaciar con undefined vuelve al estado "no relevado" (campo ausente, nunca [])', () => {
+    const conAccesorios = conAccesoriosDeTramo(proyectoDePrueba(redDeDosTramos()), 't1', [{ tipo: 'codo90', cantidad: 1 }])
+
+    const actualizado = conAccesoriosDeTramo(conAccesorios, 't1', undefined)
+
+    const tramoActualizado = actualizado.redHidraulica?.tramos.find((t) => t.id === 't1')
+    expect('accesorios' in (tramoActualizado as object)).toBe(false)
+  })
+
+  it('preserva el resto de los tramos y del Proyecto', () => {
+    const original = proyectoDePrueba(redDeDosTramos())
+
+    const actualizado = conAccesoriosDeTramo(original, 't1', [])
+
+    const t2Actualizado = actualizado.redHidraulica?.tramos.find((t) => t.id === 't2')
+    const t2Original = original.redHidraulica?.tramos.find((t) => t.id === 't2')
+    expect(t2Actualizado).toBe(t2Original)
+    expect(actualizado.unidadesFuncionales).toBe(original.unidadesFuncionales)
+  })
+
+  it('redHidraulica ausente: no-op', () => {
+    const original = proyectoDePrueba()
+    expect(conAccesoriosDeTramo(original, 't1', [])).toBe(original)
+  })
+})
+
+function redConBifurcacion(): RedHidraulica {
+  const nodos: Nodo[] = [{ id: 'raiz' }, { id: 'mid' }, { id: 'a' }, { id: 'b' }]
+  const tramos: Tramo[] = [
+    { id: 't0', nodoOrigenId: 'raiz', nodoDestinoId: 'mid', red: 'AF' },
+    { id: 't1', nodoOrigenId: 'mid', nodoDestinoId: 'a', red: 'AF' },
+    { id: 't2', nodoOrigenId: 'mid', nodoDestinoId: 'b', red: 'AF' },
+  ]
+  return { nodos, tramos }
+}
+
+describe('conTeeDeNodo', () => {
+  it('configura entradaCentral en un nodo de bifurcacion sin tee previa', () => {
+    const original = proyectoDePrueba(redConBifurcacion())
+
+    const actualizado = conTeeDeNodo(original, 'mid', { tipo: 'entradaCentral' })
+
+    const nodoActualizado = actualizado.redHidraulica?.nodos.find((n) => n.id === 'mid')
+    expect(nodoActualizado?.tee).toEqual({ tipo: 'entradaCentral' })
+  })
+
+  it('configura entradaPorExtremo indicando la salida recta', () => {
+    const original = proyectoDePrueba(redConBifurcacion())
+
+    const actualizado = conTeeDeNodo(original, 'mid', { tipo: 'entradaPorExtremo', tramoSalidaRectaId: 't1' })
+
+    const nodoActualizado = actualizado.redHidraulica?.nodos.find((n) => n.id === 'mid')
+    expect(nodoActualizado?.tee).toEqual({ tipo: 'entradaPorExtremo', tramoSalidaRectaId: 't1' })
+  })
+
+  it('vaciar con undefined vuelve a "sin configurar" (campo ausente, nunca un valor por defecto)', () => {
+    const conTee = conTeeDeNodo(proyectoDePrueba(redConBifurcacion()), 'mid', { tipo: 'entradaCentral' })
+
+    const actualizado = conTeeDeNodo(conTee, 'mid', undefined)
+
+    const nodoActualizado = actualizado.redHidraulica?.nodos.find((n) => n.id === 'mid')
+    expect('tee' in (nodoActualizado as object)).toBe(false)
+  })
+
+  it('preserva el resto de los nodos y del Proyecto', () => {
+    const original = proyectoDePrueba(redConBifurcacion())
+
+    const actualizado = conTeeDeNodo(original, 'mid', { tipo: 'entradaCentral' })
+
+    const nodoA_actualizado = actualizado.redHidraulica?.nodos.find((n) => n.id === 'a')
+    const nodoA_original = original.redHidraulica?.nodos.find((n) => n.id === 'a')
+    expect(nodoA_actualizado).toBe(nodoA_original)
+    expect(actualizado.redHidraulica?.tramos).toBe(original.redHidraulica?.tramos)
+  })
+
+  it('redHidraulica ausente: no-op', () => {
+    const original = proyectoDePrueba()
+    expect(conTeeDeNodo(original, 'mid', { tipo: 'entradaCentral' })).toBe(original)
+  })
+})
+
+describe('conCotaDeNodo', () => {
+  it('setea cota_m en un nodo existente', () => {
+    const original = proyectoDePrueba(redDeDosTramos())
+
+    const actualizado = conCotaDeNodo(original, 'n1', 3.5)
+
+    expect(actualizado.redHidraulica?.nodos.find((n) => n.id === 'n1')?.cota_m).toBe(3.5)
+  })
+
+  it('admite cota_m negativa (punto por debajo del datum)', () => {
+    const original = proyectoDePrueba(redDeDosTramos())
+
+    const actualizado = conCotaDeNodo(original, 'n1', -2)
+
+    expect(actualizado.redHidraulica?.nodos.find((n) => n.id === 'n1')?.cota_m).toBe(-2)
+  })
+
+  it('vaciar con undefined deja el campo ausente, nunca 0', () => {
+    const conCota = conCotaDeNodo(proyectoDePrueba(redDeDosTramos()), 'n1', 3)
+
+    const actualizado = conCotaDeNodo(conCota, 'n1', undefined)
+
+    expect('cota_m' in (actualizado.redHidraulica?.nodos.find((n) => n.id === 'n1') as object)).toBe(false)
+  })
+
+  it('redHidraulica ausente: no-op', () => {
+    const original = proyectoDePrueba()
+    expect(conCotaDeNodo(original, 'n1', 3)).toBe(original)
   })
 })

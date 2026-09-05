@@ -14,13 +14,14 @@
 // si existe, ya es estructuralmente válida y sus referencias a Artefactos
 // ya existen.
 import type { CSSProperties } from 'react'
-import type { MaterialTuberiaId, MetodoPerdidaDistribuida, Proyecto, TipoDeLocal } from '../../modelo/proyecto'
+import type { MaterialTuberiaId, MetodoPerdidaDistribuida, MetodoPerdidaLocalizada, Proyecto, TipoDeLocal } from '../../modelo/proyecto'
 import type { ReferenciaDeArtefacto, RedDeTramo } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { catalogoMaterialesTuberia, obtenerMaterialTuberia } from '../../motor/tuberias/materialTuberia'
 import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia'
 import { resolverPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolverPerdidaDistribuidaDeTramo'
 import type { ResultadoPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolverPerdidaDistribuidaDeTramo'
+import type { ResultadoVerificacionVelocidad } from '../../motor/tuberias/velocidad/verificarVelocidadAdmisible'
 import { obtenerArtefactosAguasAbajo } from '../../motor/tuberias/topologia/obtenerArtefactosAguasAbajo'
 import { resolverArtefactosReferenciados } from '../../motor/tuberias/topologia/resolverArtefactosReferenciados'
 import { auditarCoberturaFisica } from '../../motor/tuberias/cobertura/auditarCoberturaFisica'
@@ -30,8 +31,19 @@ import {
   identificarFilasDistribucionGeneral,
   identificarFilasPrincipalesDeLocales,
 } from './identificarFilasDeModulo2'
-import { conMaterialTuberia, conMetodoPerdidaDistribuida, conSistemaDeTuberia } from './actualizarConfiguracionHidraulica'
+import {
+  conMaterialTuberia,
+  conMetodoPerdidaDistribuida,
+  conMetodoPerdidaLocalizada,
+  conSistemaDeTuberia,
+} from './actualizarConfiguracionHidraulica'
 import { conLongitudDeTramo } from './actualizarRedHidraulica'
+import { AccesoriosDeTramoEditor } from './AccesoriosDeTramoEditor'
+import { TeeDeNodoEditor } from './TeeDeNodoEditor'
+import { identificarNodosDeBifurcacion } from '../../motor/tuberias/topologia/identificarNodosDeBifurcacion'
+import { contarTerminalesFisicosDeLocal } from '../../motor/tuberias/topologia/contarTerminalesFisicosDeLocal'
+import { resolverPerdidaLocalizadaEstimadaDeLocal } from '../../motor/tuberias/presion/resolverPerdidaLocalizadaEstimadaDeLocal'
+import { PanelDePresionDeModulo2 } from './PanelDePresionDeModulo2'
 
 // Duplicado intencional de la etiqueta homónima en MotorDemandaPantalla.tsx
 // (mismo criterio que aplicarParticipacionCritA8: segundo consumidor
@@ -79,28 +91,62 @@ export function describirReferenciaPendiente(
 // nunca inventado): sinDemanda no tiene diámetro/velocidad/hf;
 // sinCandidatoAdmisible no tiene candidato comercial; sinLongitud tiene todo
 // menos hf (Tramo.longitud_m ausente, CRIT-A20 -- no se asume 0 ni se deriva).
-// velocidadPorDebajoDelMinimo (D-delta.27): leído tal cual del motor, nunca
-// reinterpretado ni recalculado -- false cuando la variante no tiene
-// candidato (sinDemanda/sinCandidatoAdmisible), nada que advertir ahí.
-// Se conserva en esta interfaz por trazabilidad y para que el motor siga
-// siendo auditable desde la UI (tests incluidos) -- pero, por decisión de
-// UX (no de cálculo, ver FilaResultado más abajo), la tabla principal ya
-// NO lo renderiza como advertencia: D-delta.27 solo activa este flag
-// exactamente en el caso terminal de CRIT-A24 (el menor diámetro comercial
-// normativamente evaluable, sin ningún diámetro mayor que pudiera
-// corregirlo -- V decrece monótonamente con Di a Qc fijo, ver
-// resolverDiametroComercialDeTramo.ts), así que mostrarlo como advertencia
-// "accionable" sería engañoso: no hay ninguna acción de dimensionamiento
-// que el proyectista pueda tomar para evitarlo. Vmax sigue siendo una
-// condición dura sin excepción, sin cambios acá.
+//
+// velocidadPorDebajoDelMinimo (D-delta.27) y verificacionVelocidad (CRIT-A19)
+// se leen tal cual del motor, nunca reinterpretados ni recalculados. Ambos
+// SÍ se muestran (Vmin/Vmax aplicables y el resultado de verificación) --
+// pero con una distinción deliberada de UX (no de cálculo): cuando
+// velocidadPorDebajoDelMinimo es true, el texto de verificación NUNCA dice
+// "no admisible" ni usa lenguaje de advertencia accionable. D-delta.27 solo
+// activa ese flag exactamente en el caso terminal de CRIT-A24 (el menor
+// diámetro comercial normativamente evaluable, sin ningún diámetro mayor
+// que pudiera corregirlo -- V decrece monótonamente con Di a Qc fijo, ver
+// resolverDiametroComercialDeTramo.ts): no hay ninguna acción de
+// dimensionamiento que el proyectista pueda tomar para evitarlo, así que
+// se presenta como aceptación normativa explícita (CRIT-A24), no como una
+// advertencia. Vmax sigue siendo una condición dura sin excepción, sin
+// cambios acá -- un noAdmisible por exceso de Vmax (fuera del fallback de
+// Vmin) sí se muestra como tal.
 export interface TextosDePerdidaDistribuidaDeTramo {
   readonly qcTexto: string
   readonly diReferenciaTexto: string
   readonly diComercialTexto: string
   readonly diEfectivoTexto: string
   readonly vTexto: string
+  readonly limiteVelocidadTexto: string
+  readonly verificacionVelocidadTexto: string
   readonly velocidadPorDebajoDelMinimo: boolean
   readonly hfTexto: string
+}
+
+function textoLimiteVelocidad(verificacion: ResultadoVerificacionVelocidad): string {
+  if (verificacion.tipo === 'fueraDeDominioNormativo') {
+    return '—'
+  }
+  return `${formatearNumero(verificacion.limiteMinimo_mps, 'm/s')} – ${formatearNumero(verificacion.limiteMaximo_mps, 'm/s')}`
+}
+
+// D-delta.27: mientras velocidadPorDebajoDelMinimo sea true, el texto NUNCA
+// es de advertencia ("no admisible"), independientemente de lo que diga
+// verificacionVelocidad -- es exactamente el caso terminal de CRIT-A24
+// (ver comentario de archivo). Fuera de ese caso, verificacionVelocidad ya
+// es siempre 'admisible' en la práctica (garantía de resolverPerdidaDistribuidaDeTramo),
+// pero esta función igual cubre 'noAdmisible'/'fueraDeDominioNormativo'
+// defensivamente, sin asumirlo.
+function textoVerificacionVelocidad(
+  verificacion: ResultadoVerificacionVelocidad,
+  velocidadPorDebajoDelMinimo: boolean,
+): string {
+  if (velocidadPorDebajoDelMinimo) {
+    return 'Aceptada en el menor diámetro comercial (CRIT-A24)'
+  }
+  if (verificacion.tipo === 'admisible') {
+    return 'Admisible'
+  }
+  if (verificacion.tipo === 'noAdmisible') {
+    return 'No admisible'
+  }
+  return 'Fuera de dominio normativo'
 }
 
 export function textosDePerdidaDistribuidaDeTramo(
@@ -115,6 +161,8 @@ export function textosDePerdidaDistribuidaDeTramo(
       diComercialTexto: '—',
       diEfectivoTexto: '—',
       vTexto: '—',
+      limiteVelocidadTexto: '—',
+      verificacionVelocidadTexto: '—',
       velocidadPorDebajoDelMinimo: false,
       hfTexto: '—',
     }
@@ -129,6 +177,8 @@ export function textosDePerdidaDistribuidaDeTramo(
       diComercialTexto: '—',
       diEfectivoTexto: '—',
       vTexto: '—',
+      limiteVelocidadTexto: '—',
+      verificacionVelocidadTexto: '—',
       velocidadPorDebajoDelMinimo: false,
       hfTexto: '—',
     }
@@ -137,10 +187,22 @@ export function textosDePerdidaDistribuidaDeTramo(
   const diComercialTexto = resultado.candidato.denominacionComercial
   const diEfectivoTexto = formatearNumero(resultado.candidato.diametroInteriorEfectivo_mm, 'mm')
   const vTexto = formatearNumero(resultado.velocidadReal_mps, 'm/s')
-  const { velocidadPorDebajoDelMinimo } = resultado
+  const { velocidadPorDebajoDelMinimo, verificacionVelocidad } = resultado
+  const limiteVelocidadTexto = textoLimiteVelocidad(verificacionVelocidad)
+  const verificacionVelocidadTexto = textoVerificacionVelocidad(verificacionVelocidad, velocidadPorDebajoDelMinimo)
 
   if (resultado.tipo === 'sinLongitud') {
-    return { qcTexto, diReferenciaTexto, diComercialTexto, diEfectivoTexto, vTexto, velocidadPorDebajoDelMinimo, hfTexto: '—' }
+    return {
+      qcTexto,
+      diReferenciaTexto,
+      diComercialTexto,
+      diEfectivoTexto,
+      vTexto,
+      limiteVelocidadTexto,
+      verificacionVelocidadTexto,
+      velocidadPorDebajoDelMinimo,
+      hfTexto: '—',
+    }
   }
 
   return {
@@ -149,6 +211,8 @@ export function textosDePerdidaDistribuidaDeTramo(
     diComercialTexto,
     diEfectivoTexto,
     vTexto,
+    limiteVelocidadTexto,
+    verificacionVelocidadTexto,
     velocidadPorDebajoDelMinimo,
     hfTexto: formatearNumero(resultado.hf_m, 'm'),
   }
@@ -231,6 +295,10 @@ export function FilaResultado({
   let artefactosTexto: string
   let nTexto: string
   let textos: TextosDePerdidaDistribuidaDeTramo
+  // Velocidad real cruda (no formateada): la necesita AccesoriosDeTramoEditor
+  // para calcular la pérdida localizada de este tramo, sin que ese
+  // componente tenga que volver a resolver el diámetro comercial.
+  let velocidadReal_mps: number | undefined
 
   try {
     const referencias = obtenerArtefactosAguasAbajo(proyecto, fila.tramoId)
@@ -249,6 +317,10 @@ export function FilaResultado({
     // leerlo.
     nTexto = resultadoPerdida.tipo === 'sinDemanda' ? '—' : formatearNumero(resultadoPerdida.n, 'conteo')
     textos = textosDePerdidaDistribuidaDeTramo(resultadoPerdida)
+    velocidadReal_mps =
+      resultadoPerdida.tipo === 'sinLongitud' || resultadoPerdida.tipo === 'conPerdidaDistribuida'
+        ? resultadoPerdida.velocidadReal_mps
+        : undefined
   } catch (motivo) {
     errorDelMotor = motivo instanceof Error ? motivo.message : String(motivo)
     artefactosTexto = '—'
@@ -259,6 +331,8 @@ export function FilaResultado({
       diComercialTexto: '—',
       diEfectivoTexto: '—',
       vTexto: '—',
+      limiteVelocidadTexto: '—',
+      verificacionVelocidadTexto: '—',
       velocidadPorDebajoDelMinimo: false,
       hfTexto: '—',
     }
@@ -268,8 +342,10 @@ export function FilaResultado({
   // input de longitud es independiente de que el motor hidraulico haya
   // podido resolver Qc para este Tramo.
   const tramoActual = proyecto.redHidraulica?.tramos.find((tramo) => tramo.id === fila.tramoId)
+  const columnas = 13
 
   return (
+    <>
     <tr>
       <td style={estiloCelda('left')}>{fila.etiqueta}</td>
       <td style={estiloCelda('center')}>{fila.red}</td>
@@ -287,10 +363,12 @@ export function FilaResultado({
       <td style={estiloCelda('right')}>{textos.diReferenciaTexto}</td>
       <td style={estiloCelda('right')}>{textos.diComercialTexto}</td>
       <td style={estiloCelda('right')}>{textos.diEfectivoTexto}</td>
-      {/* velocidadPorDebajoDelMinimo (D-delta.27/CRIT-A24) se conserva en
-          `textos` para trazabilidad pero deliberadamente no se renderiza
-          acá -- ver el comentario de TextosDePerdidaDistribuidaDeTramo. */}
       <td style={estiloCelda('right')}>{textos.vTexto}</td>
+      <td style={estiloCelda('right')}>{textos.limiteVelocidadTexto}</td>
+      {/* velocidadPorDebajoDelMinimo (D-delta.27/CRIT-A24): el texto de
+          verificación ya absorbe esta distinción sin lenguaje de
+          advertencia -- ver textoVerificacionVelocidad más arriba. */}
+      <td style={estiloCelda('right')}>{textos.verificacionVelocidadTexto}</td>
       <td style={estiloCelda('right')}>
         <input
           type="number"
@@ -312,6 +390,19 @@ export function FilaResultado({
       </td>
       <td style={estiloCelda('right')}>{textos.hfTexto}</td>
     </tr>
+    {proyecto.configuracionHidraulica.metodoPerdidaLocalizada === 'detallado' ? (
+      <tr>
+        <td colSpan={columnas} style={{ ...estiloCelda('left', true), backgroundColor: '#fafafa' }}>
+          <AccesoriosDeTramoEditor
+            proyecto={proyecto}
+            tramoId={fila.tramoId}
+            velocidadReal_mps={velocidadReal_mps}
+            onCambiar={onCambiar}
+          />
+        </td>
+      </tr>
+    ) : null}
+    </>
   )
 }
 
@@ -349,6 +440,8 @@ export function TablaDeFilas({
             <th style={estiloEncabezado('right')}>DN [mm]</th>
             <th style={estiloEncabezado('right')}>Di real [mm]</th>
             <th style={estiloEncabezado('right')}>V [m/s]</th>
+            <th style={estiloEncabezado('right')}>V admisible [m/s]</th>
+            <th style={estiloEncabezado('right')}>Verificación</th>
             <th style={estiloEncabezado('right')}>Longitud [m]</th>
             <th style={estiloEncabezado('right')}>hf [m.c.a.]</th>
           </tr>
@@ -415,6 +508,12 @@ function TablaDeUnidadFuncional({
 // Proyecto (CRIT-A17/CRIT-A18), no seleccionable por Tramo. Este
 // incremento solo persiste la selección -- todavía no dispara ningún
 // cálculo de Hazen-Williams ni Darcy-Weisbach.
+//
+// Método de pérdida LOCALIZADA (D-δ.40): 'detallado'/'estimado' son
+// ALTERNATIVOS -- nunca se suman. El cambio de selección no borra
+// Tramo.accesorios/Nodo.tee ya declarados (ver conMetodoPerdidaLocalizada);
+// solo cambia cuál metodología participa del cálculo activo mostrado más
+// abajo (editor de accesorios/tees vs. resumen estimado por Local+red).
 function ConfiguracionHidraulicaFormulario({
   proyecto,
   onCambiar,
@@ -435,6 +534,18 @@ function ConfiguracionHidraulicaFormulario({
         >
           <option value="hazenWilliams">Hazen-Williams</option>
           <option value="darcyWeisbach">Darcy-Weisbach</option>
+        </select>
+      </label>
+      <label>
+        Pérdidas localizadas:{' '}
+        <select
+          value={proyecto.configuracionHidraulica.metodoPerdidaLocalizada}
+          onChange={(evento) =>
+            onCambiar(conMetodoPerdidaLocalizada(proyecto, evento.target.value as MetodoPerdidaLocalizada))
+          }
+        >
+          <option value="detallado">Detalladas (accesorios y tees declarados)</option>
+          <option value="estimado">Estimadas (según complejidad del Local)</option>
         </select>
       </label>
       <label>
@@ -545,6 +656,127 @@ function AvisoCoberturaIncompleta({
   )
 }
 
+// Sección independiente de la tabla de Tramos (CRIT-A31): las tees viven
+// en Nodo, no en Tramo, así que no encajan como una columna más de
+// FilaResultado -- se listan todas las bifurcaciones estructurales de
+// RedHidraulica completa (identificarNodosDeBifurcacion), no solo las de
+// los Tramos "principales" que muestra la tabla de arriba.
+function SeccionDeTees({ proyecto, onCambiar }: { proyecto: Proyecto; onCambiar: (proyecto: Proyecto) => void }) {
+  const { redHidraulica } = proyecto
+  if (redHidraulica === undefined) {
+    return null
+  }
+  const bifurcaciones = identificarNodosDeBifurcacion(redHidraulica)
+  if (bifurcaciones.length === 0) {
+    return null
+  }
+
+  return (
+    <section>
+      <h3>Tees (bifurcaciones)</h3>
+      {bifurcaciones.map((bifurcacion) => (
+        <TeeDeNodoEditor key={bifurcacion.nodoId} proyecto={proyecto} nodoDeBifurcacion={bifurcacion} onCambiar={onCambiar} />
+      ))}
+    </section>
+  )
+}
+
+// Resumen del modo estimado (D-δ.40) por cada (Local, red) del proyecto:
+// deliberadamente NO reutiliza ni imita la tabla de Tramos del modo
+// detallado -- mostrar un editor de accesorios/tees acá sugeriría
+// falsamente que esa geometría participa del cálculo activo. Solo
+// magnitudes agregadas (n, tees estimadas, V_ref, hf) ya producidas por
+// resolverPerdidaLocalizadaEstimadaDeLocal, con la palabra "estimada"
+// siempre explícita.
+function ResumenEstimadoPorLocal({
+  proyecto,
+  catalogoArtefactos,
+}: {
+  proyecto: Proyecto
+  catalogoArtefactos: readonly ArtefactoNormativo[]
+}) {
+  const { redHidraulica } = proyecto
+  if (redHidraulica === undefined) {
+    return null
+  }
+
+  const filas: { etiqueta: string; red: RedDeTramo; resultado: ReturnType<typeof resolverPerdidaLocalizadaEstimadaDeLocal> }[] = []
+  for (const uf of proyecto.unidadesFuncionales) {
+    for (const local of uf.locales) {
+      for (const red of ['AF', 'AC'] as const) {
+        const n = contarTerminalesFisicosDeLocal(redHidraulica, uf.id, local.id, red)
+        if (n === 0) {
+          continue
+        }
+        const resultado = resolverPerdidaLocalizadaEstimadaDeLocal(
+          proyecto,
+          uf.id,
+          local.id,
+          red,
+          catalogoArtefactos,
+          catalogoSistemasDeTuberia,
+        )
+        filas.push({ etiqueta: `${uf.nombre} → ${ETIQUETA_TIPO_DE_LOCAL[local.tipo]}`, red, resultado })
+      }
+    }
+  }
+
+  if (filas.length === 0) {
+    return null
+  }
+
+  return (
+    <section>
+      <h3>Pérdidas localizadas — metodología estimada</h3>
+      <p>
+        <small>
+          El cálculo activo usa la metodología <strong>estimada</strong> (D-δ.40): las tees se estiman a partir de la
+          cantidad de terminales físicos de cada Local+red, sin relevar orientación real. Cualquier accesorio/tee
+          detallado que haya quedado persistido de una edición anterior NO participa del cálculo mientras este modo
+          esté activo.
+        </small>
+      </p>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th style={estiloEncabezado('left')}>Local</th>
+              <th style={estiloEncabezado('center')}>Red</th>
+              <th style={estiloEncabezado('right')}>Terminales físicos</th>
+              <th style={estiloEncabezado('right')}>Tees estimadas</th>
+              <th style={estiloEncabezado('right')}>V referencia [m/s]</th>
+              <th style={estiloEncabezado('right')}>hf localizada [m.c.a.]</th>
+              <th style={estiloEncabezado('left')}>Cobertura</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filas.map(({ etiqueta, red, resultado }, indice) => (
+              <tr key={`${etiqueta}-${red}-${indice}`}>
+                <td style={estiloCelda('left')}>{etiqueta}</td>
+                <td style={estiloCelda('center')}>{red}</td>
+                {resultado.tipo === 'incompleta' ? (
+                  <td colSpan={5} style={estiloCelda('left', true)}>
+                    Pérdida localizada estimada incompleta: {resultado.tramosNoResueltos.length} tramo(s) sin
+                    velocidad comercial resoluble.
+                  </td>
+                ) : (
+                  <>
+                    <td style={estiloCelda('right')}>{formatearNumero(resultado.nTerminalesLocal, 'conteo')}</td>
+                    <td style={estiloCelda('right')}>{formatearNumero(resultado.nTeesEstimadas, 'conteo')}</td>
+                    <td style={estiloCelda('right')}>{formatearNumero(resultado.velocidadReferencia_mps, 'm/s')}</td>
+                    <td style={estiloCelda('right')}>{formatearNumero(resultado.hf_m, 'm')}</td>
+                    <td style={estiloCelda('left')}>Estimada (completa dentro de esta metodología)</td>
+                  </>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  )
+}
+
 export function ResultadoHidraulicoDeTramo({
   proyecto,
   catalogoArtefactos,
@@ -597,6 +829,14 @@ export function ResultadoHidraulicoDeTramo({
               onCambiar={onCambiar}
             />
           ))}
+
+          {proyecto.configuracionHidraulica.metodoPerdidaLocalizada === 'detallado' ? (
+            <SeccionDeTees proyecto={proyecto} onCambiar={onCambiar} />
+          ) : (
+            <ResumenEstimadoPorLocal proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} />
+          )}
+
+          <PanelDePresionDeModulo2 proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} onCambiar={onCambiar} />
         </>
       )}
     </details>

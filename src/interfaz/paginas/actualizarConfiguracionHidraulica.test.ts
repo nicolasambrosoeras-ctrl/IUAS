@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import type { MaterialTuberiaId, Proyecto } from '../../modelo/proyecto'
-import { conMaterialTuberia, conMetodoPerdidaDistribuida, conSistemaDeTuberia } from './actualizarConfiguracionHidraulica'
+import {
+  conMaterialTuberia,
+  conMetodoPerdidaDistribuida,
+  conMetodoPerdidaLocalizada,
+  conSistemaDeTuberia,
+} from './actualizarConfiguracionHidraulica'
 
 function proyectoDePrueba(
   metodo: 'hazenWilliams' | 'darcyWeisbach',
@@ -62,6 +67,49 @@ describe('conMetodoPerdidaDistribuida', () => {
     const actualizado = conMetodoPerdidaDistribuida(original, 'darcyWeisbach')
 
     expect(actualizado.configuracionHidraulica.materialTuberiaId).toBe('ppr')
+  })
+})
+
+describe('conMetodoPerdidaLocalizada (D-delta.40)', () => {
+  it('detallado -> estimado: actualiza el metodo, no muta el original', () => {
+    const original = proyectoDePrueba('hazenWilliams')
+
+    const actualizado = conMetodoPerdidaLocalizada(original, 'estimado')
+
+    expect(actualizado.configuracionHidraulica.metodoPerdidaLocalizada).toBe('estimado')
+    expect(original.configuracionHidraulica.metodoPerdidaLocalizada).toBe('detallado')
+  })
+
+  it('estimado -> detallado: simetrico', () => {
+    const original: Proyecto = {
+      ...proyectoDePrueba('hazenWilliams'),
+      configuracionHidraulica: { ...proyectoDePrueba('hazenWilliams').configuracionHidraulica, metodoPerdidaLocalizada: 'estimado' },
+    }
+
+    const actualizado = conMetodoPerdidaLocalizada(original, 'detallado')
+
+    expect(actualizado.configuracionHidraulica.metodoPerdidaLocalizada).toBe('detallado')
+  })
+
+  it('conserva metodoPerdidaDistribuida, materialTuberiaId y sistemaDeTuberiaId', () => {
+    const original = proyectoDePrueba('darcyWeisbach', 'cobre', 'acquaSystemMagnumPn20')
+
+    const actualizado = conMetodoPerdidaLocalizada(original, 'estimado')
+
+    expect(actualizado.configuracionHidraulica.metodoPerdidaDistribuida).toBe('darcyWeisbach')
+    expect(actualizado.configuracionHidraulica.materialTuberiaId).toBe('cobre')
+    expect(actualizado.configuracionHidraulica.sistemaDeTuberiaId).toBe('acquaSystemMagnumPn20')
+  })
+
+  it('no altera metadatos, parametros, unidadesFuncionales ni redHidraulica -- cambiar de metodo no borra accesorios/tees ya persistidos', () => {
+    const original = proyectoDePrueba('hazenWilliams')
+
+    const actualizado = conMetodoPerdidaLocalizada(original, 'estimado')
+
+    expect(actualizado.metadatos).toBe(original.metadatos)
+    expect(actualizado.parametros).toBe(original.parametros)
+    expect(actualizado.unidadesFuncionales).toBe(original.unidadesFuncionales)
+    expect(actualizado.redHidraulica).toBe(original.redHidraulica)
   })
 })
 

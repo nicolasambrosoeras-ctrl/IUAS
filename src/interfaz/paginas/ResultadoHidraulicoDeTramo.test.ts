@@ -105,6 +105,8 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
       diComercialTexto: '—',
       diEfectivoTexto: '—',
       vTexto: '—',
+      limiteVelocidadTexto: '—',
+      verificacionVelocidadTexto: '—',
       velocidadPorDebajoDelMinimo: false,
       hfTexto: '—',
     })
@@ -124,6 +126,8 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
       diComercialTexto: '—',
       diEfectivoTexto: '—',
       vTexto: '—',
+      limiteVelocidadTexto: '—',
+      verificacionVelocidadTexto: '—',
       velocidadPorDebajoDelMinimo: false,
       hfTexto: '—',
     })
@@ -147,6 +151,8 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
       diComercialTexto: '20 mm',
       diEfectivoTexto: '14,40',
       vTexto: '1,2',
+      limiteVelocidadTexto: '1,0 – 3,0',
+      verificacionVelocidadTexto: 'Admisible',
       velocidadPorDebajoDelMinimo: false,
       hfTexto: '—',
     })
@@ -173,6 +179,8 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
       diComercialTexto: '20 mm',
       diEfectivoTexto: '14,40',
       vTexto: '1,2',
+      limiteVelocidadTexto: '1,0 – 3,0',
+      verificacionVelocidadTexto: 'Admisible',
       velocidadPorDebajoDelMinimo: false,
       hfTexto: '0,457',
     })
@@ -199,9 +207,16 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
       diComercialTexto: '20 mm',
       diEfectivoTexto: '14,40',
       vTexto: '0,5',
+      limiteVelocidadTexto: '1,0 – 3,0',
+      verificacionVelocidadTexto: 'Aceptada en el menor diámetro comercial (CRIT-A24)',
       velocidadPorDebajoDelMinimo: true,
       hfTexto: '0,123',
     })
+    // La verificación real del motor sigue siendo 'noAdmisible' (evidencia
+    // auditable conservada) -- pero el texto de UX nunca usa esa palabra
+    // ni lenguaje de advertencia mientras velocidadPorDebajoDelMinimo sea
+    // true (D-delta.27): no hay ninguna acción de dimensionamiento posible.
+    expect(textosDePerdidaDistribuidaDeTramo(resultado).verificacionVelocidadTexto).not.toContain('No admisible')
   })
 })
 
@@ -314,6 +329,10 @@ describe('FilaResultado (UI): advertencia de velocidadPorDebajoDelMinimo', () =>
     expect(html).toContain('14,40') // Di efectivo (mm)
     expect(html).toContain('0,9') // velocidad real, formateada a 1 decimal
     expect(html).not.toContain('Velocidad inferior al rango recomendado')
+    expect(html).not.toContain('No admisible')
+    // Sí se muestra Vmin/Vmax y una aceptación explícita no alarmante.
+    expect(html).toContain('1,0 – 3,0')
+    expect(html).toContain('Aceptada en el menor diámetro comercial (CRIT-A24)')
   })
 
   it('el input de Longitud [m] se renderiza con min={0} (ayuda de UI; la defensa real es resolverCambioDeLongitud)', () => {
@@ -361,5 +380,22 @@ describe('TablaDeFilas (UI): nomenclatura visible de columnas de diámetro', () 
     expect(html).not.toContain('Di de referencia')
     expect(html).not.toContain('Di comercial')
     expect(html).not.toContain('Di efectivo')
+  })
+
+  it('encabezados incluyen V admisible [m/s] y Verificación (CRIT-A19/A24 visibles en UI)', () => {
+    const { proyecto, tramoId } = proyectoConFallbackDeVelocidadPorVmin()
+
+    const html = renderToStaticMarkup(
+      createElement(TablaDeFilas, {
+        proyecto,
+        catalogoArtefactos,
+        encabezadoPrimeraColumna: 'Cañería',
+        filas: [{ etiqueta: 'Local de prueba', red: 'AF', tramoId }],
+        onCambiar: () => {},
+      }),
+    )
+
+    expect(html).toContain('V admisible [m/s]')
+    expect(html).toContain('Verificación')
   })
 })
