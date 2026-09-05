@@ -3388,16 +3388,169 @@ sin cambios de código).
   comentarios de código y en los registros de D-δ.44/45/46, pero no se
   consolidó en una tabla única.
 
-**Estado**: D-δ.47 queda **ABIERTA / PARCIAL** -- dos bugs reales
-encontrados y corregidos con tests/verificación manual, una decisión
-roja presentada y resuelta (coma decimal: queda como deuda documentada,
-sin tocar código), la **matriz completa de las 4 combinaciones cerrada**
-con verificación numérica explícita (sin doble conteo en
-`profesional+estimada`, sin contaminación en ningún cambio de modo), y
-una lista de áreas del brief todavía sin recorrer explícitamente (ver
-"NO AUDITADO" arriba). El repo queda verde (804/804 tests, `tsc -b` y
-`vite build` limpios, lint en baseline 11) y el working tree limpio.
-Recomendado continuar desde "NO AUDITADO" en la próxima corrida --
-cambio de material/sistema con datos cargados es el punto de mayor
-riesgo restante, seguido de agregar/eliminar Local y la auditoría
-dedicada de AC.
+**Estado (parcial, superado por el cierre final más abajo)**: D-δ.47
+quedó **ABIERTA / PARCIAL** al final de la primera mitad de esta
+auditoría -- dos bugs reales encontrados y corregidos con
+tests/verificación manual, una decisión roja presentada y resuelta
+(coma decimal: queda como deuda documentada, sin tocar código), la
+**matriz completa de las 4 combinaciones cerrada** con verificación
+numérica explícita (sin doble conteo en `profesional+estimada`, sin
+contaminación en ningún cambio de modo), y una lista de áreas del brief
+todavía sin recorrer explícitamente (ver "NO AUDITADO" arriba). El repo
+quedó verde (804/804 tests, `tsc -b` y `vite build` limpios, lint en
+baseline 11) y el working tree limpio.
+
+#### Segunda mitad de esta corrida -- cierre de "NO AUDITADO"
+
+**Bug 3 -- trampa sin salida al eliminar un Local o una UnidadFuncional
+completa.** `onEliminar` de `LocalFormulario` y de
+`UnidadFuncionalFormulario` (`MotorDemandaPantalla.tsx`) solo filtraban
+`proyecto.unidadesFuncionales`, sin llamar a
+`quitarConectividadFisicaDeArtefacto` por cada artefacto del Local/UF
+como sí hace la baja de un Artefacto individual. Reproducido en el
+proyecto demo real: eliminar cualquier Local (o una UnidadFuncional
+completa) dejaba referencias huérfanas en `redHidraulica`;
+`validarRedHidraulica` lo detectaba correctamente
+(`redHidraulicaReferenciaArtefactoInvalida`) pero, como
+`ResultadoHidraulicoDeTramo` (M1+M2 completos) deja de renderizarse
+mientras el proyecto no sea válido, el usuario quedaba con "Problemas de
+validación" **sin ningún control visible para deshacer su propia
+acción** -- único remedio real: recargar la página y perder todo lo
+cargado. Corregido con dos funciones nuevas
+(`quitarConectividadFisicaDeLocal`/`quitarConectividadFisicaDeUnidadFuncional`,
+`src/interfaz/paginas/`) que desconectan todos los artefactos afectados
+y podan con `podarNodosSinSalida` las cabeceras de bifurcación que
+quedan sin hijos -- a diferencia de la baja de un solo Artefacto (donde
+la cabecera se preserva a propósito, D-δ.26), acá el Local/UF completo
+desaparece y ningún consumidor futuro puede reutilizarla. Verificado
+manualmente: eliminar el Local "Baño" (4 artefactos, bifurcación AF+AC)
+de un proyecto ya en `balanceCompleto` no deja "Problemas de
+validación", el resto de los Locales conserva sus datos y resultados, y
+Qc/hf/Presidual/terminal crítico se recalculan correctamente en cascada
+(el terminal crítico cambió de Presidual tras la baja porque
+"Alimentación general" es compartida por todo el proyecto -- físicamente
+correcto, no contaminación). Tests dedicados:
+`podarNodosSinSalida.test.ts`, `quitarConectividadFisicaDeLocal.test.ts`,
+`quitarConectividadFisicaDeUnidadFuncional.test.ts`.
+
+**Bug 4 -- trampa sin salida al elegir un material sin sistema
+comercial compatible.** El selector "Material de la tubería" ofrecía 6
+opciones (PPR/PVC/PEAD/Cobre/Acero galvanizado/Acero al carbono) pero
+`catalogoSistemasDeTuberia` solo tiene un sistema real cargado
+(`acquaSystemMagnumPn20`, material PPR). Elegir cualquier material
+distinto de PPR disparaba correctamente
+`configuracionHidraulicaSistemaMaterialIncompatible` (el comportamiento
+de validación ya estaba verificado en D-δ.28), pero
+`ConfiguracionHidraulicaFormulario` -- que contiene ese mismo
+selector -- vive dentro del mismo gate de validez que el resto de
+M1+M2: el usuario quedaba con "Problemas de validación" y sin ningún
+control visible para volver a elegir PPR. D-δ.28 había verificado que
+la validación bloqueaba correctamente, pero no había probado si el
+bloqueo era recuperable desde la UI -- no lo era. Corregido: 1)
+`conMaterialTuberia` ahora recibe el catálogo de sistemas y sincroniza
+`sistemaDeTuberiaId` al primero compatible con el nuevo material (o
+conserva el actual si ya lo era), nunca deja un par incompatible por
+esta vía; 2) el selector de Material solo ofrece las opciones que
+tienen al menos un sistema comercial real en el catálogo (hoy, solo
+PPR -- listo para cuando el catálogo crezca, mismo criterio que D-δ.28
+dejó para el selector de Sistema). Tests dedicados en
+`actualizarConfiguracionHidraulica.test.ts`.
+
+**Auditoría dedicada de agua caliente (§39) -- sin bugs, doble conteo
+descartado con evidencia numérica de Presidual (no solo hf).** Sobre el
+proyecto demo real completo (`balanceCompleto`, Pdisponible=20,
+hfMedidor=0,5, cota=0, longitud=3 m uniforme en las 11 filas
+Local+red), Baño/AF (Lavatorio/Ducha/Bidet/Inodoro) dio
+Presidual=14,836 (hfDistribuida=2,163; hfLocalizada=1,501) y Baño/AC
+(Lavatorio/Ducha/Bidet, sin Inodoro -- correcto, es AF-only) dio
+Presidual=14,112 (hfDistribuida=3,359; hfLocalizada=1,029). La
+diferencia de hfDistribuida entre AF y AC (3,359 − 2,163 = 1,196 ≈ el
+tramo "Alimentación ACS" de 3 m más su proporción) confirma que ese
+tramo participa **exclusivamente** del camino AC, nunca del AF -- sin
+doble conteo, coherente con D-δ.7/D-δ.13. El balance verifica
+aritméticamente (`Presidual = Pdisponible − Δz − hfDistribuida −
+hfLocalizada − hfMedidor`) para ambos caminos. El terminal más
+desfavorable de todo el proyecto resultó ser el Lavatorio **AC** del
+Baño (Presidual=14,112, el más bajo de los 18), confirmando que el
+terminal crítico puede recaer en AC cuando corresponde, sin sesgo hacia
+AF. `hfEquipoACS` confirmado ausente del cálculo
+(`resolverEstadoModulo2.ts` lo documenta explícitamente como diferido,
+D-δ.15) -- no es un bug, es la deuda ya conocida.
+
+**Métodos de pérdida distribuida (Hazen-Williams/Darcy-Weisbach) --
+sin bugs.** Con longitud ya cargada, cambiar de Hazen-Williams a
+Darcy-Weisbach recalculó hf correctamente (2,409 → 2,522 m.c.a. en el
+caso probado), preservó la longitud ya cargada, no dejó ningún valor
+stale y no generó errores de consola.
+
+**Unidades/redondeo/Pmin -- sin bugs.** `formatearNumero` es
+exclusivamente de presentación (nunca se parsea de vuelta a número para
+cálculo -- todos los inputs usan funciones de parseo dedicadas sobre el
+texto crudo). La conversión Pmin kg/cm² → m.c.a. vive en un único lugar
+(`MCA_POR_KGF_CM2 = 10` en `resolverBalanceDePresion.ts`), documentada
+como simplificación deliberada (ERAS-2023 §2.9.1.4 trata kg/cm²=bar como
+intercambiables) y consistente entre `TarjetaDeTerminal.tsx` y
+`resolverTerminalMasDesfavorable.ts` (misma fórmula de margen en ambos
+lugares).
+
+**Accesibilidad funcional básica -- 1 hallazgo B corregido.** Barrido
+automatizado (Playwright) encontró 12 controles sin ninguna asociación
+programática con su etiqueta: el input de nombre de Unidad Funcional
+(dentro de un `<h3>`, sin `<label>` envolvente) y los 11 inputs de
+"Longitud [m]" de `DimensionamientoDeTramo` (el texto vive solo en un
+`<th>` de tabla). Corregido con `aria-label` en ambos casos (sin cambios
+visuales); 0 controles sin etiqueta tras el fix.
+
+**Cambio de tipo de artefacto (§40) -- verificado, comportamiento
+correcto por diseño, no es un bug.** Cambiar el `artefactoId` de
+catálogo de un Artefacto ya existente (p. ej. de "Máquina lavavajillas"
+a "Lavatorio") no toca `redHidraulica`: la instancia conserva sus
+terminales físicos existentes tal cual estaban. Esto es consistente con
+CRIT-A15 ("ausencia de conexión física = la conexión no existe, no dato
+pendiente") -- no existe hoy una operación de "sincronizar conectividad
+al cambiar de tipo", solo ALTA (M2-D) y BAJA (D-δ.26/D-δ.47). Verificado
+sin crash, sin "Problemas de validación", sin error de consola. Si el
+usuario espera que cambiar a un artefacto mixto AF+AC cree
+automáticamente un terminal AC nuevo, no ocurre -- deuda D, no bug: no
+se decide ni se implementa acá.
+
+**Puntos reclasificados explícitamente (no bloquean el cierre):**
+
+- Vmin/Vmax fallback CRIT-A24 en la UI real (§18): sigue cubierto
+  únicamente por golden tests, no se reverificó manualmente tampoco en
+  esta corrida -- sin cambios en esa área, riesgo bajo.
+- Prueba de refresh de página real (§54): no se ejecutó -- el
+  comportamiento (pérdida total de datos, nada persiste) ya está
+  documentado a propósito como deuda D (D-δ.35/36), no requiere prueba
+  adicional para confirmar algo ya sabido.
+- Performance básica (§57): no evaluada -- sin ningún indicio de
+  problema de rendimiento en las pruebas manuales realizadas.
+- Documentación exhaustiva de cada input en una tabla dedicada (§59): no
+  consolidada -- la semántica de cada input ya está documentada en
+  comentarios de código y en los registros D-δ.44/45/46/47; queda como
+  deuda D de documentación pura, sin riesgo funcional.
+- Auditoría de `as any`/assertions (§58): grep inicial de la primera
+  mitad sin hallazgos relevantes nuevos; no se repitió.
+
+**Estado final**: **D-δ.47 -- CERRADA.** Cuatro bugs reales
+encontrados y corregidos en total (Pdisponible/hfMedidor, terminal
+crítico contaminado, trampa de eliminar Local/UF, trampa de material
+sin sistema compatible), una decisión roja resuelta (coma decimal,
+queda como deuda documentada), la matriz de 4 combinaciones cerrada con
+verificación numérica, y una auditoría dedicada de AC sin bugs con
+evidencia explícita de Presidual (no solo hf). Repo verde: 817/817
+tests, `tsc -b` y `vite build` limpios, lint en baseline 11 (sin
+regresión), working tree limpio, cero errores de consola en todas las
+pruebas manuales.
+
+**M2 -- CONGELADO EN EL ALCANCE ACTUAL.** No implica que M2 sea
+definitivo: significa que el alcance hidráulico actual (modo rápido,
+modo profesional, presión, completitud, AC) está auditado y robusto
+dentro de ese alcance, y que la deuda restante (coma decimal, `a`
+efectivo por tramo D-β.2, hfEquipoACS D-δ.15, clase/serie comercial
+D-δ.29, margen de seguridad D-δ.30, granularidad de
+`sistemaDeTuberiaId` D-δ.31, documentación consolidada de inputs) queda
+explícitamente registrada, no implementada. Bugs futuros sobre este
+alcance se tratan como regresiones; nueva funcionalidad requiere un
+nuevo alcance aprobado explícitamente (el próximo, ya acordado: Módulo
+3 -- Medidores, que produce `hfMedidor` para que M2 lo consuma).
