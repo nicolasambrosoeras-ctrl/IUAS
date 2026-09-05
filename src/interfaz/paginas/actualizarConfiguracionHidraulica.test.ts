@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { MaterialTuberiaId, Proyecto } from '../../modelo/proyecto'
+import type { SistemaDeTuberiaCatalogado } from '../../motor/tuberias/sistemaDeTuberia'
 import {
   conMaterialTuberia,
   conMetodoPerdidaDistribuida,
@@ -113,36 +114,53 @@ describe('conMetodoPerdidaLocalizada (D-delta.40)', () => {
   })
 })
 
-describe('conMaterialTuberia', () => {
-  it('ppr -> pvc: actualiza el material, no muta el original', () => {
-    const original = proyectoDePrueba('hazenWilliams', 'ppr')
+describe('conMaterialTuberia (D-delta.47: sincroniza sistemaDeTuberiaId para nunca dejar un par incompatible)', () => {
+  const catalogoDePrueba: readonly SistemaDeTuberiaCatalogado[] = [
+    { id: 'sistema-ppr-a', denominacion: 'Sistema PPR A', materialTuberiaId: 'ppr', fabricante: 'Fabricante', referenciaFuenteDimensiones: 'Fuente', entradas: [] },
+    { id: 'sistema-ppr-b', denominacion: 'Sistema PPR B', materialTuberiaId: 'ppr', fabricante: 'Fabricante', referenciaFuenteDimensiones: 'Fuente', entradas: [] },
+    { id: 'sistema-pvc-a', denominacion: 'Sistema PVC A', materialTuberiaId: 'pvc', fabricante: 'Fabricante', referenciaFuenteDimensiones: 'Fuente', entradas: [] },
+  ]
 
-    const actualizado = conMaterialTuberia(original, 'pvc')
+  it('ppr -> pvc: adopta el primer sistema compatible con pvc, no muta el original', () => {
+    const original = proyectoDePrueba('hazenWilliams', 'ppr', 'sistema-ppr-a')
+
+    const actualizado = conMaterialTuberia(original, 'pvc', catalogoDePrueba)
 
     expect(actualizado.configuracionHidraulica.materialTuberiaId).toBe('pvc')
+    expect(actualizado.configuracionHidraulica.sistemaDeTuberiaId).toBe('sistema-pvc-a')
     expect(original.configuracionHidraulica.materialTuberiaId).toBe('ppr')
+    expect(original.configuracionHidraulica.sistemaDeTuberiaId).toBe('sistema-ppr-a')
   })
 
-  it('pvc -> cobre: otro cambio cualquiera', () => {
-    const original = proyectoDePrueba('hazenWilliams', 'pvc')
+  it('mismo material, otro sistema ya seleccionado: conserva el sistema actual porque sigue siendo compatible', () => {
+    const original = proyectoDePrueba('hazenWilliams', 'ppr', 'sistema-ppr-b')
 
-    const actualizado = conMaterialTuberia(original, 'cobre')
+    const actualizado = conMaterialTuberia(original, 'ppr', catalogoDePrueba)
 
-    expect(actualizado.configuracionHidraulica.materialTuberiaId).toBe('cobre')
+    expect(actualizado.configuracionHidraulica.sistemaDeTuberiaId).toBe('sistema-ppr-b')
+  })
+
+  it('material sin ningún sistema compatible en el catálogo: conserva el sistemaDeTuberiaId anterior en vez de dejar un par incompatible', () => {
+    const original = proyectoDePrueba('hazenWilliams', 'ppr', 'sistema-ppr-a')
+
+    const actualizado = conMaterialTuberia(original, 'aceroCarbono', catalogoDePrueba)
+
+    expect(actualizado.configuracionHidraulica.materialTuberiaId).toBe('aceroCarbono')
+    expect(actualizado.configuracionHidraulica.sistemaDeTuberiaId).toBe('sistema-ppr-a')
   })
 
   it('conserva metodoPerdidaDistribuida', () => {
-    const original = proyectoDePrueba('darcyWeisbach', 'ppr')
+    const original = proyectoDePrueba('darcyWeisbach', 'ppr', 'sistema-ppr-a')
 
-    const actualizado = conMaterialTuberia(original, 'aceroCarbono')
+    const actualizado = conMaterialTuberia(original, 'pvc', catalogoDePrueba)
 
     expect(actualizado.configuracionHidraulica.metodoPerdidaDistribuida).toBe('darcyWeisbach')
   })
 
   it('no altera metadatos, parametros, unidadesFuncionales ni redHidraulica; conserva su identidad referencial', () => {
-    const original = proyectoDePrueba('hazenWilliams', 'ppr')
+    const original = proyectoDePrueba('hazenWilliams', 'ppr', 'sistema-ppr-a')
 
-    const actualizado = conMaterialTuberia(original, 'pead')
+    const actualizado = conMaterialTuberia(original, 'pvc', catalogoDePrueba)
 
     expect(actualizado.metadatos).toBe(original.metadatos)
     expect(actualizado.parametros).toBe(original.parametros)

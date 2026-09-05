@@ -12,6 +12,7 @@
 import type { GranularidadHidraulica, MaterialTuberiaId, MetodoPerdidaDistribuida, MetodoPerdidaLocalizada, Proyecto, TipoDeLocal } from '../../modelo/proyecto'
 import type { ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
+import type { MaterialTuberia } from '../../motor/tuberias/materialTuberia'
 import { catalogoMaterialesTuberia, obtenerMaterialTuberia } from '../../motor/tuberias/materialTuberia'
 import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia'
 import { resolverArtefactosReferenciados } from '../../motor/tuberias/topologia/resolverArtefactosReferenciados'
@@ -73,6 +74,27 @@ export function describirReferenciaPendiente(
   const nombreArtefacto = artefactoNormativo?.nombre ?? resuelto.artefacto.artefactoId
 
   return `${resuelto.unidadFuncional.nombre} → ${nombreLocal} → ${nombreArtefacto}`
+}
+
+// Materiales ofrecidos por el selector (D-δ.47): solo los que tienen al
+// menos un SistemaDeTuberiaCatalogado real -- elegir un material sin
+// ningún sistema comercial cargado dispara
+// configuracionHidraulicaSistemaMaterialIncompatible y, como
+// ConfiguracionHidraulicaFormulario vive dentro del gate de validación,
+// deja al usuario sin ningún control visible para revertir su propia
+// elección (ver conMaterialTuberia). Igual que opcionesDeNivel
+// (MotorDemandaPantalla.tsx): el material ya seleccionado nunca deja de
+// aparecer, aunque el catálogo de sistemas ya no lo respalde (dato cargado
+// por otra vía).
+function opcionesDeMaterial(materialActual: MaterialTuberiaId): readonly MaterialTuberia[] {
+  const conSistemaCompatible = catalogoMaterialesTuberia.filter((material) =>
+    catalogoSistemasDeTuberia.some((sistema) => sistema.materialTuberiaId === material.id),
+  )
+  if (conSistemaCompatible.some((material) => material.id === materialActual)) {
+    return conSistemaCompatible
+  }
+  const actual = catalogoMaterialesTuberia.find((material) => material.id === materialActual)
+  return actual === undefined ? conSistemaCompatible : [...conSistemaCompatible, actual]
 }
 
 // Método de pérdida distribuida: configuración global y única del
@@ -142,9 +164,13 @@ function ConfiguracionHidraulicaFormulario({
         Material de la tubería:{' '}
         <select
           value={proyecto.configuracionHidraulica.materialTuberiaId}
-          onChange={(evento) => onCambiar(conMaterialTuberia(proyecto, evento.target.value as MaterialTuberiaId))}
+          onChange={(evento) =>
+            onCambiar(
+              conMaterialTuberia(proyecto, evento.target.value as MaterialTuberiaId, catalogoSistemasDeTuberia),
+            )
+          }
         >
-          {catalogoMaterialesTuberia.map((material) => (
+          {opcionesDeMaterial(proyecto.configuracionHidraulica.materialTuberiaId).map((material) => (
             <option key={material.id} value={material.id}>
               {material.nombre}
             </option>
