@@ -3289,14 +3289,85 @@ decida abordarlo explícitamente en una corrida futura.
 - Tabs M1-M4, M3, M4, hfEquipoACS, presurizador (fuera de alcance
   explícito de esta corrida).
 
+#### MATRIZ DE LAS 4 COMBINACIONES — CERRADA (segunda mitad de esta corrida)
+
+Verificación manual end-to-end (Playwright headless, proyecto demo real)
+de las 4 combinaciones de `GranularidadHidraulica`×`MetodoPerdidaLocalizada`,
+incluida la trazabilidad numérica pedida explícitamente para las dos
+combinaciones más riesgosas (mezclan un eje "grano fino" con el otro
+"grano grueso"):
+
+| Combinación | UI la permite | Llega a `balanceCompleto` | Llega a `EstadoModulo2='completo'` | Observaciones |
+|---|---|---|---|---|
+| simplificada + estimada | Sí | Sí | Sí | Ya verificada exhaustivamente en la corrida anterior (18 terminales, cero NaN). |
+| simplificada + detallada | Sí | Sí | Sí | Verificada esta corrida (ver abajo). |
+| profesional + estimada | Sí | Sí | Sí | Verificada esta corrida con trazabilidad numérica (ver abajo) -- la combinación que más generaba dudas de doble conteo. |
+| profesional + detallada | Sí | Sí | Sí | Ya verificada exhaustivamente en la corrida anterior (tees, accesorios, cotas individuales, terminal crítico correcto). |
+
+**`profesional + estimada` -- verificación numérica explícita** (24
+tramos reales con longitudes deliberadamente distintas 2/3/4 m para
+poder distinguir qué varía de qué no): se extrajeron los pares
+(`hfDistribuida`, `hfLocalizada`) de cada tarjeta de terminal. Resultado
+real observado (Baño/AF, 4 terminales):
+
+```text
+hfDistribuida: 1,968 / 2,072 / 2,016 / 2,181 m.c.a.  (DISTINTA por terminal -- tramo real)
+hfLocalizada:  1,501 / 1,501 / 1,501 / 1,501 m.c.a.  (IDÉNTICA -- una sola vez por Local+red)
+```
+
+Mismo patrón confirmado en Baño/AC (3 terminales, hfLocalizada=1,029
+idéntica con hfDistribuida distinta), y en cada Local con n=1 (hfLocalizada
+0,291/0,809 según el Local, consistente con los valores ya registrados en
+D-δ.45). Esto confirma sin ambigüedad:
+- `hfDistribuida` sigue el tramo real (profesional, D-δ.44 sin cambios).
+- `hfLocalizada` estimada se aplica EXACTAMENTE una vez por Local+red,
+  nunca por tramo -- **no hay doble conteo**.
+- El terminal "Máquina lavavajillas" (sin Pmin) muestra `hfDistribuida`/
+  `hfLocalizada` como `—` (sin traza, `terminalSinPresionMinima` corta
+  antes) -- consistente con D-δ.41, no contamina el resto.
+- Accesorios/tees detallados NUNCA se piden en método estimado, ni
+  siquiera en granularidad profesional ("Relevar accesorios"/
+  "Bifurcación sin configurar": 0 apariciones) -- confirma que
+  accesorios/tees persistidos de una sesión previa en `'detallado'`
+  quedan correctamente ignorados por el estimador (D-δ.45 nunca los lee).
+- `EstadoModulo2='completo'` alcanzado con los 24 tramos + 17 cotas
+  individuales cargadas. Cero NaN/Infinity/undefined, cero errores de
+  consola.
+
+**`simplificada + detallada` -- verificación explícita**: 11 inputs de
+Longitud (uno por Local+red representativo, igual que en simplificada+
+estimado -- la granularidad, no el método, gobierna esto) y 11 botones
+"Relevar accesorios" (mismo conteo, nunca uno por ramal). Ningún texto
+"Ramal \<nombre\>" pidió datos propios. Las 3 tees reales del proyecto
+siguieron apareciendo inline y configurables (CRIT-A31 no depende de la
+granularidad) y se completaron sin error. `EstadoModulo2='completo'`
+alcanzado. Cero NaN/Infinity/undefined.
+
+**Cambio entre las 4 combinaciones sin contaminación -- recorrido
+completo en un mismo proyecto**: secuencia real ejecutada
+`simplificada+detallado` (relevado) → `profesional+detallado` (recién
+cambiado: cae a `incompleto` porque profesional exige MÁS datos, nunca
+menos -- de los 24 tramos reales, solo 13 pidieron "Relevar accesorios"
+porque los 11 representativos YA los tenían relevados desde el paso
+anterior, confirmando que el cambio de granularidad **reutiliza** el
+dato ya cargado en el tramo representativo en vez de descartarlo) →
+completar los 13 ramales nuevos + 17 cotas individuales → `completo` →
+volver a `simplificada+detallado` (**`completo` inmediato**, sin cargar
+nada de nuevo -- los datos de los ramales de profesional quedan
+ocultos, no bloquean) → `profesional+estimado` (**`completo` inmediato**
+-- reutiliza las longitudes/cotas individuales ya cargadas en
+profesional, ignora los accesorios/tees detallados ya relevados sin
+que eso rompa nada). Cero errores de consola y cero
+NaN/Infinity/undefined en las 5 transiciones. Confirma sin ambigüedad
+el principio pedido: un dato oculto puede conservarse, pero nunca
+afecta el cálculo de un modo que explícitamente no lo usa, y nunca hay
+que volver a cargar lo que ya se cargó para la granularidad activa.
+
+**Sin bugs encontrados en esta mitad de la corrida** (solo verificación,
+sin cambios de código).
+
 #### NO AUDITADO EN ESTA CORRIDA (queda para la próxima)
 
-- Matriz de combinaciones completa con verificación exhaustiva de las 4
-  filas del brief §8 en un único documento tabular (se verificaron
-  simplificada+estimado y profesional+detallado end-to-end; NO se probó
-  explícitamente simplificada+detallada ni profesional+estimado en esta
-  corrida, aunque D-δ.44/45 ya las habían probado por unidad -- falta la
-  verificación manual explícita post-D-δ.47).
 - Cambio de material/sistema de tubería con datos ya cargados (§16/§17) --
   no probado en esta corrida.
 - Vmin/Vmax fallback CRIT-A24 en la UI real (§18) -- cubierto por
@@ -3320,9 +3391,13 @@ decida abordarlo explícitamente en una corrida futura.
 **Estado**: D-δ.47 queda **ABIERTA / PARCIAL** -- dos bugs reales
 encontrados y corregidos con tests/verificación manual, una decisión
 roja presentada y resuelta (coma decimal: queda como deuda documentada,
-sin tocar código), y una lista de áreas del brief todavía sin recorrer
-explícitamente en esta corrida (ver arriba). El repo queda verde
-(804/804 tests, `tsc -b` y `vite build` limpios, lint en baseline 11) y
-el working tree limpio. Recomendado continuar desde "NO AUDITADO" en la
-próxima corrida, priorizando la matriz de combinaciones completa y
-cambio de material/sistema con datos cargados.
+sin tocar código), la **matriz completa de las 4 combinaciones cerrada**
+con verificación numérica explícita (sin doble conteo en
+`profesional+estimada`, sin contaminación en ningún cambio de modo), y
+una lista de áreas del brief todavía sin recorrer explícitamente (ver
+"NO AUDITADO" arriba). El repo queda verde (804/804 tests, `tsc -b` y
+`vite build` limpios, lint en baseline 11) y el working tree limpio.
+Recomendado continuar desde "NO AUDITADO" en la próxima corrida --
+cambio de material/sistema con datos cargados es el punto de mayor
+riesgo restante, seguido de agregar/eliminar Local y la auditoría
+dedicada de AC.
