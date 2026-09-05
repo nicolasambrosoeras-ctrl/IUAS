@@ -391,6 +391,7 @@ function UnidadFuncionalFormulario({
         Unidad funcional:{' '}
         <input
           type="text"
+          aria-label="Nombre de la unidad funcional"
           value={uf.nombre}
           onChange={(evento) => onCambiar({ ...uf, nombre: evento.target.value })}
         />

@@ -217,9 +217,10 @@ describe("ResultadoHidraulicoDeTramo (UI) — granularidadHidraulica 'simplifica
     // Distribución general (2: general + ACS, aunque este fixture solo
     // tiene AF asi que 1) + el único Tramo de alimentación del Toilette:
     // el input de Longitud [m] vive en el <details> de Detalle técnico de
-    // DimensionamientoDeTramo -- se cuenta por cuántos aparecen, no debe
-    // haber uno por cada Ramal.
-    expect(html.match(/Longitud \[m\]/g)?.length).toBe(2) // Alimentación general + Tramo de alimentación del Toilette
+    // DimensionamientoDeTramo -- se cuenta por cuántos <th> de encabezado
+    // aparecen (no el aria-label del input, que también contiene el mismo
+    // texto -- D-δ.47), no debe haber uno por cada Ramal.
+    expect(html.match(/<th[^>]*>Longitud \[m\]<\/th>/g)?.length).toBe(2) // Alimentación general + Tramo de alimentación del Toilette
     expect(html).not.toContain('Ramal Lavatorio')
     expect(html).not.toContain('Ramal Inodoro')
   })

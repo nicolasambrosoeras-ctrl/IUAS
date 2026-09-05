@@ -84,6 +84,7 @@ export function DimensionamientoDeTramo({
                 <input
                   type="number"
                   min={0}
+                  aria-label={`Longitud [m] de ${etiqueta}`}
                   value={longitud_m ?? ''}
                   onChange={(evento) => {
                     const resultadoCambio = resolverCambioDeLongitud(evento.target.value)
