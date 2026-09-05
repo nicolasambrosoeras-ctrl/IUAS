@@ -25,12 +25,21 @@
 // inline (CRIT-A31 no depende de la granularidad: la tee sigue
 // configurándose y aportando Ks por rama real en ambos modos).
 //
-// Modo estimado: sin editor de accesorios/tees (D-δ.40 ya cerró que
-// mostrarlo ahí sugeriría falsamente que esa geometría participa del
-// cálculo activo) -- solo el resumen agregado de
-// resolverPerdidaLocalizadaEstimadaDeLocal. GranularidadHidraulica no
-// aplica acá (ya es Local+red, D-δ.40 nunca tuvo relevamiento por
-// Artefacto).
+// Modo estimado (D-δ.45, corrección de un gap descubierto durante esa
+// investigación): el árbol de Tramos SIGUE renderizándose -- la
+// Longitud de cada Tramo relevable (gobernada por GranularidadHidraulica,
+// D-δ.44, independiente del método de pérdida localizada) sigue siendo
+// obligatoria para hfDistribuida sin importar el método localizado. Lo
+// único que cambia en modo estimado es que AccesoriosDeTramoEditor y el
+// editor de tee (SeccionDeTeeInline) se OCULTAN en todos los niveles del
+// árbol (D-δ.40 ya cerró que el modo estimado ignora por completo
+// Tramo.accesorios/Nodo.tee -- mostrar esos editores ahí sugeriría
+// falsamente que esa geometría participa del cálculo activo), y se
+// agrega el resumen agregado de resolverPerdidaLocalizadaEstimadaDeLocal
+// debajo del árbol. Antes de este fix, todo el árbol (incluida la
+// Longitud) se saltaba en modo estimado -- un Local+red nunca podía
+// llegar a completo en 'estimado' porque no había ningún input de
+// Longitud visible.
 import type { GranularidadHidraulica, Proyecto } from '../../modelo/proyecto'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
@@ -95,22 +104,27 @@ function RamalesSimplificados({
   proyecto,
   catalogoArtefactos,
   nodo,
+  modoDetallado,
   onCambiar,
 }: {
   proyecto: Proyecto
   catalogoArtefactos: readonly ArtefactoNormativo[]
   nodo: NodoDelArbolDeLocal
+  modoDetallado: boolean
   onCambiar: (proyecto: Proyecto) => void
 }) {
   return (
     <>
-      <SeccionDeTeeInline proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} nodo={nodo} onCambiar={onCambiar} />
+      {modoDetallado ? (
+        <SeccionDeTeeInline proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} nodo={nodo} onCambiar={onCambiar} />
+      ) : null}
       {nodo.hijos.map((hijo) => (
         <RamalesSimplificados
           key={hijo.tramoId}
           proyecto={proyecto}
           catalogoArtefactos={catalogoArtefactos}
           nodo={hijo}
+          modoDetallado={modoDetallado}
           onCambiar={onCambiar}
         />
       ))}
@@ -125,6 +139,7 @@ function NodoDeArbol({
   nodo,
   esRaiz,
   granularidadHidraulica,
+  modoDetallado,
   onCambiar,
 }: {
   proyecto: Proyecto
@@ -133,6 +148,7 @@ function NodoDeArbol({
   nodo: NodoDelArbolDeLocal
   esRaiz: boolean
   granularidadHidraulica: GranularidadHidraulica
+  modoDetallado: boolean
   onCambiar: (proyecto: Proyecto) => void
 }) {
   const resultado = resolverResultadoDeTramoParaUi(proyecto, nodo.tramoId, catalogoArtefactos)
@@ -156,13 +172,17 @@ function NodoDeArbol({
         longitud_m={tramoActual?.longitud_m}
         onCambiarLongitud={(longitud_m) => onCambiar(conLongitudDeTramo(proyecto, nodo.tramoId, longitud_m))}
       />
-      <AccesoriosDeTramoEditor
-        proyecto={proyecto}
-        tramoId={nodo.tramoId}
-        velocidadReal_mps={resultado.velocidadReal_mps}
-        onCambiar={onCambiar}
-      />
-      <SeccionDeTeeInline proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} nodo={nodo} onCambiar={onCambiar} />
+      {modoDetallado ? (
+        <AccesoriosDeTramoEditor
+          proyecto={proyecto}
+          tramoId={nodo.tramoId}
+          velocidadReal_mps={resultado.velocidadReal_mps}
+          onCambiar={onCambiar}
+        />
+      ) : null}
+      {modoDetallado ? (
+        <SeccionDeTeeInline proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} nodo={nodo} onCambiar={onCambiar} />
+      ) : null}
       {granularidadHidraulica === 'simplificada'
         ? nodo.hijos.map((hijo) => (
             <RamalesSimplificados
@@ -170,6 +190,7 @@ function NodoDeArbol({
               proyecto={proyecto}
               catalogoArtefactos={catalogoArtefactos}
               nodo={hijo}
+              modoDetallado={modoDetallado}
               onCambiar={onCambiar}
             />
           ))
@@ -182,6 +203,7 @@ function NodoDeArbol({
               nodo={hijo}
               esRaiz={false}
               granularidadHidraulica={granularidadHidraulica}
+              modoDetallado={modoDetallado}
               onCambiar={onCambiar}
             />
           ))}
@@ -306,36 +328,36 @@ export function LocalYRedCard({
       <h4>
         {etiquetaLocal} — {ETIQUETA_RED[red]}
       </h4>
-      {modoDetallado ? (
-        proyecto.redHidraulica !== undefined ? (
-          <>
-            <NodoDeArbol
+      {proyecto.redHidraulica !== undefined ? (
+        <>
+          <NodoDeArbol
+            proyecto={proyecto}
+            catalogoArtefactos={catalogoArtefactos}
+            red={red}
+            nodo={construirArbolDeLocal(proyecto.redHidraulica, tramoPrincipalId)}
+            esRaiz
+            granularidadHidraulica={granularidadHidraulica}
+            modoDetallado={modoDetallado}
+            onCambiar={onCambiar}
+          />
+          {granularidadHidraulica === 'simplificada' ? (
+            <ListaDeDistribucion
               proyecto={proyecto}
               catalogoArtefactos={catalogoArtefactos}
-              red={red}
-              nodo={construirArbolDeLocal(proyecto.redHidraulica, tramoPrincipalId)}
-              esRaiz
-              granularidadHidraulica={granularidadHidraulica}
-              onCambiar={onCambiar}
+              tramoPrincipalId={tramoPrincipalId}
             />
-            {granularidadHidraulica === 'simplificada' ? (
-              <ListaDeDistribucion
-                proyecto={proyecto}
-                catalogoArtefactos={catalogoArtefactos}
-                tramoPrincipalId={tramoPrincipalId}
-              />
-            ) : null}
-          </>
-        ) : null
-      ) : (
-        <ResumenEstimadoDeLocal
-          proyecto={proyecto}
-          catalogoArtefactos={catalogoArtefactos}
-          unidadFuncionalId={unidadFuncionalId}
-          localId={localId}
-          red={red}
-        />
-      )}
+          ) : null}
+          {!modoDetallado ? (
+            <ResumenEstimadoDeLocal
+              proyecto={proyecto}
+              catalogoArtefactos={catalogoArtefactos}
+              unidadFuncionalId={unidadFuncionalId}
+              localId={localId}
+              red={red}
+            />
+          ) : null}
+        </>
+      ) : null}
     </article>
   )
 }

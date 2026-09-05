@@ -273,3 +273,64 @@ describe("ResultadoHidraulicoDeTramo (UI) — granularidadHidraulica 'simplifica
     expect(html).not.toContain('t-af-toilette-lavatorio')
   })
 })
+
+// D-δ.45: antes de este incremento, metodoPerdidaLocalizada==='estimado'
+// saltaba TODO el árbol de Tramos (incluida la Longitud) -- un Local+red
+// nunca podía llegar a completo en modo estimado porque no había ningún
+// input de Longitud visible en la UI. Este bloque cubre el fix: el árbol
+// (y su input de Longitud) sigue presente en modo estimado, en ambas
+// granularidades -- solo se ocultan accesorios/tee (D-δ.40) y se agrega
+// el resumen agregado.
+describe("ResultadoHidraulicoDeTramo (UI) — metodoPerdidaLocalizada 'estimado' (D-δ.45)", () => {
+  function proyectoConToiletteEstimado(granularidadHidraulica: 'simplificada' | 'profesional'): Proyecto {
+    const proyecto = proyectoConToilette()
+    return {
+      ...proyecto,
+      configuracionHidraulica: {
+        ...proyecto.configuracionHidraulica,
+        metodoPerdidaLocalizada: 'estimado',
+        granularidadHidraulica,
+      },
+    }
+  }
+
+  it.each(['profesional', 'simplificada'] as const)(
+    "granularidad '%s': el input de Longitud sigue presente (antes desaparecía por completo)",
+    (granularidadHidraulica) => {
+      const proyecto = proyectoConToiletteEstimado(granularidadHidraulica)
+
+      const html = renderToStaticMarkup(
+        createElement(ResultadoHidraulicoDeTramo, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
+      )
+
+      expect(html.match(/Longitud \[m\]/g)?.length).toBeGreaterThan(0)
+    },
+  )
+
+  it.each(['profesional', 'simplificada'] as const)(
+    "granularidad '%s': nunca muestra editor de accesorios ni de tee (D-δ.40 -- modo estimado ignora Tramo.accesorios/Nodo.tee)",
+    (granularidadHidraulica) => {
+      const proyecto = proyectoConToiletteEstimado(granularidadHidraulica)
+
+      const html = renderToStaticMarkup(
+        createElement(ResultadoHidraulicoDeTramo, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
+      )
+
+      expect(html).not.toContain('Relevar accesorios')
+      expect(html).not.toContain('Bifurcación sin configurar')
+    },
+  )
+
+  it.each(['profesional', 'simplificada'] as const)(
+    "granularidad '%s': muestra el resumen agregado de pérdidas localizadas estimadas por Local+red",
+    (granularidadHidraulica) => {
+      const proyecto = proyectoConToiletteEstimado(granularidadHidraulica)
+
+      const html = renderToStaticMarkup(
+        createElement(ResultadoHidraulicoDeTramo, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
+      )
+
+      expect(html).toContain('Pérdidas localizadas: Estimadas')
+    },
+  )
+})
