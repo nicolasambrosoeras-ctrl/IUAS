@@ -3681,7 +3681,7 @@ fuera de alcance de este incremento -- una limitación real de M2-D.
 834+ tests (ver conteo final en el handoff), `tsc -b`/`vite build`
 limpios, lint sin regresión, working tree limpio.
 
-## Bootstrapping de conectividad física en un Local sin ningún terminal previo (M2-D, ALTA) -- descubierto en D-δ.48, NO resuelto
+## Bootstrapping de conectividad física en un Local sin ningún terminal previo (M2-D, ALTA) -- descubierto en D-δ.48, RESUELTO en D-δ.49
 
 **Hallazgo**: `sincronizarConectividadFisicaDeArtefacto[ConRedesDeclaradas]`
 (M2-D, ALTA) solo sabe **agregar un hermano** junto a una conexión física
@@ -3730,3 +3730,151 @@ una Unidad Funcional nueva y cargar sus artefactos" es un flujo
 funcional completo de punta a punta, resolver este bootstrapping -- hoy
 sigue siendo cierto solo para Locales que ya tenían al menos un
 terminal conectado desde el proyecto original.
+
+**Resuelto en D-δ.49** (ver sección dedicada más abajo): `conectarUnaRed`
+distingue ahora tres casos -- bootstrap (0 terminales previos, conecta
+directo a la raíz AF/AC, creándola desde cero si hiciera falta),
+retrofit (1 terminal previo colgado directo de la raíz compartida:
+inserta una bifurcación dedicada) y hermano (≥1 terminal ya detrás de
+una bifurcación dedicada: sin cambios). Un proyecto puede construirse
+íntegramente desde la UI, sin ninguna `redHidraulica` prearmada.
+
+## D-δ.49 -- Bootstrap de conectividad física para Local+Red nuevos -- CERRADA
+
+**Objetivo**: resolver el gap de D-δ.48 de arriba. Ver esa sección para
+el hallazgo original; acá se documenta la solución.
+
+### Arquitectura elegida (no fue una decisión roja)
+
+El brief planteaba como posible decisión roja "cabecera explícita de
+Local+Red vs. enganchar el primer terminal a una cabecera de UF
+existente". La investigación mostró que el modelo YA tenía, en el
+propio proyecto de ejemplo, los dos patrones físicos necesarios,
+aplicados según el número de terminales de un Local+Red:
+
+- **1 terminal**: conexión directa a la raíz compartida, sin
+  bifurcación (Jardín/canillaDeServicio en el demo).
+- **≥2 terminales**: bifurcación dedicada exclusiva de ese Local+Red
+  (Baño en el demo, nodo `n-af-1`).
+
+No hizo falta inventar una tercera arquitectura ni una entidad nueva de
+"cabecera": alcanzó con enseñarle a la sincronización a **transicionar**
+correctamente entre esos dos patrones ya existentes, algo que
+`hallarNodoDeInsercionDeLocal.ts` (M2-D previo) no hacía -- asumía que
+agregar un hermano a un Local con exactamente 1 terminal (patrón
+"directo") era topológicamente válido sin retrofit ("sin necesidad de
+retrofit ninguno", comentario original), lo cual es cierto para
+`validarRedHidraulica` pero **rompe la invariante de D-δ.44** ("un
+único Tramo representativo por Local+Red") apenas ese Local crece a 2
+terminales.
+
+### Tres casos, un solo punto de decisión (`conectarUnaRed`, `sincronizarConectividadFisicaDeArtefacto.ts`)
+
+1. **Bootstrap** (`hallarNodoDeInsercionDeLocal` devuelve
+   `'sinConexionExistente'`): el Local+Red no tiene ningún terminal
+   todavía. Se conecta directo a la raíz de esa Red
+   (`asegurarRaizAF`/`asegurarRaizAC`, `asegurarRaizDeRed.ts`), que a su
+   vez la busca o, si el proyecto está completamente vacío (brief
+   sección 13, "primer Local del proyecto"), la crea desde cero (Nodo
+   raíz + Nodo AF + Tramo, y para AC además el Nodo `produccionACS` +
+   su Tramo, D-δ.7). AF y AC son independientes: `asegurarRaizAC` solo
+   se invoca cuando el Artefacto necesita AC, nunca de forma anticipada.
+2. **Retrofit** (`hallarNodoDeInsercionDeLocal` devuelve `'nodo'`, y ese
+   nodo resulta ser la raíz compartida -- `esNodoRaizCompartida`,
+   `asegurarRaizDeRed.ts`): el único terminal existente cuelga todavía
+   directo de la raíz. Se inserta una bifurcación nueva, dedicada a ese
+   Local+Red: el Tramo existente se reengancha a ella (única excepción
+   al principio "aditivo, nunca modifica" de este archivo -- documentada
+   en el comentario de `conectarUnaRed`). **`longitud_m`/`accesorios` ya
+   cargados viajan al Tramo NUEVO** (raíz → bifurcación), no se quedan en
+   el Tramo reenganchado: es el Tramo nuevo el que
+   `identificarTramoRepresentativoDeLocal.ts` (D-δ.44) reconoce de ahora
+   en más como representativo de ese Local+Red, y en granularidad
+   `simplificada` es el único dato que el usuario ve. Sin este traslado,
+   agregar un segundo terminal a un Local ya calculado revertía
+   `EstadoModulo2` a `'incompleto'` pidiendo de nuevo una longitud que el
+   usuario ya había cargado -- **bug real encontrado manualmente en la
+   prueba de aceptación de UI (sección siguiente), no anticipado por los
+   tests unitarios**, corregido y con test de regresión dedicado.
+3. **Hermano** (`hallarNodoDeInsercionDeLocal` devuelve `'nodo'`, y ese
+   nodo NO es la raíz compartida): comportamiento sin cambios respecto
+   de antes de D-δ.49 -- agrega el nuevo terminal directo desde esa
+   bifurcación ya dedicada.
+
+`esNodoRaizCompartida` usa la señal estructural ya existente en
+`identificarFilasDeModulo2.ts`/`identificarTramoRepresentativoDeLocal.ts`
+(destino de la Alimentación general o de la Alimentación ACS) --
+**correcta para cualquier topología construida por `asegurarRaizAF`/
+`asegurarRaizAC`** (que siempre crean el Nodo raíz envolvente junto con
+n0/n-acs en la misma operación, nunca por separado). Se evaluó y
+descartó una alternativa "semántica" (¿el conjunto aguas abajo de este
+Nodo pertenece hoy a un único Local?, vía `obtenerArtefactosAguasAbajo`)
+por dar falso negativo exactamente en el caso más común: una Alimentación
+ACS que hoy sirve a un único Local parecería "dedicada" cuando en
+realidad es compartida por diseño para todo el proyecto.
+
+### Verificación de aceptación desde cero (Playwright, sin ninguna `redHidraulica` prearmada)
+
+Reducido el proyecto de ejemplo a su mínimo real alcanzable por UI (1
+UnidadFuncional, 1 Local, 0 Artefactos -- un Local sin Artefactos no
+bloquea la validación; un proyecto sin ningún Artefacto computable sí,
+hasta agregar el primero), se reconstruyó por completo desde la UI:
+
+- Inodoro a depósito (AF-only) → bootstrap AF.
+- Lavatorio (AF+AC) en el MISMO Local → AF hace retrofit (ya había un
+  terminal directo), AC hace bootstrap completo (primera Alimentación
+  ACS de todo el proyecto, creada en el mismo paso).
+- Receptáculo de ducha (AF+AC) → hermano en ambas Redes (ya dedicadas
+  por el retrofit anterior).
+- Local nuevo (Cocina) + Pileta de cocina (AF+AC) → bootstrap para un
+  Local nuevo con la raíz ya existente.
+- Local nuevo (Jardín) + Canilla de servicio (AF-only) → bootstrap.
+- UnidadFuncional nueva (UF2, PB→Piso 1, cota 4,00 confirmada
+  automática, D-δ.46/48) + Local + Lavatorio (AF+AC) → bootstrap
+  también funciona para una UF completamente nueva, compartiendo la
+  misma raíz de todo el proyecto.
+
+Con granularidad simplificada + pérdidas estimadas, cargando 9
+longitudes (una por fila Local+Red) + alimentación (tanque simulado con
+Pdisponible=20) + hfMedidor=0,5: **`EstadoModulo2` llegó a `'completo'`**,
+con Qc/DN/V/hf/Presidual/margen resueltos y el terminal más
+desfavorable correctamente identificado **entre las dos
+UnidadesFuncionales** (UF2, con menor carga geométrica por su cota
+mayor). Cero errores/warnings de consola en toda la secuencia. Se
+verificó además, sobre este mismo proyecto construido desde cero:
+agregar y eliminar un Artefacto adicional (Qc recomputa correctamente
+en ambos sentidos, sin resultado stale ni terminal huérfano);
+eliminar+recrear un Local; eliminar+recrear una UnidadFuncional; cambiar
+a granularidad profesional (queda estructuralmente válida, sin
+"Problemas de validación").
+
+### Casos de test (`sincronizarConectividadFisicaDeArtefacto.test.ts`, `asegurarRaizDeRed.test.ts`)
+
+T1 (bootstrap AF-only), T2 (bootstrap AF+AC desde un proyecto
+completamente vacío, incluida la raíz), T3 (AF ya existe/AC no: AF
+retrofit + AC bootstrap en la misma llamada), T4 (AF y AC ya dedicados:
+hermano en ambas, sin tocar ningún Tramo existente), T5 (segundo
+terminal, ninguna segunda cabecera), T11 (sincronización repetida tras
+bootstrap y tras retrofit: idempotente, no duplica nada) -- los doce
+casos del brief quedan cubiertos entre estos tests unitarios y la
+verificación manual de UI de la sección anterior (T6/T7/T8 -- eliminar y
+recrear -- y T9/T10 -- múltiples Locales/UFs -- se verificaron
+exclusivamente por Playwright, ya que ejercitan la interacción completa
+UI→M2-D, no solo la función pura).
+
+### No tocado (fuera de alcance, tal como pedía el brief)
+
+CRIT-A15/A20/A24/A29/A30/A31, D-δ.40/41/44/45/46/47/48, granularidad
+simplificada/profesional, métodos estimado/detallado, terminal crítico
+por margen, limpieza de red al eliminar Local/UF (D-δ.47). Cambio de
+tipo de catálogo de un Artefacto existente sigue sin resincronizar
+conectividad física (deuda ya conocida, CRIT-A15) -- no era necesario
+tocarlo para resolver el bootstrap.
+
+**Estado**: D-δ.49 -- CERRADA. El bug de bootstrap original quedó
+corregido; se encontró y corrigió además un segundo bug real (pérdida
+de longitud ya cargada al retrofitear) durante la propia verificación
+de aceptación -- exactamente el tipo de hallazgo que los tests
+unitarios con topología prearmada no podían exponer, y que motivó la
+regla del brief de no sustituir la aceptación por UI con tests
+unitarios solamente.
