@@ -15,7 +15,9 @@
 // controles ↓/DN/↑/Auto se muestran en ambos modos (coherencia con el
 // control de DN de tuberías de D-δ.52).
 //
-// M3-E (pendiente): integración de estas pérdidas al balance de presión.
+// La integración de estas pérdidas al balance de presión de M2 ya está
+// hecha (M3-E, D-δ.58): la resuelve resolverPerdidasDeMedidoresParaTerminal,
+// consumida por PanelDePresionDeModulo2 — este panel no participa de ella.
 import type { Proyecto } from '../../modelo/proyecto'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'

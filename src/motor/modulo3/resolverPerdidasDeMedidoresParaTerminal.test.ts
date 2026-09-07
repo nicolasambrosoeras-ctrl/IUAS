@@ -108,6 +108,30 @@ describe('resolverPerdidasDeMedidoresParaTerminal (M3-E, D-δ.58)', () => {
     expect(r.componentes.map((c) => c.ambito).sort()).toEqual(['general', 'individual'])
   })
 
+  it('E9b (matriz D-δ.58 §27). DIRECTA + ACS individual + terminal AC: general + individual AF (el AF alcanza al AC)', () => {
+    const est = evaluado(general(0.8), [individual('uf-1', 'aguaFria', 0.4)])
+    const r = resolver({ estadoModulo3: est, configuracionMedidores: CONFIG_PH_IND, origenHidraulico: 'alimentacionDirecta', redDelTerminal: 'AC' })
+    if (r.estado !== 'determinadas') throw new Error('esperaba determinadas')
+    expect(r.hfTotal_mca).toBeCloseTo(1.2, 10) // 0,8 general + 0,4 individual AF
+    expect(r.componentes.map((c) => c.ambito).sort()).toEqual(['general', 'individual'])
+    const ind = r.componentes.find((c) => c.ambito === 'individual')!
+    expect(ind.servicioMedido).toBe('aguaFria')
+    expect(ind.aplicaPorProvisionACSIndividual).toBe(true)
+  })
+
+  it('E9c (matriz D-δ.58 §27). DIRECTA + ACS central + terminal AC: general + individual AC (NO el AF)', () => {
+    const est = evaluado(general(0.8), [
+      individual('uf-1', 'aguaFria', 0.4),
+      individual('uf-1', 'aguaCaliente', 0.25),
+    ])
+    const r = resolver({ estadoModulo3: est, configuracionMedidores: CONFIG_PH_CENTRAL, origenHidraulico: 'alimentacionDirecta', redDelTerminal: 'AC' })
+    if (r.estado !== 'determinadas') throw new Error('esperaba determinadas')
+    expect(r.hfTotal_mca).toBeCloseTo(1.05, 10) // 0,8 general + 0,25 individual AC (NO 0,4)
+    const ind = r.componentes.find((c) => c.ambito === 'individual')!
+    expect(ind.servicioMedido).toBe('aguaCaliente')
+    expect(ind.aplicaPorProvisionACSIndividual).toBeUndefined()
+  })
+
   it('E10. tanque: sólo el individual', () => {
     const est = evaluado(general(0.8), [individual('uf-1', 'aguaFria', 0.4)])
     const r = resolver({ estadoModulo3: est, configuracionMedidores: CONFIG_PH_IND, origenHidraulico: 'tanqueElevado' })
