@@ -194,7 +194,7 @@ describe('ResultadoHidraulicoDeTramo (UI) — D-δ.43', () => {
     // "Relevar accesorios" aparece una vez por tramo con accesorios===undefined
     // (Distribución general + tramo de alimentación + 2 ramales = 4 en
     // este fixture).
-    expect(html.match(/Relevar accesorios/g)?.length).toBe(4)
+    expect(html.match(/Confirmar que este tramo no tiene accesorios/g)?.length).toBe(4)
   })
 })
 
@@ -225,7 +225,7 @@ describe("ResultadoHidraulicoDeTramo (UI) — granularidadHidraulica 'simplifica
     expect(html).not.toContain('Ramal Inodoro')
   })
 
-  it('un único editor de accesorios por Local+red -- ningún ramal terminal tiene su propio "Relevar accesorios"', () => {
+  it('un único editor de accesorios por Local+red -- ningún ramal terminal tiene su propio editor de accesorios sin relevar', () => {
     const proyecto = proyectoConToiletteSimplificado()
 
     const html = renderToStaticMarkup(
@@ -235,7 +235,7 @@ describe("ResultadoHidraulicoDeTramo (UI) — granularidadHidraulica 'simplifica
     // Distribución general (siempre exige su propio relevamiento, en
     // ambas granularidades) + el único Tramo de alimentación del Toilette
     // -- nunca uno por cada Ramal (Lavatorio/Inodoro).
-    expect(html.match(/Relevar accesorios/g)?.length).toBe(2)
+    expect(html.match(/Confirmar que este tramo no tiene accesorios/g)?.length).toBe(2)
   })
 
   it('los Artefactos siguen listados por nombre bajo "Distribución", y AF/AC siguen distinguidos', () => {
@@ -317,7 +317,7 @@ describe("ResultadoHidraulicoDeTramo (UI) — metodoPerdidaLocalizada 'estimado'
         createElement(ResultadoHidraulicoDeTramo, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
       )
 
-      expect(html).not.toContain('Relevar accesorios')
+      expect(html).not.toContain('Confirmar que este tramo no tiene accesorios')
       expect(html).not.toContain('Bifurcación sin configurar')
     },
   )

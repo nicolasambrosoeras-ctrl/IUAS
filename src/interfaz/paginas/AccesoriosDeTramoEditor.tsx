@@ -43,11 +43,35 @@ export function AccesoriosDeTramoEditor({
   const { accesorios } = tramo
 
   if (accesorios === undefined) {
+    // D-δ.51 (decisión roja -> alternativa A): `undefined` = información
+    // física NO relevada. Dos acciones EXPLÍCITAS, nunca un `[]` implícito:
+    // agregar la primera pieza (pasa a relevado con contenido), o
+    // confirmar que este tramo no tiene accesorios (pasa a `[]`, relevado
+    // vacío). Convertir `undefined` en `[]` sin que el usuario lo confirme
+    // afirmaría un relevamiento que nunca hizo.
     return (
       <div>
-        <small>Accesorios (Tabla N°7) no relevados todavía para este tramo.</small>{' '}
+        <small>⚠ Accesorios (Tabla N°7) sin relevar en este tramo.</small>{' '}
+        <label>
+          <small>Agregar el primero: </small>
+          <select
+            value=""
+            onChange={(evento) => {
+              const tipo = evento.target.value as IdAccesorioDeTramo | ''
+              if (tipo === '') return
+              onCambiar(conAccesoriosDeTramo(proyecto, tramoId, [{ tipo, cantidad: 1 }]))
+            }}
+          >
+            <option value="">— seleccionar —</option>
+            {idsAccesorioDeTramo.map((id) => (
+              <option key={id} value={id}>
+                {nombreDeAccesorio(id)}
+              </option>
+            ))}
+          </select>
+        </label>{' '}
         <button type="button" onClick={() => onCambiar(conAccesoriosDeTramo(proyecto, tramoId, []))}>
-          Relevar accesorios
+          Confirmar que este tramo no tiene accesorios
         </button>
       </div>
     )

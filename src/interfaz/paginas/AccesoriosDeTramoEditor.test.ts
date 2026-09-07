@@ -40,25 +40,26 @@ describe('nombreDeAccesorio', () => {
 })
 
 describe('AccesoriosDeTramoEditor (UI)', () => {
-  it('accesorios undefined (no relevado): muestra el botón "Relevar accesorios", no una lista vacía', () => {
+  it('accesorios undefined (no relevado): muestra "sin relevar" + las dos acciones explícitas (agregar / confirmar sin accesorios), no una lista vacía (D-δ.51)', () => {
     const proyecto = proyectoConTramo({ id: 't1', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF' })
 
     const html = renderToStaticMarkup(
       createElement(AccesoriosDeTramoEditor, { proyecto, tramoId: 't1', velocidadReal_mps: undefined, onCambiar: () => {} }),
     )
 
-    expect(html).toContain('no relevados todavía')
-    expect(html).toContain('Relevar accesorios')
+    expect(html).toContain('sin relevar')
+    expect(html).toContain('Agregar el primero')
+    expect(html).toContain('Confirmar que este tramo no tiene accesorios')
   })
 
-  it('accesorios=[] (relevado, vacío): NO muestra el botón "Relevar accesorios" -- ya está relevado', () => {
+  it('accesorios=[] (relevado, vacío): NO ofrece "Confirmar que este tramo no tiene accesorios" -- ya está relevado (D-δ.51)', () => {
     const proyecto = proyectoConTramo({ id: 't1', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', accesorios: [] })
 
     const html = renderToStaticMarkup(
       createElement(AccesoriosDeTramoEditor, { proyecto, tramoId: 't1', velocidadReal_mps: undefined, onCambiar: () => {} }),
     )
 
-    expect(html).not.toContain('Relevar accesorios')
+    expect(html).not.toContain('Confirmar que este tramo no tiene accesorios')
     expect(html).toContain('sin accesorios de este subconjunto')
   })
 
