@@ -78,7 +78,12 @@ describe('PanelDePresionDeModulo2 (UI)', () => {
       createElement(PanelDePresionDeModulo2, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
     )
 
-    expect(html).toContain('Ingresá Pdisponible para ver el balance')
+    // D-δ.50: en estado incompleto la superficie protagonista es "qué
+    // falta", agrupado -- incluye la falta de Pdisponible -- y nunca un
+    // balance ni un veredicto CUMPLE/NO CUMPLE.
+    expect(html).toContain('No se puede calcular la presión todavía')
+    expect(html).toContain('Falta indicar el tipo de alimentación')
+    expect(html).not.toContain('CUMPLE')
   })
 
   it('sin terminales hidráulicos (red vacía): lo indica explícitamente, no una tabla vacía silenciosa', () => {
@@ -88,7 +93,7 @@ describe('PanelDePresionDeModulo2 (UI)', () => {
       createElement(PanelDePresionDeModulo2, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
     )
 
-    expect(html).toContain('Ingresá Pdisponible')
+    expect(html).toContain('no tiene terminales hidráulicos')
   })
 
   it('muestra el estado de Módulo 2 (resolverEstadoModulo2) sin recalcular hidráulica en React', () => {

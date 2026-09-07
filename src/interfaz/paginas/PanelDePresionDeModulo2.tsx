@@ -53,6 +53,9 @@ import { resolverRedDeTerminal } from './resolverRedDeTerminal'
 import { ETIQUETA_RED } from './humanizarModulo2'
 import { ordenarCandidatosParaListado } from './ordenarCandidatosParaListado'
 import { resolverResumenDeCumplimiento } from './resolverResumenDeCumplimiento'
+import { resolverFilaDeTerminalParaTabla } from './resolverFilaDeTerminalParaTabla'
+import { TablaDeTerminales } from './TablaDeTerminales'
+import { CalculoDelCriticoDetalle } from './CalculoDelCriticoDetalle'
 
 // Mismo criterio que resolverCambioDeLongitud (resolverResultadoDeTramoParaUi.ts):
 // campo vacío = "no provisto todavía" (undefined, nunca 0); NaN o negativo
@@ -184,6 +187,41 @@ export function PanelDePresionDeModulo2({
       : undefined
   const resumenDeCumplimiento = resolverResumenDeCumplimiento(candidatos)
 
+  const referenciaPorNodoId = new Map(nodosTerminales.map((nodo) => [nodo.id, nodo.referencia]))
+
+  // Verdict protagonista (brief D-δ.50 secciones 25-27): CUMPLE solo si
+  // TODOS los verificables cumplen -- mismo denominador que el resumen
+  // agregado (nunca incluye terminalSinPresionMinima ni incompletos).
+  const hayVerificables = resumenDeCumplimiento.verificables > 0
+  const cumpleGlobal = hayVerificables && resumenDeCumplimiento.cumplen === resumenDeCumplimiento.verificables
+
+  // Datos del terminal mas desfavorable para el bloque protagonista y para
+  // "Ver calculo del critico" -- se reutiliza la fila ya derivada (UF /
+  // nivel / red) y la traza completa que el motor ya devolvio.
+  const filaCritico =
+    terminalMasDesfavorable !== undefined &&
+    terminalMasDesfavorable.tipo !== 'sinCandidatoDeterminable' &&
+    nodoMasDesfavorable !== undefined
+      ? resolverFilaDeTerminalParaTabla(proyecto, catalogoArtefactos, nodoMasDesfavorable.referencia, {
+          nodoId: terminalMasDesfavorable.nodoId,
+          resultado: candidatos.find((c) => c.nodoId === terminalMasDesfavorable.nodoId)!.resultado,
+        })
+      : undefined
+  const resultadoCritico =
+    terminalMasDesfavorable !== undefined && terminalMasDesfavorable.tipo !== 'sinCandidatoDeterminable'
+      ? candidatos.find((c) => c.nodoId === terminalMasDesfavorable.nodoId)?.resultado
+      : undefined
+  const cotaRaizCritico =
+    resultadoCritico?.tipo === 'balanceCompleto'
+      ? proyecto.redHidraulica?.nodos.find((n) => n.id === resultadoCritico.raizId)?.cota_m
+      : undefined
+  const origenTexto = tipoAlimentacion === 'tanqueElevado' ? 'Tanque elevado' : 'Presión conocida / alimentación directa'
+
+  const motivosAgrupados =
+    estadoModulo2.estado === 'incompleto'
+      ? agruparMotivosDeModulo2(estadoModulo2.motivos, proyecto.unidadesFuncionales)
+      : []
+
   return (
     <section>
       <h3>Verificación de presión</h3>
@@ -192,16 +230,6 @@ export function PanelDePresionDeModulo2({
           Estado de Módulo 2: <strong>{textoDeEstadoModulo2(estadoModulo2)}</strong>
         </small>
       </p>
-      {estadoModulo2.estado === 'incompleto' ? (
-        <div>
-          <p>Para completar Módulo 2:</p>
-          <ul>
-            {agruparMotivosDeModulo2(estadoModulo2.motivos, proyecto.unidadesFuncionales).map((texto) => (
-              <li key={texto}>{texto}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
 
       <h4>Alimentación</h4>
       <p>
@@ -319,77 +347,150 @@ export function PanelDePresionDeModulo2({
         </small>
       </p>
 
-      {presionDisponible_mca === undefined ? (
-        <p>Ingresá Pdisponible para ver el balance de presión de cada terminal.</p>
-      ) : nodosTerminales.length === 0 ? (
+      {nodosTerminales.length === 0 ? (
         <p>El proyecto no tiene terminales hidráulicos (nodos con referencia a Artefacto) todavía.</p>
+      ) : presionDisponible_mca === undefined || !hayVerificables ? (
+        // Estado incompleto (brief seccion 24): el protagonista es "qué
+        // falta", agrupado -- nunca una lista de N terminales repitiendo
+        // el mismo motivo. El detalle por terminal queda detras de un
+        // disclosure secundario para auditoria.
+        <div>
+          <h4>⚠ No se puede calcular la presión todavía</h4>
+          {motivosAgrupados.length > 0 ? (
+            <>
+              <p>Para completar Módulo 2:</p>
+              <ul>
+                {motivosAgrupados.map((texto) => (
+                  <li key={texto}>{texto}</li>
+                ))}
+              </ul>
+              <p>
+                <small>Completá los campos indicados arriba (longitudes, alimentación, medidor) para obtener el balance.</small>
+              </p>
+            </>
+          ) : presionDisponible_mca === undefined ? (
+            <p>Ingresá Pdisponible para ver el balance de presión de cada terminal.</p>
+          ) : (
+            <p>Ningún terminal alcanzó un balance de presión completo todavía.</p>
+          )}
+          {presionDisponible_mca !== undefined && candidatos.length > 0 ? (
+          <details>
+            <summary>Ver detalle de terminales ({candidatos.length})</summary>
+            {ordenarCandidatosParaListado(candidatos).map(({ nodoId, resultado }) => {
+              const nodoDelTerminal = nodosTerminales.find((n) => n.id === nodoId)
+              const etiqueta =
+                nodoDelTerminal !== undefined
+                  ? etiquetaConRed(proyecto, catalogoArtefactos, nodoId, nodoDelTerminal.referencia)
+                  : nodoId
+              const esRaizDelCamino = nodosRaiz.some((n) => n.id === nodoId)
+              const infoCota = resolverInfoCotaDeTerminal(proyecto, nodoId, nodoDelTerminal, esRaizDelCamino, onCambiar)
+              return (
+                <TarjetaDeTerminal
+                  key={nodoId}
+                  etiqueta={etiqueta}
+                  infoCota={infoCota}
+                  presionDisponible_mca={presionDisponible_mca}
+                  hfMedidor_mca={hfMedidor_mca}
+                  resultado={resultado}
+                />
+              )
+            })}
+          </details>
+          ) : null}
+        </div>
       ) : (
         <>
-          {/* D-δ.48: resultado principal primero -- resumen agregado +
-              terminal más desfavorable -- el detalle por terminal queda
-              debajo, ordenado por margen (ver sección 17/23 del brief). */}
-          {resumenDeCumplimiento.verificables > 0 ? (
+          {/* Verdict protagonista (brief secciones 25-27). */}
+          <p style={{ fontSize: '1.15em' }}>
+            <strong>{cumpleGlobal ? '✓ CUMPLE' : '✕ NO CUMPLE'}</strong>
+          </p>
+          <p>
+            {cumpleGlobal
+              ? '✓ TODOS LOS PUNTOS VERIFICABLES CUMPLEN'
+              : `✕ ${resumenDeCumplimiento.verificables - resumenDeCumplimiento.cumplen} DE ${resumenDeCumplimiento.verificables} PUNTOS NO CUMPLEN`}
+          </p>
+          {!cumpleGlobal && filaCritico?.margen_mca !== undefined ? (
             <p>
-              <strong>
-                {resumenDeCumplimiento.cumplen === resumenDeCumplimiento.verificables
-                  ? '✓ TODOS LOS PUNTOS VERIFICABLES CUMPLEN'
-                  : `✕ ${resumenDeCumplimiento.verificables - resumenDeCumplimiento.cumplen} DE ${resumenDeCumplimiento.verificables} PUNTOS NO CUMPLEN`}
-              </strong>
+              Margen crítico: <strong>{filaCritico.margen_mca >= 0 ? '+' : ''}{formatearNumero(filaCritico.margen_mca, 'm')} m.c.a.</strong>
+            </p>
+          ) : null}
+          {estadoModulo2.estado === 'incompleto' ? (
+            <p>
+              <small>
+                Todavía faltan datos para {candidatos.length - resumenDeCumplimiento.verificables} terminal(es) — el
+                resultado puede cambiar cuando se completen (ver "Ver todos los terminales").
+              </small>
             </p>
           ) : null}
 
-          {terminalMasDesfavorable !== undefined ? (
+          {terminalMasDesfavorable !== undefined && terminalMasDesfavorable.tipo !== 'sinCandidatoDeterminable' && filaCritico !== undefined ? (
             <div>
               <h4>Terminal más desfavorable</h4>
-              {terminalMasDesfavorable.tipo === 'sinCandidatoDeterminable' ? (
-                <p>Ningún terminal alcanzó balanceCompleto todavía.</p>
-              ) : (
+              <p>
+                <strong>{filaCritico.artefacto}</strong> — {filaCritico.ubicacion} — {filaCritico.redTexto}
+              </p>
+              <table style={{ borderCollapse: 'collapse' }}>
+                <tbody>
+                  <tr>
+                    <th style={{ textAlign: 'left', paddingRight: '1rem' }}>Presión residual disponible</th>
+                    <td>{formatearNumero(terminalMasDesfavorable.presionResidual_mca, 'm')} m.c.a.</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: 'left', paddingRight: '1rem' }}>Presión mínima requerida</th>
+                    <td>{formatearNumero(terminalMasDesfavorable.presionMinimaRequerida_mca, 'm')} m.c.a.</td>
+                  </tr>
+                  <tr>
+                    <th style={{ textAlign: 'left', paddingRight: '1rem' }}>
+                      <strong>Margen</strong>
+                    </th>
+                    <td>
+                      <strong>
+                        {terminalMasDesfavorable.margen_mca >= 0 ? '+' : ''}
+                        {formatearNumero(terminalMasDesfavorable.margen_mca, 'm')} m.c.a.
+                      </strong>{' '}
+                      {simboloDeCumplimiento(terminalMasDesfavorable.cumpleMinimo)}{' '}
+                      {terminalMasDesfavorable.cumpleMinimo ? 'CUMPLE' : 'NO CUMPLE'}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p>
+                <small>El terminal más desfavorable se elige por menor margen respecto de la presión mínima requerida, no por menor presión residual.</small>
+              </p>
+              {terminalMasDesfavorable.tipo === 'candidatoProvisional' ? (
                 <p>
-                  <strong>
-                    {nodoMasDesfavorable !== undefined
-                      ? etiquetaConRed(proyecto, catalogoArtefactos, terminalMasDesfavorable.nodoId, nodoMasDesfavorable.referencia)
-                      : terminalMasDesfavorable.nodoId}
-                  </strong>{' '}
-                  — Presión residual disponible: {formatearNumero(terminalMasDesfavorable.presionResidual_mca, 'm')} m.c.a., Presión
-                  mínima requerida: {formatearNumero(terminalMasDesfavorable.presionMinimaRequerida_mca, 'm')} m.c.a., Margen:{' '}
-                  {terminalMasDesfavorable.margen_mca >= 0 ? '+' : ''}
-                  {formatearNumero(terminalMasDesfavorable.margen_mca, 'm')} m.c.a. —{' '}
-                  {simboloDeCumplimiento(terminalMasDesfavorable.cumpleMinimo)}{' '}
-                  {terminalMasDesfavorable.cumpleMinimo ? 'CUMPLE' : 'NO CUMPLE'}
-                  {terminalMasDesfavorable.tipo === 'candidatoProvisional' ? (
-                    <>
-                      {' '}
-                      <small>
-                        (resultado provisional: {terminalMasDesfavorable.terminalesExcluidos.length} terminal(es)
-                        todavía sin balanceCompleto podrían resultar más desfavorables)
-                      </small>
-                    </>
-                  ) : null}
+                  <small>
+                    Resultado provisional: {terminalMasDesfavorable.terminalesExcluidos.length} terminal(es) todavía sin
+                    balance completo podrían resultar más desfavorables.
+                  </small>
                 </p>
-              )}
+              ) : null}
+              {resultadoCritico?.tipo === 'balanceCompleto' ? (
+                <details>
+                  <summary>Ver cálculo del crítico</summary>
+                  <CalculoDelCriticoDetalle
+                    proyecto={proyecto}
+                    catalogoArtefactos={catalogoArtefactos}
+                    resultado={resultadoCritico}
+                    presionDisponible_mca={presionDisponible_mca}
+                    hfMedidor_mca={hfMedidor_mca}
+                    origenTexto={origenTexto}
+                    cotaRaiz_m={cotaRaizCritico}
+                  />
+                </details>
+              ) : null}
             </div>
           ) : null}
 
-          <h4>Terminales</h4>
-          {ordenarCandidatosParaListado(candidatos).map(({ nodoId, resultado }) => {
-            const nodoDelTerminal = nodosTerminales.find((n) => n.id === nodoId)
-            const etiqueta =
-              nodoDelTerminal !== undefined
-                ? etiquetaConRed(proyecto, catalogoArtefactos, nodoId, nodoDelTerminal.referencia)
-                : nodoId
-            const esRaizDelCamino = nodosRaiz.some((n) => n.id === nodoId)
-            const infoCota = resolverInfoCotaDeTerminal(proyecto, nodoId, nodoDelTerminal, esRaizDelCamino, onCambiar)
-            return (
-              <TarjetaDeTerminal
-                key={nodoId}
-                etiqueta={etiqueta}
-                infoCota={infoCota}
-                presionDisponible_mca={presionDisponible_mca}
-                hfMedidor_mca={hfMedidor_mca}
-                resultado={resultado}
-              />
-            )
-          })}
+          <details>
+            <summary>Ver todos los terminales ({candidatos.length})</summary>
+            <TablaDeTerminales
+              proyecto={proyecto}
+              catalogoArtefactos={catalogoArtefactos}
+              candidatos={candidatos}
+              referenciaPorNodoId={referenciaPorNodoId}
+            />
+          </details>
         </>
       )}
     </section>
