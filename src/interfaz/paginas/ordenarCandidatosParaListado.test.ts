@@ -10,6 +10,7 @@ function traza() {
     desnivel_m: 1,
     hfDistribuida_mca: 0.5,
     hfDistribuidaPorTramo: [],
+    incrementoVerticalPorNivel: { aplica: false, nivel: undefined, deltaLVertical_m: 0, incrementoPorTramoId: new Map(), tramosConIncremento: [] },
     hfLocalizada: { metodologia: 'detallado' as const, hf_mca: 0.1, porTramo: [] },
   }
 }

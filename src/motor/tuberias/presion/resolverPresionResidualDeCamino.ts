@@ -88,7 +88,12 @@ import { resolverCotaTerminalEfectiva } from '../geometria/resolverCotaTerminalE
 import {
   acumularPerdidaDistribuidaDeCamino,
   type MotivoTramoSinPerdida,
+  type PerdidaDistribuidaPorTramo,
 } from './acumularPerdidaDistribuidaDeCamino'
+import {
+  resolverIncrementoVerticalPorNivel,
+  type IncrementoVerticalPorNivel,
+} from './resolverIncrementoVerticalPorNivel'
 import {
   acumularPerdidaLocalizadaDeCamino,
   type MotivoTramoSinPerdidaLocalizada,
@@ -125,8 +130,13 @@ type TrazaDeCamino = {
   readonly terminalId: string
   readonly desnivel_m: number
   readonly hfDistribuida_mca: number
-  readonly hfDistribuidaPorTramo: readonly { readonly tramoId: string; readonly hf_m: number }[]
+  readonly hfDistribuidaPorTramo: readonly PerdidaDistribuidaPorTramo[]
   readonly hfLocalizada: TrazaHfLocalizada
+  // D-δ.50: longitud vertical tipica automatica por nivel de UF aplicada a
+  // los Tramos de Distribucion general de este camino (exclusiva de
+  // granularidad 'simplificada'). aplica=false / deltaLVertical_m=0 en
+  // 'profesional' y para PB. Insumo directo de "Ver calculo del critico".
+  readonly incrementoVerticalPorNivel: IncrementoVerticalPorNivel
 }
 
 export type ResultadoPresionResidualDeCamino =
@@ -300,12 +310,21 @@ export function resolverPresionResidualDeCamino(
     return { tipo: 'desnivelIncompleto', nodosSinCota: desnivel.nodosSinCota }
   }
 
+  // D-δ.50: longitud vertical tipica por nivel de UF -- exclusiva de
+  // granularidad 'simplificada' (resolverIncrementoVerticalPorNivel
+  // devuelve incremento 0 en 'profesional'). Se compone aditivamente
+  // sobre hfDistribuida sin recalcular Qc/DN/V/friccion (hf lineal en L).
+  // Ortogonal al efecto geometrico: la cota terminal ya trae 1+3·nivel
+  // (D-δ.46) y Δz lo capturo mas arriba; esto es SOLO el caño vertical.
+  const incrementoVerticalPorNivel = resolverIncrementoVerticalPorNivel(proyecto, camino, unidadFuncional)
+
   const perdidaDistribuida = acumularPerdidaDistribuidaDeCamino(
     proyecto,
     camino,
     catalogoArtefactos,
     catalogoSistemasDeTuberia,
     catalogoMateriales,
+    incrementoVerticalPorNivel.incrementoPorTramoId,
   )
   if (perdidaDistribuida.tipo === 'incompleta') {
     return { tipo: 'perdidaDistribuidaIncompleta', tramosNoResueltos: perdidaDistribuida.tramosNoResueltos }
@@ -376,6 +395,7 @@ export function resolverPresionResidualDeCamino(
     hfDistribuida_mca: perdidaDistribuida.hf_m,
     hfDistribuidaPorTramo: perdidaDistribuida.porTramo,
     hfLocalizada,
+    incrementoVerticalPorNivel,
   }
 
   const balance = resolverBalanceDePresion(

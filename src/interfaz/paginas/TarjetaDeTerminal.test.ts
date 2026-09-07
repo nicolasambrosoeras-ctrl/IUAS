@@ -20,6 +20,7 @@ describe('TarjetaDeTerminal (D-δ.46)', () => {
     desnivel_m: 3,
     hfDistribuida_mca: 0.5,
     hfDistribuidaPorTramo: [],
+    incrementoVerticalPorNivel: { aplica: false, nivel: undefined, deltaLVertical_m: 0, incrementoPorTramoId: new Map(), tramosConIncremento: [] },
     hfLocalizada: { metodologia: 'detallado', hf_mca: 0, porTramo: [] },
   }
 

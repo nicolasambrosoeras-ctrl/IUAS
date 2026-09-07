@@ -130,9 +130,11 @@ describe('acumularPerdidaDistribuidaDeCamino', () => {
 
     expect(resultado.tipo).toBe('acumulada')
     if (resultado.tipo !== 'acumulada') return
+    // Sin incremento vertical (no se paso el mapa): hf_m === hfBase_m,
+    // incrementoVertical_m 0, longitudBase_m la del propio Tramo.
     expect(resultado.porTramo).toEqual([
-      { tramoId: 't0', hf_m: hfT0 },
-      { tramoId: 't1', hf_m: hfT1 },
+      { tramoId: 't0', hf_m: hfT0, hfBase_m: hfT0, longitudBase_m: 4, incrementoVertical_m: 0, hfIncrementoVertical_m: 0 },
+      { tramoId: 't1', hf_m: hfT1, hfBase_m: hfT1, longitudBase_m: 3, incrementoVertical_m: 0, hfIncrementoVertical_m: 0 },
     ])
     expect(resultado.hf_m).toBeCloseTo(hfT0 + hfT1, 12)
     // Anclaje numerico: longitudes distintas (4 y 3) sobre el mismo J.
