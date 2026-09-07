@@ -3554,3 +3554,179 @@ explícitamente registrada, no implementada. Bugs futuros sobre este
 alcance se tratan como regresiones; nueva funcionalidad requiere un
 nuevo alcance aprobado explícitamente (el próximo, ya acordado: Módulo
 3 -- Medidores, que produce `hfMedidor` para que M2 lo consuma).
+
+## D-δ.48 -- Niveles por UF + validación del criterio de terminal crítico por margen -- CERRADA
+
+**Objetivo A (defaults de nivel/cota por UF) -- verificado, SIN bug: ya
+funcionaba correctamente.** El brief planteaba la sospecha de una
+posible regresión de D-δ.46 ("el PDF/UI previo mostraba todavía cotas
+terminales individuales y faltantes por terminal"). Verificado en la UI
+real (Playwright): `agregarUnidadFuncional` ya asigna
+PB→1,00/Piso1→4,00/Piso2→7,00/Piso3→10,00 exactamente
+(`calcularCotaHidraulicaDefaultDeNivel`, `z=1+3·nivel`); cambiar
+explícitamente el nivel de una UF ya propone el nuevo default sin pisar
+una edición manual posterior; en `granularidadHidraulica='simplificada'`
+el Panel de Presión nunca pide "Cota de conexión" por terminal (solo
+"Cota de referencia" de solo lectura); "falta cota de conexión" solo
+aparecía porque el fixture de prueba no había cargado todavía la cota
+del **punto de alimentación** (dato distinto e independiente, siempre
+requerido en ambas granularidades) -- no es una regresión de D-δ.46. La
+sospecha del brief no se reprodujo: sin bug, sin cambio de código en
+esta área. Reforzado con un test nuevo en
+`resolverInfoCotaDeTerminal.test.ts` que usa DOS UF de cota distinta
+(todos los tests anteriores usaban una única UF, incapaces de detectar
+un eventual bug de "siempre toma la primera UF").
+
+**Duplicar UF -- semántica ya decidida (Semántica A), no era una
+ambigüedad nueva.** El brief marcaba esto como posible decisión roja
+("A. conserva mismo nivel/cota" vs. "B. asigna el siguiente piso
+sugerido"). Investigado: `duplicarUnidadFuncional.ts` ya documenta y
+aplica explícitamente la Semántica A desde antes de este incremento
+("no hay ninguna regla de negocio que determine automáticamente un
+nivel siguiente para una copia"), y D-δ.47 ya la había verificado
+funcionalmente. No es una ambigüedad real hoy -- es una decisión de
+producto ya tomada y en producción; se documenta acá solo para que
+quede visible en el mismo lugar que el resto de D-δ.48. Si el usuario
+prefiere la Semántica B, es un cambio de producto explícito a pedir en
+un incremento futuro, no una corrección de bug.
+
+**Objetivo B (terminal crítico por margen, no por Presidual) --
+verificado, SIN bug: la implementación ya era correcta.**
+`resolverTerminalMasDesfavorable` ya seleccionaba por
+`margen = presionResidual_mca - presionMinimaRequerida_mca` desde su
+implementación original -- no por `min(Presidual)`. El gap real no era
+de comportamiento sino de **cobertura de test**: ningún test existente
+tenía un caso donde el orden de Presidual y el orden de margen fueran
+opuestos entre dos candidatos (los tests existentes tenían casos donde
+el candidato de menor Presidual también era, coincidentemente, el de
+menor margen -- no discriminaban entre las dos implementaciones
+posibles). Se agregaron:
+
+- un test unitario explícito en `resolverTerminalMasDesfavorable.test.ts`
+  con el contraejemplo abstracto del brief (Presidual=5,5/Pmin=2,0/margen=+3,5
+  vs. Presidual=7,0/Pmin=6,0/margen=+1,0) -- verificado manualmente que
+  este test FALLA si se revierte la implementación a `min(Presidual)`;
+- un test del caso NO CUMPLE con los valores exactos del brief
+  (Presidual=5,4/Pmin=6,0/margen=-0,6);
+- un caso de aceptación de integración REAL (no solo abstracto),
+  `verificacionTerminalCriticoPorUF.aceptacion.test.ts`: 4
+  UnidadesFuncionales en los niveles/cotas default aprobados
+  (PB=1/Piso1=4/Piso2=7/Piso3=10), tanque elevado con pelo de agua
+  mínimo=16 m, verificando numéricamente que la carga geométrica de
+  cada terminal (antes de pérdidas) es exactamente 15/12/9/6 m.c.a., y
+  que la UF de PB -- con la MAYOR Presidual de las cuatro por tener la
+  mayor carga geométrica -- termina siendo el ÚNICO terminal crítico
+  (único que NO CUMPLE) porque su artefacto (inodoro con válvula
+  automática, Pmin=1,5 kg/cm²=15 m.c.a.) tiene una Pmin normativa mucho
+  más alta que el resto. Incluye un test de cambio reactivo: editar la
+  cota de una sola UF desplaza el terminal crítico sin afectar a las
+  demás.
+
+**UI de presión -- mejoras acotadas, sin rediseñar M2 (secciones 15-23
+del brief).** `PanelDePresionDeModulo2.tsx`:
+
+- **Desambiguación AF/AC del terminal crítico** (hallazgo nuevo, no
+  bug de cálculo sino de identidad visual): `describirReferenciaPendiente`
+  devuelve la MISMA etiqueta para el terminal AF y el terminal AC de un
+  mismo Artefacto mixto (se deriva solo de la referencia funcional
+  UF→Local→Artefacto, nunca de la conectividad física) -- "Terminal más
+  desfavorable" podía señalar, p. ej., "... → Baño → Lavatorio" sin que
+  se supiera si era el de agua fría o el de agua caliente de esa misma
+  canilla. Nueva función pura `resolverRedDeTerminal.ts` (con test) +
+  helper `etiquetaConRed` que agrega "(Agua fría)"/"(Agua caliente)" a
+  la etiqueta en el Panel de Presión únicamente (no en
+  `describirReferenciaPendiente`, que también sirve para artefactos
+  SIN conexión física todavía, donde no hay Red que mostrar).
+- **Listado ordenado por margen ascendente** (`ordenarCandidatosParaListado.ts`,
+  con test): los `balanceCompleto` primero, ordenados por margen (el
+  más desfavorable arriba, coincidiendo con `terminalMasDesfavorable`);
+  los estados incompletos después; los `terminalSinPresionMinima`
+  (D-δ.41) siempre al final.
+- **Resumen agregado de cumplimiento** (`resolverResumenDeCumplimiento.ts`,
+  con test): "✓ TODOS LOS PUNTOS VERIFICABLES CUMPLEN" o "✕ N DE M
+  PUNTOS NO CUMPLEN" -- el denominador (`M`) son exclusivamente los
+  terminales `balanceCompleto`, nunca los `terminalSinPresionMinima` ni
+  los todavía incompletos.
+- **Símbolo + texto, nunca solo color**: "✓ Cumple"/"✕ No cumple" en
+  cada tarjeta y "✓ CUMPLE"/"✕ NO CUMPLE" en el terminal más
+  desfavorable.
+- **Vocabulario**: el terminal más desfavorable ya se llamaba
+  "Terminal más desfavorable" (nunca "menor presión") -- sin cambios
+  necesarios ahí; se agregaron las etiquetas explícitas "Presión
+  residual disponible"/"Presión mínima requerida"/"Margen" en ese
+  mismo bloque (antes decía "Presidual"/"Pmin"/"margen" en minúscula,
+  abreviado).
+
+Todo verificado manualmente (Playwright, proyecto demo real, 17
+terminales: 16 con Pmin + 1 sin Pmin): orden correcto, resumen correcto
+en escenario CUMPLE y NO CUMPLE, cero errores de consola.
+
+**Hallazgo nuevo, NO corregido en este incremento -- ver pendiente
+dedicado más abajo.** Al intentar construir el caso de aceptación
+clickeando la UI real (agregar UFs nuevas + su primer Artefacto), se
+descubrió que **la sincronización M2-D (ALTA) no puede conectar
+físicamente el PRIMER Artefacto de un Local recién creado**: ver
+"Bootstrapping de conectividad física en un Local sin ningún terminal
+previo" más abajo. El caso de aceptación se resolvió con un fixture de
+integración (`verificacionTerminalCriticoPorUF.aceptacion.test.ts`)
+construido directamente, sin pasar por ese flujo de UI -- la
+verificación de D-δ.48 no depende de que ese gap se resuelva.
+
+**Estado**: D-δ.48 -- CERRADA. Ningún bug de cálculo encontrado (ambos
+objetivos A y B ya estaban correctamente implementados); se reforzó la
+cobertura de test donde había un gap real (contraejemplo margen≠Presidual,
+multi-UF); se hicieron mejoras acotadas de presentación (AF/AC,
+orden, resumen, símbolos); se descubrió y documentó -- sin corregir,
+fuera de alcance de este incremento -- una limitación real de M2-D.
+834+ tests (ver conteo final en el handoff), `tsc -b`/`vite build`
+limpios, lint sin regresión, working tree limpio.
+
+## Bootstrapping de conectividad física en un Local sin ningún terminal previo (M2-D, ALTA) -- descubierto en D-δ.48, NO resuelto
+
+**Hallazgo**: `sincronizarConectividadFisicaDeArtefacto[ConRedesDeclaradas]`
+(M2-D, ALTA) solo sabe **agregar un hermano** junto a una conexión física
+YA existente del mismo `(unidadFuncionalId, localId)` --
+`hallarNodoDeInsercionDeLocal` deriva el punto de inserción del/de los
+Tramo(s) que YA alimentan a otros terminales de ese Local en esa Red.
+Cuando el Local es COMPLETAMENTE NUEVO (cero terminales conectados
+todavía, típicamente porque la UnidadFuncional entera acaba de crearse),
+`hallarNodoDeInsercionDeLocal` devuelve `'sinConexionExistente'` -- no
+hay ningún hermano del cual derivar el punto de inserción. El resultado
+es `redesPendientes` no vacío, pero
+`sincronizarConectividadFisicaDeArtefacto[ConRedesDeclaradas]` de todos
+modos devuelve `tipo: 'sincronizado'` (con `redesConectadas: []`), y el
+llamador (`crearYConectarArtefacto`, `MotorDemandaPantalla.tsx`) usa
+`sincronizacion.proyecto` sin distinguir ese caso de un éxito real. El
+usuario ve desaparecer el diálogo de "declaración pendiente" (como si
+la conexión se hubiera creado) pero el Artefacto queda sin ningún
+terminal físico -- silenciosamente, sin ningún mensaje de error --
+hasta que `auditarCoberturaFisica` (S1/S2) lo señala más abajo como
+"artefacto normativo sin conexión física", indistinguible en el mensaje
+de cualquier otro artefacto todavía no declarado.
+
+**Consecuencia práctica**: hoy, un usuario que arma un proyecto nuevo de
+varios pisos (agregar 3-4 UnidadesFuncionales y cargar su primer
+Artefacto en cada una, el flujo natural para el caso de uso que D-δ.48
+quería demostrar en vivo) nunca logra que esos Artefactos queden
+físicamente conectados por esta vía -- el Panel de Presión de M2 nunca
+llega a renderizarse para esas UF (bloqueado por el aviso "Red
+hidráulica incompleta"). Este límite existe desde que M2-D (ALTA) se
+implementó; D-δ.48 es la primera corrida que lo ejercita con UFs
+genuinamente nuevas (todas las auditorías previas usaron el proyecto de
+ejemplo, cuya `redHidraulica` completa fue escrita a mano de una sola
+vez, nunca construida incrementalmente vía esta función).
+
+**No se corrige en D-δ.48**: diseñar cómo debería bootstrapearse la
+primera conexión de un Local sin precedente (¿conectar directo a la
+raíz AF/AC del proyecto? ¿pedir declaración explícita del punto de
+inserción, igual que ya se pide la Red cuando no hay precedente de
+`artefactoId`? ¿alguna otra estrategia?) es una decisión de arquitectura
+que excede el alcance aprobado de este incremento ("no reabre el motor
+hidráulico de M2"). Se registra acá para que el próximo incremento que
+toque creación de UF/Local no lo redescubra desde cero.
+
+**Condición de resolución**: antes de prometer en producto que "agregar
+una Unidad Funcional nueva y cargar sus artefactos" es un flujo
+funcional completo de punta a punta, resolver este bootstrapping -- hoy
+sigue siendo cierto solo para Locales que ya tenían al menos un
+terminal conectado desde el proyecto original.
