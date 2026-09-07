@@ -3878,3 +3878,200 @@ de aceptación -- exactamente el tipo de hallazgo que los tests
 unitarios con topología prearmada no podían exponer, y que motivó la
 regla del brief de no sustituir la aceptación por UI con tests
 unitarios solamente.
+
+## D-δ.50 -- Cierre UX funcional de M2: duplicar UF + longitudes visibles + longitud vertical por nivel + presión verificable -- CERRADA
+
+Incremento de cierre del flujo real de usuario de Módulo 2 antes de M3.
+Cuatro objetivos relacionados, cuatro commits funcionales cohesivos.
+
+### A -- Duplicar UF sincroniza la conectividad física de la copia
+
+**Bug**: `duplicarUnidadFuncionalEnProyecto` clonaba el árbol funcional
+(UF/Locales/Artefactos con ids nuevos) pero **no tocaba `redHidraulica`**.
+Cada Artefacto clonado quedaba sin ninguna referencia física;
+`auditarCoberturaFisica` (S1) lo reportaba como "artefacto normativo sin
+conexión física" y el Panel de Presión nunca se renderizaba para la UF
+nueva ("Red hidráulica incompleta").
+
+**Corrección** (`interfaz/paginas/duplicarUnidadFuncional.ts`): tras la
+copia funcional, cada Artefacto clonado pasa por **la misma
+sincronización M2-D de ALTA que usa la UI al agregarlo a mano**
+(`sincronizarConectividadFisicaDeArtefacto` -> bootstrap / retrofit /
+hermano, D-δ.49). La copia comparte la raíz AF/AC del proyecto y cada
+Local clonado arranca sin terminales, así que el primer Artefacto de
+cada Red hace bootstrap y los siguientes retrofit/hermano -- exactamente
+como si el usuario los cargara uno por uno. **No se agregó ninguna
+primitiva topológica exclusiva de "duplicar"** (brief sección 5). AF/AC
+se deducen por precedente: la UF original -- que sigue conectada --
+siempre es precedente de cada tipo de Artefacto clonado. Si algún
+Artefacto original no estaba conectado, su clon queda igual sin conexión
+(mismo estado que el original, sin fabricar una).
+
+`generarId` se movió a su propio módulo (`interfaz/paginas/generarId.ts`)
+para romper el ciclo de imports que aparece al hacer que
+`duplicarUnidadFuncional` dependa de la sincronización física.
+
+**Semántica hidráulica de la duplicación**: sin cambios respecto de
+D-δ.48 (Semántica A). La copia conserva `nivel` y
+`cotaHidraulicaReferencia_m` de la original (spread), representa la
+MISMA unidad física; el usuario la reasigna a otro piso a mano si
+corresponde. `longitud_m`/`accesorios` de los Tramos originales NO se
+copian a los Tramos nuevos de la copia (los Tramos nuevos nacen sin
+relevar, igual que al agregar un Artefacto a mano) -- la copia empieza
+pidiendo sus propias longitudes.
+
+Tests: T1 (duplicar -> `auditarCoberturaFisica` sin `artefactosSinReferencia`),
+T2 (ids de nodo/tramo propios, referencias a los clones, aislamiento de
+mutación), T3 (duplicar dos veces -> red válida, sin ids colisionados).
+
+### C -- Longitud vertical típica automática por nivel de UF (solo `simplificada`)
+
+**Regla (convención IUAS del modo rápido, NO atribuible a ERAS)**: con
+PB=0, Piso1=1, Piso2=2, ...
+
+    ΔLvertical(UF) = 3 m · nivel     (PB->0, Piso1->3, Piso2->6, Piso3->9, ...)
+
+Es un valor **DERIVADO**: nunca se persiste, nunca se muta
+`Tramo.longitud_m`. Se suma a la longitud EFECTIVA de los Tramos de
+Distribución general del camino de presión de esa UF:
+
+- **Alimentación general** -> +ΔLvertical  (todo camino AF y AC)
+- **Alimentación ACS**     -> +ΔLvertical  (solo caminos AC -- ese Tramo
+  solo aparece en caminos AC)
+
+Como `hfDistribuida` es exactamente lineal en L en Hazen-Williams
+(hf = J·L) y en Darcy-Weisbach (hf = f·(L/D)·v²/2g), el efecto se
+compone de forma aditiva sin recalcular Qc/DN/V/fricción:
+
+    Δhf = (hf_base / longitud_base) · ΔLvertical
+
+**Primitiva pura** `resolverIncrementoVerticalPorNivel`
+(`motor/tuberias/presion/`): dado `(proyecto, camino, unidadFuncional)`
+devuelve `{ aplica, nivel, deltaLVertical_m, incrementoPorTramoId,
+tramosConIncremento }`. `acumularPerdidaDistribuidaDeCamino` recibe un
+parámetro opcional `incrementoLongitudPorTramoId` y enriquece cada
+entrada de `porTramo` con `hfBase_m` / `longitudBase_m` /
+`incrementoVertical_m` / `hfIncrementoVertical_m` (insumo directo de
+"Ver cálculo del crítico"). `resolverPresionResidualDeCamino` expone
+`incrementoVerticalPorNivel` en la traza.
+
+**Cota y longitud son dos efectos distintos** (brief secciones 13-14),
+ambos existen simultáneamente y NO se sustituyen:
+
+1. GEOMETRÍA -- la cota terminal efectiva ya trae `1 + 3·nivel` (D-δ.46,
+   `resolverCotaTerminalEfectiva`); `Δz` la captura sin código nuevo.
+2. FRICCIÓN -- los 3·n metros de caño vertical adicionales en la
+   Distribución general (ESTE incremento).
+
+Verificado numéricamente (test de integración): para terminales
+equivalentes, la caída de Presión residual entre PB y Piso 1 es
+`3 + Δhf_vertical`, estrictamente MAYOR que los 3 m del desnivel solo.
+"Dos UFs en el mismo piso" no acumula: cada camino deriva su propio
+ΔLvertical del nivel de SU terminal.
+
+**Decisión roja resuelta (alternativa A)**: en `granularidad =
+'profesional'` la primitiva devuelve SIEMPRE incremento 0. La geometría
+vertical la representa el proyectista con Tramos reales / longitudes
+relevadas / `Nodo.cota_m` explícitas; `uf.nivel` queda como
+metadato/etiqueta y no modifica `hf`. Sin detección heurística de
+montantes ni lógica anti-doble-conteo -- las dos granularidades no se
+mezclan. **Paralelismo explícito con D-δ.46**:
+
+    SIMPLIFICADA -> cota terminal efectiva desde la UF
+                    + longitud vertical típica automática por nivel
+    PROFESIONAL  -> cota terminal explícita (Nodo.cota_m)
+                    + longitud vertical explícita (Tramos reales)
+
+No toca D-δ.45 (plantilla de pérdidas localizadas rápidas:
+Ntees=max(0,n-1) + codo90 Ks=1,35 + llave paso Ks=9,18), ni CRIT-A20
+(la longitud BASE sigue esas reglas; el incremento derivado puede ser 0
+para PB sin que eso signifique una longitud base 0), ni introduce
+accesorios/codos/tees verticales (eso requeriría otra decisión, no se
+implementa).
+
+Tests: T4-T6 (PB/Piso1/Piso2 -> ΔLvertical 0/3/6), T7 (dos UFs mismo
+piso, no acumulativo), T8 (AF Piso1 -> general +3), T9 (AC Piso1 ->
+general +3 Y ACS +3, una sola vez cada uno), T10 (PB no se contamina),
+T11 (cambio Piso1->Piso2, 3->6), T12/T33 (integración: geometría +
+fricción discriminadas sobre Presidual), + "profesional nunca aplica".
+
+### B -- Longitudes visibles en el bloque principal de M2
+
+`DimensionamientoDeTramo`: el input de **Longitud [m]** -- dato
+obligatorio para `hfDistribuida` -- deja de vivir dentro de "Detalle
+técnico" y pasa al bloque principal, junto a **DN / V / hf / Estado**,
+que se leen de un vistazo sin expandir nada (jerarquía del brief sección
+19: DN, V, hf, Estado; Qc pasa a dato secundario). El `<details>`
+conserva solo trazabilidad no operativa (refs físicas, n, Di teórico,
+Di real, V admisible).
+
+Distribución general: en `simplificada` la fila de Alimentación general /
+Alimentación ACS se rotula "longitud base" y se agrega la nota
+**"+ 3,00 m/piso automático según el nivel de cada unidad funcional"**.
+NO se muestra un único `hf` efectivo en esa fila (sería engañoso con
+varias UF a distinto nivel, brief sección 21); el incremento vertical,
+ya resuelto por camino, se ve en el detalle de presión de cada terminal.
+
+### D -- Verificación de presión como resultado protagonista
+
+`PanelDePresionDeModulo2` deja de ser principalmente una lista de N
+tarjetas:
+
+- **Estado incompleto** (sección 24): protagonista "qué falta",
+  agrupado (`agruparMotivosDeModulo2`, ya existente) -- "⚠ No se puede
+  calcular la presión todavía" + lista accionable. El detalle por
+  terminal queda detrás de un disclosure "Ver detalle de terminales",
+  no se despliegan N tarjetas repitiendo el mismo motivo.
+- **Estado resoluble** (secciones 25-27): veredicto protagonista
+  **✓ CUMPLE / ✕ NO CUMPLE** (CUMPLE solo si TODOS los verificables
+  cumplen -- mismo denominador que el resumen agregado, nunca incluye
+  `terminalSinPresionMinima` ni incompletos), + "N DE M PUNTOS NO
+  CUMPLEN" + "Margen crítico: ±X".
+- **Terminal más desfavorable** (secciones 26, 29): Artefacto · UF ·
+  nivel · red + tabla Presidual / Pmin / Margen (destacado) +
+  recordatorio de que se elige por **menor MARGEN**, no por menor
+  Presidual. **D-δ.48 no se reabre** (`resolverTerminalMasDesfavorable`
+  ya seleccionaba por `margen = Presidual - PminRequerida`).
+- **"Ver cálculo del crítico"** (sección 29, `CalculoDelCriticoDetalle`):
+  disclosure nuevo -- descomposición auditable **desde la traza ya
+  calculada** (no recalcula nada en React): origen, cota raíz, Δz, carga
+  geométrica, longitud vertical automática, recorrido con **longitud
+  base + vertical + longitud efectiva + hf por tramo**, hf distribuida
+  total, hf localizada, hf medidor, Presidual / Pmin / Margen.
+- **"Ver todos los terminales"** (sección 28, `TablaDeTerminales` +
+  `resolverFilaDeTerminalParaTabla`): tabla ordenada por **margen
+  ascendente** (verificables primero, luego incompletos, luego los sin
+  Pmin normativa al final); columnas terminal / ubicación
+  (UF·nivel·local) / red / Presidual / Pmin / margen / estado. La
+  primera fila verificable coincide con el terminal más desfavorable.
+
+Mantiene D-δ.41 (denominador del resumen = solo `balanceCompleto`).
+
+### Prueba de aceptación end-to-end (Playwright, web real)
+
+Flujo completo sobre el proyecto de ejemplo, en `granularidad
+simplificada + pérdidas estimadas`: abrir -> **Duplicar unidad
+funcional** (sin "Red hidráulica incompleta", sin artefactos
+desconectados) -> asignar la copia a **Piso 1** (cota **4,00**
+automática) y a **Piso 2** (cota **7,00**) -> cargar las **20
+longitudes visibles** sin entrar a "Detalle técnico" -> cargar
+alimentación (Pdisponible) + hfMedidor -> `EstadoModulo2 = 'Completo'`
+-> **✓ CUMPLE** -> terminal más desfavorable en la copia (Piso 1/Piso 2,
+Agua caliente, con menor margen) -> "Ver cálculo del crítico" mostrando,
+para UF de Piso 2: **Δz = 7,00 m**, **longitud vertical automática
++6,00 m**, Alimentación general 4,00 base + 6,00 vertical = **10,00
+efectiva**, Alimentación ACS 4,00 + 6,00 = **10,00 efectiva** (el camino
+AC recibe el incremento en AMBOS Tramos, una sola vez cada uno) ->
+"Ver todos los terminales" ordenado por margen. **Cero errores/warnings
+de consola** en toda la secuencia.
+
+### Estado
+
+**D-δ.50 -- CERRADA.** Los cuatro objetivos verificados en la UI real:
+duplicar UF sin artefactos desconectados; longitudes obligatorias
+visibles en modo rápido; incremento vertical automático por nivel en
+`simplificada` (0 en `profesional`), con efecto geométrico y de fricción
+discriminados; verificación de presión protagonista con CUMPLE/NO
+CUMPLE, terminal crítico por margen, y descomposición auditable. Sin
+empezar M3. `tsc -b` / `vite build` limpios, lint baseline 11, working
+tree limpio.

@@ -95,8 +95,32 @@ No se toca salvo bug real confirmado.
 - sincronización automática Proyecto → `redHidraulica` al agregar/quitar
   un Artefacto de un Local ya conectado (D-δ.39, M2-D) — sin persistir
   ningún concepto nuevo de "cabecera";
-- el balance de presión sigue siempre `balanceIncompleto` hoy (falta el
-  medidor y el resto de Tabla N°7 — la barrera dice la verdad).
+- modo estándar/estimado de pérdidas localizadas (D-δ.40), completitud
+  real de `EstadoModulo2` (D-δ.41), cierre y rediseño funcional de la UI
+  de M2 (D-δ.42/43) y su corrección de granularidad
+  simplificada/profesional (D-δ.44), plantilla típica de pérdidas
+  localizadas del modo rápido (D-δ.45);
+- cota hidráulica por Unidad Funcional en modo simplificado (D-δ.46),
+  niveles por UF + criterio de terminal crítico por margen (D-δ.48),
+  auditoría funcional y robustez de M2 (D-δ.47);
+- bootstrap de conectividad física para Local+Red nuevos (D-δ.49) — un
+  proyecto se puede construir íntegramente desde la UI, sin ninguna
+  `redHidraulica` prearmada;
+- **cierre UX funcional de M2 (D-δ.50)**: duplicar UF sincroniza la
+  conectividad física de la copia (reutiliza D-δ.49, sin nueva primitiva
+  topológica); longitudes obligatorias visibles en el bloque principal de
+  M2 (no dentro de "Detalle técnico"); longitud vertical típica
+  automática por nivel de UF (`ΔLvertical = 3 m · nivel`) en granularidad
+  `simplificada` — derivada, no persistida, aplicada a la longitud
+  efectiva de la Alimentación general (y, en AC, también de la
+  Alimentación ACS); en `profesional` no aplica (paralelismo con D-δ.46);
+  Panel de Presión reorganizado con veredicto protagonista CUMPLE/NO
+  CUMPLE, terminal más desfavorable por margen, "Ver cálculo del crítico"
+  auditable y "Ver todos los terminales" ordenado por margen;
+- con `hfMedidor` provisto por el Panel de Presión, el balance ya alcanza
+  `balanceCompleto` en la práctica (verificado end-to-end por Playwright);
+  el resto de Tabla N°7 en modo detallado sigue con su barrera de
+  cobertura parcial correcta.
 
 **Pendiente**, organizado en subbloques (dependencias indicadas donde
 existen; sin orden absoluto fijado entre ellos salvo lo señalado):
