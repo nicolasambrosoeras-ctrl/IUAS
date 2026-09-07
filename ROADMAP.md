@@ -140,10 +140,21 @@ No se toca salvo bug real confirmado.
   Estado) con detalle expandible por fila; "Configuración avanzada"
   conserva las 4 combinaciones técnicas de D-δ.47. Cambiar de modo nunca
   resetea datos;
-- con `hfMedidor` provisto por el Panel de Presión, el balance ya alcanza
-  `balanceCompleto` en la práctica (verificado end-to-end por Playwright);
-  el resto de Tabla N°7 en modo detallado sigue con su barrera de
-  cobertura parcial correcta.
+- con `hfMedidor` provisto por Módulo 3 por terminal (D-δ.58, ya no un
+  input manual del Panel de Presión), el balance alcanza `balanceCompleto`
+  en la práctica (verificado end-to-end por Playwright); el resto de Tabla
+  N°7 en modo detallado sigue con su barrera de cobertura parcial correcta;
+- **auditoría de regresión de M2 posterior a M3 (D-δ.60)**: verificado
+  contra `92e5412` (cierre de M2) que ningún contrato cerrado de M2 se
+  degradó. Los primitivos hidráulicos de M2 (`resolverBalanceDePresion`,
+  `resolverPresionResidualDeCamino`, `resolverHidraulicaDeTramo`,
+  `resolverDiametroComercialDeTramo`, Hazen/Darcy, localizadas, tees,
+  reducciones, topología, Δz, vertical por nivel, `duplicarUnidadFuncional`,
+  `reconciliarConectividadFisicaPorCambioDeArtefacto`, control de DN) son
+  **byte-idénticos**. Único cambio deliberado: `hfMedidor` manual →
+  fuente M3 por terminal (`resolverEstadoModulo2` acepta además una
+  función por terminal; escalar histórico intacto). Sin acoplamiento
+  indebido ni dependencia circular. Sin regresiones. Sin bugs.
 
 **Pendiente**, organizado en subbloques (dependencias indicadas donde
 existen; sin orden absoluto fijado entre ellos salvo lo señalado):

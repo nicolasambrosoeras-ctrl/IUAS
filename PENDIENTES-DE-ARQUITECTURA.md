@@ -5335,3 +5335,154 @@ integración M3→M2 (directa/tanque, aislamiento por UF, indeterminado ≠ 0,
 input provisional eliminado), presión (`Presidual` / margen / crítico) y
 reactividad — todo verificado, con navegador real. Suite 1041/1041, `tsc`,
 `build`, lint sin regresión, working tree limpio. No se inicia M4.
+
+## D-δ.60 -- Auditoría de regresión de Módulo 2 posterior a M3 -- CERRADA
+
+Auditoría específica, sin desarrollo: verificar que las funcionalidades
+cerradas de M2 sigan correctas después de todo M3 (M3-A → M3-F).
+**Referencia histórica: `92e5412` (cierre de M2, D-δ.52).**
+**Resultado: M2 POST-M3 VERIFICADO. Sin regresiones. Sin bugs.**
+
+### Baseline de entrada
+
+`main` @ `8cd557e`, working tree limpio. `npx vitest run`: 1041/1041 en
+115 archivos. `tsc -b`, `vite build`, `eslint .`: verdes (11 problemas de
+lint baseline preexistentes, 0 warnings nuevos).
+
+### Diff histórico `92e5412..HEAD` -- archivos de M2 tocados durante M3
+
+| Archivo | Cambio | Clasificación |
+|---|---|---|
+| `motor/modulo2/resolverEstadoModulo2.ts` | `hfMedidor_mca` pasa de `number \| undefined` a aceptar además `(nodoTerminalId) => number \| undefined` | **integración deliberada**, backward-compatible: el camino escalar es idéntico (`typeof === 'function'` falso → uso previo); `resolverPresionResidualDeCamino` NO se toca (sigue recibiendo `number \| undefined` por terminal) |
+| `interfaz/paginas/PanelDePresionDeModulo2.tsx` | elimina el input provisional `hfMedidor`, su `useState` y su texto de ayuda; deriva `hfMedidorDeTerminal(nodoId)` desde `resolverEstadoModulo3` + `resolverPerdidasDeMedidoresParaTerminal` según origen/UF/red/ACS | **integración deliberada** (el cambio principal esperado, D-δ.58) |
+| `interfaz/paginas/CalculoDelCriticoDetalle.tsx` | filas de desglose auditable del `hfMedidor` por componente (general / individual · UF · AF/AC); en tanque, línea "fuera del camino" | **additivo**, sólo presentación; no cambia ningún número de M2 |
+| `modelo/proyecto/index.ts` | añade `TipoProvisionACS`, `ConfiguracionDeMedidores` y el campo optativo `configuracionMedidores?` en `Proyecto` | **additivo**: ningún tipo de M2 (`RedHidraulica`, `Tramo`, `ConfiguracionHidraulica`, `ParametrosProyecto`) modificado |
+| `validacion/codigos/index.ts`, `validacion/index.ts`, `+validacion/configuracionMedidores/` | 1 código nuevo + `validarConfiguracionMedidores` en `validarProyecto` | **additivo**: devuelve `[]` cuando `configuracionMedidores === undefined` → inerte para todo proyecto M2 previo |
+| `motor/tuberias/perdidaCarga/calcularPerdidaCargaMedidor.ts` | **sólo comentario de cabecera** (cuerpo byte-idéntico) | sin cambio de comportamiento |
+| tests: `resolverEstadoModulo2.test.ts` (+2), `PanelDePresionDeModulo2.test.ts` (1 test adaptado al input eliminado), `calcularPerdidaCargaMedidor.test.ts` (comentario/rename, aserción idéntica) | ningún test histórico de M2 borrado ni debilitado |
+
+**Primitivos hidráulicos de M2 -- diff `92e5412..HEAD` = 0 líneas
+(byte-idénticos):** `resolverBalanceDePresion`,
+`resolverPresionResidualDeCamino`, `resolverTerminalMasDesfavorable`,
+`resolverDesnivelDeCamino`, `resolverIncrementoVerticalPorNivel`,
+`resolverHidraulicaDeTramo`, `resolverDiametroComercialDeTramo`,
+`calcularPerdidaCargaHazenWilliams`, `calcularPerdidaCargaLocalizada`,
+`duplicarUnidadFuncional`, `reconciliarConectividadFisicaPorCambioDeArtefacto`,
+`resolverControlDeDnDeTramo`, `actualizarRedHidraulica`.
+
+### Acoplamiento
+
+`grep` sobre `motor/tuberias/**` y `motor/modulo2/**`: **ningún import de
+M3** (`modulo3`, `medidores/`, `tabla-06`) -- las dos coincidencias son
+líneas de comentario. `motor/modulo3/**` / `motor/medidores/**`:
+**ningún import de los primitivos de balance de M2**. La única dirección
+real es `motor/medidores/*` → `motor/tuberias/perdidaCarga/calcularPerdidaCargaMedidor`
+(M3 reutiliza una fórmula pura de pérdida). La integración M3↔M2 vive en
+la capa de orquestación/UI (`PanelDePresionDeModulo2`). **Sin dependencia
+circular** (confirmado además por `tsc -b` verde).
+
+### Matriz de regresión
+
+| Función M2 | Estado en `92e5412` | Estado actual | Regresión | Evidencia |
+|---|---|---|---|---|
+| Quick defaults (`simplificada` + `estimadas` + Hazen + PPR; 5/10/10 no destructivos; backfill) | OK | OK | **No** | `backfillLongitudesDePredimensionamiento.test.ts` verde; smoke A/C (longitud 7,35 persiste) |
+| Professional (`profesional` + `detalladas`; sin +3 m; longitudes explícitas; accesorios `undefined`≠`[]`) | OK | OK | **No** | `modoDeTrabajo.test.ts`, `AccesoriosDeTramoEditor.test.ts` verdes; smoke B (toggle sin pérdida de datos) |
+| Longitud vertical `ΔLvertical = 3 m · nivel` (simplificado; AF→General, AC→General+ACS; sin acumular por nº UF; profesional sin +3) | OK | OK | **No** | `resolverIncrementoVerticalPorNivel.test.ts`, `verificacionLongitudVerticalPorNivel.test.ts` verdes (motor byte-idéntico) |
+| Cotas `z = 1 + 3·nivel` editables; referencia por UF en simplificado; `Nodo.cota_m` en profesional | OK | OK | **No** | `resolverInfoCotaDeTerminal.test.ts`, `nivelUnidadFuncional.test.ts`, `resolverCotaTerminalEfectiva.test.ts` verdes |
+| Dimensionamiento auto (Qc → Di teórico → candidato → DN → Di real → V) | OK | OK | **No** | `resolverDiametroComercialDeTramo.test.ts`, `dimensionamientoComercial.integracion.test.ts` verdes (byte-idéntico) |
+| CRIT-A24 DN mínimo (baja mientras haya comercial inferior; V<Vmin sólo en el menor; "DN mínimo comercial") | OK | OK | **No** | `resolverDiametroComercialDeTramo.test.ts` (caso `valvulaMingitorio`), `resolverEstadoModulo2.test.ts` CRIT-A24 verdes |
+| DN manual D-δ.52 (↑/↓ por catálogo real, Auto quita override, DN efectivo, Qc intacto, sin stale) | OK | OK | **No** | `resolverControlDeDnDeTramo.test.ts`, `resolverDiametroComercialDeTramo.overrideDn.test.ts` verdes; **smoke D**: General AF DN25 V2,9 hf4,817 → ↑ DN32 V1,7 hf1,4 → Auto restaura EXACTO |
+| Cambio material/sistema (override válido se conserva; inválido → Auto; sin mapeo silencioso) | OK | OK | **No** | `resolverControlDeDnDeTramo.test.ts`, `actualizarConfiguracionHidraulica.test.ts` verdes |
+| Hazen / Darcy (ambos seleccionables, recalculan J/hf con Di real) | OK | OK | **No** | `calcularPerdidaCargaHazenWilliams.test.ts`, `darcyWeisbach/*.test.ts` verdes (byte-idénticos) |
+| Localizadas -- estimado (Vref = máx V de alimentadores; template `Ntees=max(0,n-1)`, Ks 3/1,35/9,18; n=0→0) | OK | OK | **No** | `resolverPerdidaLocalizadaEstimadaDeLocal.test.ts`, `calcularPerdidaCargaLocalizada.test.ts` verdes |
+| Localizadas -- detallado (accesorios Tabla N°7 CRIT-A28; sin faucet terminal; `undefined`≠`[]`) | OK | OK | **No** | `resolverPerdidaLocalizadaDeTramo.test.ts`, `AccesoriosDeTramoEditor.test.ts` verdes |
+| CRIT-A30 reducciones (accesorio físico explícito, nunca inferido por cambio de DN; V del lado menor) | OK | OK | **No** | `resolverClasificacionDeTee.test.ts` / `calcularPerdidaCargaLocalizada.test.ts` verdes; **M3 no introdujo reducciones implícitas por diferencia DN cañería/DN medidor** (M3 separado de `RedHidraulica`, no toca `Tramo`) |
+| CRIT-A31 tees (nodal 1→2; `entradaPorExtremo`/`entradaCentral`; `Js = Ks·V_saliente²/2g`; sin persistir Ks/ángulo/coords) | OK | OK | **No** | `resolverClasificacionDeTee.test.ts`, `TeeDeNodoEditor.test.ts`, `identificarNodosDeBifurcacion.test.ts` verdes |
+| Bootstrap / Retrofit / Hermano (D-δ.49; AF y AC independientes; ACS lazy) | OK | OK | **No** | `asegurarRaizDeRed.test.ts`, `actualizarRedHidraulica.test.ts`, `hallarNodoDeInsercionDeLocal.test.ts` verdes (byte-idéntico) |
+| Preservación de datos en retrofit (longitud/accesorios/DN del recorrido existente no se pierden) | OK | OK | **No** | `actualizarRedHidraulica.test.ts` verde |
+| CRIT-A15 cambio de tipo (AF↔AF+AC, round-trip sin duplicados/huérfanos; datos de red conservados; recomputa Qc) | OK | OK | **No** | `reconciliarConectividadFisicaPorCambioDeArtefacto.test.ts`, `sincronizarConectividadFisicaDeArtefacto.test.ts` verdes (byte-idéntico) |
+| Eliminación (Artefacto/Local/UF limpia conectividad; no borra infraestructura en uso; `validarRedHidraulica` verde; sin ids huérfanos) | OK | OK | **No** | `quitarConectividadFisicaDe{Artefacto,Local,UnidadFuncional}.test.ts`, `podarNodosSinSalida.test.ts` verdes |
+| Duplicar UF (D-δ.50: clona árbol, misma cota/nivel, conectividad nueva sin ids compartidos, no copia relevamiento, recalcula) | OK | OK | **No** | `duplicarUnidadFuncional.test.ts` verde; **smoke E**: aparece "Unidad funcional 1 (copia) · PB · cota 1,00 m", sin error de validación, consola limpia |
+| `EstadoModulo2` (precedencia `noIniciado→error→incompleto→completo`; `noIniciado` ⟺ `redHidraulica===undefined`) | OK | OK | **No** | `resolverEstadoModulo2.test.ts` verde (+2 tests M3-E nuevos, 0 borrados) |
+| Terminales sin Pmin (no compiten como crítico, no bloquean `completo`, fuera de alcance; nunca Pmin=0) | OK | OK | **No** | `filtrarCandidatosParaTerminalCritico.test.ts`, `resolverResumenDeCumplimiento.test.ts` verdes |
+| Terminal crítico (`margen = Presidual − Pmin`; crítico = menor margen, no menor Presidual) | OK | OK | **No** | `resolverTerminalMasDesfavorable.test.ts`, `verificacionTerminalCriticoPorUF.aceptacion.test.ts` verdes (byte-idéntico) |
+| Balance `Presidual = Pdisponible − Δz − hfDistribuida − hfLocalizada − hfMedidor − hfEquipoACS` (hfEquipoACS diferido; término faltante ≠ 0) | OK | OK -- **sólo cambió la FUENTE de `hfMedidor`** | **No** | `resolverBalanceDePresion.ts` byte-idéntico; ningún otro término tocado; **smoke G** (directa, balance completo, margen +7,010) |
+| Reactividad (longitud→hf→presión; DN→V/hf→presión; nivel→vertical+cota→presión; artefacto→Qc→DN/V/hf→presión; medidor→sólo hfMedidor→presión; sin refresh) | OK | OK | **No** | smoke D (DN→V/hf), C (longitud→hf), G/H; `resolverEstadoModulo2.test.ts` reactividad verde |
+
+### Nueva semántica deliberada (NO regresión)
+
+Antes de M3, `hfMedidor` se ingresaba a mano en el Panel de Presión.
+Ahora M3 es la fuente. Consecuencia esperada y correcta: **M3 no iniciado
++ un camino que necesita medidor → balance `incompleto`** con `hfMedidor`
+como término faltante (nunca 0), y el Panel muestra "Completá el Módulo 3
+— Medidores". Cubierto por `resolverEstadoModulo2.test.ts` ("hfMedidor_mca
+función que devuelve undefined … balance incompleto, nunca 0") y por el
+smoke I.
+
+### Verificación de navegador (Playwright, dev server real)
+
+Playwright 1.63.0 transitorio en `node_modules` (sin `--save`), navegadores
+en caché; usado SIN tocar `package.json` / `package-lock.json` (`git diff`
+vacío después). Smoke M2 contra `vite dev`, proyecto de ejemplo:
+
+- A. Rápido baseline: modo Rápido, tabla Distribución general con DN/V/hf,
+  longitudes rápidas precargadas.
+- B. Profesional ↔ Rápido: granularidad profesional sin nota "+3 m/piso
+  automática"; volver a Rápido conserva la longitud editada (7,35).
+- C. editar longitud: `7.35` persiste y recalcula la fila.
+- D. DN ↑ / Auto en Alimentación general AF: DN 25→32, V 2,9→1,7 m/s,
+  hf 4,817→1,4 m.c.a.; Auto restaura DN/V/hf EXACTOS.
+- E. duplicar UF: "Unidad funcional 1 (copia)", mismo nivel/cota, sin
+  error de validación.
+- G. presión directa: "Estado de Módulo 2: Completo", terminal crítico
+  con margen +7,010 m.c.a.
+- H. presión tanque: cambiar el MEDIDOR general (panel M3) no mueve el
+  margen del crítico (−16,591 → −16,591).
+- I. Panel de Presión menciona "Completá el Módulo 3 — Medidores"; input
+  provisional "Medidor provisional M3" AUSENTE.
+- **Consola: 0 errores / 0 warnings** en toda la corrida.
+
+19/19 checks PASS.
+
+### Suites históricas D-δ.47→52
+
+Presentes y verdes. Subconjunto M2 ejecutado aparte:
+`motor/tuberias` + `motor/modulo2` + paneles/updaters de M2 = **75
+archivos, 666 tests, todos verdes**. Ningún test de esas suites fue
+borrado ni debilitado entre `92e5412` y HEAD (los únicos `.test.ts` de M2
+tocados: `resolverEstadoModulo2.test.ts` sólo suma 2 tests;
+`PanelDePresionDeModulo2.test.ts` adapta 1 aserción al input eliminado;
+`calcularPerdidaCargaMedidor.test.ts` sólo comentario/rename).
+
+### Print / PDF
+
+Confirmado (ver también D-δ.59): `generarDocumentoPdf` es pdfMake
+programático, no imprime DOM, hoy cubre principalmente M1. Ninguna
+modificación de M3 rompió el generador. Apariencia PDF de M2 fuera de
+alcance de esta auditoría (reporting M2/M3/M4 = incremento futuro).
+
+### Bugs / regresiones
+
+Ninguno. Sin cambios de código en este incremento.
+
+### Decisiones rojas
+
+Ninguna.
+
+### Deuda
+
+Sin deuda nueva. Se corrigieron dos líneas de documentación que la
+auditoría dejó ver desactualizadas: en `ROADMAP.md`, "`hfMedidor` provisto
+por el Panel de Presión" → "provisto por Módulo 3 por terminal (D-δ.58)".
+(La deuda ya registrada de reporting visual de M2/M3, Tabla N°8, CRIT-A8
+en B2b, poda de overrides huérfanos, sigue vigente sin cambios.)
+
+### Estado
+
+**D-δ.60 -- CERRADA. M2 POST-M3: VERIFICADO.** Todos los contratos
+principales de M2 siguen vigentes; los primitivos hidráulicos son
+byte-idénticos a `92e5412`; el único cambio de comportamiento es la
+fuente de `hfMedidor` (manual → M3 por terminal), deliberado y
+backward-compatible. Sin acoplamiento indebido, sin dependencia circular,
+sin regresiones, sin bugs. Suite 1041/1041, `tsc`, `build`, lint sin
+regresión, working tree limpio. No se inicia M4.
