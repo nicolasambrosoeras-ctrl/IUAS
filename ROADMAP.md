@@ -289,17 +289,23 @@ recalcula demanda, no toca la topología.
 - **CRIT-A34** — cardinalidad y alcance de medidores individuales:
   criterio físico individual/central, identidad `UF + servicio`, universo
   de consumos (computables + conectados; CRIT-A8 diferido).
+- **M3-C** — `EstadoModulo3` + configuración persistida (D-δ.55):
+  `Proyecto.configuracionMedidores?` (`esPropiedadHorizontal`,
+  `tipoProvisionACS` global + override por UF; optativo, sin migración);
+  `resolverEstadoModulo3` (`motor/modulo3/`) orquesta general + B2b + B2a
+  y clasifica en `noIniciado` / `error` / `incompleto` / `evaluado`.
+  `'evaluado'` = todos los medidores requeridos seleccionados (**sin**
+  `todosCumplen` — no hay verificación metrológica todavía); `Qc > 40
+  m³/h` es `'incompleto'`, nunca `'error'`. `validarConfiguracionMedidores`
+  integrado en `validarProyecto`.
 
 **Pendiente:**
 
 - **Tabla N°8** (Anexo A de la Guía, ampliación de rango de Qc) — es una
   lámina no transcripta; se incorpora si aporta umbrales por encima de los
   40 m³/h de Tabla N°6;
-- **M3-C** — `EstadoModulo3` (`noIniciado`/`error`/`incompleto`/`evaluado`
-  + `todosCumplen`, separando "cálculo completo" de "medidor cumple") +
-  integración con `Proyecto` (`esPropiedadHorizontal`, override de medidor
-  adoptado análogo a `dnComercialAdoptado` de D-δ.52);
-- **M3-D** — UI Rápido/Profesional;
+- **M3-D** — UI Rápido/Profesional (incluye override manual de medidor
+  recomendado vs. adoptado, análogo a `dnComercialAdoptado` de D-δ.52);
 - **M3-E** — integración `hfMedidor` M3→M2: reemplazo del input provisional
   del Panel de Presión por el resultado de M3, como DTO
   `{ general?, individuales: [...] }` (una UF puede tener más de un ramal

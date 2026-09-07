@@ -4794,3 +4794,112 @@ configuración.
 general + individual, selección + cardinalidad) queda completo. Sigue
 pendiente, sin decisión roja: M3-C (`EstadoModulo3` + persistencia), M3-D
 (UI), M3-E (integración `hfMedidor` M3→M2), M3-F (auditoría end-to-end).
+
+## D-δ.55 -- M3-C: configuración persistida de medidores + `EstadoModulo3` -- CERRADA
+
+Continuación de D-δ.53/D-δ.54. Cierra la configuración persistida mínima
+de Módulo 3 y la primitiva de estado/orquestación completa.
+
+### Configuración persistida (`Proyecto.configuracionMedidores?`)
+
+```ts
+configuracionMedidores?: {
+  esPropiedadHorizontal: boolean
+  tipoProvisionACS: 'individual' | 'central'          // default del proyecto
+  tipoProvisionACSPorUnidadFuncional?: Record<ufId, 'individual' | 'central'>  // override
+}
+```
+
+- **Sólo decisiones físicas del usuario.** Nunca resultados derivados
+  (alcances, `Qunit`, DN, `C`, `hf`, `EstadoModulo3`): todo eso se
+  recalcula en cada llamada -- nunca hay valor stale persistido.
+- **Optativo a propósito.** Un Proyecto anterior a M3 (sin
+  `configuracionMedidores`) sigue siendo válido y resuelve
+  `EstadoModulo3 = 'noIniciado'` **sin migración** (adición de campo
+  opcional, mismo criterio que `redHidraulica?` / `nivel?` /
+  `cotaHidraulicaReferencia_m?`; `SCHEMA_VERSION` sin tocar).
+- **`esPropiedadHorizontal: false` NO es "no iniciado"** -- es una
+  decisión válida y explícita, lleva a `'evaluado'` con sólo el medidor
+  general.
+- **Global + override por UF.** La mayoría de los proyectos será
+  homogénea; el override cubre el proyecto mixto sin imponerlo.
+  `tipoProvisionACSEfectivo(config, ufId) = override[ufId] ?? default`.
+- `TipoProvisionACS` se movió de `motor/medidores/` al modelo
+  (`modelo/proyecto`): ahora tiene dos consumidores reales (la config
+  persistida y el input de B2b), lo que justifica la reubicación (regla
+  de `evitar-infraestructura-preventiva` satisfecha).
+
+### Validación
+
+`validarConfiguracionMedidores` (código
+`configuracionMedidoresUnidadFuncionalInexistente`, severidad *error*):
+una clave del override que no corresponde a ninguna UF real del Proyecto
+es una inconsistencia estructural (identificador colgado), no un dato
+faltante -- mismo estatus que `redHidraulicaReferenciaArtefactoInvalida`.
+Integrado en `validarProyecto`. Ausencia de `configuracionMedidores` no
+es un problema de validación (es `'noIniciado'`).
+
+**Limpieza del override al eliminar una UF:** hoy la baja de UF es
+código de UI inline (`MotorDemandaPantalla.tsx`), sin updater de dominio.
+Si se elimina una UF referenciada por un override, `resolverEstadoModulo3`
+lo reporta como `'error'` (vía el validador) -- comportamiento coherente
+y no silencioso. La poda automática del override en el momento de la baja
+queda para cuando la baja de UF pase por un updater de dominio (M3-D o
+después).
+
+### `resolverEstadoModulo3` (`motor/modulo3/`)
+
+Orquestador puro que **compone, sin reimplementar**, las piezas ya
+cerradas de M3-B:
+
+```
+calcularSimultaneidad            → Qc global del proyecto (CRIT-A5)
+seleccionarMedidorGeneral        → M3-B1 (Tabla N°6 / CRIT-A32)
+resolverAlcancesDeMedidoresIndividuales → M3-B2b (CRIT-A34)
+seleccionarMedidorIndividual     → M3-B2a (K=1 / CRIT-A33)
+```
+
+No conoce React, no toca `RedHidraulica`, no persiste. `ResultadoModulo3`
+compone (no copia): `medidorGeneral` (el resultado B1) +
+`medidoresIndividuales: [{ alcance, resultado }]` (el alcance B2b con sus
+consumos + el resultado B2a con DN/C/hf/Qunit) -- M3-D podrá mostrar todo
+sin recalcular.
+
+### `EstadoModulo3` -- cuatro estados
+
+| Estado | Cuándo |
+|---|---|
+| `noIniciado` | No existe `configuracionMedidores`. Estado explícito, no default. |
+| `error` | Inconsistencia estructural: override de ACS a UF inexistente; red hidráulica estructuralmente inválida cuando la medición individual la necesita. **Nunca** para `Qc > Tabla N°6`. |
+| `incompleto` | Falta un insumo: sin artefactos computables; `Qc` global indeterminado; red ausente con propiedad horizontal; algún caudal (general o individual) `> 40 m³/h` (sin extrapolar -- `fueraDeTabla06`). Motivos tipados/discriminados. |
+| `evaluado` | Medidor general + todos los individuales requeridos seleccionados, con su `hf`. |
+
+**`evaluado` NO lleva `todosCumplen`/`cumple`.** Hoy no existe
+verificación metrológica (ERAS no publica `Q1..Q4`/`Qmin`) ni override
+manual de medidor cerrado -- `'evaluado'` significa *"todos los medidores
+requeridos fueron seleccionados"*, no *"todos cumplen"*. Un caudal fuera
+de Tabla N°6 es `'incompleto'`, no un `'evaluado'` con un flag en falso.
+Cuando exista una verificación independiente real se agregará entonces
+(`cumple` / `fueraDeRango`), no antes -- no se anticipa semántica
+inexistente.
+
+### Qué NO se hizo
+
+- UI de M3 (M3-D). Sólo tipos/helpers para que M3-D consuma el resultado.
+- Integración `hfMedidor` M3→M2 (M3-E): el input provisional del Panel de
+  Presión de M2 sigue intacto.
+- Override manual de medidor (recomendado vs. adoptado): patrón razonable
+  para el modo Profesional, análogo a `dnComercialAdoptado` (D-δ.52); no
+  necesario para `EstadoModulo3`. Deuda registrada para M3-D.
+- Verificación de coherencia `esPropiedadHorizontal` ↔ `tipoDeProyecto`
+  (p. ej. PH con `viviendaIndividual`): no se cruza en este slice.
+- Poda automática del override al eliminar una UF (ver más arriba).
+
+### Estado
+
+**D-δ.55 -- CERRADA.** M3-C entregado. Pendiente sin decisión roja: M3-D
+(UI Rápido/Profesional), M3-E (integración `hfMedidor` M3→M2, DTO
+`{ general?, individuales: [...] }`, posible dependencia del origen
+hidráulico D-δ.36/D-δ.38), M3-F (auditoría end-to-end). Menores: Tabla
+N°8 (rango `> 40 m³/h`), CRIT-A8 sobre el universo de consumos de B2b,
+poda del override en la baja de UF.
