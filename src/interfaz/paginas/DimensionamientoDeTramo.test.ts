@@ -99,32 +99,36 @@ describe('DimensionamientoDeTramo (UI)', () => {
     expect(html).not.toContain('Di efectivo')
   })
 
-  it('V admisible y hf visibles en el detalle expandible (CRIT-A19/A24 visibles en UI)', () => {
+  it('V admisible sigue en el detalle expandible (CRIT-A19/A24 auditable en UI)', () => {
     const { proyecto, tramoId } = proyectoConFallbackDeVelocidadPorVmin()
 
     const html = renderizar(proyecto, tramoId)
 
     expect(html).toContain('V admisible [m/s]')
     expect(html).toContain('1,0 – 3,0')
-    expect(html).toContain('hf [m.c.a.]')
   })
 
-  it('Qc/DN/V y el estado de verificación son visibles sin expandir el detalle', () => {
+  it('D-δ.50: Longitud (input), DN, V, hf y el estado son visibles en el bloque principal, sin expandir el detalle', () => {
+    const { proyecto, tramoId } = proyectoConFallbackDeVelocidadPorVmin()
+
+    const html = renderizar(proyecto, tramoId)
+
+    // El bloque principal es todo lo que va antes de <details>.
+    const bloquePrincipal = html.split('<details')[0]!
+    expect(bloquePrincipal).toContain('Longitud [m]')
+    expect(bloquePrincipal).toMatch(/<input[^>]*\bmin="0"/)
+    expect(bloquePrincipal).toContain('DN:')
+    expect(bloquePrincipal).toContain('V:')
+    expect(bloquePrincipal).toContain('hf:')
+  })
+
+  it('Qc queda como dato secundario (presente pero no antes de DN/V/hf en la jerarquía)', () => {
     const { proyecto, tramoId } = proyectoConFallbackDeVelocidadPorVmin()
 
     const html = renderizar(proyecto, tramoId)
 
     expect(html).toContain('Qc:')
-    expect(html).toContain('DN:')
-    expect(html).toContain('V:')
-  })
-
-  it('el input de Longitud [m] se renderiza con min="0" (ayuda de UI; la defensa real es resolverCambioDeLongitud)', () => {
-    const { proyecto, tramoId } = proyectoConFallbackDeVelocidadPorVmin()
-
-    const html = renderizar(proyecto, tramoId)
-
-    expect(html).toMatch(/<input[^>]*\bmin="0"/)
+    expect(html.indexOf('DN:')).toBeLessThan(html.indexOf('Qc:'))
   })
 
   it('distingue AF/AC mostrando el nombre humano de la red, nunca la sigla técnica sola', () => {

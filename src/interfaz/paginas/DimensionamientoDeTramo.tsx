@@ -1,9 +1,17 @@
-// Presentación compacta de un Tramo (D-δ.43): reemplaza la fila de tabla
-// ancha (13 columnas) por un bloque donde Qc/DN/V/Verificación se leen de
-// un vistazo, sin scroll horizontal -- información secundaria (refs
-// físicas, n, Di teórico, Di real, Vmin/Vmax, hf) queda en un <details>
-// expandible. Puramente presentacional: recibe el resultado ya resuelto
-// por resolverResultadoDeTramoParaUi, no vuelve a llamar al motor.
+// Presentacion compacta de un Tramo (D-δ.43, ampliada en D-δ.50): el
+// bloque principal muestra de un vistazo, SIN expandir nada, los datos que
+// el usuario necesita para completar y verificar Modulo 2 en modo rapido
+// (brief D-δ.50 secciones 17-20):
+//
+//   Longitud [input]  ->  DN  ->  V  ->  hf  ->  Estado
+//
+// La Longitud es un INPUT obligatorio y por eso vive en el bloque
+// principal, nunca escondida dentro de "Detalle tecnico" (regresion de UX
+// que D-δ.50 corrige). Qc pasa a dato secundario (jerarquia del brief
+// seccion 19). El <details> conserva solo la trazabilidad tecnica que no
+// se necesita para operar: refs fisicas, n, Di teorico, Di real, V
+// admisible. Puramente presentacional: recibe el resultado ya resuelto por
+// resolverResultadoDeTramoParaUi, no vuelve a llamar al motor.
 import type { CSSProperties } from 'react'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import { ETIQUETA_RED } from './humanizarModulo2'
@@ -23,6 +31,8 @@ const estiloFila: CSSProperties = {
   alignItems: 'baseline',
   padding: '0.35rem 0',
 }
+
+const estiloCeldaTecnica: CSSProperties = { textAlign: 'left', paddingRight: '1rem' }
 
 export function DimensionamientoDeTramo({
   etiqueta,
@@ -44,10 +54,34 @@ export function DimensionamientoDeTramo({
       <div style={estiloFila}>
         <strong>{etiqueta}</strong>
         <span style={estiloBadge}>{ETIQUETA_RED[red]}</span>
-        <span>Qc: {textos.qcTexto} l/s</span>
+        <label>
+          Longitud [m]:{' '}
+          <input
+            type="number"
+            min={0}
+            aria-label={`Longitud [m] de ${etiqueta}`}
+            value={longitud_m ?? ''}
+            onChange={(evento) => {
+              const resultadoCambio = resolverCambioDeLongitud(evento.target.value)
+              if (resultadoCambio.tipo === 'omitir') {
+                onCambiarLongitud(undefined)
+              } else if (resultadoCambio.tipo === 'establecer') {
+                onCambiarLongitud(resultadoCambio.longitud_m)
+              }
+              // 'ignorar': no se llama a onCambiarLongitud -- el input
+              // vuelve a mostrar el ultimo valor valido en el proximo
+              // render, en vez de generar un estado invalido transitorio.
+            }}
+            style={{ width: '5rem' }}
+          />
+        </label>
         <span>DN: {textos.diComercialTexto}</span>
         <span>V: {textos.vTexto} m/s</span>
+        <span>hf: {textos.hfTexto} m.c.a.</span>
         <span>{textos.verificacionVelocidadTexto}</span>
+        <span style={{ opacity: 0.7 }}>
+          <small>Qc: {textos.qcTexto} l/s</small>
+        </span>
       </div>
       {errorDelMotor !== null ? (
         <p>
@@ -59,51 +93,24 @@ export function DimensionamientoDeTramo({
         <table style={{ borderCollapse: 'collapse' }}>
           <tbody>
             <tr>
-              <th style={{ textAlign: 'left', paddingRight: '1rem' }}>Refs. físicas</th>
+              <th style={estiloCeldaTecnica}>Refs. físicas</th>
               <td>{artefactosTexto}</td>
             </tr>
             <tr>
-              <th style={{ textAlign: 'left', paddingRight: '1rem' }}>n</th>
+              <th style={estiloCeldaTecnica}>n</th>
               <td>{nTexto}</td>
             </tr>
             <tr>
-              <th style={{ textAlign: 'left', paddingRight: '1rem' }}>Di teórico [mm]</th>
+              <th style={estiloCeldaTecnica}>Di teórico [mm]</th>
               <td>{textos.diReferenciaTexto}</td>
             </tr>
             <tr>
-              <th style={{ textAlign: 'left', paddingRight: '1rem' }}>Di real [mm]</th>
+              <th style={estiloCeldaTecnica}>Di real [mm]</th>
               <td>{textos.diEfectivoTexto}</td>
             </tr>
             <tr>
-              <th style={{ textAlign: 'left', paddingRight: '1rem' }}>V admisible [m/s]</th>
+              <th style={estiloCeldaTecnica}>V admisible [m/s]</th>
               <td>{textos.limiteVelocidadTexto}</td>
-            </tr>
-            <tr>
-              <th style={{ textAlign: 'left', paddingRight: '1rem' }}>Longitud [m]</th>
-              <td>
-                <input
-                  type="number"
-                  min={0}
-                  aria-label={`Longitud [m] de ${etiqueta}`}
-                  value={longitud_m ?? ''}
-                  onChange={(evento) => {
-                    const resultadoCambio = resolverCambioDeLongitud(evento.target.value)
-                    if (resultadoCambio.tipo === 'omitir') {
-                      onCambiarLongitud(undefined)
-                    } else if (resultadoCambio.tipo === 'establecer') {
-                      onCambiarLongitud(resultadoCambio.longitud_m)
-                    }
-                    // 'ignorar': no se llama a onCambiarLongitud -- el input
-                    // vuelve a mostrar el último valor válido en el próximo
-                    // render, en vez de generar un estado inválido transitorio.
-                  }}
-                  style={{ width: '5rem' }}
-                />
-              </td>
-            </tr>
-            <tr>
-              <th style={{ textAlign: 'left', paddingRight: '1rem' }}>hf [m.c.a.]</th>
-              <td>{textos.hfTexto}</td>
             </tr>
           </tbody>
         </table>

@@ -289,6 +289,14 @@ function DistribucionGeneral({
     return null
   }
   const modoDetallado = proyecto.configuracionHidraulica.metodoPerdidaLocalizada === 'detallado'
+  // D-δ.50: en modo rapido la longitud efectiva de la Alimentacion general
+  // y de la Alimentacion ACS depende del nivel de la UF destino
+  // (ΔLvertical = 3 m/piso). El input de esta fila es la longitud BASE; el
+  // incremento vertical es automatico y se ve, ya resuelto por camino, en
+  // el detalle de presion de cada terminal. No se muestra un unico hf
+  // efectivo aca (seria enganoso con varias UF a distinto nivel -- brief
+  // seccion 21).
+  const mostrarNotaVertical = proyecto.configuracionHidraulica.granularidadHidraulica === 'simplificada'
 
   return (
     <section>
@@ -298,12 +306,17 @@ function DistribucionGeneral({
         return (
           <div key={fila.tramoId}>
             <DimensionamientoDeTramo
-              etiqueta={fila.etiqueta}
+              etiqueta={`${fila.etiqueta} — longitud base`}
               red={fila.red}
               resultado={resultado}
               longitud_m={proyecto.redHidraulica?.tramos.find((tramo) => tramo.id === fila.tramoId)?.longitud_m}
               onCambiarLongitud={(longitud_m) => onCambiar(conLongitudDeTramo(proyecto, fila.tramoId, longitud_m))}
             />
+            {mostrarNotaVertical ? (
+              <p style={{ margin: '0 0 0.5rem' }}>
+                <small>+ 3,00 m/piso automático según el nivel de cada unidad funcional (convención IUAS del modo rápido)</small>
+              </p>
+            ) : null}
             {modoDetallado ? (
               <AccesoriosDeTramoEditor
                 proyecto={proyecto}
