@@ -4651,9 +4651,146 @@ sigue en su lugar.
 
 **D-δ.53 -- PARCIALMENTE CERRADA.** Cerrados: M3-A (contrato de dominio),
 M3-B0 (Tabla N°6), M3-B1 (medidor general), M3-B2a (medidor individual por
-alcance declarado, `K=1` / CRIT-A33). Decisiones rojas 1, 2 y 3 resueltas.
-Pendientes: M3-B2b (cardinalidad/ubicación de medidores individuales,
-requiere reconstruir figuras 2.2–2.7), `EstadoModulo3` (M3-C), persistencia
+alcance declarado, `K=1` / CRIT-A33), **M3-B2b (cardinalidad y alcance de
+medidores individuales / CRIT-A34, ver D-δ.54)**. Decisiones rojas 1, 2, 3
+y la de M3-B2b resueltas. Pendientes: `EstadoModulo3` (M3-C), persistencia
 (M3-C), integración `hfMedidor` M3→M2 (M3-E), UI (M3-D), auditoría
 end-to-end (M3-F). Ninguno bloqueado por decisión roja; sí a la espera de
 la próxima decisión del usuario sobre por dónde seguir.
+
+## D-δ.54 -- M3-B2b: cardinalidad y alcance de medidores individuales (figuras de micromedición reconstruidas) -- CERRADA
+
+Continuación de D-δ.53. Cierra la pregunta que en la corrida anterior
+había quedado detenida en decisión roja: *dada la configuración física
+real del proyecto, ¿qué medidores individuales existen y qué alcance
+tiene cada uno?*
+
+### Resolución de la decisión roja -- alternativa A
+
+Se descartó la alternativa B (convención topológica IUAS: inferir el tipo
+de ACS desde la posición de `produccionACS` en `RedHidraulica`). El
+usuario recuperó las **Figuras 2.2–2.7 y 2.14–2.16** desde fuentes
+oficiales / AySA con evidencia suficiente.
+
+### Figuras 2.2–2.7 (ubicación de los sectores de micromedición)
+
+| Figura | Contenido |
+|---|---|
+| 2.2 | Gabinete del **medidor general**. |
+| 2.3 | Gabinete de **medidores sectorizado**: montante general + montante auxiliar, derivaciones identificadas Deptos. 1…6 con medidor individual. |
+| 2.4 | Medidores individuales agrupados en **sala exclusiva**, con tanques de bombeo y reserva. |
+| 2.5 | Ídem sala exclusiva, con **equipo presurizador**. |
+| 2.6 | Medición individual **sectorizada** en lugares comunes, con tanque de bombeo + reserva. |
+| 2.7 | Medición individual **sectorizada** en lugares comunes, con equipo presurizador. |
+
+**Conclusión:** 2.4–2.7 son variantes de **ubicación** del sector de
+micromedición y del sistema de alimentación. **No** justifican inferir el
+tipo de ACS desde la topología, y **no** afectan el cálculo de selección
+del medidor individual (sólo trazabilidad físico-documental de la
+instalación, no modelada en este slice).
+
+### Figuras 2.14–2.16 (agua caliente)
+
+| Figura | Contenido |
+|---|---|
+| 2.14 | Sistema **central** de ACS: tanque/reserva, acumulador de AC, equipo de recirculación, montante general, medidores de AC **agrupados** en sala/sector común. |
+| 2.15 | Ídem ACS central, con gabinetes de medidores de AC **sectorizados** en lugares comunes. |
+| 2.16 | Micromedición **individual de AC**: montante general + auxiliar, ramales identificados Depto. 1…6, **medidor en el ramal**, límite de entrada a la propiedad aguas abajo, llave de paso de la UF. Coherente con §2.19.5 (*"cada ramal de distribución de agua caliente desde el medidor hasta la entrada de la UF"*). |
+
+### Criterio físico cerrado (CRIT-A34)
+
+- **CASO A — ACS individual dentro de la UF.** Desde instalaciones
+  comunes entra sólo el suministro de AF, medido. El medidor individual
+  de AF está **aguas arriba** de la división interna AF-directa /
+  AF→producción-ACS-individual. Por **conservación de masa** (D-δ.6) ese
+  medidor contabiliza **todo** el consumo de agua aguas abajo: para un
+  artefacto mixto aporta **`quTotal`**, no sólo `quFría`. No existe
+  medidor de AC común independiente (no hay ramal común de AC entrando a
+  la UF). ⇒ por UF, **1 alcance**: `servicioMedido = 'aguaFria'`,
+  consumos = todos los consumos conectados de la UF con su `quTotal`.
+- **CASO B — ACS central.** AF y AC llegan a la UF por ramales comunes
+  distintos, cada uno con su medidor. Artefacto mixto: `quFría` al medidor
+  de AF, `quCaliente` al de AC (suman `quTotal`, sin doble conteo).
+  Artefacto de una sola red: `quTotal` a esa red. ⇒ por UF: **alcance de
+  AF** siempre (si hay consumo conectado) + **alcance de AC sólo si hay
+  consumo de AC** (nunca un medidor de AC vacío).
+- **Sin propiedad horizontal ⇒ 0 alcances.**
+
+### `individual` vs `central` = configuración declarada, no inferida
+
+`ReferenciaDeProduccionACS = { tipo: 'produccionACS' }` no distingue
+central de individual (D-δ.7: sin enumeración de tipo de equipo). **No se
+adopta** la convención "`produccionACS` dentro del subárbol de la UF ⇒
+individual": sería una inferencia nueva y frágil, sin respaldo en las
+figuras. El tipo de provisión de ACS es un **dato de entrada por UF**
+(`ConfiguracionDeMedicionIndividual.tipoProvisionACSPorUnidadFuncional:
+Record<ufId, 'individual' | 'central'>`). `RedHidraulica` se consulta
+sólo para la conectividad física de cada artefacto (CRIT-A15, vía
+`determinarConectividadFisica`). `esPropiedadHorizontal` también es
+entrada pura. **Nada se persiste en este slice** -- la persistencia
+(posiblemente configuración global con override por UF) es M3-C.
+
+### Identidad del alcance
+
+`unidadFuncionalId + servicioMedido` (`'aguaFria' | 'aguaCaliente'`). En
+los esquemas normativos observados cada ramal medido individual
+identifica una UF y un servicio. **Si aparece evidencia real de más de un
+ramal medido del mismo servicio para la misma UF: decisión roja** -- no
+se modela todavía. No se introduce ninguna entidad de medidor en
+`RedHidraulica` (decisión roja 1 / D-δ.35 sigue en pie).
+
+### Universo de consumos y CRIT-A8
+
+Consumos = artefactos **computables** (`origen === 'normativo'`) y
+**físicamente conectados** (al menos un terminal en `RedHidraulica`; un
+artefacto sin conexión es brecha de cobertura S1, no un consumo de este
+cálculo). El filtro de participación **CRIT-A8** (coexistencia física por
+Local) **no se aplica en este slice**: no restar consumos es conservador
+para el dimensionamiento del medidor (medidor mayor, menor pérdida),
+coherente con *"garantizar el registro de los caudales reales máximos"*
+de §2.6. Incorporarlo queda como refinamiento futuro registrado.
+
+### Relación B2b → B2a
+
+```
+configuración física declarada (esPropiedadHorizontal, tipoProvisionACS/UF)
+        │
+        ▼
+resolverAlcancesDeMedidoresIndividuales   (B2b, CRIT-A34)
+        │  → [ AlcanceMedidorIndividual ]  (ufId, servicioMedido, consumos)
+        ▼
+seleccionarMedidorIndividual              (B2a, CRIT-A33 K=1 + CRIT-A32 Tabla N°6)
+        │  → DN, C, hfMedidor por alcance
+```
+
+B2b **no** repite selección ni pérdida. B2a **no** conoce topología ni
+configuración.
+
+### Implementado
+
+- `motor/medidores/resolverAlcancesDeMedidoresIndividuales.ts` (función
+  pura + `ConfiguracionDeMedicionIndividual`, `TipoProvisionACS`).
+- CRIT-A34 en `CRITERIOS.md`.
+- 11 tests (los 10 casos pedidos por el usuario + validaciones: no PH,
+  individual→AF/quTotal, central→AF+AC, suma mixto = quTotal, central sin
+  AC→sin medidor AC, dos UF independientes, cambio de artefactos sin
+  stale, B2b→B2a integración, artefacto no-normativo / sin conexión
+  omitidos, falta `tipoProvisionACS`→throw, PH sin red→throw).
+- Suite 964 → 975, `tsc -b` / `vite build` verdes, lint 11 baseline / 0
+  nuevos. Sin cambios de UI ni de runtime de la app.
+
+### Qué NO se hizo
+
+- Variantes de ubicación del sector de micromedición (Figs. 2.4–2.7): no
+  afectan el cálculo, no se modelan.
+- >1 ramal medido del mismo servicio por UF: decisión roja si aparece.
+- CRIT-A8 sobre el universo de consumos: refinamiento futuro.
+- Persistencia de `esPropiedadHorizontal` / `tipoProvisionACS`: M3-C.
+- `EstadoModulo3`, integración `hfMedidor`→M2, UI: M3-C/D/E.
+
+### Estado
+
+**D-δ.54 -- CERRADA.** M3-B2b entregado. M3-B (motor puro de medidores:
+general + individual, selección + cardinalidad) queda completo. Sigue
+pendiente, sin decisión roja: M3-C (`EstadoModulo3` + persistencia), M3-D
+(UI), M3-E (integración `hfMedidor` M3→M2), M3-F (auditoría end-to-end).

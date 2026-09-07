@@ -277,14 +277,21 @@ recalcula demanda, no toca la topología.
 - **CRIT-A33** — caudal de diseño del medidor individual por simultaneidad
   total (`K=1`): prevalece §2.6 (regla dedicada) sobre §2.12.1.e (remisión
   genérica). La contradicción interna de la Guía queda documentada.
+- **M3-B2b** — cardinalidad y alcance de los medidores individuales
+  (`motor/medidores/resolverAlcancesDeMedidoresIndividuales`, CRIT-A34):
+  de `{ esPropiedadHorizontal, tipoProvisionACSPorUF }` + la conectividad
+  física real → lista de alcances (input de B2a). ACS **individual** → 1
+  medidor AF por UF con `quTotal` de todo el consumo (conservación de
+  masa); ACS **central** → medidor AF + medidor AC (sólo si hay consumo
+  AC). El tipo de ACS es **configuración declarada por UF**, no inferida
+  de la topología (figuras 2.2–2.7 y 2.14–2.16 reconstruidas, D-δ.54). Sin
+  PH → 0 medidores. No persiste nada.
+- **CRIT-A34** — cardinalidad y alcance de medidores individuales:
+  criterio físico individual/central, identidad `UF + servicio`, universo
+  de consumos (computables + conectados; CRIT-A8 diferido).
 
 **Pendiente:**
 
-- **M3-B2b** — cardinalidad y ubicación de los medidores individuales:
-  qué ramales medidos existen según la configuración física real (AF, AC
-  central, ACS individual), qué UF abastecen, dónde está el medidor
-  respecto del origen y del almacenamiento. Requiere reconstruir antes las
-  figuras 2.2–2.7 de micro-medición. Sin decisión roja pendiente;
 - **Tabla N°8** (Anexo A de la Guía, ampliación de rango de Qc) — es una
   lámina no transcripta; se incorpora si aporta umbrales por encima de los
   40 m³/h de Tabla N°6;
@@ -294,8 +301,10 @@ recalcula demanda, no toca la topología.
   adoptado análogo a `dnComercialAdoptado` de D-δ.52);
 - **M3-D** — UI Rápido/Profesional;
 - **M3-E** — integración `hfMedidor` M3→M2: reemplazo del input provisional
-  del Panel de Presión por el resultado de M3, como DTO por ámbito
-  (`{ general?, porUnidadFuncional }`); puede requerir cerrar antes el
+  del Panel de Presión por el resultado de M3, como DTO
+  `{ general?, individuales: [...] }` (una UF puede tener más de un ramal
+  medido; cada individual declara alcance suficiente para decidir si
+  pertenece al camino de un terminal); puede requerir cerrar antes el
   origen hidráulico (D-δ.36/D-δ.38);
 - **M3-F** — auditoría end-to-end (demanda → tuberías → medidor → presión
   recalculada, sin valores stale, sin dependencia circular).
