@@ -5486,3 +5486,497 @@ fuente de `hfMedidor` (manual → M3 por terminal), deliberado y
 backward-compatible. Sin acoplamiento indebido, sin dependencia circular,
 sin regresiones, sin bugs. Suite 1041/1041, `tsc`, `build`, lint sin
 regresión, working tree limpio. No se inicia M4.
+
+## D-δ.61 -- M4-A: investigación normativa + contrato de dominio de Módulo 4 (Reserva / Tanques) -- ABIERTA (documental)
+
+Primera corrida de Módulo 4. Incremento **documental**: reconstruye el
+dominio de reserva/tanques desde el repo y desde la fuente normativa,
+propone un contrato, y delimita las decisiones rojas. **No se escribió
+código** (M4-B no arranca en esta corrida: aparecen decisiones rojas
+bloqueantes -- ver más abajo).
+
+### Estado del repo al iniciar
+
+Branch `main`, HEAD `38ad1c9`, working tree limpio. Baseline verde:
+`vitest` 1041/1041 (115 archivos), `tsc -b` verde, `npm run build` verde
+(bundle ~2,1 MB, warning de tamaño ya conocido y aceptado), `eslint .`
+sin regresión sobre el baseline de 11.
+
+### A. Arqueología del repo
+
+**No existe absolutamente nada de M4 en `src/`.** Búsqueda exhaustiva de
+`modulo4`/`Módulo 4`/`tanque`/`reserva`/`cisterna`/`dotacion`/`dotación`/
+`bombeo`/`presuriz`/`habitante`/`ocupación`/`consumoDiario`/`volumenReserva`/
+`volumenUtil`/`origenHidraulico`/`nivelMinimo`/`peloAgua`: cero
+definiciones de dominio, cero motor, cero tests, cero configuración
+persistida, cero `EstadoModulo4`. `ROADMAP.md` no tiene sección de
+Módulo 4 (termina en M3). `docs/adr/` y `docs/arquitectura/` siguen
+vacías.
+
+**No existe ningún dato de población / ocupación / dormitorios /
+superficie / cantidad de personas en el modelo.** `UnidadFuncional` tiene
+`nombre`, `nivel?`, `cotaHidraulicaReferencia_m?`, `locales`;
+`TipoDeLocal` no incluye `dormitorio`. Nada permite hoy estimar
+habitantes.
+
+**Piezas ya presentes que M4 va a necesitar o rozar:**
+
+- **`normativa/eras-2023/tabla-01-gastos-conexion`** (§2.7): datos puros,
+  gasto en l/s por diámetro nominal de conexión (13–75 mm) y presión
+  disponible (4–35 m), con interpolación lineal declarada.
+  **Cero consumidores** -- ningún motor la lee todavía. Es la tabla
+  candidata para derivar el *caudal de conexión otorgado* del balance de
+  §2.10.2.
+- **`ParametrosProyecto.presionSobreAcera_m`**: existe, sin consumidor.
+  D-δ.38 la identifica como la condición de borde del origen "alimentación
+  directa" (presión mínima garantizada sobre nivel de vereda).
+- **`ParametrosProyecto.alturaArtefactoMasDesfavorable_m`**: legado,
+  redundante con `Nodo.cota_m` (D-δ.38), pendiente de migración, no se
+  toca.
+- **`calcularSimultaneidad(...).resultados['qc']`**: el `Qc` global del
+  proyecto (CRIT-A5), ya productivo. `resolverEstadoModulo3` lo consume
+  exactamente así; M4 haría lo mismo. **Es el input primario del balance
+  de reserva** (ver más abajo).
+- **`normativa/eras-2023/CASOS-GOLDEN.md`**: G1 = **Tabla N°4 de §2.10.2**
+  (pág. 26/182), G2 = **Tabla N°2 de §2.10.2** (pág. 25/182). Es decir:
+  los goldens de M1 salen de las planillas de ejemplo de la *sección de
+  reserva*. M1 consumió la mitad delantera de esa planilla
+  (artefactos → Qmax → Kc → K → Qc); **M4 es la continuación de la misma
+  tabla** (Qc → déficit → volumen de reserva).
+- **`interfaz/paginas/modoDeTrabajo.ts`** (`resolverModoDeTrabajo`,
+  D-δ.51): "modo de trabajo" (rápido / profesional / avanzado) se
+  **deriva** de dos ejes de `ConfiguracionHidraulica` de M2, sin campo
+  propio. M3 lo reutiliza tal cual (`PanelDeMedidoresDeModulo3`).
+- **`modelo/memoria/index.ts`** (`MemoriaDeProyecto`): contenedor
+  unificado de resultados de módulos + enlaces; sin consumidor todavía.
+- **Patrón `EstadoModulo3`** (`motor/modulo3/resolverEstadoModulo3.ts`):
+  `noIniciado | error | incompleto | evaluado`. `configuracionMedidores?`
+  optativa (ausente = `noIniciado`, sin migración). Sin `todosCumplen`
+  mientras no exista una verificación independiente real.
+
+**Decisiones previas directamente relevantes (ya registradas):**
+
+- **D-δ.32** -- bloque presión: "origen hidráulico (tanque elevado /
+  presión de red / bombeo)" enumerado como pendiente, investigación no
+  iniciada.
+- **D-δ.36** -- balance de presión con `Pdisponible` como borde
+  explícito; **precisión normativa: ERAS §2.8 exige reserva de tanque
+  obligatoria para el uso residencial dominante**, sin decidir todavía
+  la representación del origen.
+- **D-δ.38** -- modelo físico de `Pdisponible` por tipo de origen
+  (investigación, no cierra regla). Tres orígenes:
+  1. **gravitacional desde tanque de reserva elevado** -- raíz hidráulica
+     = superficie libre al **nivel mínimo operativo** ("pelo de agua
+     mínimo"), `Pdisponible = 0`, toda la carga la aporta `−Δz`;
+  2. **alimentación directa desde red** -- raíz en la conexión,
+     `Pdisponible = presionSobreAcera_m`;
+  3. **bombeo con presurización directa** -- **diferido** (requiere datos
+     de bomba).
+  **Bombeo a tanque elevado es hidráulicamente idéntico al origen 1** para
+  la red de distribución (la bomba sólo llena el tanque).
+  **"Cómo se representa/persiste el origen (borde abstracto / estructura
+  en `Proyecto` / referencia de nodo; global o por subred) es una
+  decisión roja abierta"** (cita literal de D-δ.38).
+- **D-δ.43** (UI de M2) -- "Tipo de alimentación" ("Tanque elevado" /
+  "Presión conocida / alimentación directa") ya existe **como selector de
+  presentación**, escribe sobre campos que ya existían (`conCotaDeNodo`,
+  estado local de `Pdisponible`), **sin persistencia nueva ni entidad
+  `OrigenHidraulico`**. "Tanque elevado" pide "Cota del pelo de agua
+  mínimo de cálculo".
+
+### B. Inventario normativo (Guía ERAS 2023 / Resolución 641/2023)
+
+**Limitación de fuente, explícita**: el repo **no contiene** el texto de
+ERAS-2023 (HANDOFF §7). Esta investigación se hizo contra el texto
+oficial publicado en `argentina.gob.ar/normativa/nacional/norma-396748`
+e InfoLeg (`servicios.infoleg.gob.ar/.../396748/norma.htm`). **Las
+Tablas N°2, N°3 y N°4 (secuencias de cálculo de ejemplo de §2.10.2) están
+publicadas como imágenes de planilla y NO son transcribibles** desde
+ninguna fuente accesible en esta corrida -- de ahí la decisión roja 1.
+
+Numeración **verificada** (no asumida) contra la fuente oficial:
+
+- **§2.8 -- Alimentación directa a artefactos** (verbatim):
+  > "Subsuelos en general y pisos bajos no destinados a viviendas: agua
+  > corriente directa debiendo cumplir, en función del caudal, lo
+  > indicado para la piezométrica mínima residual sobre artefacto más
+  > desfavorable."
+  > "Pisos bajos destinados a viviendas y pisos altos: provisión de agua
+  > con reserva de tanque, obligatoriamente."
+
+  **Consecuencia [NORMA]**: para el uso residencial que domina IUAS, el
+  tanque de reserva es **siempre obligatorio**. La alimentación directa
+  sin reserva sólo aplica a subsuelos y planta baja no residencial.
+
+- **§2.9 -- Consumos de agua**: enumera cuatro clases de consumo
+  (a: por habitante y día en conjunto urbano; b: por habitante y día en
+  edificios según tipología; c: consumo del edificio en períodos punta;
+  d: por artefacto instalado).
+
+- **§2.9.1.1 -- Consumo por habitantes en conjuntos urbanos** (verbatim):
+  > "Grandes Ciudades = 500 litros/hab.dia
+  > Poblaciones menores a 50.000 hab = 350 litros/hab.dia
+  > Aéreas Rurales = 150 litros/hab.dia"
+
+  **Ámbito [NORMA]**: conjunto urbano / planeamiento de red. **No es la
+  base del volumen de reserva domiciliaria** -- el método domiciliario es
+  el balance de caudales de §2.10.2 (abajo).
+
+- **§2.9.1.2 -- Consumo por artefacto en Viviendas Familiares**: tabla de
+  `qu` por artefacto (valores máximos época invernal). Es la que alimenta
+  `Qmax = Σ n·qu` -- **ya es, en la práctica, el catálogo de artefactos
+  de M1** (`normativa/eras-2023/catalogo-artefactos`).
+
+- **§2.9.2 -- Simultaneidad**: `Qmax = Σ n·qu`; `K = Kc·a` (a ∈ {1,2,3,4});
+  `Qc = Qmax·K`. Ya implementado íntegro en M1.
+
+- **§2.10.2 -- Alimentación por tanques y determinación del Volumen de
+  Reserva Diaria** (lo transcribible; **las planillas N°2/3/4 son
+  imágenes**):
+  > "Si la conexión a conceder por la OPERADORA DEL SERVICIO nos ofrece un
+  > caudal inferior al Caudal de Cálculo Qc, debemos prever una reserva de
+  > agua que compense ese déficit, en las horas de mayor consumo."
+  > "El proyectista deberá analizar el período de consumo, con un mínimo
+  > de 1 hora a un máximo de 4 de acuerdo a las características de la
+  > instalación a proyectar, con el cual determinará la reserva de agua
+  > necesaria."
+
+  Método [NORMA, parcial]: se compara `Qc` (M1) contra el **caudal de
+  aporte de la conexión** que otorga la prestadora; la diferencia es un
+  **déficit de caudal `Dc`** que se cubre acumulando reserva durante el
+  período de consumo pico. El período pico `T` lo elige el proyectista
+  entre 1 h y 4 h. Las Tablas N°2/3/4 son la "secuencia de cálculo"
+  resuelta como ejemplo.
+
+  **No verificable en esta corrida** (imágenes): la fórmula algebraica
+  exacta del volumen (la lectura natural es
+  `Vreserva = Dc · T = (Qc − Qconexión) · T`, en unidades coherentes),
+  las unidades exactas, y si existe un mínimo absoluto (varias fuentes
+  secundarias mencionan "reserva mínima de 24 horas de consumo"; **el
+  texto oficial accesible no lo dice** con esas palabras). Una fuente
+  secundaria además describe `T` como *tiempo de llenado* del tanque, no
+  como *período de consumo pico* -- **lectura distinta**, misma ventana
+  1–4 h.
+
+- **§2.11 -- Tanques** (verbatim, selección):
+  > "Fondo con pendiente mínima de 1:25 hacia el desagüe."
+  > "Tanques de bombeo y reserva de 4.000 litros o más deben estar
+  > divididos en dos o más secciones iguales."
+  > "Altura libre mínima bajo tanques 0,60 m" / "Altura libre mínima
+  > sobre tanques 0,40 m"
+
+  Especificaciones **constructivas/geométricas** -- fuera del alcance de
+  "dimensionar volumen de reserva".
+
+- **§2.11.1 -- Alimentación de Tanques**: "De acuerdo a 2.9. y 2.9.1."
+- **§2.11.2 -- Capacidad de Tanques**: "En base a 2.9.1 y 2.9.2. Tablas y
+  ejemplos indicados." (remite a la misma secuencia de §2.10.2).
+- **§2.11.3 -- Distribución Reserva Total Diaria** (verbatim):
+  > "Los tanques de bombeo y reserva deben poseer un volumen mínimo de
+  > 1/3 de la Reserva Total Diaria."
+
+  **[NORMA]**: cuando hay tanque inferior (cisterna / tanque de bombeo),
+  ese tanque inferior debe alojar **como mínimo 1/3** de la Reserva Total
+  Diaria (el resto en el elevado). Cuando sólo hay tanque elevado, el
+  100% va arriba. La norma fija un **mínimo del inferior**, no un reparto
+  exacto.
+
+**Nota sobre §2.10.2 vs §2.10.2 ya citado en `CRITERIOS.md`**: el handoff
+histórico dudaba de esta numeración. Queda **confirmado**: §2.10.2 es la
+sección de reserva ("Alimentación por tanques y determinación del Volumen
+de Reserva Diaria"). Que `CRITERIOS.md` también cite §2.10.2 para CRIT-A8
+(inodoros con válvula automática) y para caudal por tramo no es
+contradicción: la sección contiene la secuencia de cálculo completa de
+las planillas de ejemplo, y esas reglas de M1 se leyeron de las mismas
+planillas.
+
+### C. Fórmula(s) confirmadas
+
+- **Confirmada [NORMA]**: `Dc = Qc − Qconexión` (déficit de caudal) y
+  `Reserva Total Diaria` derivada de `Dc` acumulado sobre un período pico
+  `T ∈ [1 h, 4 h]`.
+- **Confirmada [NORMA]**: mínimo del tanque inferior = 1/3 de la Reserva
+  Total Diaria (§2.11.3), sólo si hay tanque inferior.
+- **Confirmada [NORMA]**: tanque de reserva obligatorio para uso
+  residencial (§2.8).
+- **NO confirmada (decisión roja 1)**: la expresión algebraica exacta del
+  volumen (`Vreserva = Dc·T` es la hipótesis), unidades, mínimo absoluto,
+  y si `T` es "período de consumo pico" o "tiempo de llenado".
+
+### D. Inputs requeridos por M4 (propuesta)
+
+| Input | Origen | ¿Nuevo? |
+|---|---|---|
+| `Qc` global del proyecto | M1 (`calcularSimultaneidad`) | no, ya existe |
+| Caudal de conexión otorgado `Qconexión` | usuario (dato de la prestadora) **o** derivado de Tabla N°1 §2.7 (DN de conexión + presión disponible) | **sí** -- no está en el modelo |
+| Período pico `T` (1–4 h) | usuario (Profesional) / default IUAS (Rápido) | **sí** |
+| Configuración de almacenamiento (directa / sólo elevado / cisterna+bombeo+elevado) | usuario | **sí** -- hoy sólo selector de presentación de M2, no persistido |
+
+**M4 NO requiere**: población, cantidad de habitantes, dormitorios,
+superficie, ocupación, `habitantesPorUF`, dotación per cápita. El método
+normativo domiciliario (§2.10.2) es un balance de caudales anclado en
+`Qc`, no en población. Esto **resuelve por la negativa** la pregunta 6
+del brief y la preocupación central del §8 del brief.
+
+### E. Fronteras
+
+- **M4 ← M1**: dependencia fuerte y directa. `Qc` global (CRIT-A5) es el
+  input primario. M4 lo consume igual que `resolverEstadoModulo3`
+  (`calcularSimultaneidad(...).resultados['qc']`), **sin reimplementar
+  nada** del pipeline de demanda. No usa `Qc` "como proxy de consumo
+  diario": lo usa como lo que la norma pide -- el caudal de cálculo del
+  balance de §2.10.2.
+- **M4 ← / → M2**: comparten el **concepto de origen hidráulico**. Hoy M2
+  lo trata como selector de presentación efímero (D-δ.38 / D-δ.43). M4
+  necesita que la configuración de abastecimiento **persista** para tener
+  sentido -- ver decisión roja 2. **Candidato M4→M2**: la *cota del pelo
+  de agua mínimo* del tanque elevado, que M2 hoy pide como input manual
+  del Panel de Presión. Pero **el volumen de reserva NO determina la
+  cota** del tanque (variables independientes): M4 en su alcance mínimo
+  dimensiona *volumen útil requerido*, no geometría ni altura, así que
+  **no produce esa cota**. Sin modelo geométrico de tanque (fuera de
+  alcance), **no hay un dato físico nuevo que M4 deba entregarle a M2**.
+  No introducir integración preventiva; M2 está cerrado.
+- **M4 ← M3**: `configuracionMedidores.esPropiedadHorizontal` ya persiste
+  propiedad horizontal. M4 **no** la necesita: la reserva es del proyecto,
+  no por UF. **No mover `esPropiedadHorizontal`** a un nivel común sólo
+  por M4 (no hay segundo consumidor real de esa decisión en M4).
+
+### F. Modelo conceptual propuesto (borrador -- NO implementar todavía)
+
+- **`ConfiguracionModulo4`** (persistida, optativa, sin migración -- mismo
+  patrón que `configuracionMedidores?`). Sólo **decisiones físicas**:
+  configuración de almacenamiento; `Qconexión` (o los datos para
+  derivarlo de Tabla N°1); `T` pico adoptado (Profesional). Ausente =
+  `EstadoModulo4 = 'noIniciado'`.
+- **`ResultadoModulo4`** (derivado, recalculado siempre): `Qc` usado,
+  `Qconexión`, `Dc`, `T`, **Volumen de Reserva Diaria requerido**,
+  reparto propuesto (elevado / inferior, respetando el mínimo 1/3 de
+  §2.11.3 si hay tanque inferior), y -- si se adopta el patrón -- volumen
+  *adoptado* manualmente vs *requerido*. Nada de esto se persiste.
+- **`EstadoModulo4`**: `noIniciado | error | incompleto | evaluado`.
+  - `noIniciado`: no hay `configuracionModulo4`.
+  - `incompleto`: falta `Qc` (sin artefactos computables / indeterminado),
+    falta `Qconexión`, o falta `T`.
+  - `error`: inconsistencia estructural (p. ej. configuración que exige
+    tanque inferior con reparto imposible).
+  - `evaluado`: volumen de reserva requerido calculado. **Separar**
+    "cálculo resuelto" de "capacidad adoptada suficiente" si se agrega
+    override manual (patrón requerido vs adoptado, como M3-D parte 2).
+- **Modo de trabajo**: reutilizar `resolverModoDeTrabajo` (el mismo
+  concepto transversal ya usado por M2 y M3), **sin eje nuevo**. Rápido:
+  `T` por default IUAS + `Qconexión` sugerido (Tabla N°1) + cálculo
+  inmediato. Profesional: `T` y `Qconexión` explícitos + reparto +
+  volumen adoptado + trazabilidad. Misma matemática.
+- **Sin catálogo comercial de tanques** en repo ni en norma: M4 entrega
+  "volumen mínimo requerido = X L" y, a lo sumo, deja declarar "adoptado
+  = Y L". No inventar tamaños comerciales (500/750/1000 L).
+- **Sin topología de tanques**: la norma exige capacidad total (+ mínimo
+  1/3 del inferior). No modelar múltiples tanques en paralelo / uno por
+  UF sin un caso real.
+- **Bombas y presurizadores: fuera de alcance de M4.** M4 dimensiona
+  *volumen*. Selección de bomba (caudal, potencia, tiempo de llenado,
+  curva) y presurización son un dominio sustancial nuevo; si el reparto
+  cisterna+bombeo se soporta, M4 se limita a los **volúmenes**, no al
+  equipo de bombeo. `hfEquipoACS` sigue diferido y no es de M4 (reserva
+  de agua fría ≠ producción ACS).
+
+### G. Persistencia propuesta
+
+Persistir sólo: configuración de almacenamiento, `Qconexión` (o sus
+insumos), `T` adoptado, y -- si se adopta -- `volumenAdoptado`. Derivar
+todo lo demás (`Dc`, volumen requerido, reparto, `EstadoModulo4`). No
+persistir el `Qc` (se recalcula desde M1).
+
+### H. Roadmap real de implementación (hipótesis, revisar tras resolver rojas)
+
+- **M4-A** (esta corrida): contrato + rojas. **Documental. Bloqueado.**
+- **M4-B**: motor puro `resolverReservaDiaria(Qc, Qconexión, T) → Vreserva`
+  + reparto §2.11.3 + tests golden contra Tablas N°2/3/4. **Sólo tras
+  resolver la decisión roja 1.**
+- **M4-C**: `configuracionModulo4` persistida + `EstadoModulo4`. **Sólo
+  tras resolver la decisión roja 2.**
+- **M4-D**: UI Rápido/Profesional (después de M4-B/C).
+- **M4-E**: integración M4→M2 **sólo si** aparece un dato físico real
+  necesario (hoy la evidencia dice que no).
+- **M4-F**: auditoría end-to-end.
+
+Si la roja 1 se resuelve con fórmula inequívoca y la roja 2 se resuelve
+por "seguir con borde abstracto, sin persistir origen todavía", el
+slicing puede colapsar a **A → B → D → auditoría**.
+
+### Tests discriminantes a definir para el futuro motor (no escribir aún)
+
+Golden G2/G1 (Tablas N°2 y N°4 de §2.10.2) extendidos hasta el volumen de
+reserva; `Qconexión ≥ Qc` → reserva 0 (o mínimo normativo si existe);
+`Qconexión < Qc` → `Dc·T`; `T = 1 h` y `T = 4 h` como extremos; con y sin
+tanque inferior (reparto 1/3); backward compatibility (`configuracionModulo4`
+ausente → `noIniciado`); sin artefactos computables → `incompleto`.
+
+### I. Decisiones ya cerradas (que M4 hereda, no reabre)
+
+- Tanque de reserva obligatorio para uso residencial (§2.8) -- [NORMA].
+- `Qc` es autoritativo de M1 (CRIT-A5); M4 no recalcula demanda.
+- Mínimo 1/3 de la Reserva Total Diaria en el tanque inferior (§2.11.3)
+  -- [NORMA].
+- Modo de trabajo es transversal y derivado (D-δ.51); M4 lo reutiliza.
+- M2 está congelado; M4 no lo refactoriza.
+
+### J. Decisiones rojas
+
+#### Decisión roja 1 -- Fórmula exacta del Volumen de Reserva Diaria y semántica de `T`
+
+1. **Evidencia**: §2.10.2 describe el método (balance `Qc` vs caudal de
+   conexión; déficit cubierto sobre un período de 1 a 4 h) pero **la
+   fórmula algebraica, las unidades, el eventual mínimo absoluto y los
+   ejemplos numéricos viven en las Tablas N°2/3/4, que la fuente oficial
+   publica como imágenes de planilla**, no transcribibles en esta corrida.
+   Fuentes secundarias introducen dos lecturas incompatibles de `T`
+   ("período de consumo pico" vs "tiempo de llenado del tanque") y
+   mencionan un mínimo de "24 h de consumo" que el texto oficial accesible
+   no enuncia con esas palabras.
+2. **Alternativas**:
+   (a) el usuario aporta las Tablas N°2/3/4 y el texto íntegro de §2.10.2
+   (páginas 25–26/182 del IF-2023-141050544-APN-DNAPYS#MOP), como se hizo
+   con la Tabla N°6 en M3-A → se transcribe y verifica como caso golden;
+   (b) se adopta provisionalmente `Vreserva = (Qc − Qconexión)·T` con
+   `T` = período pico y **sin** mínimo absoluto, y se marca como criterio
+   IUAS revisable;
+   (c) se difiere M4 hasta disponer de la fuente.
+3. **Impacto**: sin (a) no hay forma de escribir M4-B con goldens
+   normativos reales; (b) arriesga un motor que después haya que
+   recalibrar; (c) frena el módulo.
+4. **Recomendación técnica**: (a). El proyecto ya tiene el precedente
+   exacto (M3-A con Tabla N°6) y la disciplina de `CASOS-GOLDEN.md` +
+   `CRITERIOS.md`. Las planillas N°2/4 además ya son goldens de M1 (G2/G1)
+   -- extenderlas es natural.
+5. **Pregunta**: ¿podés aportar el texto completo de §2.10.2 y las Tablas
+   N°2, N°3 y N°4 de la Guía ERAS 2023 (o confirmar que M4 se difiere
+   hasta tenerlas)?
+
+#### Decisión roja 2 -- Persistir el origen / configuración de abastecimiento hidráulico
+
+1. **Evidencia**: M4 sólo tiene sentido sabiendo la configuración de
+   abastecimiento (directa sin reserva / sólo tanque elevado /
+   cisterna+bombeo+tanque elevado). Hoy esa elección es un **selector de
+   presentación efímero** del Panel de Presión de M2 (D-δ.43), no
+   persistido; D-δ.36/D-δ.38 dejaron explícitamente abierta como
+   **decisión roja** la representación del origen ("borde abstracto vs
+   estructura en `Proyecto` vs referencia de nodo; global vs por subred").
+   M4 es el primer consumidor real que **obliga** a persistir esa
+   decisión.
+2. **Alternativas**:
+   (a) cerrar `Proyecto.origenHidraulico` (o `configuracionModulo4` que lo
+   incluya) como campo persistido, global al proyecto, unión cerrada
+   `{ directa | tanqueElevado | cisternaBombeoElevado }`, optativo/sin
+   migración -- M2 pasaría a leerlo en vez de su selector efímero;
+   (b) persistirlo **por raíz/subred** (CRIT-A27 admite subredes
+   independientes) -- más general, más caro, sin caso real que lo pida;
+   (c) M4 declara su propia configuración de almacenamiento aislada y M2
+   sigue con su selector efímero -- dos fuentes de verdad del mismo hecho
+   físico, riesgo de divergencia.
+3. **Impacto**: (a) toca M2 (congelado) para reapuntar su lectura del
+   origen -- cambio acotado y previsto por D-δ.38, pero es tocar M2;
+   (b) es infra preventiva sin segundo caso; (c) viola "una sola fuente
+   de verdad".
+4. **Recomendación técnica**: (a), global al proyecto, optativo. Es el
+   momento correcto: hay por fin un segundo consumidor real (M4) del
+   concepto de origen, y D-δ.38 ya dejó dicho cómo se mapea cada origen a
+   `Pdisponible`/raíz. No hacer (b) hasta que exista un proyecto con
+   subredes de origen distinto.
+5. **Pregunta**: ¿cerramos `origenHidraulico` como campo persistido global
+   del `Proyecto` (unión `directa | tanqueElevado | cisternaBombeoElevado`,
+   optativo, y M2 lo lee en lugar de su selector de presentación), o
+   preferís que M4-A sólo lo deje propuesto y se decida en M4-C?
+
+**Decisiones rojas contingentes** (dependen de las dos anteriores, no se
+elevan como preguntas ahora): si `Qconexión` se declara a mano o se
+deriva de Tabla N°1 §2.7 (y con qué DN de conexión); qué valor de `T`
+adopta el modo Rápido por defecto; si se soporta el reparto
+cisterna+bombeo en M4 o se difiere junto con las bombas.
+
+### K. Respuestas explícitas a las 20 preguntas del brief (§35)
+
+1. **¿Qué dimensiona M4?** El **Volumen de Reserva Diaria requerido**
+   (volumen útil, en litros) para compensar el déficit entre `Qc` y el
+   caudal de conexión durante el pico de consumo (§2.10.2). No dimensiona
+   geometría ni cota del tanque.
+2. **¿Fórmula normativa?** Método de balance de caudales: `Dc = Qc −
+   Qconexión`, reserva ≈ `Dc·T` con `T ∈ [1 h, 4 h]`. Expresión exacta y
+   unidades: **decisión roja 1** (planillas N°2/3/4 son imágenes).
+3. **¿Input primario?** El `Qc` global del proyecto (M1, CRIT-A5).
+4. **¿De dónde sale la demanda diaria?** No hay "demanda diaria" como tal
+   en el método domiciliario: sale del `Qc` instantáneo de M1 confrontado
+   con el caudal de conexión. La dotación per cápita (§2.9.1.1) es para
+   conjuntos urbanos, no para esto.
+5. **¿M1 aporta algo?** Sí: el `Qc` global, reutilizado sin
+   reimplementar.
+6. **¿Hace falta población/ocupación nueva?** **No.** El método no usa
+   habitantes/dormitorios/superficie.
+7. **¿Qué tipos de tanque contempla?** Tanque de reserva elevado
+   (obligatorio residencial, §2.8) y tanque inferior / cisterna / de
+   bombeo (opcional, §2.11 / §2.11.3). Alimentación directa sin reserva
+   sólo para subsuelo/PB no residencial.
+8. **¿Volumen total o reparto?** Volumen total de reserva; reparto
+   elevado/inferior sólo si hay tanque inferior.
+9. **¿Porcentaje inferior/superior?** §2.11.3: el tanque inferior aloja
+   **mínimo 1/3** de la Reserva Total Diaria. Es un mínimo del inferior,
+   no un reparto fijo.
+10. **¿Mínimo absoluto?** No confirmado (decisión roja 1). Fuentes
+    secundarias mencionan "24 h de consumo"; el texto oficial accesible
+    no lo enuncia así.
+11. **¿Volumen útil o nominal?** M4 produce **volumen útil requerido**.
+    Cámara de aire, nivel mínimo, volumen muerto, rebalse: geometría del
+    tanque, fuera de alcance.
+12. **¿M4 dimensiona geometría?** No.
+13. **¿M4 dimensiona bombas?** No. Fuera de alcance.
+14. **¿M4 produce algo para M2?** En el alcance mínimo, **no** hay un dato
+    físico nuevo obligatorio (el volumen no fija la cota del pelo de
+    agua). Ver frontera M4/M2.
+15. **¿Debe persistirse el origen hidráulico?** Sí -- **decisión roja 2**.
+16. **¿Hace falta configuración nueva en `Proyecto`?** Sí:
+    `configuracionModulo4` (optativa, patrón `configuracionMedidores?`) y
+    posiblemente `origenHidraulico` (decisión roja 2).
+17. **¿Qué significa `EstadoModulo4`?** `noIniciado` (sin config) /
+    `incompleto` (falta `Qc`, `Qconexión` o `T`) / `error`
+    (inconsistencia estructural) / `evaluado` (volumen requerido
+    calculado). Separar "calculado" de "capacidad adoptada suficiente".
+18. **¿Qué puede hacer Rápido?** `T` default IUAS + `Qconexión` sugerido
+    de Tabla N°1 + cálculo inmediato del volumen requerido.
+19. **¿Qué muestra Profesional?** `T` y `Qconexión` explícitos, reparto
+    elevado/inferior, volumen adoptado vs requerido, trazabilidad
+    normativa.
+20. **¿Qué queda explícitamente fuera de alcance?** Geometría/cota del
+    tanque, catálogo comercial de tanques, múltiples tanques/topología de
+    tanques, selección de bombas, presurizadores, `hfEquipoACS`,
+    reporting PDF de M4, dotación per cápita, población/ocupación.
+
+### Handoff
+
+- **Repo**: `main`, HEAD `38ad1c9`, tree limpio, baseline verde
+  (1041 tests, tsc, build, lint sin regresión).
+- **Arqueología**: no existe nada de M4 en código; sí existen
+  `tabla-01-gastos-conexion` (§2.7, sin consumidor), `presionSobreAcera_m`
+  (sin consumidor), el `Qc` global de M1, el patrón `EstadoModulo3`, y
+  `resolverModoDeTrabajo`. D-δ.32/36/38 son la investigación previa del
+  origen hidráulico.
+- **Norma**: método de reserva = §2.10.2 (balance `Qc` vs conexión, pico
+  1–4 h); §2.8 (tanque obligatorio residencial); §2.11.3 (mínimo 1/3 del
+  inferior); §2.9.1.1 (dotación per cápita = conjunto urbano, no
+  domiciliaria). Tablas N°2/3/4 no transcribibles (imágenes).
+- **Dominio**: M4 dimensiona **volumen útil de reserva diaria requerido**
+  desde `Qc` (M1) y el caudal de conexión, sobre un período pico `T`.
+  Sin población. Sin geometría. Sin bombas.
+- **Integración**: M4 ← M1 fuerte (`Qc`); M4 ↔ M2 comparten el origen
+  hidráulico (hoy efímero); M4 → M2 sin dato nuevo obligatorio.
+- **Decisiones rojas**: (1) fórmula/tablas de §2.10.2 -- se necesita la
+  fuente; (2) persistir `origenHidraulico`.
+- **Siguiente slice recomendado**: resolver la roja 1 (aportar §2.10.2 +
+  Tablas N°2/3/4) y la roja 2 (persistencia del origen). Recién entonces
+  M4-B (motor puro + goldens). **No empezar UI sin contrato.**
+
+### Estado
+
+**D-δ.61 -- ABIERTA (documental).** Contrato de dominio de M4 propuesto;
+dos decisiones rojas bloqueantes elevadas al usuario. Sin código. Baseline
+intacto. No se inicia M4-B.

@@ -369,6 +369,65 @@ recalcula demanda, no toca la topología.
 - **Infra persistente de Playwright** — el navegador se usó vía instalación
   transitoria sin `--save`; `package.json` / `package-lock.json` intactos.
 
+### Fase 3 / Módulo 4 (Reserva / Tanques) — investigación abierta (M4-A, D-δ.61)
+
+Primer módulo del bloque de reserva. **M4-A** (incremento documental)
+reconstruyó el dominio contra la Guía ERAS 2023 / Resolución 641/2023.
+Detalle completo en `PENDIENTES-DE-ARQUITECTURA.md` D-δ.61.
+
+**Hallazgos:**
+
+- **Objeto de cálculo**: el **Volumen de Reserva Diaria requerido**
+  (volumen útil, litros). No dimensiona geometría, cota del tanque,
+  bombas ni presurización.
+- **Método normativo** (§2.10.2, "Alimentación por tanques y
+  determinación del Volumen de Reserva Diaria"): balance de caudales —
+  déficit `Dc = Qc − Qconexión` cubierto sobre un período de consumo pico
+  `T` que el proyectista elige entre 1 h y 4 h. **No** usa población,
+  dotación per cápita, dormitorios ni superficie (la dotación 500/350/150
+  L/hab·día de §2.9.1.1 es para conjuntos urbanos, no para reserva
+  domiciliaria).
+- **Input primario**: el `Qc` global del proyecto de M1 (CRIT-A5),
+  reutilizado sin reimplementar el pipeline de demanda — igual que
+  `resolverEstadoModulo3`.
+- **§2.8**: tanque de reserva **obligatorio** para el uso residencial
+  dominante de IUAS. Alimentación directa sin reserva sólo para subsuelo
+  y planta baja no residencial.
+- **§2.11.3**: si hay tanque inferior (cisterna / bombeo), aloja **mínimo
+  1/3** de la Reserva Total Diaria; el resto en el elevado.
+- **Piezas del repo ya listas**: `tabla-01-gastos-conexion` (§2.7, gasto
+  de conexión por DN y presión — sin consumidor todavía),
+  `presionSobreAcera_m`, el `Qc` global, el patrón `EstadoModulo3`,
+  `resolverModoDeTrabajo` (modo de trabajo transversal, reutilizable).
+
+**Decisiones rojas bloqueantes (elevadas al usuario):**
+
+1. **Fórmula exacta del Volumen de Reserva Diaria y semántica de `T`**:
+   las Tablas N°2/N°3/N°4 de §2.10.2 (secuencias de cálculo de ejemplo,
+   de donde ya salen los goldens G1/G2 de M1) se publican como imágenes
+   de planilla, no transcribibles desde las fuentes accesibles. Falta la
+   expresión algebraica, las unidades, el eventual mínimo absoluto y la
+   lectura de `T` (período de consumo pico vs tiempo de llenado). Se
+   necesita que el usuario aporte la fuente, como en M3-A con la Tabla
+   N°6.
+2. **Persistir `origenHidraulico`**: M4 sólo tiene sentido conociendo la
+   configuración de abastecimiento (directa / sólo tanque elevado /
+   cisterna+bombeo+elevado), que hoy es un selector de presentación
+   efímero de M2 (D-δ.38/D-δ.43). M4 es el primer consumidor real que
+   obliga a decidir la persistencia del origen (decisión roja de
+   D-δ.36/D-δ.38).
+
+**Roadmap tentativo** (revisar tras resolver las rojas): M4-A
+(investigación, hecha) → M4-B (motor puro `Qc + Qconexión + T →
+Vreserva` + goldens) → M4-C (`configuracionModulo4` + `EstadoModulo4`) →
+M4-D (UI Rápido/Profesional) → M4-E (integración M4→M2 sólo si aparece un
+dato físico real necesario — hoy no) → M4-F (auditoría). Puede colapsar a
+A → B → D → auditoría si las rojas se resuelven de forma inequívoca.
+
+**Explícitamente fuera de alcance de M4**: geometría/cota del tanque,
+catálogo comercial de tanques, topología de múltiples tanques, selección
+de bombas, presurizadores, `hfEquipoACS`, reporting PDF de M4.
+
 ## Deuda técnica conocida (no bloqueante, registrada explícitamente)
 
 - `docs/adr/` y `docs/arquitectura/` existen como carpetas vacías, sin
