@@ -97,6 +97,47 @@ describe('resolverTerminalMasDesfavorable', () => {
     })
   })
 
+  it('D-δ.48: el terminal con MAYOR Presidual puede ser el más desfavorable si su margen es menor -- contraejemplo explícito de que el criterio NO es min(Presidual)', () => {
+    // Terminal A: Presidual=5,5, Pmin=2,0 -> margen=+3,5.
+    // Terminal B: Presidual=7,0, Pmin=6,0 -> margen=+1,0.
+    // Aunque 5,5 < 7,0 (A tiene MENOR Presidual absoluta), el más
+    // desfavorable es B porque +1,0 < +3,5. Este test falla si alguien
+    // revierte la implementación a "elegir el de menor presionResidual_mca"
+    // -- a diferencia del test anterior (n-a/n-b/n-c), acá Presidual y
+    // margen quedan deliberadamente en orden INVERSO entre los dos
+    // candidatos, así que un criterio de min(Presidual) elegiría A (el
+    // candidato incorrecto) en vez de B.
+    const resultado = resolverTerminalMasDesfavorable([
+      candidato('terminal-a', balanceCompleto(5.5, 2.0)),
+      candidato('terminal-b', balanceCompleto(7.0, 6.0)),
+    ])
+
+    expect(resultado).toEqual({
+      tipo: 'determinado',
+      nodoId: 'terminal-b',
+      presionResidual_mca: 7.0,
+      presionMinimaRequerida_mca: 6.0,
+      cumpleMinimo: true,
+      margen_mca: 1.0,
+    })
+  })
+
+  it('D-δ.48: caso NO CUMPLE (margen negativo) con los valores del caso de aceptación -- Presidual=5,4, Pmin=6,0, margen=-0,6', () => {
+    const resultado = resolverTerminalMasDesfavorable([
+      candidato('terminal-critico', balanceCompleto(5.4, 6.0)),
+      candidato('terminal-holgado', balanceCompleto(15, 10)), // margen=5, cumple
+    ])
+
+    expect(resultado).toEqual({
+      tipo: 'determinado',
+      nodoId: 'terminal-critico',
+      presionResidual_mca: 5.4,
+      presionMinimaRequerida_mca: 6.0,
+      cumpleMinimo: false,
+      margen_mca: expect.closeTo(-0.6, 10),
+    })
+  })
+
   it('un terminal que NO cumple (margen negativo) es siempre el mas desfavorable frente a otros que si cumplen', () => {
     const resultado = resolverTerminalMasDesfavorable([
       candidato('n-a', balanceCompleto(15, 10)), // margen=5, cumple

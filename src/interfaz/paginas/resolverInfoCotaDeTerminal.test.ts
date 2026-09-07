@@ -84,4 +84,35 @@ describe('resolverInfoCotaDeTerminal (D-δ.46)', () => {
 
     expect(info).toEqual({ tipo: 'individual', cota_m: undefined, onCambiarCota: expect.any(Function) })
   })
+
+  // D-δ.48: fixture con DOS UnidadesFuncionales de cota distinta -- ningún
+  // test anterior podía detectar un bug de "siempre toma la primera UF"
+  // (ej. .find() mal indexado) porque todos usaban un único uf-1. Reproduce
+  // la matriz PB/Piso1/Piso2/Piso3 pedida por el brief: cada terminal debe
+  // resolver EXACTAMENTE la cota de SU PROPIA UnidadFuncional, nunca la de
+  // otra, aunque ambas convivan en el mismo proyecto.
+  it("'simplificada', dos UF con cotas distintas: cada terminal resuelve la cota de SU PROPIA UF, nunca la de la otra", () => {
+    const ufPB: UnidadFuncional = { id: 'uf-pb', nombre: 'PB', cotaHidraulicaReferencia_m: 1, locales: [] }
+    const ufPiso2: UnidadFuncional = { id: 'uf-piso2', nombre: 'Piso 2', cotaHidraulicaReferencia_m: 7, locales: [] }
+    const proyecto: Proyecto = {
+      metadatos: metadatos(),
+      parametros: parametros(),
+      unidadesFuncionales: [ufPB, ufPiso2],
+      configuracionHidraulica: {
+        metodoPerdidaDistribuida: 'hazenWilliams',
+        metodoPerdidaLocalizada: 'detallado',
+        granularidadHidraulica: 'simplificada',
+        materialTuberiaId: 'ppr',
+        sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
+      },
+    }
+    const terminalDePB = { id: 't-pb', referencia: referenciaDe('uf-pb', 'local-1', 'inst-1'), cota_m: 999 }
+    const terminalDePiso2 = { id: 't-piso2', referencia: referenciaDe('uf-piso2', 'local-1', 'inst-2'), cota_m: 999 }
+
+    const infoPB = resolverInfoCotaDeTerminal(proyecto, 't-pb', terminalDePB, false, () => {})
+    const infoPiso2 = resolverInfoCotaDeTerminal(proyecto, 't-piso2', terminalDePiso2, false, () => {})
+
+    expect(infoPB).toEqual({ tipo: 'deUF', nombreUF: 'PB', cota_m: 1 })
+    expect(infoPiso2).toEqual({ tipo: 'deUF', nombreUF: 'Piso 2', cota_m: 7 })
+  })
 })
