@@ -5168,3 +5168,170 @@ datos ≠ 0; cero determinado sí puede ser 0; override manual propaga la
 end-to-end). Menores: Tabla N°8, CRIT-A8 en B2b, poda activa de overrides
 huérfanos, verificación interactiva de UI (sin infra de browser en el
 repo).
+
+## D-δ.59 -- M3-F: auditoría end-to-end de Módulo 3 y cierre funcional -- CERRADA
+
+Auditoría sistemática de todo lo entregado en M3-A → M3-E, sin agregar
+funcionalidad. Objetivo: declarar M3 funcionalmente cerrado o registrar
+con precisión qué falta. **Resultado: M3 CERRADO. Sin bugs.**
+
+### Baseline de entrada (verificado contra el repo real)
+
+`main` @ `7575780`, working tree limpio. `npx vitest run`: 1039/1039 en
+115 archivos. `npx tsc -b`, `npm run build`, `npx eslint .`: verdes (11
+problemas de lint baseline preexistentes, 0 warnings nuevos).
+
+### Alcance auditado y evidencia
+
+- **Tabla N°6** (`normativa/eras-2023/tabla-06-medidores`): 8 filas, orden
+  DN y `Qc` crecientes, unidades y umbrales correctos, regla literal
+  `Qc_tabla + ε >= Qc` sin interpolación, `> 40 m³/h → fueraDeTabla06` sin
+  extrapolar, tolerancia IEEE-754 `1e-9 m³/h` para umbrales exactos.
+  Inconsistencia oficial DN19↔C7 (CRIT-A32) fijada por test como errata:
+  la tabla manda. Fronteras 1,5 / 3,5 / 40 exactas y 2,5 / 2,6 / 40,0001
+  cubiertas.
+- **Medidor general** (`seleccionarMedidorGeneral` →
+  `resolverSeleccionYPerdidaDeMedidor`): `Qc` global de M1/M2 (CRIT-A5),
+  conversión l/s → m³/h (×3,6) y → l/min (×60), `C` de la MISMA fila,
+  `hf = 0,036·(Qcl/C)²` (CRIT-A25). No recalcula una demanda alternativa.
+- **Medidor individual** (`seleccionarMedidorIndividual`): `Qunit = Σ
+  cantidad·qu` con `K=1` (simultaneidad total, §2.6 / CRIT-A33), sin
+  `Kc`/`K`/`a`; mismo `Qunit` para selección y para `Qcl`. Test
+  discriminante nº 9: 5 consumos de 0,10 l/s → `Qunit`=0,50 l/s (DN19),
+  NO el `Qc` simultaneado 0,25 l/s (DN15) — demuestra que M3 usa `Qunit`.
+- **Alcances / cardinalidad** (`resolverAlcancesDeMedidoresIndividuales`,
+  CRIT-A34): no PH → 0 medidores; PH + ACS individual → 1 medidor AF por
+  UF con `quTotal` de todo el consumo (conservación de masa); PH + ACS
+  central → medidor AF + medidor AC (AC sólo si hay consumo AC, nunca un
+  medidor AC vacío); 2 UF → alcances independientes sin contaminación;
+  ACS declarado por UF (override global + por UF), nunca inferido de
+  `produccionACS`.
+- **`EstadoModulo3`** (`resolverEstadoModulo3`): precedencia `noIniciado`
+  (sin config) → `error` (override ACS a UF inexistente; red inválida con
+  PH) → `incompleto` (sin artefactos, `Qc` indeterminado, red ausente con
+  PH, general o individual `> 40 m³/h`) → `evaluado`. `evaluado` NO
+  implica cumplimiento metrológico (no hay Q1..Q4/Qmin). `incompleto`
+  expone `parcial` con los medidores que sí se evaluaron.
+- **Override recomendado vs. adoptado** (`resolverMedidorAdoptado`,
+  D-δ.57): DN adoptado, `C` adoptado, caudal medio, umbral y `hf` adoptada
+  provienen TODOS de la misma fila de Tabla N°6 (anti-stale, test D2-12);
+  `Q` no cambia; `Auto` restaura exactamente el automático; DN inferior al
+  recomendado → `criterioSeleccion: 'inferiorAlRecomendado'` (calcula `hf`
+  pero se marca; no se confunde con rango metrológico). `↑`/`↓` recorren
+  filas reales de la tabla; extremos deshabilitados
+  (`resolverControlDeMedidor`).
+- **Integración M3→M2** (`resolverPerdidasDeMedidoresParaTerminal`,
+  D-δ.58): general en `alimentacionDirecta`, excluido en `tanqueElevado`
+  (aguas arriba del almacenamiento); ACS individual → medidor AF aplica a
+  terminales AF y AC de la UF (`aplicaPorProvisionACSIndividual: true` en
+  AC); ACS central → AF→AF, AC→AC; aislamiento por UF; `determinadas` con
+  `componentes: []` y `hfTotal_mca: 0` es válido (tanque + no PH);
+  ausencia de dato → `indeterminado`, nunca 0. M2 sigue recibiendo
+  `number | undefined` por terminal; `resolverPresionResidualDeCamino` no
+  conoce M3. Input provisional de `hfMedidor` eliminado de la UI y del
+  estado local (verificado: no queda fallback oculto).
+- **Backward compatibility**: `Proyecto.configuracionMedidores?` optativo;
+  un proyecto anterior a M3 sigue válido → `EstadoModulo3` `noIniciado` →
+  la presión indica falta de información M3, no inventa 0.
+- **Validación estructural**: `validarConfiguracionMedidores` (en
+  `validarProyecto`) detecta override ACS a UF inexistente y no valida
+  resultados derivados ni genera falsos errores por M3 no iniciado.
+
+### Matriz de casos ejecutada
+
+| Origen | ACS | Terminal | Componentes esperados | Verificado |
+|---|---|---|---|---|
+| Directa | individual | AF | general + individual AF | E9 (puro) + smoke S1 |
+| Directa | individual | AC | general + individual AF (`aplicaPor…`) | **E9b (nuevo)** + smoke S3 |
+| Directa | central | AF | general + individual AF | E6/E7 + E9 |
+| Directa | central | AC | general + individual AC (no AF) | **E9c (nuevo)** |
+| Tanque | individual | AF/AC | individual AF | E4/E5/E10 + smoke S2 |
+| Tanque | central | AF | individual AF | E6/E7 |
+| Tanque | central | AC | individual AC | E6/E7 |
+| Tanque | no PH | — | `[]`, `hfTotal_mca: 0` (determinado) | E2/E3 |
+| no iniciado / error | — | — | `indeterminado`, nunca 0 | E11 + "estado error" |
+
+Anti-atajo confirmados: (A) falla si se usa `medidorGeneral.hf` para todo
+(tanque + no PH → 0); (B) falla si se aplica el individual sólo cuando
+`servicioMedido === redDelTerminal` (ACS individual + terminal AC usa el
+medidor AF).
+
+### Verificación de navegador (Playwright, dev server real)
+
+Playwright 1.63.0 estaba disponible de forma transitoria en `node_modules`
+(instalación previa sin `--save`) con navegadores en caché; se usó SIN
+tocar `package.json` / `package-lock.json` (`git status` limpio después).
+Script de smoke contra `vite dev`, proyecto de ejemplo
+(`viviendaIndividual`, 1 UF):
+
+- **S1 — DIRECTA**: `↑` medidor general → DN 25→32, C 7→10, `hf`
+  1,399→0,686 m.c.a.; margen del crítico 5,733→6,447 m.c.a. (sube);
+  `Δmargen ≈ Δhf` (sin redondeo intermedio en el cálculo); `Auto` restaura
+  `hf` y margen EXACTOS.
+- **S2 — TANQUE**: `↑` general → el `hf` del panel M3 cambia
+  (1,399→0,686) pero el margen del crítico NO cambia (el general está
+  fuera del camino tanque → terminal). Smoke obligatorio: OK.
+- **S3 — ACS individual**: PH on → 1 medidor individual, todos AF; `↑`
+  medidor AF → el margen del crítico (terminal AC de la UF) se mueve
+  4,019→4,971; `Auto` restaura exacto. Smoke obligatorio: OK.
+- **S4 — ACS central**: aparece medidor AF y medidor AC (2 filas vs. 1 en
+  individual).
+- **Consola**: 0 errores / 0 warnings en toda la corrida.
+
+17/17 checks PASS.
+
+### Impresión / PDF (chequeo no invasivo)
+
+La memoria PDF (`exportadores/pdf/generarDocumentoPdf`, pdfMake) es
+programática y hoy sólo cubre Módulo 1 — Demanda; M2 y M3 no aparecen (no
+es una regresión: M2 tampoco estaba). No hay `@media print` ni
+`window.print()` en el código. Agregar el panel M3 al DOM no rompe la
+impresión porque el PDF no lee el DOM. Rediseño del informe: fuera de
+alcance de M3-F (deuda de reporting registrada).
+
+### Bugs encontrados / corregidos
+
+Ninguno. Ajustes menores aplicados (no son bugs):
+
+1. `PanelDeMedidoresDeModulo3.tsx` — comentario de cabecera obsoleto
+   ("M3-E (pendiente)…") reemplazado por la descripción real (M3-E ya
+   está integrado vía `resolverPerdidasDeMedidoresParaTerminal`).
+2. `resolverPerdidasDeMedidoresParaTerminal.test.ts` — 2 tests de matriz
+   añadidos (`E9b`, `E9c`): directa + terminal AC con ACS individual y con
+   ACS central, con valores numéricos. Suite: 1039 → 1041.
+
+### Deudas registradas (no bloquean el cierre)
+
+- **Tabla N°8** — ampliación de rango `> 40 m³/h`; hoy `fueraDeTabla06` /
+  `incompleto`, sin extrapolar. Ampliación futura.
+- **CRIT-A8 en el universo de B2b** — sin caso real detectado donde M3
+  dimensione con consumos que M1/M2 considere no computables (mismo filtro
+  `origen === 'normativo'` + conexión física). Refinamiento sin impacto.
+- **Poda activa de overrides de medidor huérfanos** — un round-trip
+  ACS central→individual→central (o PH off→on) con un override de DN en el
+  medio reactiva ese override al reaparecer el alcance. El valor
+  reaplicado es la decisión previa del propio usuario; mientras el alcance
+  no existe el override se ignora sin romper ni contaminar (tests
+  "override huérfano" y D2-11). Podar exigiría pasar topología (proyecto +
+  catálogo + red) a los updaters de configuración, hoy transformaciones
+  puras de config — cambio de firma no trivial. Preferencia futura: podar
+  el override cuando su alcance desaparece.
+- **Panel M3 en estado `incompleto`** — muestra los motivos pero no los
+  medidores de `parcial` (que M2 sí consume). UX menor.
+- **Reporting visual de M2/M3 en la memoria PDF** — ver arriba.
+- **Infra persistente de Playwright** — no se agrega al repo.
+
+### Decisiones rojas
+
+Ninguna.
+
+### Estado
+
+**D-δ.59 -- CERRADA. M3-F CERRADO. Módulo 3 (Medidores) CERRADO** para el
+alcance actual: dominio (Tabla N°6, general, individuales `K=1`,
+cardinalidad, ACS individual/central), configuración persistida y
+backward compatibility, UI operable (recomendado/adoptado, ↑/↓/Auto),
+integración M3→M2 (directa/tanque, aislamiento por UF, indeterminado ≠ 0,
+input provisional eliminado), presión (`Presidual` / margen / crítico) y
+reactividad — todo verificado, con navegador real. Suite 1041/1041, `tsc`,
+`build`, lint sin regresión, working tree limpio. No se inicia M4.

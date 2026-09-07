@@ -240,7 +240,7 @@ elimina infraestructura compartida del Local.
 - integración con el PDF existente;
 - trazabilidad normativa completa en el exportable.
 
-### Fase 2 / Módulo 3 (Medidores) — en curso
+### Fase 2 / Módulo 3 (Medidores) — CERRADO (M3-F, D-δ.59)
 
 Ver `PENDIENTES-DE-ARQUITECTURA.md` D-δ.53 para el detalle. M3 está
 **separado de `RedHidraulica`** (decisión roja 1, alternativa 4): consume
@@ -322,14 +322,41 @@ recalcula demanda, no toca la topología.
   (`resolverPresionResidualDeCamino` intacto); `EstadoModulo3.incompleto`
   expone `parcial`; falta de dato → `indeterminado`, nunca 0; cero
   determinado (tanque + no PH) sí es 0.
+- **M3-F** — auditoría end-to-end de M3 y cierre funcional (D-δ.59):
+  dominio (Tabla N°6, medidor general, individuales `K=1`, cardinalidad,
+  ACS individual/central), configuración persistida y backward
+  compatibility, UI operable (recomendado/adoptado, ↑/↓/Auto), integración
+  M3→M2 (directa/tanque, aislamiento por UF, indeterminado ≠ 0, input
+  provisional eliminado), presión (`Presidual`/margen/crítico) y
+  reactividad. **Verificación de navegador real** (Playwright, dev server):
+  17/17 smoke checks, consola sin errores/warnings. **Sin bugs.** Ajustes
+  menores: 1 comentario obsoleto y 2 tests de matriz añadidos (directa +
+  terminal AC, ACS individual y central). **M3 CERRADO** para el alcance
+  actual.
 
-**Pendiente:**
+**Deuda registrada (no bloquea el cierre):**
 
 - **Tabla N°8** (Anexo A de la Guía, ampliación de rango de Qc) — es una
-  lámina no transcripta; se incorpora si aporta umbrales por encima de los
-  40 m³/h de Tabla N°6;
-- **M3-F** — auditoría end-to-end (demanda → tuberías → medidor → presión
-  recalculada, sin valores stale, sin dependencia circular).
+  lámina no transcripta; `Qc > 40 m³/h` sigue como `fueraDeTabla06` /
+  `incompleto`, sin extrapolar. Se incorpora si aporta umbrales por
+  encima de los 40 m³/h de Tabla N°6;
+- **CRIT-A8 en el universo de consumos de B2b** — no se detectó un caso
+  real donde M3 dimensione un medidor con consumos que M1/M2 considere no
+  computables (mismo filtro `origen === 'normativo'` + conexión física);
+  queda como refinamiento sin impacto en los flujos actuales;
+- **Poda activa de overrides de medidor huérfanos** — un round-trip
+  ACS central→individual→central (o PH off→on) con un override de DN
+  puesto en el medio reactiva ese override al reaparecer el alcance. El
+  valor reaplicado es la decisión previa del propio usuario (no basura) y
+  mientras el alcance no existe el override se ignora sin romper ni
+  contaminar. Podar requeriría pasar topología a los updaters de
+  configuración (hoy transformaciones puras de config);
+- **Reporting visual de M2/M3** — la memoria PDF (`generarDocumentoPdf`,
+  pdfMake) hoy sólo cubre Módulo 1; M2 y M3 no aparecen. El panel M3 en el
+  DOM no rompe la impresión (el PDF no lee el DOM). Rediseño del informe
+  fuera de alcance de M3-F;
+- **Infra persistente de Playwright** — el navegador se usó vía instalación
+  transitoria sin `--save`; `package.json` / `package-lock.json` intactos.
 
 ## Deuda técnica conocida (no bloqueante, registrada explícitamente)
 
