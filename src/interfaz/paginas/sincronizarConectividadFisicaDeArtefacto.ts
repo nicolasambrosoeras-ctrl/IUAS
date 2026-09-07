@@ -31,7 +31,7 @@ import type { Proyecto } from '../../modelo/proyecto'
 import type { Nodo, RedDeTramo, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
 import { determinarRedesFisicasPorPrecedente } from '../../motor/tuberias/topologia/determinarRedesFisicasPorPrecedente'
 import { hallarNodoDeInsercionDeLocal } from '../../motor/tuberias/topologia/hallarNodoDeInsercionDeLocal'
-import { generarId } from './duplicarUnidadFuncional'
+import { generarId } from './generarId'
 import { asegurarRaizAC, asegurarRaizAF, esNodoRaizCompartida } from './asegurarRaizDeRed'
 
 export type ResultadoSincronizacionDeArtefacto =

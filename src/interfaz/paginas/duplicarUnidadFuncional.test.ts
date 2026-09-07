@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import type { Artefacto, Local, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
+import type { Nodo, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
 import { duplicarUnidadFuncional, duplicarUnidadFuncionalEnProyecto } from './duplicarUnidadFuncional'
+import { validarRedHidraulica } from '../../validacion/redHidraulica'
+import { auditarCoberturaFisica } from '../../motor/tuberias/cobertura/auditarCoberturaFisica'
 
 function artefactoDePrueba(overrides: Partial<Artefacto> = {}): Artefacto {
   return { id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 2, origen: 'normativo', ...overrides }
@@ -182,13 +185,183 @@ describe('duplicarUnidadFuncionalEnProyecto', () => {
     ])
   })
 
-  it('proyecto.redHidraulica, si existe, no cambia ni se reconstruye', () => {
+  it('sin redHidraulica en el proyecto, solo reconstruye el array de UFs', () => {
     const uf = ufDePrueba()
-    const redHidraulica = { nodos: [], tramos: [] }
-    const proyecto: Proyecto = { ...proyectoDePrueba([uf]), redHidraulica }
+    const proyecto = proyectoDePrueba([uf])
 
     const resultado = duplicarUnidadFuncionalEnProyecto(proyecto, uf.id)
 
-    expect(resultado.redHidraulica).toBe(redHidraulica)
+    expect(resultado.redHidraulica).toBeUndefined()
+    expect(resultado.unidadesFuncionales).toHaveLength(2)
+  })
+
+  it('UF inexistente: devuelve el proyecto sin cambios', () => {
+    const uf = ufDePrueba()
+    const proyecto = proyectoDePrueba([uf])
+
+    const resultado = duplicarUnidadFuncionalEnProyecto(proyecto, 'uf-que-no-existe')
+
+    expect(resultado).toBe(proyecto)
+  })
+})
+
+// D-δ.50 (brief seccion 3-5, T1/T2): duplicar una UF debe dejar la copia
+// con conectividad fisica valida -- nunca "artefactos normativos sin
+// conexion fisica" como resultado normal. Reutiliza la sincronizacion
+// M2-D (D-δ.49), no una segunda implementacion topologica.
+describe('duplicarUnidadFuncionalEnProyecto -- conectividad fisica de la copia (D-δ.50)', () => {
+  // Miniatura del patron del demo: una UF (PB) con un Bano de 2 terminales
+  // AF+AC (lavatorio + ducha, colgados de una bifurcacion dedicada n-af-1/
+  // n-ac-1) y un Patio de 1 terminal AF-only (canilla directa desde n0).
+  // Cubre los tres casos de la sincronizacion al reconstruir la copia:
+  // bootstrap (primer terminal del Local clonado), retrofit (segundo) y el
+  // Local de un unico Artefacto (directo, sin bifurcacion).
+  function metadatos() {
+    return {
+      nombre: 'Proyecto D-δ.50',
+      obra: 'Obra',
+      comitente: 'Comitente',
+      fecha: '2026-09-07',
+      schemaVersion: '1.0.0' as const,
+      versionNormativa: 'eras-2023' as const,
+    }
+  }
+
+  function proyectoConUnaUf(): Proyecto {
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'Unidad funcional 1',
+      nivel: 0,
+      cotaHidraulicaReferencia_m: 1,
+      locales: [
+        {
+          id: 'local-bano',
+          tipo: 'bano',
+          regimen: 'domiciliario',
+          artefactos: [
+            { id: 'art-lavatorio', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
+            { id: 'art-ducha', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' },
+          ],
+        },
+        {
+          id: 'local-patio',
+          tipo: 'jardin',
+          regimen: 'domiciliario',
+          artefactos: [{ id: 'art-canilla', artefactoId: 'canillaDeServicio', cantidad: 1, origen: 'normativo' }],
+        },
+      ],
+    }
+    const ref = (localId: string, artefactoId: string) =>
+      ({ tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId, artefactoId }) as const
+    const nodos: Nodo[] = [
+      { id: 'n-general' },
+      { id: 'n0' },
+      { id: 'n-af-1' },
+      { id: 'n-af-lavatorio', referencia: ref('local-bano', 'art-lavatorio') },
+      { id: 'n-af-ducha', referencia: ref('local-bano', 'art-ducha') },
+      { id: 'n-acs', referencia: { tipo: 'produccionACS' } },
+      { id: 'n-ac-1' },
+      { id: 'n-ac-lavatorio', referencia: ref('local-bano', 'art-lavatorio') },
+      { id: 'n-ac-ducha', referencia: ref('local-bano', 'art-ducha') },
+      { id: 'n-af-canilla', referencia: ref('local-patio', 'art-canilla') },
+    ]
+    const tramos: Tramo[] = [
+      { id: 't-general', nodoOrigenId: 'n-general', nodoDestinoId: 'n0', red: 'AF', longitud_m: 5 },
+      { id: 't-af-bano', nodoOrigenId: 'n0', nodoDestinoId: 'n-af-1', red: 'AF', longitud_m: 4 },
+      { id: 't-af-acs', nodoOrigenId: 'n0', nodoDestinoId: 'n-acs', red: 'AF', longitud_m: 2 },
+      { id: 't-af-lavatorio', nodoOrigenId: 'n-af-1', nodoDestinoId: 'n-af-lavatorio', red: 'AF' },
+      { id: 't-af-ducha', nodoOrigenId: 'n-af-1', nodoDestinoId: 'n-af-ducha', red: 'AF' },
+      { id: 't-ac-bano', nodoOrigenId: 'n-acs', nodoDestinoId: 'n-ac-1', red: 'AC', longitud_m: 4 },
+      { id: 't-ac-lavatorio', nodoOrigenId: 'n-ac-1', nodoDestinoId: 'n-ac-lavatorio', red: 'AC' },
+      { id: 't-ac-ducha', nodoOrigenId: 'n-ac-1', nodoDestinoId: 'n-ac-ducha', red: 'AC' },
+      { id: 't-af-canilla', nodoOrigenId: 'n0', nodoDestinoId: 'n-af-canilla', red: 'AF' },
+    ]
+    const redHidraulica: RedHidraulica = { nodos, tramos }
+    return {
+      metadatos: metadatos(),
+      parametros: { tipoDeProyecto: 'viviendaIndividual', presionSobreAcera_m: 2, alturaArtefactoMasDesfavorable_m: 3 },
+      unidadesFuncionales: [uf],
+      redHidraulica,
+      configuracionHidraulica: {
+        metodoPerdidaDistribuida: 'hazenWilliams',
+        metodoPerdidaLocalizada: 'estimado',
+        granularidadHidraulica: 'simplificada',
+        materialTuberiaId: 'ppr',
+        sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
+      },
+    }
+  }
+
+  it('T1: la copia no deja ningun Artefacto normativo sin conexion fisica', () => {
+    const proyecto = proyectoConUnaUf()
+
+    const resultado = duplicarUnidadFuncionalEnProyecto(proyecto, 'uf-1')
+
+    const cobertura = auditarCoberturaFisica(resultado)
+    expect(cobertura.artefactosSinReferencia).toEqual([])
+    expect(cobertura.completa).toBe(true)
+  })
+
+  it('T1: la red resultante es estructuralmente valida', () => {
+    const proyecto = proyectoConUnaUf()
+
+    const resultado = duplicarUnidadFuncionalEnProyecto(proyecto, 'uf-1')
+
+    expect(validarRedHidraulica(resultado)).toEqual([])
+  })
+
+  it('T2: los nodos/tramos de la copia tienen ids propios y referencian a los clones, nunca a la UF original', () => {
+    const proyecto = proyectoConUnaUf()
+
+    const resultado = duplicarUnidadFuncionalEnProyecto(proyecto, 'uf-1')
+    const copia = resultado.unidadesFuncionales[1]!
+    const idsOriginales = new Set(proyecto.redHidraulica!.nodos.map((n) => n.id))
+    const idsTramosOriginales = new Set(proyecto.redHidraulica!.tramos.map((t) => t.id))
+
+    const nodosDeLaCopia = resultado.redHidraulica!.nodos.filter(
+      (n) => n.referencia?.tipo === 'artefacto' && n.referencia.unidadFuncionalId === copia.id,
+    )
+    // Un terminal por Red de cada Artefacto clonado: lavatorio (AF+AC),
+    // ducha (AF+AC), canilla (AF) => 5 terminales.
+    expect(nodosDeLaCopia).toHaveLength(5)
+    for (const nodo of nodosDeLaCopia) {
+      expect(idsOriginales.has(nodo.id)).toBe(false)
+    }
+
+    // Ningun tramo nuevo (los que no estaban en el proyecto original)
+    // referencia por origen/destino un nodo terminal de la UF original.
+    const idsTerminalesOriginales = new Set(
+      proyecto.redHidraulica!.nodos
+        .filter((n) => n.referencia?.tipo === 'artefacto' && n.referencia.unidadFuncionalId === 'uf-1')
+        .map((n) => n.id),
+    )
+    for (const tramo of resultado.redHidraulica!.tramos) {
+      if (idsTramosOriginales.has(tramo.id)) continue
+      expect(idsTerminalesOriginales.has(tramo.nodoDestinoId)).toBe(false)
+    }
+  })
+
+  it('T2: mutar un Artefacto de la copia no altera el original', () => {
+    const proyecto = proyectoConUnaUf()
+
+    const resultado = duplicarUnidadFuncionalEnProyecto(proyecto, 'uf-1')
+    const copia = resultado.unidadesFuncionales[1]!
+    copia.locales[0]!.artefactos[0]!.cantidad = 99
+
+    expect(proyecto.unidadesFuncionales[0]!.locales[0]!.artefactos[0]!.cantidad).toBe(1)
+  })
+
+  it('T3: duplicar dos veces deja la red valida y sin artefactos desconectados', () => {
+    let proyecto = proyectoConUnaUf()
+
+    proyecto = duplicarUnidadFuncionalEnProyecto(proyecto, 'uf-1')
+    const idSegundaUf = proyecto.unidadesFuncionales[1]!.id
+    proyecto = duplicarUnidadFuncionalEnProyecto(proyecto, idSegundaUf)
+
+    expect(proyecto.unidadesFuncionales).toHaveLength(3)
+    expect(validarRedHidraulica(proyecto)).toEqual([])
+    expect(auditarCoberturaFisica(proyecto).completa).toBe(true)
+    const ids = proyecto.redHidraulica!.nodos.map((n) => n.id)
+    expect(new Set(ids).size).toBe(ids.length)
   })
 })

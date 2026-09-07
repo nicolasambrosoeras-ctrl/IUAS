@@ -25,7 +25,7 @@
 // falta, también la raíz AF de la que cuelga) la primera vez que el
 // proyecto necesita conectar AC -- nunca antes, nunca duplicada.
 import type { RedHidraulica } from '../../modelo/redHidraulica'
-import { generarId } from './duplicarUnidadFuncional'
+import { generarId } from './generarId'
 
 export type RaizAsegurada = {
   readonly nodoId: string

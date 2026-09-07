@@ -4,15 +4,8 @@
 // testing-library configurados, y este archivo no necesita ninguno de los
 // dos.
 import type { Artefacto, Local, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
-
-// IDs unicos via crypto.randomUUID() (API nativa del navegador, sin
-// dependencia nueva): un contador de modulo colisionaria con los IDs que ya
-// trae el proyecto inicial (local-bano, artefacto-1, etc.). Movida aca desde
-// MotorDemandaPantalla.tsx: es la misma funcion, reutilizada tal cual, no
-// una nueva.
-export function generarId(prefijo: string): string {
-  return `${prefijo}-${crypto.randomUUID()}`
-}
+import { generarId } from './generarId'
+import { sincronizarConectividadFisicaDeArtefacto } from './sincronizarConectividadFisicaDeArtefacto'
 
 // Privadas a este archivo a proposito: no son una API generica de
 // clonacion, son los dos pasos internos que necesita duplicarUnidadFuncional
@@ -46,15 +39,59 @@ export function duplicarUnidadFuncional(unidadFuncional: UnidadFuncional): Unida
 }
 
 // Inserta la copia inmediatamente despues de la UF origen dentro de
-// proyecto.unidadesFuncionales. Solo reconstruye ese array: el resto de
-// Proyecto (incluido redHidraulica, si existe) se preserva por referencia
-// via spread, sin tocarlo ni intentar repararlo.
+// proyecto.unidadesFuncionales y sincroniza la conectividad fisica de sus
+// Artefactos clonados en redHidraulica.
+//
+// D-δ.50: la copia funcional por si sola deja todos los Artefactos
+// clonados sin ninguna referencia fisica en redHidraulica -- la auditoria
+// de cobertura (S1, auditarCoberturaFisica) los reportaria como
+// "artefactos normativos sin conexion fisica", y el Panel de Presion de M2
+// nunca se renderizaria para la UF nueva. Se los hace pasar, uno por uno,
+// por exactamente la misma sincronizacion M2-D de ALTA que usa la UI al
+// agregar un Artefacto a mano (bootstrap / retrofit / hermano, D-δ.49):
+// la copia comparte la raiz AF/AC del proyecto y cada Local clonado
+// arranca sin terminales, asi que el primer Artefacto de cada Red hace
+// bootstrap y los siguientes retrofit/hermano. No se reimplementa ninguna
+// primitiva topologica exclusiva de "duplicar" (brief seccion 5).
+//
+// La sincronizacion deduce AF/AC por precedente: la UF original -- que
+// sigue conectada -- siempre es precedente de cada tipo de Artefacto
+// clonado. Si algun Artefacto original no estaba conectado (proyecto ya
+// incompleto de antemano), su clon queda igualmente sin conexion, sin
+// fabricar una: mismo estado que el original, la barrera de cobertura lo
+// sigue senalando como siempre.
 export function duplicarUnidadFuncionalEnProyecto(
   proyecto: Proyecto,
   unidadFuncionalId: string,
 ): Proyecto {
+  const original = proyecto.unidadesFuncionales.find((uf) => uf.id === unidadFuncionalId)
+  if (original === undefined) {
+    return proyecto
+  }
+
+  const copia = duplicarUnidadFuncional(original)
   const unidadesFuncionales = proyecto.unidadesFuncionales.flatMap((uf) =>
-    uf.id === unidadFuncionalId ? [uf, duplicarUnidadFuncional(uf)] : [uf],
+    uf.id === unidadFuncionalId ? [uf, copia] : [uf],
   )
-  return { ...proyecto, unidadesFuncionales }
+  let resultado: Proyecto = { ...proyecto, unidadesFuncionales }
+
+  if (resultado.redHidraulica === undefined) {
+    return resultado
+  }
+
+  for (const local of copia.locales) {
+    for (const artefactoClonado of local.artefactos) {
+      const sincronizacion = sincronizarConectividadFisicaDeArtefacto(
+        resultado,
+        copia.id,
+        local.id,
+        artefactoClonado.id,
+      )
+      if (sincronizacion.tipo === 'sincronizado') {
+        resultado = sincronizacion.proyecto
+      }
+    }
+  }
+
+  return resultado
 }

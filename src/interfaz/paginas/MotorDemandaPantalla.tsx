@@ -23,7 +23,8 @@ import {
   sustitucionNumerica,
   textoValorCalculado,
 } from '../../presentacion/desarrolloDelCalculoDemanda'
-import { duplicarUnidadFuncionalEnProyecto, generarId } from './duplicarUnidadFuncional'
+import { duplicarUnidadFuncionalEnProyecto } from './duplicarUnidadFuncional'
+import { generarId } from './generarId'
 import {
   sincronizarConectividadFisicaDeArtefacto,
   sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas,
