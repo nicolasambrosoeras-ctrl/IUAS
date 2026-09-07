@@ -1348,6 +1348,16 @@ la fórmula tal como la publica ERAS y se sigue el tratamiento del
 ejemplo oficial (`Jm` es la pérdida completa del medidor), sin
 interpretar la etiqueta "m/m" como una longitud implícita inexistente.
 
+**Salvedad sobre el par DN/C del ejemplo (ver CRIT-A32):** el
+emparejamiento "medidor de 19mm, `C=7`" que este ejemplo enuncia es
+**inconsistente con la propia Tabla N°6** de la Guía, donde la fila DN19
+tiene `C=5` y `C=7` corresponde a DN25. Esta transcripción de la fórmula
+(6) permanece **firme**: la salvedad no afecta la fórmula ni el
+tratamiento de `Jm`, sólo advierte que `C=7` no es una propiedad
+normativa del DN19. La regla de selección `Qc → DN → C` y el tratamiento
+de la inconsistencia se formalizan en CRIT-A32; el motor de selección
+toma `C` de la fila de Tabla N°6, nunca de este ejemplo.
+
 **Naturaleza — hallazgo normativo no documentado previamente en el
 proyecto:** hasta este incremento no existía en el repo ninguna mención
 a la pérdida de carga del medidor. Es un término obligatorio del balance
@@ -1900,3 +1910,107 @@ convención de velocidad, no transcripción normativa adicional — los
 pura) y `motor/tuberias/presion/acumularPerdidaLocalizadaDeCamino.ts`
 (integración). Cierra D-δ.33 para el alcance 1→2 declarado. Ver D-δ.33
 en `PENDIENTES-DE-ARQUITECTURA.md`.
+
+## CRIT-A32 — Tabla N°6: selección del medidor general por caudal de cálculo, e inconsistencia del ejemplo oficial
+
+**Artículo:** ERAS-2023 §2.12 y Tabla N°6.
+
+**Texto oficial confirmado** (Resolución 641/2023,
+`guia_para_ejecucion_de_instalaciones_sanitarias_domiciliarias`,
+argentina.gob.ar — el PDF tiene texto seleccionable vía
+`pdftotext -layout`):
+
+- *"El diámetro y caudal máximo de los medidores se determinan de acuerdo
+  a la Norma ISO 4064, los valores en la tabla N° 6."*
+- §2.12.1 punto c) de las Secuencias de Cálculo: *"Con el Qc definimos:
+  el diámetro del medidor general y sus dimensiones de acuerdo a lo
+  indicado en 2.12."*
+- Ejemplo de "vivienda tipo": *"Con este último valor en m3/h
+  seleccionamos de la tabla N°6 un valor de Qc igual o mayor al nuestro"*.
+
+**Tabla N°6 — transcripción verificada** (`normativa/eras-2023/tabla-06-medidores`):
+
+| DN medidor (mm) | Qc de cálculo del proyecto (m³/h) | Caudal medio (m³/h) | Capacidad máxima C (m³/h) |
+|---|---|---|---|
+| 15 | 1,5 | 2,25 | 3 |
+| 19 | 2,5 | 3,75 | 5 |
+| 25 | 3,5 | 5,25 | 7 |
+| 32 | 5 | 7,5 | 10 |
+| 38 | 10 | 15 | 20 |
+| 50 | 15 | 22,5 | 30 |
+| 60 | 25 | 37,5 | 50 |
+| 75 | 40 | 60 | 80 |
+
+**Regla de selección adoptada (literal de §2.12):** se adopta la primera
+fila (menor DN) cuyo "Qc de cálculo del proyecto" tabulado sea **igual o
+mayor** al `Qc` de diseño del ámbito evaluado. **No se interpola DN.** La
+capacidad `C` que alimenta la fórmula (6) de CRIT-A25 se toma de **esa
+misma fila**. El "caudal medio" es informativo — no participa de la
+selección ni de la pérdida.
+
+**Conversión de unidades:** el `Qc` de diseño lo produce el motor de
+demanda/hidráulica en l/s; para comparar contra Tabla N°6 se convierte a
+m³/h (`× 3,6`) y para la fórmula (6) a l/min (`× 60`). La comparación
+contra el umbral tabulado usa una tolerancia de `1e-9 m³/h` (≈ 1 µL/h)
+para que un `Qc` que vale exactamente un valor de tabla no caiga a la
+fila siguiente por error de representación IEEE-754 de la conversión.
+
+**Inconsistencia oficial documentada (errata normativa):** el ejemplo de
+"vivienda tipo" que la Guía coloca inmediatamente después de la Tabla
+N°6 toma `Qc = 2,5 m³/h`, selecciona un **medidor DN19** y afirma
+**`C = 7 m³/h`**, con lo que calcula `Jm = 0,036·(42,1/7)² = 1,3 m.c.a.`
+Pero en la Tabla N°6 la fila DN19 tiene **`C = 5`**; `C = 7` pertenece a
+la fila **DN25**. Es una inconsistencia interna de la propia Guía. Se
+resuelve así:
+
+- **Fuente de verdad para el motor de selección: la Tabla N°6.** El DN
+  seleccionado fija su `C` desde la misma fila (`DN19 → C = 5`). No se
+  replica el par `DN19 ↔ C = 7` del ejemplo.
+- **La Tabla N°6 no se modifica** para hacerla coincidir con el ejemplo.
+- La primitiva `calcularPerdidaCargaMedidor(Qcl, C)` (CRIT-A25) conserva
+  un test aritmético con `Qcl = 42,1`, `C = 7` → `1,3 m.c.a.` como
+  verificación de la **fórmula**, explícitamente **no** descrito como
+  propiedad normativa del DN19.
+- Observación aritmética coherente con lo anterior: bajo la regla literal,
+  `Qc = 0,71 l/s = 2,556 m³/h` (el valor del ejemplo sin redondear a
+  `2,5`) selecciona **DN25**, cuya `C = 7` sí reproduce el `Jm = 1,3` del
+  ejemplo. Es decir, el `C = 7` del ejemplo es consistente con DN25; lo
+  erróneo es su etiqueta "DN19". No se usa esta observación para alterar
+  la regla ni la tabla — sólo refuerza que la tabla es la fuente correcta.
+
+**Dominio cubierto — sin extrapolación:** Tabla N°6 llega hasta
+`Qc = 40 m³/h` (DN75). Un `Qc` de diseño mayor devuelve
+`'fueraDeTabla06'` — **nunca** se extrapola una fila adicional. La
+ampliación de rango corresponde a la Tabla N°8 (Anexo A de la Guía,
+"Diseño de medidores en función del caudal de demanda"), que en el texto
+oficial es una lámina no transcripta; se incorporará como dato normativo
+separado antes de ampliar la selección, si aporta umbrales adicionales.
+
+**Verificación metrológica — deliberadamente NO se hace todavía:** ERAS
+remite a ISO 4064 pero el texto de la Guía no publica `Q1/Q2/Q3/Q4` ni
+`Qmin`. Por eso el motor sólo verifica lo que la fuente permite (que el
+`Qc` cae dentro del dominio de la tabla). Una verificación de rango
+metrológico (caudal mínimo, sobrecarga) podrá agregarse cuando exista la
+clase ISO 4064 o un catálogo de fabricante como dato — no se inventa un
+"caudal mínimo metrológico" sin respaldo.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- Sólo el **medidor general** (§2.6.b). El **medidor individual** por
+  unidad funcional (§2.6.c, §2.12.1.e) queda fuera: su caudal de diseño
+  depende de resolver la contradicción entre §2.6 ("simultaneidad total
+  de los consumos", `K = 1`) y §2.12.1.e (remisión genérica a §2.9 y
+  siguientes, `K < 1`) — ver `PENDIENTES-DE-ARQUITECTURA.md`.
+- No decide dónde vive el medidor en `RedHidraulica` (D-δ.35 sigue
+  abierta; M3 permanece separado de la topología — el resultado es un
+  dato de borde para la capa de presión de M2).
+- No integra `hfMedidor_mca` al balance de presión productivo ni decide
+  si pertenece al camino de un terminal dado (eso depende del origen
+  hidráulico y del tipo de medidor, D-δ.38).
+
+**Estado:** Firme como transcripción normativa (Tabla N°6) + regla de
+selección literal. Implementado en
+`normativa/eras-2023/tabla-06-medidores/index.ts`
+(`tabla06Medidores`, `seleccionarFilaTabla06PorCaudal`) y
+`motor/medidores/seleccionarMedidorGeneral.ts`. Ver D-δ.53 en
+`PENDIENTES-DE-ARQUITECTURA.md` para el registro del alcance M3-B0/M3-B1.

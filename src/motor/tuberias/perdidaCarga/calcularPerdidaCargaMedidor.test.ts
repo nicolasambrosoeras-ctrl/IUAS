@@ -2,7 +2,15 @@ import { describe, it, expect } from 'vitest'
 import { calcularPerdidaCargaMedidor } from './calcularPerdidaCargaMedidor'
 
 describe('calcularPerdidaCargaMedidor (ERAS-2023 §2.12, formula 6)', () => {
-  it('Golden -- ejemplo oficial de la guia: Qc=0,71 l/s (42,1 l/min), medidor 19mm C=7 m3/h -> Jm=1,3 m.c.a.', () => {
+  // Verificación ARITMÉTICA de la fórmula (6) con los valores numéricos del
+  // ejemplo de "vivienda tipo" de §2.12 (Qcl=42,1 l/min, C=7 m3/h -> 1,3
+  // m.c.a.). NO es una propiedad normativa del medidor DN19: el ejemplo
+  // oficial empareja DN19 con C=7, pero Tabla N°6 asigna C=5 a DN19 (C=7
+  // corresponde a DN25) -- inconsistencia oficial documentada en CRIT-A32.
+  // El emparejamiento DN -> C correcto se testea en tabla-06-medidores y en
+  // seleccionarMedidorGeneral; acá sólo se comprueba que la fórmula, dados
+  // Qcl y C, produce el número del ejemplo.
+  it('fórmula (6): Qcl=42,1 l/min y C=7 m3/h -> Jm=1,3 m.c.a. (aritmética del ejemplo oficial de §2.12)', () => {
     expect(calcularPerdidaCargaMedidor(42.1, 7)).toBeCloseTo(1.3, 2)
   })
 
