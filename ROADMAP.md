@@ -117,6 +117,17 @@ No se toca salvo bug real confirmado.
   Panel de Presión reorganizado con veredicto protagonista CUMPLE/NO
   CUMPLE, terminal más desfavorable por margen, "Ver cálculo del crítico"
   auditable y "Ver todos los terminales" ordenado por margen;
+- **override manual de DN + resincronización física al cambiar tipo de
+  Artefacto (D-δ.52)**: `Tramo.dnComercialAdoptado` (denominación
+  comercial) sustituye al diámetro automático como diámetro EFECTIVO de
+  cálculo — V/J/hf/presión se resuelven con él, Qc no cambia; control
+  ↓/DN/↑/Auto que se mueve por el catálogo comercial real y se
+  deshabilita en los extremos; cambio de material/sistema descarta
+  overrides inválidos. CRIT-A15 resuelto:
+  `reconciliarConectividadFisicaPorCambioDeArtefacto` reconcilia AF/AC
+  por conjuntos de Redes (conserva la intersección con su relevamiento
+  intacto, elimina solo la diferencia + poda cabeceras vacías, agrega la
+  diferencia vía D-δ.49), idempotente, en un único updater;
 - **modos de producto + predimensionamiento rápido + presentación
   tabular (D-δ.51)**: dos experiencias sobre el mismo motor — Rápido
   (`simplificada` + `estimadas` + Hazen + PPR, longitudes iniciales
@@ -209,11 +220,12 @@ elimina infraestructura compartida del Local.
   en el proyecto (conectividad física no determinable sin inferir desde
   catálogo, lo que violaría CRIT-A15) — queda funcionalmente creada pero
   sin conexión física, señalada por S1/S2 como hoy;
-- sincronización al **cambiar el tipo** de un artefacto ya creado
-  (`artefactoId` vía `<select>`) — mecánicamente separable, reutilizaría
-  la misma función de alta;
+- ~~sincronización al **cambiar el tipo** de un artefacto ya creado~~ —
+  RESUELTO en D-δ.52 (`reconciliarConectividadFisicaPorCambioDeArtefacto`:
+  reconciliación AF/AC por conjuntos de Redes, reutilizando bootstrap/
+  retrofit/hermano de D-δ.49);
 - reconciliación general Proyecto ↔ `redHidraulica` para el resto de
-  mutaciones (más allá de alta/baja de Artefacto individual).
+  mutaciones (más allá de alta/baja/cambio-de-tipo de Artefacto individual).
 
 #### M2-E — UX final
 

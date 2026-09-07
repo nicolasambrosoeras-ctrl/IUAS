@@ -4281,3 +4281,163 @@ D-δ.47 no regresa).
 MOTOR: sin regresión, sin doble conteo, sin fórmulas nuevas. Sin empezar
 M3. `tsc -b` / `vite build` limpios, lint baseline 11, working tree
 limpio.
+
+## D-δ.52 -- Override manual de DN + resincronización física al cambiar tipo de Artefacto (CRIT-A15) -- CERRADA
+
+Último cierre funcional de M2 antes de M3. Dos objetivos acotados, sin
+hidráulica nueva. Tres commits (Parte A, Parte B, documental).
+
+### Parte A -- Override manual del diámetro comercial adoptado
+
+**Modelo:** nuevo campo `Tramo.dnComercialAdoptado?: string` -- la
+`denominacionComercial` de una entrada del sistema de tubería vigente
+(p. ej. `"32 mm"`), **no** un DN numérico arbitrario. Ausente = el motor
+adopta el diámetro que resuelve automáticamente (CRIT-A23). Proyectos
+existentes sin el campo: comportamiento idéntico (§12).
+
+**El DN adoptado es hidráulicamente EFECTIVO (§8 BIS)**, no una anotación
+visual. `resolverDiametroComercialDeTramo`: si el Tramo declara
+`dnComercialAdoptado` y esa denominación existe en el sistema vigente,
+ESE `candidato` es el resultado -- se resuelve su V y su verificación
+reales, y toda la cadena aguas abajo (Di real, J, hf distribuida, hf
+localizada dependiente de V, pérdida total, Presidual, margen, terminal
+crítico) lo consume **sin ningún recálculo en React**. `Qc` NO cambia
+(la demanda no depende del DN). El resultado `conCandidato` agrega dos
+campos: `origen` (`'automatico' | 'manual'`) y `candidatoAutomatico`
+(el DN que CRIT-A23 recomendaría, para "DN recomendado: X" en el
+detalle; `null` si no hay ninguno admisible automáticamente).
+
+La selección automática CRIT-A23 (+ fallback D-δ.27 de Vmin) se extrajo a
+`seleccionarCandidatoAutomatico` **sin cambios de lógica** -- se sigue
+resolviendo siempre, incluso con override activo, para exponer el
+recomendado. CRIT-A23/CRIT-A24/D-δ.27 no se reabren.
+
+**UI -- control ↓ / DN / ↑ / Auto** (`ControlDeDn` +
+`resolverControlDeDnDeTramo`, en la celda DN de la tabla, en ambos modos
+§9):
+
+- **↑ / ↓** proponen la denominación **inmediata superior / inferior del
+  catálogo comercial REAL** (`obtenerEntradasOrdenadasPorDiametroInterior`),
+  nunca "DN + 5" (§4/§5). Se **deshabilitan en los extremos** del catálogo
+  (`siguiente === null` / `anterior === null`, §10/§11).
+- **Auto** elimina el override (`conDnComercialAdoptadoDeTramo` con
+  `undefined` -- omite la clave, no un `undefined` asignado) y vuelve al
+  automático sin dejar copia manual (§6).
+- Bajar a un DN **no admisible SÍ se adopta** -- se muestra la
+  verificación `'noAdmisible'` tal cual (el profesional puede explorar,
+  §5). No es el fallback de D-δ.27 (`velocidadPorDebajoDelMinimo = false`).
+
+**Cambio de material / sistema (§11/§14):**
+`normalizarOverridesDeDnSegunSistema(proyecto, denominacionesValidas)` --
+llamado justo después de `conMaterialTuberia` / `conSistemaDeTuberia` en
+la UI -- descarta los overrides cuya denominación no exista en el catálogo
+del sistema resultante (vuelven a automático); los válidos se conservan.
+NO destructivo, idempotente. Se resolvió como interpretación única (no
+decisión roja): ignorar-y-limpiar el inválido, nunca mapearlo a otro
+diámetro físico.
+
+**Aceptación Playwright (§35):** Alimentación general DN 25 (auto,
+V 2,9, Pérdida 4,817) → **↑** → DN **32 mm**, aparecen "manual"/"Auto",
+V **1,7**, Pérdida **1,400**, margen del crítico **+21,132 → +24,550**
+(propagación a presión, §8 TER) → **↑** otra vez → DN **40 mm** → **Auto**
+→ restaura DN 25 y **todos** los resultados exactos, sin stale. Cero
+errores de consola.
+
+### Parte B -- CRIT-A15: reconciliación física al cambiar el tipo de Artefacto
+
+**Causa:** cambiar el `artefactoId` de catálogo de un Artefacto existente
+actualizaba la capa funcional (M1) pero **no** resincronizaba la
+conectividad física AF/AC -- M1 y `redHidraulica` podían quedar
+representando instalaciones distintas (deuda conocida desde D-δ.39).
+
+**`reconciliarConectividadFisicaPorCambioDeArtefacto`** -- reconciliación
+**POR CONJUNTOS de Redes**, sin desconectar y reconstruir lo que no
+cambia. Compone primitivas ya cerradas, no reimplementa ninguna regla
+topológica:
+
+- `redesActuales` = las Redes en las que la instancia tiene terminal hoy
+  (leído de `redHidraulica`).
+- `redesNuevas` = las que el tipo nuevo necesita según
+  `determinarRedesFisicasPorPrecedente` **del propio proyecto** (CRIT-A15:
+  nunca del catálogo), con un **nuevo parámetro `excluirInstanciaId`**:
+  la instancia en transición no cuenta como precedente de sí misma (aún
+  tiene los terminales del tipo anterior, y contarla daría
+  `inconsistente`). Si no hay precedente inequívoco → solo cambio
+  funcional, topología intacta (§23/§24).
+- **conservar** (`redesActuales ∩ redesNuevas`): intactas -- nodos,
+  tramos, `longitud_m`, `accesorios` y `dnComercialAdoptado` se preservan
+  (§16/§A11/§A12).
+- **eliminar** (`redesActuales − redesNuevas`):
+  `quitarConectividadFisicaDeArtefacto` **acotado a esa Red** (nuevo
+  parámetro `red` opcional: elimina solo los terminales de esa Red de la
+  instancia, el otro terminal del artefacto mixto queda intacto) +
+  `podarNodosSinSalida` (limpia una cabecera de bifurcación que quedó sin
+  hijos -- §18/§21). La **Alimentación ACS compartida sobrevive** porque
+  el nodo `produccionACS` tiene `referencia` y `podarNodosSinSalida`
+  nunca toca nodos con referencia (§21: no eliminar infraestructura
+  compartida en uso).
+- **agregar** (`redesNuevas − redesActuales`):
+  `sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas` con las
+  Redes ya determinadas acá -- **no un cuarto algoritmo**: reutiliza
+  bootstrap / retrofit / hermano de D-δ.49 (§17/§22). Se usa la variante
+  `ConRedesDeclaradas` (no la de precedente) porque la variante de
+  precedente volvería a ver la instancia con conectividad parcial y daría
+  `inconsistente`.
+
+**Colapso de bifurcación (§19) -- NO fue decisión roja:** el repo ya fija
+la postura (D-δ.49 / `quitarConectividadFisicaDeArtefacto`): el nodo
+padre de bifurcación **no se colapsa** aunque quede con un único hijo --
+`validarRedHidraulica` lo acepta e `identificarTramoRepresentativoDeLocal`
+sigue reconociendo el Tramo representativo (con su longitud). No hay
+pérdida de datos ni ambigüedad topológica que resolver. Cuando se elimina
+el **último** terminal de una Red de un Local, la cabecera queda sin
+hijos y `podarNodosSinSalida` sí la remueve (topología muerta, §21).
+
+**Idempotencia (§27):** con `redesActuales === redesNuevas` no elimina ni
+agrega nada (devuelve el proyecto sin cambios).
+
+**Orden de operación (§26):** la UI (`ArtefactoFormulario.onCambiarTipo`
+→ `LocalFormulario`) aplica cambio funcional + reconciliación + backfill
+de longitudes rápidas (D-δ.51) en un **único** `onCambiarProyecto`, sin
+render intermedio donde el Artefacto ya cambió pero `redHidraulica`
+todavía representa el tipo anterior.
+
+**Bug secundario corregido (§39):** `ListaDeDistribucion`
+(`LocalYRedCard`) usaba el nombre del artefacto como React `key` --
+colisiona cuando un Local tiene dos artefactos del mismo tipo (dos
+"Lavatorio" tras un cambio de tipo). `key` por índice. Era un bug
+latente pre-existente que este flujo expuso.
+
+**Aceptación Playwright (§36 + §30):** Baño demo, inodoro (AF) ↔ lavatorio
+(AF+AC): la fila "Baño 1 · Agua caliente" aparece/desaparece en la tabla,
+cero "artefactos sin conexión física", cero "Problemas de validación",
+presión sigue en `Completo`; ida/vuelta ×3 sin huérfanos ni duplicados;
+el override manual de DN (32 mm "manual") de la Alimentación general
+**sobrevive** al cambio de tipo de un Artefacto no relacionado (§30.6);
+"Auto" luego restaura DN 25. Cero errores/warnings de consola.
+
+### No reabierto
+
+D-δ.45/46/48/49/50/51, fórmulas, Pmin, terminal crítico, +3 m/piso,
+defaults 5/10, modos Rápido/Profesional, CRIT-A23/A24, D-δ.27.
+
+### Estado
+
+**D-δ.52 -- CERRADA.**
+
+DN: ↑ / ↓ / Auto funcionan; usan el catálogo comercial real; el diámetro
+adoptado es efectivo de cálculo (V/hf/presión se recalculan con él);
+`origen` + `candidatoAutomatico` distinguen adoptado vs recomendado; Qc
+inalterado; límites del catálogo deshabilitan los botones; cambio de
+material/sistema descarta overrides inválidos; disponible en Rápido y
+Profesional.
+
+CRIT-A15: AF→AF sin reconstrucción; AF→AF+AC agrega solo AC (D-δ.49);
+AF+AC→AF elimina solo AC + poda cabecera vacía; redes conservadas
+preservan longitud/accesorios/override; primer/último terminal correctos;
+sin huérfanos ni duplicados; `validarRedHidraulica` verde;
+`auditarCoberturaFisica` completa; resultados reactivos sin stale;
+idempotente.
+
+`tsc -b` / `vite build` limpios, lint baseline 11, working tree limpio.
+Sin empezar M3.
