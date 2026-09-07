@@ -250,8 +250,11 @@ function ListaDeDistribucion({
     <div style={{ marginTop: '0.5rem' }}>
       <strong>Distribución</strong>
       <ul style={{ margin: '0.25rem 0' }}>
-        {nombres.map((nombre) => (
-          <li key={nombre}>{nombre}</li>
+        {nombres.map((nombre, indice) => (
+          // key por índice: un Local puede tener dos artefactos del mismo
+          // tipo (p. ej. dos "Lavatorio" tras un cambio de tipo, D-δ.52) --
+          // el nombre no es único (bug de colisión de key corregido).
+          <li key={`${indice}-${nombre}`}>{nombre}</li>
         ))}
       </ul>
     </div>

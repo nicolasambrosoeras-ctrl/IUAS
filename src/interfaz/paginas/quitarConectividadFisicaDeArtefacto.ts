@@ -22,19 +22,25 @@
 //   instancia -- eliminarlo sería una decisión de "limpieza" que esta
 //   función deliberadamente no toma.
 import type { Proyecto } from '../../modelo/proyecto'
+import type { RedDeTramo } from '../../modelo/redHidraulica'
 
 export function quitarConectividadFisicaDeArtefacto(
   proyecto: Proyecto,
   unidadFuncionalId: string,
   localId: string,
   artefactoInstanciaId: string,
+  // D-δ.52: si se pasa una Red, se eliminan SOLO los terminales de esa Red
+  // de la instancia (el otro terminal del artefacto mixto se conserva
+  // intacto: nodos, tramo, longitud, accesorios, override de DN). Ausente
+  // = comportamiento previo (elimina todos los terminales de la instancia).
+  red?: RedDeTramo,
 ): Proyecto {
   const { redHidraulica } = proyecto
   if (redHidraulica === undefined) {
     return proyecto
   }
 
-  const idsNodosAEliminar = new Set(
+  const idsNodosDeLaInstancia = new Set(
     redHidraulica.nodos
       .filter(
         (nodo) =>
@@ -45,6 +51,15 @@ export function quitarConectividadFisicaDeArtefacto(
       )
       .map((nodo) => nodo.id),
   )
+
+  const idsNodosAEliminar =
+    red === undefined
+      ? idsNodosDeLaInstancia
+      : new Set(
+          redHidraulica.tramos
+            .filter((tramo) => tramo.red === red && idsNodosDeLaInstancia.has(tramo.nodoDestinoId))
+            .map((tramo) => tramo.nodoDestinoId),
+        )
 
   if (idsNodosAEliminar.size === 0) {
     return proyecto

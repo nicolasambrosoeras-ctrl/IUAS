@@ -47,6 +47,12 @@ function redesDeConectividad(conectividad: ConectividadFisica): readonly RedDeTr
 export function determinarRedesFisicasPorPrecedente(
   proyecto: Proyecto,
   artefactoIdCatalogo: string,
+  // D-δ.52 (CRIT-A15): al reconciliar la conectividad de UNA instancia
+  // que acaba de cambiar de tipo, esa instancia NO debe contarse como
+  // precedente de sí misma -- su conectividad está justamente en
+  // transición (todavía tiene los terminales del tipo anterior). Se la
+  // excluye por su id de instancia.
+  excluirInstanciaId?: string,
 ): ResultadoRedesFisicasPorPrecedente {
   const { redHidraulica } = proyecto
   if (redHidraulica === undefined) {
@@ -58,7 +64,7 @@ export function determinarRedesFisicasPorPrecedente(
   for (const unidadFuncional of proyecto.unidadesFuncionales) {
     for (const local of unidadFuncional.locales) {
       for (const artefacto of local.artefactos) {
-        if (artefacto.artefactoId !== artefactoIdCatalogo) {
+        if (artefacto.artefactoId !== artefactoIdCatalogo || artefacto.id === excluirInstanciaId) {
           continue
         }
 

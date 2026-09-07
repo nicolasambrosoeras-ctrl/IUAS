@@ -32,6 +32,7 @@ import {
 } from './sincronizarConectividadFisicaDeArtefacto'
 import { determinarRedesFisicasPorPrecedente } from '../../motor/tuberias/topologia/determinarRedesFisicasPorPrecedente'
 import { quitarConectividadFisicaDeArtefacto } from './quitarConectividadFisicaDeArtefacto'
+import { reconciliarConectividadFisicaPorCambioDeArtefacto } from './reconciliarConectividadFisicaPorCambioDeArtefacto'
 import { quitarConectividadFisicaDeLocal } from './quitarConectividadFisicaDeLocal'
 import { quitarConectividadFisicaDeUnidadFuncional } from './quitarConectividadFisicaDeUnidadFuncional'
 import { ResultadoHidraulicoDeTramo } from './ResultadoHidraulicoDeTramo'
@@ -109,10 +110,15 @@ function conTipoDeProyecto(proyecto: Proyecto, tipoDeProyecto: TipoDeProyecto): 
 function ArtefactoFormulario({
   artefacto,
   onCambiar,
+  onCambiarTipo,
   onEliminar,
 }: {
   artefacto: Artefacto
   onCambiar: (artefacto: Artefacto) => void
+  // D-δ.52 (CRIT-A15): cambiar el tipo de catálogo es un cambio de nivel
+  // Proyecto -- reconcilia además la conectividad física AF/AC. Distinto
+  // de onCambiar (cantidad), que es puramente funcional.
+  onCambiarTipo: (nuevoArtefactoId: string) => void
   onEliminar: () => void
 }) {
   return (
@@ -121,7 +127,7 @@ function ArtefactoFormulario({
         Artefacto:{' '}
         <select
           value={artefacto.artefactoId}
-          onChange={(evento) => onCambiar({ ...artefacto, artefactoId: evento.target.value })}
+          onChange={(evento) => onCambiarTipo(evento.target.value)}
         >
           {catalogoArtefactos.map((catalogoItem) => (
             <option key={catalogoItem.id} value={catalogoItem.id}>
@@ -290,6 +296,38 @@ function LocalFormulario({
               artefactos: local.artefactos.map((a) => (a.id === artefacto.id ? artefactoActualizado : a)),
             })
           }
+          onCambiarTipo={(nuevoArtefactoId) => {
+            // D-δ.52 (CRIT-A15): cambio funcional + reconciliación física
+            // AF/AC + backfill de longitudes rápidas, en un único updater
+            // (sin render intermedio inconsistente).
+            const proyectoConTipoNuevo: Proyecto = {
+              ...proyecto,
+              unidadesFuncionales: proyecto.unidadesFuncionales.map((uf) =>
+                uf.id !== unidadFuncionalId
+                  ? uf
+                  : {
+                      ...uf,
+                      locales: uf.locales.map((l) =>
+                        l.id !== local.id
+                          ? l
+                          : {
+                              ...l,
+                              artefactos: l.artefactos.map((a) =>
+                                a.id === artefacto.id ? { ...a, artefactoId: nuevoArtefactoId } : a,
+                              ),
+                            },
+                      ),
+                    },
+              ),
+            }
+            const reconciliado = reconciliarConectividadFisicaPorCambioDeArtefacto(
+              proyectoConTipoNuevo,
+              unidadFuncionalId,
+              local.id,
+              artefacto.id,
+            )
+            onCambiarProyecto(backfillLongitudesDePredimensionamiento(reconciliado))
+          }}
           onEliminar={() => {
             // M2-D (BAJA): retira tambien la conectividad fisica exclusiva
             // del artefacto antes de que quede una referencia huerfana
