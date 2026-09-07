@@ -145,6 +145,11 @@ function NodoDeArbol({
   esRaiz,
   granularidadHidraulica,
   modoDetallado,
+  // D-δ.51: cuando LocalYRedCard se usa como detalle expandible de una
+  // fila de tabla, la fila ya muestra el dimensionamiento del Tramo
+  // representativo (L/DN/V/Pérdida). Se omite ese bloque acá para no
+  // duplicarlo -- el resto del árbol (accesorios, tees, ramales) sigue.
+  mostrarDimensionamientoDelRepresentativo = true,
   onCambiar,
 }: {
   proyecto: Proyecto
@@ -154,6 +159,7 @@ function NodoDeArbol({
   esRaiz: boolean
   granularidadHidraulica: GranularidadHidraulica
   modoDetallado: boolean
+  mostrarDimensionamientoDelRepresentativo?: boolean
   onCambiar: (proyecto: Proyecto) => void
 }) {
   const resultado = resolverResultadoDeTramoParaUi(proyecto, nodo.tramoId, catalogoArtefactos)
@@ -168,15 +174,19 @@ function NodoDeArbol({
     etiqueta = `Distribución hacia ${nombresDeArtefactosAguasAbajo(proyecto, catalogoArtefactos, nodo.tramoId)}`
   }
 
+  const omitirDimensionamiento = esRaiz && !mostrarDimensionamientoDelRepresentativo
+
   return (
     <div style={{ marginLeft: esRaiz ? 0 : '1rem', marginTop: '0.5rem' }}>
-      <DimensionamientoDeTramo
-        etiqueta={etiqueta}
-        red={red}
-        resultado={resultado}
-        longitud_m={tramoActual?.longitud_m}
-        onCambiarLongitud={(longitud_m) => onCambiar(conLongitudDeTramo(proyecto, nodo.tramoId, longitud_m))}
-      />
+      {omitirDimensionamiento ? null : (
+        <DimensionamientoDeTramo
+          etiqueta={etiqueta}
+          red={red}
+          resultado={resultado}
+          longitud_m={tramoActual?.longitud_m}
+          onCambiarLongitud={(longitud_m) => onCambiar(conLongitudDeTramo(proyecto, nodo.tramoId, longitud_m))}
+        />
+      )}
       {modoDetallado ? (
         <AccesoriosDeTramoEditor
           proyecto={proyecto}
@@ -319,6 +329,11 @@ export function LocalYRedCard({
   etiquetaLocal,
   red,
   tramoPrincipalId,
+  // D-δ.51: `false` cuando esta tarjeta es el detalle expandible de una
+  // fila de tabla (la fila ya muestra el dimensionamiento del Tramo
+  // representativo) y `false` para el encabezado <h4> (la fila lo pone).
+  mostrarEncabezado = true,
+  mostrarDimensionamientoDelRepresentativo = true,
   onCambiar,
 }: {
   proyecto: Proyecto
@@ -328,16 +343,20 @@ export function LocalYRedCard({
   etiquetaLocal: string
   red: RedDeTramo
   tramoPrincipalId: string
+  mostrarEncabezado?: boolean
+  mostrarDimensionamientoDelRepresentativo?: boolean
   onCambiar: (proyecto: Proyecto) => void
 }) {
   const modoDetallado = proyecto.configuracionHidraulica.metodoPerdidaLocalizada === 'detallado'
   const granularidadHidraulica = proyecto.configuracionHidraulica.granularidadHidraulica
 
   return (
-    <article style={estiloCard}>
-      <h4>
-        {etiquetaLocal} — {ETIQUETA_RED[red]}
-      </h4>
+    <article style={mostrarEncabezado ? estiloCard : undefined}>
+      {mostrarEncabezado ? (
+        <h4>
+          {etiquetaLocal} — {ETIQUETA_RED[red]}
+        </h4>
+      ) : null}
       {proyecto.redHidraulica !== undefined ? (
         <>
           <NodoDeArbol
@@ -348,6 +367,7 @@ export function LocalYRedCard({
             esRaiz
             granularidadHidraulica={granularidadHidraulica}
             modoDetallado={modoDetallado}
+            mostrarDimensionamientoDelRepresentativo={mostrarDimensionamientoDelRepresentativo}
             onCambiar={onCambiar}
           />
           {granularidadHidraulica === 'simplificada' ? (

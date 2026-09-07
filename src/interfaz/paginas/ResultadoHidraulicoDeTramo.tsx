@@ -37,8 +37,10 @@ import {
   resolverModoDeTrabajo,
   ETIQUETA_MODO_DE_TRABAJO,
 } from './modoDeTrabajo'
+import { nombreDeNivel } from './nivelUnidadFuncional'
 import { resolverResultadoDeTramoParaUi } from './resolverResultadoDeTramoParaUi'
-import { DimensionamientoDeTramo } from './DimensionamientoDeTramo'
+import { resolverFilaDeDimensionamiento } from './resolverFilaDeDimensionamiento'
+import { TablaDimensionamientoDeModulo2, type EntradaDeTabla } from './TablaDimensionamientoDeModulo2'
 import { AccesoriosDeTramoEditor } from './AccesoriosDeTramoEditor'
 import { LocalYRedCard } from './LocalYRedCard'
 import { PanelDePresionDeModulo2 } from './PanelDePresionDeModulo2'
@@ -351,9 +353,12 @@ function AvisoCoberturaIncompleta({
   )
 }
 
-// Distribución general del proyecto (alimentación general + alimentación
-// ACS): siempre 1-2 filas, así que un listado compacto alcanza sin
-// necesidad de tabla ancha (ver DimensionamientoDeTramo).
+// Distribución general del proyecto (Alimentación general + Alimentación
+// ACS): 1-2 filas de la tabla de dimensionamiento (D-δ.51). La longitud es
+// la BASE -- en modo rápido el incremento vertical +3 m/piso (D-δ.50) es
+// automático y se ve, ya resuelto por camino, en el detalle de presión de
+// cada terminal; no se muestra un hf efectivo único acá (engañoso con
+// varias UF a distinto nivel, brief §21/§26).
 function DistribucionGeneral({
   proyecto,
   catalogoArtefactos,
@@ -368,47 +373,116 @@ function DistribucionGeneral({
     return null
   }
   const modoDetallado = proyecto.configuracionHidraulica.metodoPerdidaLocalizada === 'detallado'
-  // D-δ.50: en modo rapido la longitud efectiva de la Alimentacion general
-  // y de la Alimentacion ACS depende del nivel de la UF destino
-  // (ΔLvertical = 3 m/piso). El input de esta fila es la longitud BASE; el
-  // incremento vertical es automatico y se ve, ya resuelto por camino, en
-  // el detalle de presion de cada terminal. No se muestra un unico hf
-  // efectivo aca (seria enganoso con varias UF a distinto nivel -- brief
-  // seccion 21).
   const mostrarNotaVertical = proyecto.configuracionHidraulica.granularidadHidraulica === 'simplificada'
+
+  const entradas: EntradaDeTabla[] = filas.map((fila) => ({
+    clave: fila.tramoId,
+    etiqueta: fila.etiqueta,
+    red: fila.red,
+    fila: resolverFilaDeDimensionamiento(proyecto, fila.tramoId, catalogoArtefactos),
+    longitudEditable: true,
+    onCambiarLongitud: (longitud_m) => onCambiar(conLongitudDeTramo(proyecto, fila.tramoId, longitud_m)),
+    renderDetalle: modoDetallado
+      ? () => (
+          <AccesoriosDeTramoEditor
+            proyecto={proyecto}
+            tramoId={fila.tramoId}
+            velocidadReal_mps={resolverResultadoDeTramoParaUi(proyecto, fila.tramoId, catalogoArtefactos).velocidadReal_mps}
+            onCambiar={onCambiar}
+          />
+        )
+      : undefined,
+  }))
 
   return (
     <section>
       <h3>Distribución general</h3>
-      {filas.map((fila) => {
-        const resultado = resolverResultadoDeTramoParaUi(proyecto, fila.tramoId, catalogoArtefactos)
-        return (
-          <div key={fila.tramoId}>
-            <DimensionamientoDeTramo
-              etiqueta={`${fila.etiqueta} — longitud base`}
-              red={fila.red}
-              resultado={resultado}
-              longitud_m={proyecto.redHidraulica?.tramos.find((tramo) => tramo.id === fila.tramoId)?.longitud_m}
-              onCambiarLongitud={(longitud_m) => onCambiar(conLongitudDeTramo(proyecto, fila.tramoId, longitud_m))}
-            />
-            {mostrarNotaVertical ? (
-              <p style={{ margin: '0 0 0.5rem' }}>
-                <small>+ 3,00 m/piso automático según el nivel de cada unidad funcional (convención IUAS del modo rápido)</small>
-              </p>
-            ) : null}
-            {modoDetallado ? (
-              <AccesoriosDeTramoEditor
-                proyecto={proyecto}
-                tramoId={fila.tramoId}
-                velocidadReal_mps={resultado.velocidadReal_mps}
-                onCambiar={onCambiar}
-              />
-            ) : null}
-          </div>
-        )
-      })}
+      <TablaDimensionamientoDeModulo2 entradas={entradas} encabezadoTramo="Tramo" />
+      {mostrarNotaVertical ? (
+        <p style={{ margin: '0.35rem 0 0.5rem' }}>
+          <small>
+            La longitud es la <strong>base</strong>. En modo rápido se suma +3,00&nbsp;m/piso automáticamente según el
+            nivel de cada unidad funcional (convención IUAS); la longitud efectiva por camino se ve en el detalle de
+            presión.
+          </small>
+        </p>
+      ) : null}
     </section>
   )
+}
+
+// Sección de una Unidad Funcional: encabezado (nivel + cota) + tabla con
+// una fila por (Local, Red). Detalle expandible por fila -- en Rápido
+// artefactos + estimación localizada; en Profesional el árbol de Tramos
+// físicos + editores de accesorios/tees (LocalYRedCard sin encabezado ni
+// dimensionamiento del representativo, que ya están en la fila).
+function SeccionDeUnidadFuncional({
+  proyecto,
+  uf,
+  catalogoArtefactos,
+  filasPrincipalesDeLocales,
+  onCambiar,
+}: {
+  proyecto: Proyecto
+  uf: Proyecto['unidadesFuncionales'][number]
+  catalogoArtefactos: readonly ArtefactoNormativo[]
+  filasPrincipalesDeLocales: ReturnType<typeof identificarFilasPrincipalesDeLocales>
+  onCambiar: (proyecto: Proyecto) => void
+}) {
+  const ordinales = derivarOrdinalesDeLocal(uf.locales)
+  const esProfesional = proyecto.configuracionHidraulica.granularidadHidraulica === 'profesional'
+  const nivelTexto = uf.nivel === undefined ? 'nivel sin clasificar' : nombreDeNivel(uf.nivel)
+  const cotaTexto =
+    uf.cotaHidraulicaReferencia_m === undefined ? '' : ` · cota ${formatearNumeroM(uf.cotaHidraulicaReferencia_m)}`
+
+  const entradas: EntradaDeTabla[] = uf.locales.flatMap((local) => {
+    const ordinal = ordinales.get(local.id)
+    const etiquetaLocal = `${ETIQUETA_TIPO_DE_LOCAL[local.tipo]} ${ordinal ?? ''}`.trim()
+    return filasPrincipalesDeLocales
+      .filter((fila) => fila.unidadFuncionalId === uf.id && fila.localId === local.id)
+      .map((fila): EntradaDeTabla => ({
+        clave: fila.tramoId,
+        etiqueta: etiquetaLocal,
+        red: fila.red,
+        fila: resolverFilaDeDimensionamiento(proyecto, fila.tramoId, catalogoArtefactos, {
+          unidadFuncionalId: uf.id,
+          localId: local.id,
+          red: fila.red,
+        }),
+        longitudEditable: !esProfesional,
+        onCambiarLongitud: esProfesional
+          ? undefined
+          : (longitud_m) => onCambiar(conLongitudDeTramo(proyecto, fila.tramoId, longitud_m)),
+        renderDetalle: () => (
+          <LocalYRedCard
+            proyecto={proyecto}
+            catalogoArtefactos={catalogoArtefactos}
+            unidadFuncionalId={uf.id}
+            localId={local.id}
+            etiquetaLocal={etiquetaLocal}
+            red={fila.red}
+            tramoPrincipalId={fila.tramoId}
+            mostrarEncabezado={false}
+            mostrarDimensionamientoDelRepresentativo={esProfesional}
+            onCambiar={onCambiar}
+          />
+        ),
+      }))
+  })
+
+  return (
+    <section>
+      <h3>
+        {uf.nombre} · {nivelTexto}
+        {cotaTexto}
+      </h3>
+      <TablaDimensionamientoDeModulo2 entradas={entradas} encabezadoTramo="Local" />
+    </section>
+  )
+}
+
+function formatearNumeroM(valor: number): string {
+  return `${valor.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m`
 }
 
 export function ResultadoHidraulicoDeTramo({
@@ -444,34 +518,16 @@ export function ResultadoHidraulicoDeTramo({
         <>
           <DistribucionGeneral proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} onCambiar={onCambiar} />
 
-          {proyecto.unidadesFuncionales.map((uf) => {
-            const ordinales = derivarOrdinalesDeLocal(uf.locales)
-            return (
-              <section key={uf.id}>
-                <h3>{uf.nombre}</h3>
-                {uf.locales.map((local) => {
-                  const ordinal = ordinales.get(local.id)
-                  const etiquetaLocal = `${ETIQUETA_TIPO_DE_LOCAL[local.tipo]} ${ordinal ?? ''}`.trim()
-                  const filasDelLocal = filasPrincipalesDeLocales.filter(
-                    (fila) => fila.unidadFuncionalId === uf.id && fila.localId === local.id,
-                  )
-                  return filasDelLocal.map((fila) => (
-                    <LocalYRedCard
-                      key={fila.tramoId}
-                      proyecto={proyecto}
-                      catalogoArtefactos={catalogoArtefactos}
-                      unidadFuncionalId={uf.id}
-                      localId={local.id}
-                      etiquetaLocal={etiquetaLocal}
-                      red={fila.red}
-                      tramoPrincipalId={fila.tramoId}
-                      onCambiar={onCambiar}
-                    />
-                  ))
-                })}
-              </section>
-            )
-          })}
+          {proyecto.unidadesFuncionales.map((uf) => (
+            <SeccionDeUnidadFuncional
+              key={uf.id}
+              proyecto={proyecto}
+              uf={uf}
+              catalogoArtefactos={catalogoArtefactos}
+              filasPrincipalesDeLocales={filasPrincipalesDeLocales}
+              onCambiar={onCambiar}
+            />
+          ))}
 
           <PanelDePresionDeModulo2 proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} onCambiar={onCambiar} />
         </>
