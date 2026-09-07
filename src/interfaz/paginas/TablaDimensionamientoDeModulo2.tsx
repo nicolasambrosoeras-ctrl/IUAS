@@ -14,6 +14,8 @@ import type { RedDeTramo } from '../../modelo/redHidraulica'
 import { ETIQUETA_RED } from './humanizarModulo2'
 import { resolverCambioDeLongitud } from './resolverResultadoDeTramoParaUi'
 import type { FilaDeDimensionamiento } from './resolverFilaDeDimensionamiento'
+import type { ControlDeDnDeTramo } from './resolverControlDeDnDeTramo'
+import { ControlDeDn } from './ControlDeDn'
 
 const th: CSSProperties = { textAlign: 'left', padding: '0.25rem 0.6rem', borderBottom: '1px solid #bbb', fontSize: '0.9em' }
 const thNum: CSSProperties = { ...th, textAlign: 'right' }
@@ -31,6 +33,10 @@ export type EntradaDeTabla = {
   readonly longitudEditable: boolean
   readonly onCambiarLongitud?: ((longitud_m: number | undefined) => void) | undefined
   readonly renderDetalle?: (() => ReactNode) | undefined
+  // D-δ.52: control ↓/DN/↑/Auto en la celda DN. Si falta, la celda muestra
+  // solo el texto de DN (fila.dnTexto).
+  readonly controlDn?: ControlDeDnDeTramo | undefined
+  readonly onCambiarDnAdoptado?: ((denominacion: string | undefined) => void) | undefined
 }
 
 function CeldaLongitud({ entrada }: { entrada: EntradaDeTabla }) {
@@ -104,7 +110,13 @@ export function TablaDimensionamientoDeModulo2({
                 <td style={tdNum}>
                   <CeldaLongitud entrada={entrada} />
                 </td>
-                <td style={tdDn}>{fila.dnTexto}</td>
+                <td style={tdDn}>
+                  {entrada.controlDn !== undefined && entrada.onCambiarDnAdoptado !== undefined ? (
+                    <ControlDeDn control={entrada.controlDn} onCambiarDnAdoptado={entrada.onCambiarDnAdoptado} />
+                  ) : (
+                    fila.dnTexto
+                  )}
+                </td>
                 <td style={tdNum}>{fila.vTexto} m/s</td>
                 <td style={tdNum}>{fila.perdidaTotalTexto}</td>
                 <td style={td}>{fila.estadoTexto}</td>

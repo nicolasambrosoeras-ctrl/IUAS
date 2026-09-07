@@ -115,3 +115,65 @@ export function conTeeDeNodo(proyecto: Proyecto, nodoId: string, tee: Configurac
 
   return { ...proyecto, redHidraulica: { ...redHidraulica, nodos } }
 }
+
+// Override manual del diametro comercial adoptado (D-δ.52). `undefined` =
+// eliminar el override y volver al diametro que el motor resuelve
+// automaticamente (accion "Auto"). `denominacion` = denominacionComercial
+// de una entrada del sistema de tuberia vigente (p. ej. "32 mm"); no se
+// valida aca que exista en el catalogo -- resolverDiametroComercialDeTramo
+// la ignora si no existe, y normalizarOverridesDeDnSegunSistema puede
+// limpiarla al cambiar de sistema. Mismo criterio de omision explicita de
+// la clave (no `undefined` asignado) que conLongitudDeTramo/conAccesoriosDeTramo.
+export function conDnComercialAdoptadoDeTramo(
+  proyecto: Proyecto,
+  tramoId: string,
+  denominacion: string | undefined,
+): Proyecto {
+  const { redHidraulica } = proyecto
+  if (redHidraulica === undefined) {
+    return proyecto
+  }
+
+  const tramos = redHidraulica.tramos.map((tramo) => {
+    if (tramo.id !== tramoId) {
+      return tramo
+    }
+    if (denominacion === undefined) {
+      // Copia fresca sin la clave -- nunca muta `tramo` (input), mismo
+      // efecto que un destructuring-drop pero sin variable sin usar.
+      const tramoSinOverride = { ...tramo }
+      delete tramoSinOverride.dnComercialAdoptado
+      return tramoSinOverride
+    }
+    return { ...tramo, dnComercialAdoptado: denominacion }
+  })
+
+  return { ...proyecto, redHidraulica: { ...redHidraulica, tramos } }
+}
+
+// D-δ.52 (§11/§14): al cambiar material o sistema de tuberia, cualquier
+// `dnComercialAdoptado` que ya no exista en el catalogo del sistema
+// vigente se elimina (vuelve a automatico). NO destructivo para los
+// overrides que siguen siendo validos. Pensado para llamarse justo despues
+// de conMaterialTuberia / conSistemaDeTuberia, igual criterio que el
+// backfill de longitudes de D-δ.51.
+export function normalizarOverridesDeDnSegunSistema(
+  proyecto: Proyecto,
+  denominacionesValidas: ReadonlySet<string>,
+): Proyecto {
+  const { redHidraulica } = proyecto
+  if (redHidraulica === undefined) {
+    return proyecto
+  }
+  let cambiado = false
+  const tramos = redHidraulica.tramos.map((tramo) => {
+    if (tramo.dnComercialAdoptado === undefined || denominacionesValidas.has(tramo.dnComercialAdoptado)) {
+      return tramo
+    }
+    cambiado = true
+    const tramoSinOverride = { ...tramo }
+    delete tramoSinOverride.dnComercialAdoptado
+    return tramoSinOverride
+  })
+  return cambiado ? { ...proyecto, redHidraulica: { ...redHidraulica, tramos } } : proyecto
+}

@@ -49,6 +49,15 @@ export type ResultadoDiametroComercialDeTramo =
       readonly n: number
       readonly diReferenciaPredimensionamiento_mm: number
       readonly candidato: EntradaCatalogoTuberia
+      // D-δ.52: 'automatico' = candidato resuelto por CRIT-A23; 'manual' =
+      // el usuario adoptó explícitamente `Tramo.dnComercialAdoptado` y ESE
+      // es el diámetro efectivo de cálculo (`candidato`), no una anotación.
+      readonly origen: 'automatico' | 'manual'
+      // El candidato que CRIT-A23 habría adoptado automáticamente (para
+      // mostrar "DN recomendado" junto al adoptado). null si no hay ningún
+      // candidato automático admisible (p. ej. exceso de Vmax) -- el
+      // override manual sigue siendo válido de adoptar y evaluar.
+      readonly candidatoAutomatico: EntradaCatalogoTuberia | null
       readonly velocidadReal_mps: number
       // Ya NO es siempre 'admisible' (D-delta.27): en el fallback de Vmin
       // conserva el resultado real 'noAdmisible' de la primitiva, como
@@ -86,6 +95,23 @@ export function resolverDiametroComercialDeTramo(
   const { n } = resultadoHidraulico.simultaneidad
   const diReferenciaPredimensionamiento_mm = resultadoHidraulico.predimensionamiento.diReferenciaPredimensionamiento_mm
 
+  // D-δ.52: override manual del diámetro comercial adoptado. Si el Tramo
+  // declara `dnComercialAdoptado` y esa denominación existe en el sistema
+  // vigente, ESE diámetro es el efectivo de cálculo -- se resuelve su V y
+  // su verificación reales (que pueden ser 'noAdmisible': el usuario puede
+  // explorar, pero el incumplimiento se muestra tal cual, brief §5). Qc no
+  // cambia. Si la denominación no existe en el sistema actual (cambio de
+  // material/sistema), se ignora y sigue el camino automático.
+  const tramo = proyecto.redHidraulica?.tramos.find((candidatoTramo) => candidatoTramo.id === tramoId)
+  const entradasOrdenadasParaOverride =
+    tramo?.dnComercialAdoptado !== undefined
+      ? obtenerEntradasOrdenadasPorDiametroInterior(sistema)
+      : undefined
+  const entradaAdoptada =
+    tramo?.dnComercialAdoptado !== undefined
+      ? entradasOrdenadasParaOverride!.find((entrada) => entrada.denominacionComercial === tramo.dnComercialAdoptado)
+      : undefined
+
   // CRIT-A23: recorrer el catálogo completo por Di efectivo creciente y
   // verificar la velocidad real de cada candidato contra el rango que su
   // propio Di determina (CRIT-A19) -- sin suponer de antemano si el
@@ -93,13 +119,65 @@ export function resolverDiametroComercialDeTramo(
   // Ve antes de conocer el diámetro. noAdmisible y fueraDeDominioNormativo
   // se descartan y la búsqueda continúa (p. ej. el hueco 60–75mm).
   const entradasOrdenadas = obtenerEntradasOrdenadasPorDiametroInterior(sistema)
+  const automatico = seleccionarCandidatoAutomatico(entradasOrdenadas, qc_lps)
 
-  // D-delta.27: candidato de fallback, capturado únicamente si el
-  // PRIMER candidato normativamente evaluable (el menor Di que no resulta
-  // 'fueraDeDominioNormativo') incumple específicamente por defecto de
-  // velocidad (V<Vmin). Ningún candidato posterior puede activarlo: solo
-  // importa el primero, exactamente "el menor diámetro comercial
-  // normativamente evaluable" -- no "el primero que falle por Vmin".
+  // D-δ.52: hay override manual válido -> ESE diámetro es el efectivo de
+  // cálculo. Se resuelve su V/verificación reales (pueden ser noAdmisible),
+  // y se expone el candidato automático como "recomendado".
+  if (entradaAdoptada !== undefined) {
+    const velocidadReal_mps = calcularVelocidad(qc_lps, entradaAdoptada.diametroInteriorEfectivo_mm)
+    const verificacionVelocidad = verificarVelocidadAdmisible(velocidadReal_mps, entradaAdoptada.diametroInteriorEfectivo_mm)
+    return {
+      tipo: 'conCandidato',
+      qc_lps,
+      n,
+      diReferenciaPredimensionamiento_mm,
+      candidato: entradaAdoptada,
+      origen: 'manual',
+      candidatoAutomatico: automatico?.candidato ?? null,
+      velocidadReal_mps,
+      verificacionVelocidad,
+      velocidadPorDebajoDelMinimo: false,
+    }
+  }
+
+  if (automatico !== undefined) {
+    return {
+      tipo: 'conCandidato',
+      qc_lps,
+      n,
+      diReferenciaPredimensionamiento_mm,
+      candidato: automatico.candidato,
+      origen: 'automatico',
+      candidatoAutomatico: automatico.candidato,
+      velocidadReal_mps: automatico.velocidadReal_mps,
+      verificacionVelocidad: automatico.verificacionVelocidad,
+      velocidadPorDebajoDelMinimo: automatico.velocidadPorDebajoDelMinimo,
+    }
+  }
+
+  // Recorrido completo sin ningún candidato admisible y sin fallback de
+  // D-delta.27 aplicable: exceso de Vmax (Qc alto) o ningún candidato en
+  // dominio normativo -- resultado hidráulico/comercial legítimo, nunca
+  // throw, nunca se extrapola ni se elige el más cercano.
+  return { tipo: 'sinCandidatoAdmisible', qc_lps, n, diReferenciaPredimensionamiento_mm }
+}
+
+// Selección automática CRIT-A23 (+ fallback D-delta.27 de Vmin). Extraída
+// para poder resolverla siempre -- incluso cuando hay override manual --
+// y así exponer el "DN recomendado" junto al adoptado. Sin cambios de
+// lógica respecto de la versión previa.
+function seleccionarCandidatoAutomatico(
+  entradasOrdenadas: readonly EntradaCatalogoTuberia[],
+  qc_lps: number,
+):
+  | {
+      readonly candidato: EntradaCatalogoTuberia
+      readonly velocidadReal_mps: number
+      readonly verificacionVelocidad: ResultadoVerificacionVelocidad
+      readonly velocidadPorDebajoDelMinimo: boolean
+    }
+  | undefined {
   let primerCandidatoNormativoEvaluado = false
   let candidatoFallbackPorDebajoDelMinimo:
     | { candidato: EntradaCatalogoTuberia; velocidadReal_mps: number; verificacionVelocidad: ResultadoVerificacionVelocidad }
@@ -110,22 +188,11 @@ export function resolverDiametroComercialDeTramo(
     const verificacionVelocidad = verificarVelocidadAdmisible(velocidadReal_mps, candidato.diametroInteriorEfectivo_mm)
 
     if (verificacionVelocidad.tipo === 'admisible') {
-      return {
-        tipo: 'conCandidato',
-        qc_lps,
-        n,
-        diReferenciaPredimensionamiento_mm,
-        candidato,
-        velocidadReal_mps,
-        verificacionVelocidad,
-        velocidadPorDebajoDelMinimo: false,
-      }
+      return { candidato, velocidadReal_mps, verificacionVelocidad, velocidadPorDebajoDelMinimo: false }
     }
 
     if (!primerCandidatoNormativoEvaluado && verificacionVelocidad.tipo !== 'fueraDeDominioNormativo') {
       primerCandidatoNormativoEvaluado = true
-      // Vmax (velocidad excesiva) sigue siendo condición dura sin
-      // excepción: solo el defecto de Vmin activa el fallback de D-delta.27.
       if (velocidadReal_mps < verificacionVelocidad.limiteMinimo_mps) {
         candidatoFallbackPorDebajoDelMinimo = { candidato, velocidadReal_mps, verificacionVelocidad }
       }
@@ -133,22 +200,7 @@ export function resolverDiametroComercialDeTramo(
   }
 
   if (candidatoFallbackPorDebajoDelMinimo !== undefined) {
-    const { candidato, velocidadReal_mps, verificacionVelocidad } = candidatoFallbackPorDebajoDelMinimo
-    return {
-      tipo: 'conCandidato',
-      qc_lps,
-      n,
-      diReferenciaPredimensionamiento_mm,
-      candidato,
-      velocidadReal_mps,
-      verificacionVelocidad,
-      velocidadPorDebajoDelMinimo: true,
-    }
+    return { ...candidatoFallbackPorDebajoDelMinimo, velocidadPorDebajoDelMinimo: true }
   }
-
-  // Recorrido completo sin ningún candidato admisible y sin fallback de
-  // D-delta.27 aplicable: exceso de Vmax (Qc alto) o ningún candidato en
-  // dominio normativo -- resultado hidráulico/comercial legítimo, nunca
-  // throw, nunca se extrapola ni se elige el más cercano.
-  return { tipo: 'sinCandidatoAdmisible', qc_lps, n, diReferenciaPredimensionamiento_mm }
+  return undefined
 }

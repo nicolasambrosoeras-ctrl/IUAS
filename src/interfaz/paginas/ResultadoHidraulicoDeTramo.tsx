@@ -30,7 +30,12 @@ import {
   conMetodoPerdidaLocalizada,
   conSistemaDeTuberia,
 } from './actualizarConfiguracionHidraulica'
-import { conLongitudDeTramo } from './actualizarRedHidraulica'
+import {
+  conDnComercialAdoptadoDeTramo,
+  conLongitudDeTramo,
+  normalizarOverridesDeDnSegunSistema,
+} from './actualizarRedHidraulica'
+import { denominacionesComercialesDelSistema, resolverControlDeDnDeTramo } from './resolverControlDeDnDeTramo'
 import {
   aplicarModoProfesional,
   aplicarModoRapido,
@@ -245,11 +250,21 @@ function ConfiguracionHidraulicaFormulario({
         Material de la tubería:{' '}
         <select
           value={proyecto.configuracionHidraulica.materialTuberiaId}
-          onChange={(evento) =>
-            onCambiar(
-              conMaterialTuberia(proyecto, evento.target.value as MaterialTuberiaId, catalogoSistemasDeTuberia),
+          onChange={(evento) => {
+            const conNuevoMaterial = conMaterialTuberia(
+              proyecto,
+              evento.target.value as MaterialTuberiaId,
+              catalogoSistemasDeTuberia,
             )
-          }
+            // D-δ.52: descartar los overrides de DN que ya no existan en el
+            // catálogo del sistema resultante.
+            onCambiar(
+              normalizarOverridesDeDnSegunSistema(
+                conNuevoMaterial,
+                denominacionesComercialesDelSistema(conNuevoMaterial.configuracionHidraulica.sistemaDeTuberiaId),
+              ),
+            )
+          }}
         >
           {opcionesDeMaterial(proyecto.configuracionHidraulica.materialTuberiaId).map((material) => (
             <option key={material.id} value={material.id}>
@@ -262,7 +277,15 @@ function ConfiguracionHidraulicaFormulario({
         Sistema de tubería:{' '}
         <select
           value={proyecto.configuracionHidraulica.sistemaDeTuberiaId}
-          onChange={(evento) => onCambiar(conSistemaDeTuberia(proyecto, evento.target.value))}
+          onChange={(evento) => {
+            const conNuevoSistema = conSistemaDeTuberia(proyecto, evento.target.value)
+            onCambiar(
+              normalizarOverridesDeDnSegunSistema(
+                conNuevoSistema,
+                denominacionesComercialesDelSistema(evento.target.value),
+              ),
+            )
+          }}
         >
           {catalogoSistemasDeTuberia.map((sistema) => (
             <option key={sistema.id} value={sistema.id}>
@@ -382,6 +405,8 @@ function DistribucionGeneral({
     fila: resolverFilaDeDimensionamiento(proyecto, fila.tramoId, catalogoArtefactos),
     longitudEditable: true,
     onCambiarLongitud: (longitud_m) => onCambiar(conLongitudDeTramo(proyecto, fila.tramoId, longitud_m)),
+    controlDn: resolverControlDeDnDeTramo(proyecto, fila.tramoId, catalogoArtefactos),
+    onCambiarDnAdoptado: (denominacion) => onCambiar(conDnComercialAdoptadoDeTramo(proyecto, fila.tramoId, denominacion)),
     renderDetalle: modoDetallado
       ? () => (
           <AccesoriosDeTramoEditor
@@ -453,6 +478,9 @@ function SeccionDeUnidadFuncional({
         onCambiarLongitud: esProfesional
           ? undefined
           : (longitud_m) => onCambiar(conLongitudDeTramo(proyecto, fila.tramoId, longitud_m)),
+        controlDn: resolverControlDeDnDeTramo(proyecto, fila.tramoId, catalogoArtefactos),
+        onCambiarDnAdoptado: (denominacion) =>
+          onCambiar(conDnComercialAdoptadoDeTramo(proyecto, fila.tramoId, denominacion)),
         renderDetalle: () => (
           <LocalYRedCard
             proyecto={proyecto}

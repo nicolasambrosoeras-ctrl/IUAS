@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import type { Proyecto } from '../../modelo/proyecto'
 import type { Nodo, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
-import { conAccesoriosDeTramo, conCotaDeNodo, conLongitudDeTramo, conTeeDeNodo } from './actualizarRedHidraulica'
+import {
+  conAccesoriosDeTramo,
+  conCotaDeNodo,
+  conDnComercialAdoptadoDeTramo,
+  conLongitudDeTramo,
+  conTeeDeNodo,
+  normalizarOverridesDeDnSegunSistema,
+} from './actualizarRedHidraulica'
 
 function proyectoDePrueba(redHidraulica?: RedHidraulica): Proyecto {
   return {
@@ -239,5 +246,50 @@ describe('conCotaDeNodo', () => {
   it('redHidraulica ausente: no-op', () => {
     const original = proyectoDePrueba()
     expect(conCotaDeNodo(original, 'n1', 3)).toBe(original)
+  })
+})
+
+describe('conDnComercialAdoptadoDeTramo / normalizarOverridesDeDnSegunSistema (D-δ.52)', () => {
+  function proyectoConTramos(tramos: readonly Tramo[]): Proyecto {
+    return {
+      metadatos: { nombre: 'P', obra: 'O', comitente: 'C', fecha: '2026-09-07', schemaVersion: '1.0.0', versionNormativa: 'eras-2023' },
+      parametros: { tipoDeProyecto: 'viviendaIndividual', presionSobreAcera_m: 0, alturaArtefactoMasDesfavorable_m: 0 },
+      unidadesFuncionales: [],
+      redHidraulica: { nodos: [{ id: 'n0' }, { id: 'n1' }, { id: 'n2' }], tramos },
+      configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'estimado', granularidadHidraulica: 'simplificada', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
+    }
+  }
+
+  it('D12: setear el override persiste dnComercialAdoptado en ese Tramo y no toca los demás', () => {
+    const p = proyectoConTramos([
+      { id: 't1', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: 3 },
+      { id: 't2', nodoOrigenId: 'n1', nodoDestinoId: 'n2', red: 'AF' },
+    ])
+    const r = conDnComercialAdoptadoDeTramo(p, 't1', '32 mm')
+    expect(r.redHidraulica!.tramos.find((t) => t.id === 't1')!.dnComercialAdoptado).toBe('32 mm')
+    expect(r.redHidraulica!.tramos.find((t) => t.id === 't1')!.longitud_m).toBe(3) // otros campos intactos
+    expect(r.redHidraulica!.tramos.find((t) => t.id === 't2')!.dnComercialAdoptado).toBeUndefined()
+  })
+
+  it('D4: quitar el override omite la clave (no un undefined asignado)', () => {
+    const p = proyectoConTramos([{ id: 't1', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', dnComercialAdoptado: '40 mm' }])
+    const r = conDnComercialAdoptadoDeTramo(p, 't1', undefined)
+    expect('dnComercialAdoptado' in r.redHidraulica!.tramos[0]!).toBe(false)
+  })
+
+  it('D14: normalizarOverridesDeDnSegunSistema elimina overrides que no existen en el sistema vigente, conserva los válidos', () => {
+    const p = proyectoConTramos([
+      { id: 't1', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', dnComercialAdoptado: '32 mm', longitud_m: 4 },
+      { id: 't2', nodoOrigenId: 'n1', nodoDestinoId: 'n2', red: 'AF', dnComercialAdoptado: '999 mm (otro sistema)' },
+    ])
+    const r = normalizarOverridesDeDnSegunSistema(p, new Set(['20 mm', '25 mm', '32 mm', '40 mm']))
+    expect(r.redHidraulica!.tramos.find((t) => t.id === 't1')!.dnComercialAdoptado).toBe('32 mm')
+    expect(r.redHidraulica!.tramos.find((t) => t.id === 't1')!.longitud_m).toBe(4)
+    expect('dnComercialAdoptado' in r.redHidraulica!.tramos.find((t) => t.id === 't2')!).toBe(false)
+  })
+
+  it('normalizarOverridesDeDnSegunSistema es idempotente / no-op cuando todos los overrides son válidos', () => {
+    const p = proyectoConTramos([{ id: 't1', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', dnComercialAdoptado: '25 mm' }])
+    expect(normalizarOverridesDeDnSegunSistema(p, new Set(['20 mm', '25 mm']))).toBe(p)
   })
 })

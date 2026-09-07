@@ -173,6 +173,19 @@ export type Tramo = {
   // cambio de diámetro es dato hidráulico, no prueba de que exista
   // físicamente el accesorio.
   accesorios?: readonly AccesorioDeTramo[];
+  // Override manual del diámetro comercial adoptado para este Tramo
+  // (D-δ.52): `denominacionComercial` de una entrada del sistema de
+  // tubería vigente (p. ej. "25 mm", "32 mm") -- NO un DN numérico
+  // arbitrario. Ausente = el motor adopta el diámetro comercial que
+  // resuelve automáticamente (CRIT-A23). Presente = ese diámetro adoptado
+  // SUSTITUYE al automático como diámetro EFECTIVO DE CÁLCULO del Tramo:
+  // Di real, V, J, hf distribuida y hf localizada dependiente de V se
+  // resuelven de nuevo con él (resolverDiametroComercialDeTramo). Nunca
+  // altera Qc (la demanda no cambia). Si la denominación no existe en el
+  // sistema vigente (cambio de material/sistema), el motor lo ignora y
+  // vuelve a automático -- la capa de UI puede además limpiar el campo
+  // (normalizarOverridesDeDnSegunSistema).
+  dnComercialAdoptado?: string;
 };
 
 // Una sola topología física para AF y AC (D-δ.2): no existen redes
