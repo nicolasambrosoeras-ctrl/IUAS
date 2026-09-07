@@ -22,7 +22,8 @@ export type CodigoValidacion =
   | 'redHidraulicaNodoTeeEstructuraNoSoportada'
   | 'redHidraulicaNodoTeeTramoSalidaRectaInvalido'
   | 'configuracionHidraulicaSistemaDeTuberiaIdInexistente'
-  | 'configuracionHidraulicaSistemaMaterialIncompatible';
+  | 'configuracionHidraulicaSistemaMaterialIncompatible'
+  | 'configuracionMedidoresUnidadFuncionalInexistente';
 
 export type Severidad = 'error' | 'advertencia';
 
@@ -119,6 +120,11 @@ export const codigosValidacion: Readonly<Record<CodigoValidacion, DescripcionCod
     severidad: 'error',
     descripcion:
       'El sistema de tubería seleccionado pertenece a un materialTuberiaId distinto del configurado en el Proyecto.',
+  },
+  configuracionMedidoresUnidadFuncionalInexistente: {
+    severidad: 'error',
+    descripcion:
+      'configuracionMedidores.tipoProvisionACSPorUnidadFuncional referencia un id de unidad funcional que no existe en el Proyecto.',
   },
 } as const;
 

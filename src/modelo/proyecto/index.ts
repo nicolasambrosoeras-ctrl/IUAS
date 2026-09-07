@@ -172,6 +172,32 @@ export type ConfiguracionHidraulica = {
   sistemaDeTuberiaId: string;
 };
 
+// Provisión de agua caliente sanitaria de una unidad funcional (D-δ.54):
+// 'individual' = la producción de ACS ocurre dentro de la UF, aguas abajo
+// del suministro de AF medido (el medidor de entrada ve todo el caudal);
+// 'central' = AF y AC llegan a la UF por ramales comunes distintos, cada
+// uno con su medidor. Es una configuración física DECLARADA -- no se
+// infiere de la posición de produccionACS en RedHidraulica (D-δ.54).
+export type TipoProvisionACS = 'individual' | 'central';
+
+// Configuración persistida de Módulo 3 (Medidores), D-δ.55. Guarda
+// únicamente decisiones físicas del usuario -- nunca resultados
+// derivados (alcances, Qunit, DN, C, hf, EstadoModulo3: todo eso se
+// recalcula). Ausente = Módulo 3 todavía no iniciado (EstadoModulo3
+// 'noIniciado'); NO es un default. `esPropiedadHorizontal: false` es una
+// decisión válida y explícita del usuario, NO equivale a ausencia.
+export type ConfiguracionDeMedidores = {
+  // §2.6: sólo con propiedad horizontal / más de un propietario hay
+  // obligación de medición individual por unidad.
+  readonly esPropiedadHorizontal: boolean;
+  // Provisión de ACS por defecto del Proyecto -- la mayoría de los
+  // proyectos es homogénea.
+  readonly tipoProvisionACS: TipoProvisionACS;
+  // Override opcional por unidad funcional, para proyectos mixtos.
+  // Ausencia de entrada para una UF = usar el default del Proyecto.
+  readonly tipoProvisionACSPorUnidadFuncional?: Readonly<Record<string, TipoProvisionACS>>;
+};
+
 export type Proyecto = {
   metadatos: MetadatosProyecto;
   parametros: ParametrosProyecto;
@@ -183,4 +209,8 @@ export type Proyecto = {
   // explícitamente una vez que este concepto existe en el modelo -- no hay
   // un estado intermedio válido de "Proyecto sin método todavía".
   configuracionHidraulica: ConfiguracionHidraulica;
+  // Ausente = Módulo 3 no iniciado (D-δ.55). Optativo a propósito: un
+  // Proyecto creado antes de que M3 existiera sigue siendo válido y
+  // resuelve EstadoModulo3 'noIniciado' sin migración destructiva.
+  configuracionMedidores?: ConfiguracionDeMedidores;
 };

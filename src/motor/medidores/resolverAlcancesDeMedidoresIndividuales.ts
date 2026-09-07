@@ -53,7 +53,7 @@
 // La suma con `K = 1` sobre estos consumos (simultaneidad total, §2.6 /
 // CRIT-A33) y la selección por Tabla N°6 son responsabilidad de
 // `seleccionarMedidorIndividual` — este módulo no las repite.
-import type { Proyecto } from '../../modelo/proyecto'
+import type { Proyecto, TipoProvisionACS } from '../../modelo/proyecto'
 import type { ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import {
@@ -63,7 +63,7 @@ import {
 import { resolverQuEfectivo } from '../tuberias/caudal/resolverQuEfectivo'
 import type { AlcanceMedidorIndividual, ConsumoDeAlcance } from './seleccionarMedidorIndividual'
 
-export type TipoProvisionACS = 'individual' | 'central'
+export type { TipoProvisionACS }
 
 export type ConfiguracionDeMedicionIndividual = {
   // Obligación normativa (§2.6): sólo con propiedad horizontal / más de un

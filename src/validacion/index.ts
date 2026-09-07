@@ -10,6 +10,7 @@ import { validarInvariantesDeProyecto } from './proyecto';
 import { validarReferenciasDeCatalogo } from './catalogo';
 import { validarRedHidraulica } from './redHidraulica';
 import { validarConfiguracionHidraulica } from './configuracionHidraulica';
+import { validarConfiguracionMedidores } from './configuracionMedidores';
 
 export function validarProyecto(
   proyecto: Proyecto,
@@ -22,6 +23,7 @@ export function validarProyecto(
     ...validarReferenciasDeCatalogo(proyecto, catalogoArtefactos, coeficientesMayoracion),
     ...validarRedHidraulica(proyecto),
     ...validarConfiguracionHidraulica(proyecto, catalogoSistemasDeTuberia),
+    ...validarConfiguracionMedidores(proyecto),
   ];
 
   return {

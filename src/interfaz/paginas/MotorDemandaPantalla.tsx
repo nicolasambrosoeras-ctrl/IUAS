@@ -928,6 +928,8 @@ const MENSAJES_DE_VALIDACION: Readonly<Record<CodigoValidacion, string>> = {
     'El sistema de tubería seleccionado no existe en el catálogo de sistemas comerciales vigente.',
   configuracionHidraulicaSistemaMaterialIncompatible:
     'El sistema de tubería seleccionado pertenece a un material distinto del material configurado en el proyecto.',
+  configuracionMedidoresUnidadFuncionalInexistente:
+    'La configuración de medidores tiene un override de ACS para una unidad funcional que ya no existe.',
 }
 
 function ProblemasValidacion({ problemas }: { problemas: readonly ProblemaValidacion[] }) {
