@@ -5072,3 +5072,99 @@ decisión roja: **M3-E** (integración de `hfMedidor` M3→M2), M3-F
 (auditoría end-to-end). Menores: Tabla N°8 (`> 40 m³/h`), CRIT-A8 en el
 universo de consumos de B2b, poda activa de overrides huérfanos al
 cambiar ACS (hoy ignorados al leer).
+
+## D-δ.58 -- M3-E: integración de las pérdidas de medidores M3 al balance de presión M2 -- CERRADA
+
+Elimina el input provisional `hfMedidor` del Panel de Presión. M2 consume
+automáticamente la pérdida de medidores que pertenece al camino de **cada
+terminal**.
+
+### `resolverPerdidasDeMedidoresParaTerminal` (`motor/modulo3/`, puro)
+
+`{ estadoModulo3, configuracionMedidores, unidadFuncionalIdDelTerminal,
+redDelTerminal, origenHidraulico }` → discriminado:
+
+- `{ estado: 'determinadas', componentes: ComponentePerdidaDeMedidor[], hfTotal_mca }`
+- `{ estado: 'indeterminado', motivos: [...] }`
+
+**Reglas físicas** (cerradas en D-δ.38/D-δ.54, ver también handoff M3-E):
+
+| | `alimentacionDirecta` | `tanqueElevado` |
+|---|---|---|
+| Medidor **general** | pertenece al camino | **NO** (aguas arriba del almacenamiento) |
+| Medidor **individual** | pertenece al camino de su UF | ídem |
+
+- **ACS `individual`**: la UF tiene un único medidor individual de **agua
+  fría** de entrada, aguas arriba de la producción de ACS interna → su
+  `hf` aplica a los terminales AF **y AC** de esa UF. **No** se usa
+  `servicioMedido === redDelTerminal` como regla (el componente marca
+  `aplicaPorProvisionACSIndividual: true` cuando el terminal es AC).
+- **ACS `central`**: medidor AF → sólo terminales AF; medidor AC → sólo
+  terminales AC. Nunca ambos en un terminal.
+- **Aislamiento por UF**: el medidor de una UF nunca afecta a otra.
+- Identidad: `unidadFuncionalId + servicioMedido`.
+
+**`determinadas` con `componentes: []` y `hfTotal_mca: 0`** es un
+resultado **válido** cuando se determinó físicamente que ningún medidor
+pertenece al camino (p. ej. tanque elevado + sin propiedad horizontal).
+Es distinto de `'indeterminado'` (falta información): eso **nunca** se
+convierte en 0 -- el balance de M2 queda incompleto por `hfMedidor`.
+
+### `EstadoModulo3.incompleto` gana `parcial`
+
+`{ medidorGeneral?, medidoresIndividuales }` con los medidores que **sí**
+se evaluaron. Así, `resolverPerdidasDeMedidoresParaTerminal` puede cerrar
+un balance concreto cuando el medidor de **ese** camino está disponible,
+aunque otro medidor irrelevante para ese camino haya quedado fuera de
+Tabla N°6 (D-δ.58 §12 del handoff). `error`/`noIniciado` → siempre
+`indeterminado` (sin config no se sabe siquiera si hay PH).
+
+### Integración
+
+- **`resolverEstadoModulo2`**: `hfMedidor_mca` acepta además una función
+  `(nodoTerminalId) => number | undefined`. El escalar sigue soportado
+  (los 17 tests históricos, intactos). **`resolverPresionResidualDeCamino`
+  NO se toca** -- sigue recibiendo `number | undefined` por terminal.
+- **Panel de Presión**: calcula `EstadoModulo3` una vez; deriva
+  `hfMedidorDeTerminal(nodoId)` con `resolverRedDeTerminal` +
+  `nodo.referencia.unidadFuncionalId` + `tipoAlimentacion`
+  (`'tanqueElevado' | 'alimentacionDirecta'`, estado local del Panel, **no
+  persistido** -- D-δ.36 sigue como está); lo pasa por terminal a
+  `resolverEstadoModulo2`, a cada `resolverPresionResidualDeCamino`, a
+  `TarjetaDeTerminal` y a `CalculoDelCriticoDetalle`. **Input provisional,
+  su estado local y su ayuda: eliminados** (una sola fuente de verdad).
+- **`CalculoDelCriticoDetalle`**: desglose auditable "Medidor general" /
+  "Medidor individual · UF · AF/AC" (+ nota "aplica también al ramal AC
+  por ACS individual"); en tanque, línea "Medidor general: fuera del
+  camino tanque → terminal".
+
+### Reactividad
+
+Toda la cadena se deriva en render: `Proyecto → resolverEstadoModulo3 →
+resultados adoptados → resolverPerdidasDeMedidoresParaTerminal →
+hfMedidorDeTerminal → resolverEstadoModulo2 / balance`. Cambiar el medidor
+adoptado (D-δ.57) propaga `hf` efectiva → `Presidual` → margen → terminal
+crítico, sin efectos ni caché.
+
+### Verificación
+
+`tsc -b` / `vite build` verdes. 18 tests nuevos: 16 puros de
+aplicabilidad (E1–E14 del handoff + 2 anti-atajo: falla si usa
+`medidorGeneral.hf` para todos los terminales / si aplica individuales
+sólo cuando `servicioMedido === redTerminal`), 2 de integración en
+`resolverEstadoModulo2` con función por terminal (el crítico cambia según
+el `hfMedidor` propio del camino; `undefined` por terminal → ese balance
+`incompleto`, nunca 0), y el test SSR del Panel actualizado (el input
+provisional ya no existe). Sin Playwright (el repo no lo tiene); no se
+hizo click-through interactivo.
+
+### Estado
+
+**D-δ.58 -- CERRADA.** M3-E integrado: M3 es la única fuente de
+`hfMedidor`; general incluido en directa / excluido en tanque; ACS
+individual AF→AF+AC; ACS central AF/AC separados; UF aisladas; ausencia de
+datos ≠ 0; cero determinado sí puede ser 0; override manual propaga la
+`hf` efectiva; el crítico puede cambiar. Pendiente: **M3-F** (auditoría
+end-to-end). Menores: Tabla N°8, CRIT-A8 en B2b, poda activa de overrides
+huérfanos, verificación interactiva de UI (sin infra de browser en el
+repo).

@@ -313,18 +313,21 @@ recalcula demanda, no toca la topología.
   `recomendado`+`adoptado` por medidor; control ↓/DN/↑/Auto por Tabla N°6;
   `criterioSeleccion: 'satisface' | 'inferiorAlRecomendado'` sin
   `todosCumplen`. Overrides huérfanos ignorados al leer.
+- **M3-E** — integración `hfMedidor` M3→M2 (D-δ.58): input provisional del
+  Panel de Presión eliminado; `resolverPerdidasDeMedidoresParaTerminal`
+  (puro) resuelve qué medidores pertenecen al camino de cada terminal
+  (general solo en alimentación directa; individual de ACS individual
+  aplica a AF **y** AC de la UF; ACS central AF/AC separados; aislamiento
+  por UF); `resolverEstadoModulo2` acepta `hfMedidor` por terminal
+  (`resolverPresionResidualDeCamino` intacto); `EstadoModulo3.incompleto`
+  expone `parcial`; falta de dato → `indeterminado`, nunca 0; cero
+  determinado (tanque + no PH) sí es 0.
 
 **Pendiente:**
 
 - **Tabla N°8** (Anexo A de la Guía, ampliación de rango de Qc) — es una
   lámina no transcripta; se incorpora si aporta umbrales por encima de los
   40 m³/h de Tabla N°6;
-- **M3-E** — integración `hfMedidor` M3→M2: reemplazo del input provisional
-  del Panel de Presión por el resultado de M3, como DTO
-  `{ general?, individuales: [...] }` (una UF puede tener más de un ramal
-  medido; cada individual declara alcance suficiente para decidir si
-  pertenece al camino de un terminal); puede requerir cerrar antes el
-  origen hidráulico (D-δ.36/D-δ.38);
 - **M3-F** — auditoría end-to-end (demanda → tuberías → medidor → presión
   recalculada, sin valores stale, sin dependencia circular).
 
