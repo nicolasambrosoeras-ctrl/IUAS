@@ -1996,11 +1996,10 @@ clase ISO 4064 o un catálogo de fabricante como dato — no se inventa un
 
 **Alcance — qué NO resuelve este criterio:**
 
-- Sólo el **medidor general** (§2.6.b). El **medidor individual** por
-  unidad funcional (§2.6.c, §2.12.1.e) queda fuera: su caudal de diseño
-  depende de resolver la contradicción entre §2.6 ("simultaneidad total
-  de los consumos", `K = 1`) y §2.12.1.e (remisión genérica a §2.9 y
-  siguientes, `K < 1`) — ver `PENDIENTES-DE-ARQUITECTURA.md`.
+- Sólo la parte tabular/selección. El caudal de diseño del **medidor
+  individual** por unidad funcional (§2.6.c, §2.12.1.e) lo fija **CRIT-A33**
+  (simultaneidad total, `K = 1`); una vez determinado ese `Qunit`, entra a
+  esta misma Tabla N°6 con la misma regla.
 - No decide dónde vive el medidor en `RedHidraulica` (D-δ.35 sigue
   abierta; M3 permanece separado de la topología — el resultado es un
   dato de borde para la capa de presión de M2).
@@ -2011,6 +2010,98 @@ clase ISO 4064 o un catálogo de fabricante como dato — no se inventa un
 **Estado:** Firme como transcripción normativa (Tabla N°6) + regla de
 selección literal. Implementado en
 `normativa/eras-2023/tabla-06-medidores/index.ts`
-(`tabla06Medidores`, `seleccionarFilaTabla06PorCaudal`) y
+(`tabla06Medidores`, `seleccionarFilaTabla06PorCaudal`),
+`motor/medidores/resolverSeleccionYPerdidaDeMedidor.ts` (núcleo común) y
 `motor/medidores/seleccionarMedidorGeneral.ts`. Ver D-δ.53 en
 `PENDIENTES-DE-ARQUITECTURA.md` para el registro del alcance M3-B0/M3-B1.
+
+## CRIT-A33 — Medidor individual por unidad funcional: caudal de diseño por simultaneidad total (K=1)
+
+**Artículo:** ERAS-2023 §2.6 (regla específica del dimensionamiento del
+medidor individual) frente a §2.12.1.e (Secuencias de Cálculo, remisión
+genérica).
+
+**Texto oficial confirmado** (Resolución 641/2023):
+
+- §2.6: *"El dimensionamiento de los medidores individuales por unidad de
+  vivienda se realizará bajo el criterio de **simultaneidad total de los
+  consumos** y deberá garantizar el registro de los caudales reales
+  máximos y minimizar las pérdidas de carga."*
+- §2.6: *"El proyecto de las instalaciones de agua permitirá la medición
+  en todos los ramales de agua fría y caliente que abastezcan a cada
+  unidad funcional, local comercial o industrial"*; *"En todo edificio…
+  que vaya a contar con más de un propietario (por ser propiedad
+  horizontal), se deberá instalar un sistema de medición individual…
+  Estos medidores no sustituyen al medidor general."*
+- §2.12.1.e: *"Dimensionado del medidor individual: determinar Qunit de
+  cada unidad considerando todos los artefactos que la integran de
+  acuerdo a lo citado en 2.9 y siguientes."*
+
+**Contradicción interna de la Guía (documentada, no se afirma coherencia):**
+§2.6 exige "simultaneidad total" (todos los consumos a la vez → coeficiente
+de simultaneidad `K = 1`), mientras §2.12.1.e remite a §2.9 y siguientes
+(pipeline estadístico `Qmax → Kc → K → Qc`, con `K < 1` para `n ≥ 2`).
+Ambas indicaciones producen números distintos.
+
+**Decisión IUAS adoptada:** para el dimensionamiento del **medidor
+individual** prevalece **§2.6** por ser la regla dedicada y explícita a
+ese objeto (frente a la remisión genérica de §2.12.1.e). El caudal de
+diseño del medidor individual es:
+
+```text
+Qunit = Σ (cantidad · qu efectivo)   sobre los consumos del alcance del medidor
+```
+
+**sin** aplicar `Kc`, `K` ni el coeficiente de mayoración `a`. Ese mismo
+`Qunit` se usa tanto para la **selección** por Tabla N°6 (CRIT-A32) como
+para el `Qcl` de la **fórmula (6)** de pérdida (CRIT-A25) — **no** se
+adopta una solución híbrida (un caudal para seleccionar y otro para la
+pérdida): no hay evidencia oficial que respalde dos caudales distintos en
+el medidor individual. Si una fuente oficial futura la demuestra, se
+revisa.
+
+**Naturaleza:** interpretación/adopción IUAS que resuelve una contradicción
+interna de ERAS aplicando su regla más específica — mismo estatus
+epistémico que CRIT-A14. `K = 1` como tal es texto de §2.6 ("simultaneidad
+total"); lo adoptado por IUAS es *darle prioridad sobre §2.12.1.e* para
+este objeto concreto.
+
+**Semántica AF/AC — sin doble conteo (no reabre nada):** `qu efectivo` de
+cada consumo es el que ya resuelve la maquinaria cerrada del modelo
+(`resolverQuEfectivoParaTramo`, CRIT-A15): un artefacto conectado
+físicamente a una sola red aporta `quTotal` a esa cañería; un artefacto
+mixto aporta `quFria` a la red AF y `quCaliente` a la red AC, que suman
+`quTotal` sin contarse dos veces; el paso por producción ACS ya está
+contemplado en el clasificador de condición hidráulica. CRIT-A33 **no**
+reinterpreta `qu` ni parte `quTotal` en fracciones — suma el `qu efectivo`
+ya resuelto para el servicio (AF o AC) que el medidor mide.
+
+**Retención de CRIT-A8 / computabilidad / actividad hidráulica:** "sin
+`Kc`/`K`/`a`" se refiere exclusivamente al **coeficiente de
+simultaneidad**. Los filtros de computabilidad (`origen === 'normativo'`),
+de actividad hidráulica por condición y de participación CRIT-A8 (qué
+artefactos pueden coexistir físicamente en uso) siguen aplicando: definen
+*qué consumos integran el alcance*, no reducen estadísticamente la suma.
+El resultado es "todos esos consumos a la vez", que es lo que pide §2.6.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- No decide **cuántos** medidores individuales tiene un proyecto ni
+  **dónde** se ubican (AF, AC central, ACS individual sin ramal medido):
+  eso depende de la arquitectura física real y se resolverá en M3-B2b tras
+  reconstruir las figuras de micro-medición (Fig. 2.2–2.7). **No** se
+  adopta como regla universal "cada UF = 1 medidor AF + 1 medidor AC".
+- No decide la obligatoriedad (propiedad horizontal / >1 propietario): eso
+  es configuración de proyecto (M3-C).
+- No integra `hfMedidor` al balance de presión (M3-E) ni decide si un
+  medidor individual pertenece al camino de un terminal dado (D-δ.38).
+- No introduce ninguna entidad de medidor en `RedHidraulica` (decisión
+  roja 1 / D-δ.35: M3 separado de la topología).
+
+**Estado:** Firme como decisión IUAS trazable. Implementado en
+`motor/medidores/seleccionarMedidorIndividual.ts` (motor puro de alcance
+declarado: recibe la lista de consumos con su `qu` efectivo ya resuelto
+para el servicio medido, suma con `K = 1`, entra a Tabla N°6 y a la
+fórmula (6)). La derivación `topología → conjunto de consumos por medidor`
+y la cardinalidad quedan para M3-B2b. Ver D-δ.53 en
+`PENDIENTES-DE-ARQUITECTURA.md`.
