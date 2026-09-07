@@ -315,8 +315,23 @@ divergencia frente a la fórmula impresa en §2.12.1.
 individuales por unidad de vivienda. Ambas indicaciones no son
 claramente compatibles.
 
-**Estado**: pendiente a resolver antes de implementar el futuro módulo
-de Medidores. No se resuelve todavía.
+**Evidencia literal (confirmada en D-δ.53 contra el texto oficial)**:
+§2.12.1 Secuencias de Cálculo, punto e): *"Dimensionado del medidor
+individual: determinar Qunit de cada unidad considerando todos los
+artefactos que la integran de acuerdo a lo citado en 2.9 y siguientes."*
+§2.6: *"El dimensionamiento de los medidores individuales por unidad de
+vivienda se realizará bajo el criterio de simultaneidad total de los
+consumos"*. "Simultaneidad total" = `K = 1` (suma sin coeficiente);
+"2.9 y siguientes" = pipeline `Qmax → Kc → K → Qc` con `K < 1`. Dan
+números distintos.
+
+**Estado**: ABIERTA. Es la **decisión roja 2 de M3** (ver D-δ.53). Bloquea
+M3-B2 (motor del medidor individual). **No bloquea** M3-B0/M3-B1 (Tabla
+N°6 + medidor general), ya cerrados: el medidor general usa el `Qc` global
+del proyecto (§2.9.2 completo, CRIT-A5), sin ambigüedad. Recomendación
+preliminar sin cerrar: `Qunit individual = ΣquTotal de la UF` (`K = 1`),
+por ser §2.6 la regla específica y dedicada del medidor individual frente
+a la remisión genérica de §2.12.1.e.
 
 ## Encabezados de Tabla N°9 inconsistentes con su comportamiento numérico
 
@@ -1312,7 +1327,20 @@ resolución duplicada del pipeline por fila.
 Commit `a3757a60e4fe9be0697684cf07e8e0cf56c21322` ("refactor: evitar
 doble resolucion hidraulica por tramo").
 
-### D-δ.35 — Dónde vive el medidor en la topología — ABIERTA
+### D-δ.35 — Dónde vive el medidor en la topología — PARCIALMENTE RESUELTA (M3-A)
+
+**Actualización (D-δ.53, M3-A):** el usuario resolvió la parte que
+bloqueaba a Módulo 3: **alternativa (4)** — el medidor **no** entra a
+`RedHidraulica` (ni `ReferenciaDeNodo: 'medidor'`, ni `Tramo.medidor`, ni
+topología persistida nueva). M3 queda separado de la topología: consume
+`Qc` ya resuelto aguas arriba y produce `hfMedidor` como dato de borde
+para la capa de presión de M2. Lo implementado hasta ahora es sólo el
+**medidor general** (M3-B1). Sigue **abierto**: la representación de la
+micro-medición individual por UF/subred (cuántos medidores, cómo se
+ubican respecto del origen y del almacenamiento, cómo se agregan sus `hf`
+por camino), que se retomará cuando esa representación física quede
+cerrada. El resto de esta sección se conserva como contexto de la
+investigación previa.
 
 **Hallazgo** (investigación M2-B): ERAS-2023 §2.12 exige computar la
 pérdida de carga del medidor (`Jm`, fórmula 6 — ver CRIT-A25) como parte
@@ -4441,3 +4469,140 @@ idempotente.
 
 `tsc -b` / `vite build` limpios, lint baseline 11, working tree limpio.
 Sin empezar M3.
+
+## D-δ.53 -- M3-A (contrato de dominio de Medidores) + M3-B0/B1 (Tabla N°6 y selección del medidor general) -- PARCIALMENTE CERRADA
+
+Primera corrida de Módulo 3 (Medidores). Investigación de dominio (M3-A) y
+primer incremento funcional acotado (M3-B0 + M3-B1). El medidor individual
+por unidad funcional (M3-B2 en adelante) sigue abierto.
+
+### Fuente normativa -- ahora disponible en texto
+
+Contra lo registrado hasta acá (`HANDOFF-MODULO-1-A-MODULO-2.md` §7,
+D-δ.38: "el repo no contiene el texto de ERAS"), el texto oficial de la
+**Resolución 641/2023** (*Guía para ejecución de instalaciones sanitarias
+domiciliarias y asimilables*, `argentina.gob.ar`) **sí es accesible**:
+el PDF tiene texto seleccionable vía `pdftotext -layout`. Las láminas que
+son imágenes (Tabla N°6 sale degradada pero legible; **Tabla N°8 no sale**)
+siguen sin ser recuperables por esa vía. Toda cita normativa de este
+registro está verificada contra ese texto.
+
+### M3-A -- decisiones de dominio tomadas por el usuario
+
+- **Configuración de medidores (handoff §14): resuelta por ERAS, no es
+  decisión roja de "cuál".** §2.6 es explícito: en propiedad horizontal
+  (>1 propietario) hay **medidor general** (§2.6.b, en la conexión) **y**
+  **medidores individuales por unidad** (§2.6.c), en AF y AC por separado
+  ("Estos medidores no sustituyen al medidor general"). Es la
+  configuración C del handoff. Lo que sigue siendo decisión roja es **cómo
+  representarlo** (D-δ.35) y **qué caudal usa el individual**.
+
+- **Decisión roja 1 (D-δ.35, representación topológica) -- RESUELTA:
+  alternativa (4).** No se incorpora ninguna entidad `Medidor` a
+  `RedHidraulica`: ni `ReferenciaDeNodo: 'medidor'`, ni `Tramo.medidor`,
+  ni nueva topología persistida. **M3 queda separado de `RedHidraulica`**:
+  consume caudales ya resueltos por la capa hidráulica aguas arriba y
+  produce resultados de medidor como **datos de borde** para la capa de
+  presión. La extensión por UF/subred se agregará cuando quede cerrada la
+  representación física de la micro-medición, no antes.
+
+- **Decisión roja 3 (fuente de Tabla N°6) -- RESUELTA.** La Tabla N°6 es
+  legible en el texto oficial y se transcribe verificada (no stub). Regla
+  de selección: primera fila con `Qc_tabla >= Qc_diseño`, sin interpolar
+  DN; `C` de esa misma fila. `Qc > 40 m³/h` (tope de Tabla N°6) →
+  `'fueraDeTabla06'`, sin extrapolar. **Tabla N°8 no bloquea M3-B1** (§2.12
+  define diámetro/caudal máximo por Tabla N°6 y explica la selección con
+  Tabla N°6); se transcribirá aparte si aporta umbrales adicionales.
+
+- **Inconsistencia oficial Tabla N°6 / ejemplo -- documentada** como
+  CRIT-A32. El ejemplo de "vivienda tipo" empareja DN19 con `C=7`; la
+  Tabla N°6 asigna `C=5` a DN19 y `C=7` a DN25. **La tabla es la fuente de
+  verdad**; el ejemplo se trata como errata y la tabla no se toca.
+  CRIT-A25 permanece firme como transcripción de la fórmula (6): sólo se
+  le agregó una salvedad sobre el par DN/C del ejemplo y se reencuadró la
+  descripción de su golden aritmético (test `calcularPerdidaCargaMedidor`
+  con `Qcl=42,1`, `C=7` → `1,3 m.c.a.`, ya no descrito como propiedad
+  normativa del DN19). Observación aritmética coherente: `Qc=0,71 l/s =
+  2,556 m³/h` (el valor del ejemplo sin redondear) selecciona **DN25** bajo
+  la regla literal, y DN25 sí tiene `C=7` → el `Jm=1,3` del ejemplo es
+  consistente con DN25, no con DN19.
+
+- **Decisión roja 2 (caudal del medidor individual: §2.6 vs §2.12.1.e) --
+  DIFERIDA a M3-B2.** Evidencia literal confirmada: §2.6 exige
+  "simultaneidad total de los consumos" para el individual (`K=1`, suma);
+  §2.12.1.e remite genéricamente a "2.9 y siguientes" (pipeline de
+  simultaneidad, `K<1`). Recomendación preliminar (no cerrada, sin código):
+  `Qunit individual = ΣquTotal de la UF` (`K=1`), tanto para selección como
+  para `Qcl` de pérdida. Antes de M3-B2: (1) revisar figuras 2.2–2.7 de
+  micro-medición; (2) cuántos medidores individuales existen realmente por
+  configuración; (3) si AF/AC siempre implican medidores separados;
+  (4) cerrar formalmente la contradicción. Ver también la sección
+  "Contradicción entre Qunit (Fig. 2.8 e) y simultaneidad total…" más
+  arriba en este archivo.
+
+### Frontera M3 / M2 (registrada, no toda implementada)
+
+```
+M1 (demanda global)  ──►  M2 · capa de CAUDAL  ──►  qc_lps por tramo
+                                                          │
+                                                          ▼
+                                                    M3 · MEDIDORES
+                                              (lee qc_lps; NO recalcula demanda;
+                                               selecciona/verifica; produce hf)
+                                                          │
+                                                          ▼
+   Presidual / margen / crítico  ◄──  M2 · capa de PRESIÓN  ◄──  hfMedidor (dato de borde)
+```
+
+Sin ciclo: M3 lee la capa de *caudal* (aguas arriba de presión) y
+devuelve `hfMedidor` a la capa de *presión* (aguas abajo). La pertenencia
+de `hfMedidor` al balance de un terminal (según origen hidráulico y tipo
+de medidor, D-δ.38) la sigue resolviendo M2, no M3. El punto de entrada
+actual `hfMedidor_mca: number | undefined` de
+`resolverPresionResidualDeCamino` / `resolverEstadoModulo2` **no cambió en
+este incremento**: `seleccionarMedidorGeneral` todavía no está cableado a
+ese parámetro (eso es M3-E). El input provisional del Panel de Presión
+sigue en su lugar.
+
+### M3-B0 + M3-B1 -- implementado
+
+- `normativa/eras-2023/tabla-06-medidores/index.ts`: `tabla06Medidores`
+  (8 filas, DN15..DN75), `qcMaximoCubiertoPorTabla06_m3h` (=40),
+  `seleccionarFilaTabla06PorCaudal(qc_m3h)` (regla literal + tolerancia
+  `1e-9 m³/h` contra error de conversión). Datos puros, mismo criterio que
+  `tabla-01`/`tabla-07`.
+- `motor/medidores/seleccionarMedidorGeneral.ts`: motor puro del ámbito
+  `'general'`. Entrada `qcDiseno_lps` (el `Qc` global ya resuelto aguas
+  arriba). Convierte (`×3,6` a m³/h para la tabla, `×60` a l/min para la
+  fórmula), selecciona la fila, toma `C` de esa fila, reutiliza
+  `calcularPerdidaCargaMedidor` (CRIT-A25) para `hfMedidor_mca`. Resultado
+  discriminado: `'seleccionado'` (con DN, C, caudal medio, umbral de
+  tabla, `Qc` en ambas unidades, `hf`) o `'fueraDeTabla06'`. Sin
+  verificación metrológica (ERAS no publica `Q1..Q4`/`Qmin`).
+- CRIT-A32 en `CRITERIOS.md`; salvedad en CRIT-A25.
+- 25 tests nuevos (Tabla N°6 + selección + motor). Suite 928 → 953,
+  `tsc -b` verde, `vite build` verde, lint 11 baseline / 0 nuevos. Sin
+  cambios de UI ni de runtime de la app (Playwright no afectado).
+
+### Qué NO se hizo (y por qué)
+
+- **Medidor individual** -- M3-B2, bloqueado por la decisión roja 2.
+- **`EstadoModulo3`** -- M3-C. Propuesta preliminar en la corrida M3-A
+  (`noIniciado` / `error` / `incompleto` / `evaluado` + `todosCumplen`,
+  separando "cálculo completo" de "medidor cumple"). No implementada.
+- **Persistencia** (`esPropiedadHorizontal`, `medidorAdoptadoDN`) -- M3-C.
+- **Integración `hfMedidor` M3→M2** (reemplazo del input provisional, DTO
+  por ámbito `{ general?, porUnidadFuncional }`) -- M3-E; puede requerir
+  cerrar antes el origen hidráulico (D-δ.36/D-δ.38).
+- **Override manual de medidor adoptado** (handoff §24) -- registrado como
+  cuestión abierta; patrón candidato análogo a `dnComercialAdoptado`
+  (D-δ.52). Sin evidencia suficiente todavía.
+- **UI Rápido/Profesional** -- M3-D.
+
+### Estado
+
+**D-δ.53 -- PARCIALMENTE CERRADA.** M3-A (contrato de dominio) y M3-B0/B1
+(Tabla N°6 + selección del medidor general) cerrados. M3-B2 en adelante
+(medidor individual, `EstadoModulo3`, persistencia, integración con
+presión, UI) pendientes; M3-B2 bloqueado por la contradicción §2.6 vs
+§2.12.1.e hasta nueva decisión del usuario.

@@ -240,6 +240,55 @@ elimina infraestructura compartida del Local.
 - integración con el PDF existente;
 - trazabilidad normativa completa en el exportable.
 
+### Fase 2 / Módulo 3 (Medidores) — en curso
+
+Ver `PENDIENTES-DE-ARQUITECTURA.md` D-δ.53 para el detalle. M3 está
+**separado de `RedHidraulica`** (decisión roja 1, alternativa 4): consume
+el `Qc` ya resuelto por la capa de caudal aguas arriba y produce
+`hfMedidor` como dato de borde para la capa de presión de M2 — no
+recalcula demanda, no toca la topología.
+
+**Completado:**
+
+- **M3-A** — contrato de dominio: arqueología del repo, inventario
+  normativo verificado contra el texto oficial de la Resolución 641/2023
+  (§2.6, §2.12, §2.12.1, Tabla N°6), frontera M3/M2, y resolución de las
+  decisiones rojas 1 y 3 por el usuario;
+- **M3-B0** — Tabla N°6 (ERAS §2.12 / ISO 4064) transcripta y verificada
+  (`normativa/eras-2023/tabla-06-medidores`), con `seleccionarFilaTabla06PorCaudal`
+  (regla literal `Qc_tabla >= Qc`, sin interpolación de DN);
+- **M3-B1** — motor puro del **medidor general**
+  (`motor/medidores/seleccionarMedidorGeneral`): `Qc` global → DN + `C` de
+  Tabla N°6 → `hfMedidor` vía `calcularPerdidaCargaMedidor` (CRIT-A25).
+  Resultado auditable; `Qc > 40 m³/h` → `fueraDeTabla06` (sin
+  extrapolar); sin verificación metrológica (ERAS no publica Q1..Q4/Qmin);
+- **CRIT-A32** — formaliza Tabla N°6, la regla de selección y la
+  inconsistencia oficial del ejemplo de "vivienda tipo" (empareja DN19 con
+  `C=7`; la tabla asigna `C=5` a DN19). La tabla es la fuente de verdad.
+
+**Pendiente:**
+
+- **M3-B2** — medidor individual por unidad funcional. **Bloqueado** por
+  la contradicción normativa §2.6 ("simultaneidad total de los consumos",
+  `K=1`) vs. §2.12.1.e (remisión a §2.9 y siguientes, `K<1`) — decisión
+  roja 2, requiere decisión del usuario. Antes: revisar figuras 2.2–2.7 de
+  micro-medición, cantidad real de medidores individuales por
+  configuración, si AF/AC siempre implican medidores separados;
+- **Tabla N°8** (Anexo A de la Guía, ampliación de rango de Qc) — es una
+  lámina no transcripta; se incorpora si aporta umbrales por encima de los
+  40 m³/h de Tabla N°6;
+- **M3-C** — `EstadoModulo3` (`noIniciado`/`error`/`incompleto`/`evaluado`
+  + `todosCumplen`, separando "cálculo completo" de "medidor cumple") +
+  integración con `Proyecto` (`esPropiedadHorizontal`, override de medidor
+  adoptado análogo a `dnComercialAdoptado` de D-δ.52);
+- **M3-D** — UI Rápido/Profesional;
+- **M3-E** — integración `hfMedidor` M3→M2: reemplazo del input provisional
+  del Panel de Presión por el resultado de M3, como DTO por ámbito
+  (`{ general?, porUnidadFuncional }`); puede requerir cerrar antes el
+  origen hidráulico (D-δ.36/D-δ.38);
+- **M3-F** — auditoría end-to-end (demanda → tuberías → medidor → presión
+  recalculada, sin valores stale, sin dependencia circular).
+
 ## Deuda técnica conocida (no bloqueante, registrada explícitamente)
 
 - `docs/adr/` y `docs/arquitectura/` existen como carpetas vacías, sin
