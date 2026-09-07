@@ -9,6 +9,7 @@
 import type { CSSProperties } from 'react'
 import type { Proyecto } from '../../modelo/proyecto'
 import type { ResultadoPresionResidualDeCamino } from '../../motor/tuberias/presion/resolverPresionResidualDeCamino'
+import type { PerdidasDeMedidoresParaTerminal } from '../../motor/modulo3/resolverPerdidasDeMedidoresParaTerminal'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 import { nombresDeArtefactosAguasAbajo } from './humanizarModulo2'
 import {
@@ -32,6 +33,7 @@ export function CalculoDelCriticoDetalle({
   resultado,
   presionDisponible_mca,
   hfMedidor_mca,
+  perdidasDeMedidores,
   origenTexto,
   cotaRaiz_m,
 }: {
@@ -40,6 +42,9 @@ export function CalculoDelCriticoDetalle({
   resultado: BalanceCompleto
   presionDisponible_mca: number
   hfMedidor_mca: number | undefined
+  // M3-E (D-δ.58): desglose auditable de la pérdida de medidores aplicable
+  // a este terminal. `hfMedidor_mca` sigue siendo el total (= hfTotal_mca).
+  perdidasDeMedidores?: PerdidasDeMedidoresParaTerminal | undefined
   origenTexto: string
   cotaRaiz_m: number | undefined
 }) {
@@ -137,6 +142,35 @@ export function CalculoDelCriticoDetalle({
             <th style={estiloCelda}>hf medidor</th>
             <td style={estiloNum}>{hfMedidor_mca !== undefined ? mca(hfMedidor_mca) : '—'}</td>
           </tr>
+          {perdidasDeMedidores?.estado === 'determinadas' && perdidasDeMedidores.componentes.length > 0
+            ? perdidasDeMedidores.componentes.map((componente, indice) => (
+                <tr key={indice}>
+                  <th style={{ ...estiloCelda, paddingLeft: '1rem', fontWeight: 'normal' }}>
+                    <small>
+                      {componente.ambito === 'general'
+                        ? 'Medidor general'
+                        : `Medidor individual · ${componente.unidadFuncionalId} · ${
+                            componente.servicioMedido === 'aguaFria' ? 'AF' : 'AC'
+                          }`}
+                      {componente.aplicaPorProvisionACSIndividual ? ' (aplica también al ramal AC por ACS individual)' : ''}
+                    </small>
+                  </th>
+                  <td style={estiloNum}>
+                    <small>{mca(componente.hf_mca)}</small>
+                  </td>
+                </tr>
+              ))
+            : null}
+          {origenTexto === 'Tanque elevado' && perdidasDeMedidores?.estado === 'determinadas' ? (
+            <tr>
+              <th style={{ ...estiloCelda, paddingLeft: '1rem', fontWeight: 'normal' }}>
+                <small>Medidor general: fuera del camino tanque → terminal</small>
+              </th>
+              <td style={estiloNum}>
+                <small>—</small>
+              </td>
+            </tr>
+          ) : null}
           <tr>
             <th style={estiloCelda}>
               <strong>Presión residual</strong>

@@ -417,6 +417,45 @@ describe('resolverEstadoModulo2 — completo', () => {
     expect(resultado.terminalMasDesfavorable.nodoId).toBe(peor.nodoId)
   })
 
+  it('M3-E (D-δ.58): hfMedidor_mca puede ser una funcion por terminal -- el termino es realmente por-camino, no un escalar global', () => {
+    const proyecto = proyectoDosTerminales('estimado')
+    const criticoCon = (hf: (nodoId: string) => number) => {
+      const r = resolverEstadoModulo2(
+        proyecto,
+        P_DISPONIBLE,
+        hf,
+        catalogoArtefactos,
+        catalogoSistemasDeTuberia,
+        catalogoMaterialesTuberia,
+      )
+      if (r.estado !== 'completo') throw new Error('esperaba completo')
+      return r.terminalMasDesfavorable.nodoId
+    }
+    // hf grande sobre el lavatorio vs. grande sobre la ducha -> el critico
+    // cambia. Un escalar global no podria producir dos criticos distintos.
+    expect(criticoCon((n) => (n === 'terminal-lavatorio' ? 8 : 0.1))).toBe('terminal-lavatorio')
+    expect(criticoCon((n) => (n === 'terminal-ducha' ? 8 : 0.1))).toBe('terminal-ducha')
+  })
+
+  it('M3-E: hfMedidor_mca funcion que devuelve undefined para un terminal -> ese balance queda incompleto (nunca 0)', () => {
+    const proyecto = proyectoDosTerminales('estimado')
+    const resultado = resolverEstadoModulo2(
+      proyecto,
+      P_DISPONIBLE,
+      (nodoId: string) => (nodoId === 'terminal-lavatorio' ? undefined : 1),
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+    expect(resultado.estado).toBe('incompleto')
+    if (resultado.estado !== 'incompleto') return
+    expect(
+      resultado.motivos.some(
+        (m) => m.tipo === 'balanceIncompleto' && m.nodoId === 'terminal-lavatorio' && m.terminosFaltantes.includes('hfMedidor'),
+      ),
+    ).toBe(true)
+  })
+
   it('CRIT-A24/D-delta.27: fallback de Vmin (menor DN comercial con V<Vmin) NO transforma artificialmente el modulo en incompleto/error', () => {
     // Artefacto sintetico con Qc=0.15 l/s (mismo valor que el caso real
     // valvulaMingitorio, ver resolverDiametroComercialDeTramo.test.ts) --

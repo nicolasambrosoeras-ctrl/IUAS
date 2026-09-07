@@ -98,10 +98,24 @@ export type DiagnosticoIncompletitudModulo3 =
       readonly qcMaximoCubierto_m3h: number
     }
 
+// Medidores que SÍ pudieron evaluarse aunque el módulo esté 'incompleto'
+// (p. ej. el general está bien pero un individual quedó fuera de Tabla
+// N°6). Necesario para M3-E: un balance de presión concreto puede
+// completarse si el medidor que pertenece a ESE camino está disponible,
+// aunque otro medidor irrelevante para ese camino falte (D-δ.58 §12).
+export type ResultadoModulo3Parcial = {
+  readonly medidorGeneral?: ResultadoMedidorGeneral
+  readonly medidoresIndividuales: readonly MedidorIndividualEvaluado[]
+}
+
 export type EstadoModulo3 =
   | { readonly estado: 'noIniciado' }
   | { readonly estado: 'error'; readonly problemas: readonly DiagnosticoErrorModulo3[] }
-  | { readonly estado: 'incompleto'; readonly motivos: readonly DiagnosticoIncompletitudModulo3[] }
+  | {
+      readonly estado: 'incompleto'
+      readonly motivos: readonly DiagnosticoIncompletitudModulo3[]
+      readonly parcial: ResultadoModulo3Parcial
+    }
   | { readonly estado: 'evaluado'; readonly resultado: ResultadoModulo3 }
 
 export function resolverEstadoModulo3(
@@ -224,7 +238,14 @@ export function resolverEstadoModulo3(
   }
 
   if (motivos.length > 0) {
-    return { estado: 'incompleto', motivos }
+    return {
+      estado: 'incompleto',
+      motivos,
+      parcial: {
+        ...(medidorGeneral !== undefined ? { medidorGeneral } : {}),
+        medidoresIndividuales,
+      },
+    }
   }
 
   // motivos vacío ⇒ nComputable > 0, Qc válido, medidor general

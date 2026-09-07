@@ -52,7 +52,7 @@ function proyectoCon(unidadesFuncionales: readonly UnidadFuncional[], redHidraul
 }
 
 describe('PanelDePresionDeModulo2 (UI)', () => {
-  it('inputs de Pdisponible y hfMedidor con su etiqueta y unidad, y aclaración de que hfMedidor no es selección de medidor', () => {
+  it('input de Pdisponible con etiqueta/unidad; el input provisional de hfMedidor YA NO existe (M3-E, D-δ.58)', () => {
     const proyecto = proyectoCon([])
 
     const html = renderToStaticMarkup(
@@ -60,9 +60,10 @@ describe('PanelDePresionDeModulo2 (UI)', () => {
     )
 
     expect(html).toContain('Presión disponible (Pdisponible) [m.c.a.]')
-    expect(html).toContain('Medidor provisional M3 (hfMedidor) [m.c.a.]')
-    // D-δ.51: la aclaración se compactó dentro de un <details> "¿Cómo se completan estos datos?".
-    expect(html).toContain('una selección comercial de medidor')
+    // La pérdida de medidores la calcula M3 según el camino de cada terminal.
+    expect(html).not.toContain('Medidor provisional M3')
+    expect(html).not.toContain('hfMedidor) [m.c.a.]')
+    expect(html).toContain('Completá el Módulo 3 — Medidores')
   })
 
   it('sin Pdisponible provisto: pide ingresarlo, no intenta mostrar un balance con datos faltantes', () => {

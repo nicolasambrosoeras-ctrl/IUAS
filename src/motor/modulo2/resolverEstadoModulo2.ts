@@ -125,7 +125,12 @@ export function resolverEstadoModulo2(
   // undefined = el llamador todavia no puede proveerlo (D-delta.36/D-delta.35
   // respectivamente) -- nunca se interpreta como 0 ni se fabrica un valor.
   presionDisponible_mca: number | undefined,
-  hfMedidor_mca: number | undefined,
+  // Escalar (mismo hfMedidor para todos los terminales, uso historico /
+  // tests) o funcion por terminal (M3-E, D-delta.58: la perdida de
+  // medidores aplicable depende del camino de cada terminal -- origen
+  // hidraulico, UF, red, tipo de ACS). En ambos casos `undefined` para un
+  // terminal deja su balance 'incompleto', nunca fabrica 0.
+  hfMedidor_mca: number | undefined | ((nodoTerminalId: string) => number | undefined),
   catalogoArtefactos: readonly ArtefactoNormativo[],
   catalogoSistemasDeTuberia: readonly SistemaDeTuberiaCatalogado[],
   catalogoMateriales: readonly MaterialTuberia[],
@@ -190,11 +195,13 @@ export function resolverEstadoModulo2(
   const unidadesFuncionalesSinCotaIds = new Set<string>()
 
   for (const nodo of nodosTerminales) {
+    const hfMedidorDelTerminal =
+      typeof hfMedidor_mca === 'function' ? hfMedidor_mca(nodo.id) : hfMedidor_mca
     const resultado = resolverPresionResidualDeCamino(
       proyecto,
       nodo.id,
       presionDisponible_mca,
-      hfMedidor_mca,
+      hfMedidorDelTerminal,
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
       catalogoMateriales,

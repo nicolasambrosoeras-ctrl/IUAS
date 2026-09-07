@@ -41,6 +41,13 @@ import {
   type CandidatoTerminal,
 } from '../../motor/tuberias/presion/resolverTerminalMasDesfavorable'
 import { resolverEstadoModulo2, type EstadoModulo2 } from '../../motor/modulo2/resolverEstadoModulo2'
+import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
+import { resolverEstadoModulo3 } from '../../motor/modulo3/resolverEstadoModulo3'
+import {
+  resolverPerdidasDeMedidoresParaTerminal,
+  type OrigenHidraulicoDeMedidores,
+  type PerdidasDeMedidoresParaTerminal,
+} from '../../motor/modulo3/resolverPerdidasDeMedidoresParaTerminal'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 import { describirReferenciaPendiente } from './ResultadoHidraulicoDeTramo'
 import { agruparMotivosDeModulo2 } from './agruparMotivosDeModulo2'
@@ -132,12 +139,9 @@ export function PanelDePresionDeModulo2({
 }) {
   const [tipoAlimentacion, setTipoAlimentacion] = useState<TipoDeAlimentacion>('presionConocida')
   const [presionDisponibleTexto, setPresionDisponibleTexto] = useState('')
-  const [hfMedidorTexto, setHfMedidorTexto] = useState('')
 
   const presionDisponibleParseada = parsearEntradaHidraulica(presionDisponibleTexto)
-  const hfMedidorParseado = parsearEntradaHidraulica(hfMedidorTexto)
   const presionDisponibleManual_mca = presionDisponibleParseada === 'ignorar' ? undefined : presionDisponibleParseada
-  const hfMedidor_mca = hfMedidorParseado === 'ignorar' ? undefined : hfMedidorParseado
   // Tanque elevado (D-δ.38): la raíz hidráulica es el pelo de agua mínimo
   // de cálculo -- Pdisponible se fija en 0 y toda la carga estática queda
   // expresada por Δz (cotaRaiz = cota del pelo de agua mínimo). Presión
@@ -145,6 +149,33 @@ export function PanelDePresionDeModulo2({
   const presionDisponible_mca = tipoAlimentacion === 'tanqueElevado' ? 0 : presionDisponibleManual_mca
 
   const nodosTerminales = proyecto.redHidraulica?.nodos.filter(esTerminalDeArtefacto) ?? []
+
+  // M3-E (D-δ.58): la pérdida de medidores aplicable a cada terminal la
+  // produce M3, según origen hidráulico + UF + red del terminal + tipo de
+  // ACS. Se calcula EstadoModulo3 una sola vez y se reutiliza para todos
+  // los terminales. El Panel no conoce Tabla N°6 ni selección de medidores.
+  const origenHidraulico: OrigenHidraulicoDeMedidores =
+    tipoAlimentacion === 'tanqueElevado' ? 'tanqueElevado' : 'alimentacionDirecta'
+  const estadoModulo3 = resolverEstadoModulo3(proyecto, catalogoArtefactos, coeficientesMayoracion)
+
+  const perdidasDeMedidoresDeTerminal = (nodoTerminalId: string): PerdidasDeMedidoresParaTerminal | undefined => {
+    const nodo = nodosTerminales.find((n) => n.id === nodoTerminalId)
+    const red = resolverRedDeTerminal(proyecto, nodoTerminalId)
+    if (nodo === undefined || red === undefined) {
+      return undefined
+    }
+    return resolverPerdidasDeMedidoresParaTerminal({
+      estadoModulo3,
+      configuracionMedidores: proyecto.configuracionMedidores,
+      unidadFuncionalIdDelTerminal: nodo.referencia.unidadFuncionalId,
+      redDelTerminal: red,
+      origenHidraulico,
+    })
+  }
+  const hfMedidorDeTerminal = (nodoTerminalId: string): number | undefined => {
+    const perdidas = perdidasDeMedidoresDeTerminal(nodoTerminalId)
+    return perdidas?.estado === 'determinadas' ? perdidas.hfTotal_mca : undefined
+  }
   // Nodos raiz (sin ningun Tramo entrante): resolverDesnivelDeCamino
   // necesita su cota_m tanto como la del terminal -- se exponen acá para
   // poder completar Δz desde la UI sin un editor gráfico de topología.
@@ -156,7 +187,7 @@ export function PanelDePresionDeModulo2({
   const estadoModulo2 = resolverEstadoModulo2(
     proyecto,
     presionDisponible_mca,
-    hfMedidor_mca,
+    hfMedidorDeTerminal,
     catalogoArtefactos,
     catalogoSistemasDeTuberia,
     catalogoMaterialesTuberia,
@@ -171,7 +202,7 @@ export function PanelDePresionDeModulo2({
             proyecto,
             nodo.id,
             presionDisponible_mca,
-            hfMedidor_mca,
+            hfMedidorDeTerminal(nodo.id),
             catalogoArtefactos,
             catalogoSistemasDeTuberia,
             catalogoMaterialesTuberia,
@@ -309,23 +340,7 @@ export function PanelDePresionDeModulo2({
             />
           </label>
         </>
-      )}{' '}
-      <label>
-        Medidor provisional M3 (hfMedidor) [m.c.a.]:{' '}
-        <input
-          type="number"
-          min={0}
-          step="any"
-          value={hfMedidorTexto}
-          onChange={(evento) => {
-            const texto = evento.target.value
-            if (parsearEntradaHidraulica(texto) !== 'ignorar') {
-              setHfMedidorTexto(texto)
-            }
-          }}
-          style={{ width: '6rem' }}
-        />
-      </label>
+      )}
       <details>
         <summary>
           <small>¿Cómo se completan estos datos?</small>
@@ -335,8 +350,8 @@ export function PanelDePresionDeModulo2({
             <strong>Tanque elevado</strong>: la carga disponible se obtiene de la diferencia de nivel entre el pelo de
             agua mínimo y la conexión del artefacto. <strong>Presión conocida</strong>: condición de borde hidráulica
             del origen (red pública, bombeo — sin modelar todavía, D-δ.36), en m.c.a. en el punto de alimentación.
-            <strong> Medidor</strong>: dato de entrada para M2 (D-δ.35), <em>no</em> una selección comercial de medidor
-            — valor manual hasta completar M3. Ninguno de estos tres se inventa: son condiciones externas del proyecto.
+            La <strong>pérdida de los medidores</strong> ya no se ingresa acá: la calcula el Módulo 3 según el origen
+            hidráulico y el camino de cada terminal (D-δ.58). Completá el Módulo 3 — Medidores para cerrar el balance.
           </small>
         </p>
       </details>
@@ -384,7 +399,7 @@ export function PanelDePresionDeModulo2({
                   etiqueta={etiqueta}
                   infoCota={infoCota}
                   presionDisponible_mca={presionDisponible_mca}
-                  hfMedidor_mca={hfMedidor_mca}
+                  hfMedidor_mca={hfMedidorDeTerminal(nodoId)}
                   resultado={resultado}
                 />
               )
@@ -467,7 +482,14 @@ export function PanelDePresionDeModulo2({
                     catalogoArtefactos={catalogoArtefactos}
                     resultado={resultadoCritico}
                     presionDisponible_mca={presionDisponible_mca}
-                    hfMedidor_mca={hfMedidor_mca}
+                    hfMedidor_mca={
+                      nodoMasDesfavorable !== undefined ? hfMedidorDeTerminal(nodoMasDesfavorable.id) : undefined
+                    }
+                    perdidasDeMedidores={
+                      nodoMasDesfavorable !== undefined
+                        ? perdidasDeMedidoresDeTerminal(nodoMasDesfavorable.id)
+                        : undefined
+                    }
                     origenTexto={origenTexto}
                     cotaRaiz_m={cotaRaizCritico}
                   />
