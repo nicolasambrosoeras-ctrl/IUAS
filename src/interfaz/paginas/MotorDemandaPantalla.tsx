@@ -36,6 +36,7 @@ import { reconciliarConectividadFisicaPorCambioDeArtefacto } from './reconciliar
 import { quitarConectividadFisicaDeLocal } from './quitarConectividadFisicaDeLocal'
 import { quitarConectividadFisicaDeUnidadFuncional } from './quitarConectividadFisicaDeUnidadFuncional'
 import { ResultadoHidraulicoDeTramo } from './ResultadoHidraulicoDeTramo'
+import { PanelDeMedidoresDeModulo3 } from './PanelDeMedidoresDeModulo3'
 import { MetodologiaYFuentesTecnicas } from './MetodologiaYFuentesTecnicas'
 import { parsearCota } from './parsearCota'
 import { calcularCotaHidraulicaDefaultDeNivel, nombreDeNivel } from './nivelUnidadFuncional'
@@ -1106,6 +1107,8 @@ function ResultadoDemanda({
       </details>
 
       <ResultadoHidraulicoDeTramo proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} onCambiar={onCambiar} />
+
+      <PanelDeMedidoresDeModulo3 proyecto={proyecto} onCambiar={onCambiar} />
     </>
   )
 }
