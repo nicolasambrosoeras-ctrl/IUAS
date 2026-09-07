@@ -298,14 +298,24 @@ recalcula demanda, no toca la topología.
   `todosCumplen` — no hay verificación metrológica todavía); `Qc > 40
   m³/h` es `'incompleto'`, nunca `'error'`. `validarConfiguracionMedidores`
   integrado en `validarProyecto`.
+- **M3-D parte 1** — panel "Módulo 3 — Medidores" en la one-page (D-δ.56):
+  configuración persistida vía UI (propiedad horizontal, provisión de ACS
+  global + override por UF), tablas de medidor general e individuales,
+  `EstadoModulo3` visible, progressive disclosure Rápido/Profesional
+  (derivado del modo de trabajo de M2, sin eje nuevo). Caudal `> 40 m³/h`
+  → `'incompleto'`, nunca DN inventado.
 
 **Pendiente:**
 
 - **Tabla N°8** (Anexo A de la Guía, ampliación de rango de Qc) — es una
   lámina no transcripta; se incorpora si aporta umbrales por encima de los
   40 m³/h de Tabla N°6;
-- **M3-D** — UI Rápido/Profesional (incluye override manual de medidor
-  recomendado vs. adoptado, análogo a `dnComercialAdoptado` de D-δ.52);
+- **M3-D parte 2** — override manual de medidor recomendado vs. adoptado
+  (↑/↓/Auto sobre Tabla N°6, hidráulicamente efectivo, análogo a
+  `dnComercialAdoptado` de D-δ.52); campos persistidos nuevos
+  (`medidorGeneralAdoptado?`, `medidoresIndividualesAdoptados?` con
+  identidad `UF + servicio`); `resolverEstadoModulo3` los aplica; test
+  anti-stale;
 - **M3-E** — integración `hfMedidor` M3→M2: reemplazo del input provisional
   del Panel de Presión por el resultado de M3, como DTO
   `{ general?, individuales: [...] }` (una UF puede tener más de un ramal

@@ -4903,3 +4903,76 @@ inexistente.
 hidráulico D-δ.36/D-δ.38), M3-F (auditoría end-to-end). Menores: Tabla
 N°8 (rango `> 40 m³/h`), CRIT-A8 sobre el universo de consumos de B2b,
 poda del override en la baja de UF.
+
+## D-δ.56 -- M3-D parte 1: panel de Medidores en la UI (configuración + resultados) -- CERRADA
+
+Primera parte de la UI de Módulo 3. Agrega el panel "Módulo 3 —
+Medidores" a la one-page, después de Módulo 2.
+
+### Alcance de esta parte
+
+- **Configuración persistida vía UI**: botón "Iniciar Módulo 3" (fija
+  `configuracionMedidores` con un default explícito -- `esPropiedadHorizontal:
+  false`, `tipoProvisionACS: 'individual'` -- a partir de ahí
+  `EstadoModulo3` deja de ser `'noIniciado'`); checkbox de propiedad
+  horizontal; selector de provisión de ACS global + `<details>` de
+  excepciones por UF (con el tipo efectivo visible por UF).
+- **Resultados**: `EstadoModulo3` (`noIniciado` / `error` / `incompleto`
+  / `evaluado`); tabla del medidor general (Qc utilizado, DN, C, hf);
+  tabla de medidores individuales (`UF | servicio | Q | DN | C | hf`). Un
+  caudal por encima de Tabla N°6 se muestra como `'incompleto'` con el
+  motivo -- **nunca un DN inventado**.
+- **Rápido / Profesional**: derivado de `resolverModoDeTrabajo`
+  (`configuracionHidraulica`, D-δ.51) -- **no** un eje nuevo. Profesional
+  agrega detalle técnico (caudal medio, umbral de fila de Tabla N°6,
+  cantidad de consumos del alcance, Q en l/s). Sin diferencia hidráulica
+  entre modos.
+- La configuración **sí** se persiste en `Proyecto.configuracionMedidores`
+  (a diferencia del input provisional de `hfMedidor` del Panel de
+  Presión); los resultados **no** -- se recalculan en cada render con
+  `resolverEstadoModulo3`.
+
+### Piezas
+
+- `interfaz/paginas/actualizarConfiguracionMedidores.ts` -- updaters
+  inmutables (`conModulo3Iniciado`, `conPropiedadHorizontal`,
+  `conTipoProvisionACS`, `conTipoProvisionACSDeUnidadFuncional`).
+  `'default'` en el override quita la entrada de esa UF y elimina el
+  objeto override entero si queda vacío (nunca un `{}` residual).
+- `interfaz/paginas/PanelDeMedidoresDeModulo3.tsx` -- componente de
+  presentación, sin cálculo propio.
+- `interfaz/paginas/humanizarModulo3.ts` -- etiquetas + descripción de
+  motivos + formateo es-AR (helpers puros, patrón del repo para testear
+  UI en `environment: 'node'`).
+- 10 tests nuevos (updaters + humanize). `resolverEstadoModulo3` ya está
+  cubierto por sus propios 14 tests.
+
+### Verificación
+
+`tsc -b` verde, `vite build` verde, el dev server levanta y sirve el
+módulo transformado sin error. **No hay Playwright ni tests de componente
+en el repo** (`vitest` corre en `environment: 'node'`, cero `.test.tsx`,
+cero `@playwright/test`); los "Playwright verde" de handoffs previos no
+corresponden a infraestructura versionada. La verificación interactiva
+(click-through, consola del navegador) no se hizo por falta de esa infra;
+agregarla es una decisión de infraestructura aparte, no parte de M3-D.
+
+### Pendiente
+
+- **M3-D parte 2**: override manual de medidor **recomendado vs.
+  adoptado** (↑ / ↓ / Auto sobre filas reales de Tabla N°6,
+  hidráulicamente efectivo -- DN adoptado → C de esa fila → recálculo de
+  `hf`, análogo a `dnComercialAdoptado` de D-δ.52). Requiere campos
+  persistidos nuevos (`medidorGeneralAdoptado?`,
+  `medidoresIndividualesAdoptados?` con identidad `UF + servicioMedido`)
+  y que `resolverEstadoModulo3` los aplique. Test anti-stale obligatorio.
+  Estado del resultado del medidor debe distinguir "seleccionado
+  manualmente" de "recomendación normativa" **sin** introducir
+  `todosCumplen` ni términos `Qmin/Q1..Q4`.
+- **M3-E**: integración `hfMedidor` M3→M2 (sin empezar).
+
+### Estado
+
+**D-δ.56 -- CERRADA** para la parte 1 (configuración + resultados +
+Rápido/Profesional). M3-D parte 2 (override manual) y M3-E siguen
+pendientes, sin decisión roja.
