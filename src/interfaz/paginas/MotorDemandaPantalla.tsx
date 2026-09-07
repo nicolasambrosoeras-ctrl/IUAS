@@ -25,6 +25,7 @@ import {
 } from '../../presentacion/desarrolloDelCalculoDemanda'
 import { duplicarUnidadFuncionalEnProyecto } from './duplicarUnidadFuncional'
 import { generarId } from './generarId'
+import { backfillLongitudesDePredimensionamiento } from './backfillLongitudesDePredimensionamiento'
 import {
   sincronizarConectividadFisicaDeArtefacto,
   sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas,
@@ -216,7 +217,11 @@ function LocalFormulario({
           redesDeclaradas,
         )
       : sincronizarConectividadFisicaDeArtefacto(proyectoConArtefacto, unidadFuncionalId, local.id, nuevoArtefactoId)
-    onCambiarProyecto(sincronizacion.tipo === 'sincronizado' ? sincronizacion.proyecto : proyectoConArtefacto)
+    // D-δ.51: el bootstrap acaba de crear el Tramo representativo del
+    // nuevo Local+Red -- precargar su longitud inicial (5 m si undefined)
+    // para que el predimensionamiento arranque sin un input vacío.
+    const proyectoResultante = sincronizacion.tipo === 'sincronizado' ? sincronizacion.proyecto : proyectoConArtefacto
+    onCambiarProyecto(backfillLongitudesDePredimensionamiento(proyectoResultante))
     setDeclaracionPendiente(null)
   }
 
@@ -831,12 +836,14 @@ const proyectoInicial: Proyecto = {
   // ppr, coherente con materialTuberiaId.
   configuracionHidraulica: {
     metodoPerdidaDistribuida: 'hazenWilliams',
-    metodoPerdidaLocalizada: 'detallado',
-    // Simplificada por defecto (D-δ.44): el proyecto de ejemplo debe
-    // reflejar la experiencia recomendada de un proyectista típico --
-    // longitud/accesorios a nivel Local+red, nunca por Artefacto. El
-    // modo profesional sigue disponible desde el selector sin perder
-    // ningún dato ya cargado.
+    // D-δ.51: el proyecto de ejemplo arranca en modo RÁPIDO
+    // (simplificada + estimadas): predimensionamiento inmediato sin que
+    // el usuario tenga que entender granularidad, tees ni accesorios. El
+    // modo Profesional (profesional + detalladas) sigue a un clic, sin
+    // perder ningún dato. Las longitudes iniciales 5/10/10 las precarga
+    // backfillLongitudesDePredimensionamiento al montar (ver useState más
+    // abajo), no se hardcodean tramo por tramo acá.
+    metodoPerdidaLocalizada: 'estimado',
     granularidadHidraulica: 'simplificada',
     materialTuberiaId: 'ppr',
     sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
@@ -1064,7 +1071,13 @@ function ResultadoDemanda({
 }
 
 export function MotorDemandaPantalla() {
-  const [proyecto, setProyecto] = useState<Proyecto>(proyectoInicial)
+  // D-δ.51: precarga las longitudes iniciales de predimensionamiento
+  // (5/10/10) en el proyecto de ejemplo al montar, para que Rápido calcule
+  // DN/V/hf de entrada sin longitudes faltantes. No destructivo: si el
+  // fixture ya trajera longitudes, se respetan.
+  const [proyecto, setProyecto] = useState<Proyecto>(() =>
+    backfillLongitudesDePredimensionamiento(proyectoInicial),
+  )
   const validacion = validarProyecto(proyecto, catalogoArtefactos, coeficientesMayoracion, catalogoSistemasDeTuberia)
 
   return (

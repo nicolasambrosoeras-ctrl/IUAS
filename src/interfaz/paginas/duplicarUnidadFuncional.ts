@@ -6,6 +6,7 @@
 import type { Artefacto, Local, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
 import { generarId } from './generarId'
 import { sincronizarConectividadFisicaDeArtefacto } from './sincronizarConectividadFisicaDeArtefacto'
+import { backfillLongitudesDePredimensionamiento } from './backfillLongitudesDePredimensionamiento'
 
 // Privadas a este archivo a proposito: no son una API generica de
 // clonacion, son los dos pasos internos que necesita duplicarUnidadFuncional
@@ -93,5 +94,12 @@ export function duplicarUnidadFuncionalEnProyecto(
     }
   }
 
-  return resultado
+  // D-δ.51: los Tramos recién creados para la copia (bootstrap/retrofit)
+  // nacen sin longitud -- D-δ.50 decidió NO copiar el relevamiento físico
+  // de la original. Este backfill solo los lleva del estado "undefined" a
+  // un valor típico inicial (5 m Local+Red / 10 m Distribución general, si
+  // la granularidad lo exige), nunca copia un 7,35 m de la original como
+  // si fuera relevamiento de la copia. Las alimentaciones generales
+  // compartidas ya existían: no se duplican.
+  return backfillLongitudesDePredimensionamiento(resultado)
 }

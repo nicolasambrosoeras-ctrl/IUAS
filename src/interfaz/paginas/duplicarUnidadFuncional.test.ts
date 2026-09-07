@@ -364,4 +364,43 @@ describe('duplicarUnidadFuncionalEnProyecto -- conectividad fisica de la copia (
     const ids = proyecto.redHidraulica!.nodos.map((n) => n.id)
     expect(new Set(ids).size).toBe(ids.length)
   })
+
+  it('R5 (D-δ.51): en Rápido, los Tramos representativos de los Local+Red de la copia reciben 5 m si estaban undefined -- nunca copian el relevamiento de la original', () => {
+    // La original trae un relevamiento real distinto del default (7,35 m)
+    // en su Tramo representativo de Baño AF.
+    const base = proyectoConUnaUf()
+    const conRelevamiento: Proyecto = {
+      ...base,
+      redHidraulica: {
+        ...base.redHidraulica!,
+        tramos: base.redHidraulica!.tramos.map((t) => (t.id === 't-af-bano' ? { ...t, longitud_m: 7.35 } : t)),
+      },
+    }
+
+    const resultado = duplicarUnidadFuncionalEnProyecto(conRelevamiento, 'uf-1')
+    const copia = resultado.unidadesFuncionales[1]!
+
+    // Tramos representativos de la copia: los que van de la raíz compartida
+    // (n0 / n-acs) a una bifurcación/terminal de un Local de la copia.
+    const idsTerminalesCopia = new Set(
+      resultado.redHidraulica!.nodos
+        .filter((n) => n.referencia?.tipo === 'artefacto' && n.referencia.unidadFuncionalId === copia.id)
+        .map((n) => n.id),
+    )
+    const tramosRepresentativosCopia = resultado.redHidraulica!.tramos.filter(
+      (t) => (t.nodoOrigenId === 'n0' || t.nodoOrigenId === 'n-acs'),
+    ).filter((t) => {
+      // llega (directa o vía una bifurcación) a un terminal de la copia
+      const destino = t.nodoDestinoId
+      if (idsTerminalesCopia.has(destino)) return true
+      return resultado.redHidraulica!.tramos.some((h) => h.nodoOrigenId === destino && idsTerminalesCopia.has(h.nodoDestinoId))
+    })
+
+    expect(tramosRepresentativosCopia.length).toBeGreaterThan(0)
+    for (const t of tramosRepresentativosCopia) {
+      expect(t.longitud_m).toBe(5) // default IUAS, nunca 7,35 de la original
+    }
+    // La original conserva su relevamiento intacto.
+    expect(resultado.redHidraulica!.tramos.find((t) => t.id === 't-af-bano')!.longitud_m).toBe(7.35)
+  })
 })
