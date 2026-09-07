@@ -4075,3 +4075,209 @@ discriminados; verificación de presión protagonista con CUMPLE/NO
 CUMPLE, terminal crítico por margen, y descomposición auditable. Sin
 empezar M3. `tsc -b` / `vite build` limpios, lint baseline 11, working
 tree limpio.
+
+## D-δ.51 -- Modos de producto (Rápido / Profesional) + predimensionamiento rápido + presentación tabular de M2 -- CERRADA
+
+Incremento de PRODUCTO/UX: no agrega hidráulica nueva. Define dos
+experiencias de uso de Módulo 2 sobre el MISMO motor -- Rápido
+(predimensionamiento automático) y Profesional (modelo editable y
+auditable) -- y reorganiza la vista principal como tablas compactas.
+Cinco commits funcionales + uno documental.
+
+### Modo de trabajo -- concepto DERIVADO, sin campo persistido
+
+`modoDeTrabajo.ts`: el "modo" no es una entidad nueva del dominio ni un
+campo de `ConfiguracionHidraulica` -- se DERIVA de dos ejes ortogonales
+que ya existían:
+
+    RÁPIDO       = granularidad 'simplificada' + metodoPerdidaLocalizada 'estimado'
+    PROFESIONAL  = granularidad 'profesional'  + metodoPerdidaLocalizada 'detallado'
+    AVANZADO     = cualquier otra combinación (p. ej. simplificada + detalladas):
+                   sigue soportada por el motor (D-δ.47), se controla desde
+                   "Configuración avanzada".
+
+Sin migración de esquema, sin `modoDeTrabajo` en `Proyecto`. Se descartó
+un campo persistido: reflejaría mecánicamente los enums del motor como un
+modo de producto (brief §20) y obligaría a una migración por un dato que
+es de presentación.
+
+`aplicarModoRapido(proyecto)`: fija los dos ejes + Hazen-Williams
+("cálculo habitual"), y precarga longitudes `undefined`.
+`aplicarModoProfesional(proyecto)`: fija los dos ejes, **NO** fuerza
+Hazen (un proyectista que venía con Darcy lo conserva, brief §41),
+**NO** precarga accesorios (decisión roja, ver abajo), y precarga
+longitudes `undefined`. Ninguno resetea datos ya cargados (brief §17):
+al volver a Rápido las pérdidas detalladas simplemente dejan de
+participar del cálculo activo (D-δ.40), sin contaminación ni doble
+conteo.
+
+### Preset Rápido -- valores iniciales de predimensionamiento
+
+`backfillLongitudesDePredimensionamiento.ts`: precarga NO destructiva.
+Solo completa `longitud_m === undefined`, **nunca** sobreescribe (un
+`2 m` o un `7,35 m` ya cargados se respetan). VALORES INICIALES IUAS,
+editables -- **no** norma ERAS, **no** relevamiento, **no** requisito
+reglamentario (una sola vez en UI/docs, sin disclaimers por fila, brief
+§4/§53). Dos reglas según granularidad:
+
+  - **simplificada** -- solo los Tramos que el usuario ve/edita en modo
+    rápido: el representativo de cada (Local, Red) (D-δ.44) → **5 m**; la
+    Distribución general y la Alimentación ACS → **10 m**. Los ramales
+    internos NO reciben default (no participan de `hfDistribuida` en
+    simplificada).
+  - **profesional** -- `acumularPerdidaDistribuidaDeCamino` itera TODO
+    `camino.tramos`, así que cada Tramo físico requiere su longitud:
+    general/ACS → **10 m**, cualquier otro Tramo → **5 m**. Auditoría del
+    brief §12 aceptada: no hay Tramos "auxiliares no físicos" en el
+    modelo -- cada Tramo conecta nodos reales y representa un recorrido
+    real; la clasificación por rol es estructural y determinista (no fue
+    decisión roja).
+
+Se aplica en momentos ESTRUCTURALES: montaje del proyecto de ejemplo
+(`useState` inicial de `MotorDemandaPantalla`), creación del primer
+Artefacto de un Local (bootstrap M2-D), duplicación de UF. **No** en cada
+pulsación: vaciar un campo de longitud es una intención explícita del
+usuario y el backfill no corre en ese momento.
+
+`proyectoInicial` pasa a arrancar en modo Rápido
+(`metodoPerdidaLocalizada` 'detallado' → 'estimado'); el demo muestra
+DN/V/hf de entrada sin longitudes faltantes (brief §36/§52).
+
+### Duplicar UF en Rápido
+
+Los Tramos nuevos de la copia (que D-δ.50 decidió NO copiar del
+relevamiento de la original) reciben el default IUAS si quedan
+`undefined` -- **nunca** copian un `7,35 m` de la original como si fuera
+relevamiento de la copia. Las alimentaciones generales compartidas ya
+existían: no se duplican.
+
+### Longitud vertical -- D-δ.50 NO se reabre
+
+Solo en `simplificada`: `ΔLvertical = 3 m · nivel` (PB→0, Piso1→3,
+Piso2→6, ...), derivada, no persistida, sobre la longitud efectiva de la
+Distribución general (y, en AC, de la Alimentación ACS). En `profesional`
+la primitiva devuelve incremento 0. Con `Lbase_general = 10 m`: PB→10,
+Piso1→13, Piso2→16.
+
+### DECISIÓN ROJA -- precarga de accesorios en Profesional -> ALTERNATIVA A
+
+**Problema:** el brief §14 quería que Profesional arrancara "calculable" y
+con accesorios editables, pero no existe ninguna plantilla de accesorios
+profesional en el repo (la de D-δ.45 es del modo *estimado*, un conteo de
+Ks agregado por Local+Red, nunca `Tramo.accesorios`), y `RedHidraulica`
+no tiene geometría espacial: el dominio no puede determinar qué Tramo
+lleva un codo90 y cuál una llave de paso.
+
+**Resuelta por el usuario -> alternativa A:** NO precargar accesorios.
+`accesorios === undefined` = información física NO relevada; convertirlo
+en `[]` sin que el usuario lo confirme afirmaría un relevamiento que
+nunca hizo, contra la filosofía ya cerrada del proyecto (no inventar
+información física, ausencia ≠ cero, trazabilidad).
+
+**UX resultante** (`AccesoriosDeTramoEditor`): el estado `undefined`
+presenta DOS acciones EXPLÍCITAS, nunca un `[]` implícito:
+  - "Agregar el primero" (`<select>` de tipo → `[{tipo, cantidad: 1}]`);
+  - "Confirmar que este tramo no tiene accesorios" (→ `[]`).
+Semántica preservada: `undefined` = pendiente; `[]` = relevado, ninguno;
+`[...]` = relevado, declarados. Tees sin cambios (CRIT-A31, orientación
+nunca inferida). Un proyecto Profesional recién activado puede quedar
+legítimamente `EstadoModulo2 = incompleto` por pérdidas localizadas sin
+relevar -- el Panel de Presión ya lo agrupa ("Falta relevar accesorios o
+tees en N tramos", D-δ.50), sin N tarjetas repetidas.
+
+### Cabecera de M2 + presentación tabular
+
+`CabeceraDeModulo2` (`ResultadoHidraulicoDeTramo.tsx`): reemplaza la
+exposición simultánea de los 5 selectores técnicos + párrafo largo por un
+toggle "Modo de trabajo: [Rápido] [Profesional]" (botones con
+`aria-pressed`) + una línea de resumen. La configuración técnica completa
+sigue disponible, sin perder ninguna capacidad del motor (D-δ.47),
+dentro de "Configuración avanzada" (`<details>` colapsado en Rápido,
+abierto en Profesional/Avanzado).
+
+`TablaDimensionamientoDeModulo2` + `resolverFilaDeDimensionamiento`
+(view-model puro): la vista principal deja de ser una sucesión de
+tarjetas largas y pasa a TABLAS escaneables verticalmente
+(Tramo/Local · Red · **Longitud** · **DN** · V · Pérdida · Estado). Cada
+fila expande su detalle mediante un `<details>` NATIVO (sin estado JS: el
+contenido queda siempre en el DOM, lo que preservó los tests `toContain`
+existentes).
+
+  - **"Pérdida" de la fila** (brief §25): `hfDistribuida` del Tramo
+    (`resolverPerdidaDistribuidaDeTramo`) + `hfLocalizada` estimada del
+    Local+Red (`resolverPerdidaLocalizadaEstimadaDeLocal`) cuando ambas
+    son inequívocas -- compuesto de resultados del motor, **nunca**
+    recalculado en React (brief §46). Estado 'controlar' = CRIT-A24
+    ("○ DN mínimo comercial", sin texto técnico protagonista, brief §30).
+  - **Distribución general**: tabla de 2 filas; la Longitud es la BASE y
+    el +3 m/piso (D-δ.50) se explica en UNA nota debajo, nunca un `hf`
+    efectivo único engañoso por fila (brief §22/§26).
+  - **Cada Unidad Funcional**: encabezado con nivel + cota + tabla con una
+    fila por (Local, Red). Detalle expandible = `LocalYRedCard` sin
+    encabezado ni dimensionamiento del representativo (ya están en la
+    fila): en Rápido muestra artefactos + estimación localizada + "Ver
+    cálculo"; en Profesional el árbol de Tramos físicos + editores de
+    accesorios/tees. En Profesional la Longitud de la fila es de solo
+    lectura (se edita en el detalle); en Rápido/Avanzado es input inline.
+
+`LocalYRedCard`: nuevas props opcionales `mostrarEncabezado` /
+`mostrarDimensionamientoDelRepresentativo` (default `true` =
+comportamiento previo intacto).
+
+Panel de presión: sección Alimentación + Medidor compactada (los 3
+párrafos de ayuda pasan a un `<details>` "¿Cómo se completan estos
+datos?"; labels acortados "Pelo de agua mínimo" / "Medidor provisional
+M3"). El cálculo y el contenido de D-δ.50 (CUMPLE/NO CUMPLE, terminal
+crítico por margen, "Ver cálculo del crítico", "Ver todos los
+terminales") no se tocan.
+
+### Cambio de modo -- preservación de datos
+
+Verificado (unit + Playwright): editar una longitud en Rápido (5 → 7),
+cambiar a Profesional → el 7 se conserva (de solo lectura en la fila,
+editable en el detalle) y los ~24 Tramos se precargan donde faltaban;
+cambiar Hazen↔Darcy recomputa sin stale; volver a Rápido conserva el 7 y
+las pérdidas detalladas no contaminan el cálculo estimado.
+
+### Prueba de aceptación end-to-end (Playwright, web real)
+
+**Rápido (§50):** demo → modo Rápido activo → sin cargar longitudes:
+General=10, ACS=10, Locales=5 → DN/V/hf visibles de entrada → duplicar UF
+→ copia a Piso 1 (cota 4,00, encabezado "... · Piso 1 · cota 4,00 m",
+nota "+3,00 m/piso automáticamente") → editar Baño AF 5 → 7: la pérdida
+de la fila recomputa al instante (2,697 → 3,175 m.c.a.) → cargar
+alimentación (Pdisponible) + medidor → `EstadoModulo2 = Completo` →
+**✓ CUMPLE** → terminal más desfavorable en la copia (Piso 1, AC, elegido
+por menor margen), Presidual/Pmin/Margen. **Cero errores/warnings de
+consola.**
+
+**Profesional (§51):** desde el mismo proyecto → toggle a Profesional →
+longitud 7 conservada → "Configuración avanzada" abierta → cada fila
+expande a un árbol de Tramos con "⚠ Accesorios (Tabla N°7) sin relevar" +
+"Agregar el primero" + "Confirmar que este tramo no tiene accesorios" por
+Tramo → Hazen↔Darcy recomputa → volver a Rápido conserva los datos.
+**Cero errores/warnings de consola.**
+
+### Estado
+
+**D-δ.51 -- CERRADA.**
+
+RÁPIDO: inmediato, sin pedir configuración técnica; 5/10/10 precargados;
++3/piso (D-δ.50); PPR; Hazen; estimadas; DN/V/hf visibles en tabla;
+presión mantiene D-δ.50.
+
+PROFESIONAL: arranca con longitudes propuestas donde faltaban; longitudes
+/ accesorios / método / material / sistema editables; detalle técnico
+disponible; sin +3/piso automático; **sin reset al cambiar de modo**;
+accesorios "sin relevar" con dos acciones explícitas (nunca `[]`
+implícito). Puede quedar legítimamente incompleto hasta relevar
+accesorios/tees -- comportamiento correcto, agrupado en la UI.
+
+UI: tablas como vista primaria; detalles colapsados; sin repetición de
+tarjetas grandes; presión compacta; `overflow-x` en las tablas;
+accesibilidad preservada (labels/aria, table headers, símbolo+texto,
+D-δ.47 no regresa).
+
+MOTOR: sin regresión, sin doble conteo, sin fórmulas nuevas. Sin empezar
+M3. `tsc -b` / `vite build` limpios, lint baseline 11, working tree
+limpio.

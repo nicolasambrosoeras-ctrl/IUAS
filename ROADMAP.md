@@ -117,6 +117,18 @@ No se toca salvo bug real confirmado.
   Panel de Presión reorganizado con veredicto protagonista CUMPLE/NO
   CUMPLE, terminal más desfavorable por margen, "Ver cálculo del crítico"
   auditable y "Ver todos los terminales" ordenado por margen;
+- **modos de producto + predimensionamiento rápido + presentación
+  tabular (D-δ.51)**: dos experiencias sobre el mismo motor — Rápido
+  (`simplificada` + `estimadas` + Hazen + PPR, longitudes iniciales
+  5/10/10 precargadas no destructivas, +3 m/piso) y Profesional
+  (`profesional` + `detalladas`, longitudes iniciales 10/5 donde faltaban,
+  accesorios "sin relevar" con acciones explícitas — nunca `[]` implícito,
+  decisión roja resuelta). "Modo de trabajo" es un concepto derivado de
+  los ejes existentes, sin campo persistido ni migración. La vista
+  principal de M2 pasa a tablas compactas (Longitud · DN · V · Pérdida ·
+  Estado) con detalle expandible por fila; "Configuración avanzada"
+  conserva las 4 combinaciones técnicas de D-δ.47. Cambiar de modo nunca
+  resetea datos;
 - con `hfMedidor` provisto por el Panel de Presión, el balance ya alcanza
   `balanceCompleto` en la práctica (verificado end-to-end por Playwright);
   el resto de Tabla N°7 en modo detallado sigue con su barrera de
