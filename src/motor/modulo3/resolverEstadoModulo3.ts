@@ -42,27 +42,37 @@ import type { ProblemaValidacion } from '../../validacion/codigos'
 import { validarRedHidraulica } from '../../validacion/redHidraulica'
 import { validarConfiguracionMedidores } from '../../validacion/configuracionMedidores'
 import { calcularSimultaneidad } from '../demanda/simultaneidad/calcularSimultaneidad'
-import { seleccionarMedidorGeneral, type ResultadoSeleccionMedidorGeneral } from '../medidores/seleccionarMedidorGeneral'
+import { seleccionarMedidorGeneral } from '../medidores/seleccionarMedidorGeneral'
 import {
   seleccionarMedidorIndividual,
   type AlcanceMedidorIndividual,
-  type ResultadoSeleccionMedidorIndividual,
+  type ServicioMedido,
 } from '../medidores/seleccionarMedidorIndividual'
 import { resolverAlcancesDeMedidoresIndividuales } from '../medidores/resolverAlcancesDeMedidoresIndividuales'
+import { resolverMedidorAdoptado, type MedidorEvaluado } from '../medidores/resolverMedidorAdoptado'
+import { claveDeAlcanceDeMedidor } from '../medidores/claveDeAlcanceDeMedidor'
 import { tipoProvisionACSEfectivo } from './tipoProvisionACSEfectivo'
 
-type MedidorGeneralSeleccionado = Extract<ResultadoSeleccionMedidorGeneral, { tipo: 'seleccionado' }>
-type MedidorIndividualSeleccionado = Extract<ResultadoSeleccionMedidorIndividual, { tipo: 'seleccionado' }>
+// Cada medidor evaluado (MedidorEvaluado, resolverMedidorAdoptado) trae
+// `recomendado` y `adoptado` -- el DN adoptado es hidráulicamente efectivo
+// (D-δ.57). Se compone además con el ámbito y, en el individual, con el
+// alcance (que trae los consumos) -- ninguno duplica al otro.
+export type ResultadoMedidorGeneral = MedidorEvaluado & { readonly ambito: 'general' }
 
-// Se compone el alcance (que trae los consumos) con el resultado de la
-// selección (DN/C/hf/Qunit) -- ninguno de los dos duplica al otro.
+export type ResultadoMedidorIndividual = MedidorEvaluado & {
+  readonly ambito: 'individual'
+  readonly unidadFuncionalId: string
+  readonly servicioMedido: ServicioMedido
+  readonly nConsumos: number
+}
+
 export type MedidorIndividualEvaluado = {
   readonly alcance: AlcanceMedidorIndividual
-  readonly resultado: MedidorIndividualSeleccionado
+  readonly resultado: ResultadoMedidorIndividual
 }
 
 export type ResultadoModulo3 = {
-  readonly medidorGeneral: MedidorGeneralSeleccionado
+  readonly medidorGeneral: ResultadoMedidorGeneral
   readonly medidoresIndividuales: readonly MedidorIndividualEvaluado[]
 }
 
@@ -128,7 +138,7 @@ export function resolverEstadoModulo3(
     .filter((artefacto) => artefacto.origen === 'normativo')
     .reduce((total, artefacto) => total + artefacto.cantidad, 0)
 
-  let medidorGeneral: MedidorGeneralSeleccionado | undefined
+  let medidorGeneral: ResultadoMedidorGeneral | undefined
   if (nComputable === 0) {
     // Sin artefactos computables no hay Qc global que calcular
     // (calcularSimultaneidad exige n >= 1). No se llama al motor de demanda
@@ -157,7 +167,10 @@ export function resolverEstadoModulo3(
           qcMaximoCubierto_m3h: general.qcMaximoCubierto_m3h,
         })
       } else {
-        medidorGeneral = general
+        medidorGeneral = {
+          ...resolverMedidorAdoptado(general, configuracionMedidores.medidorGeneralAdoptadoDN),
+          ambito: 'general',
+        }
       }
     }
   }
@@ -182,7 +195,18 @@ export function resolverEstadoModulo3(
       for (const alcance of alcances) {
         const resultado = seleccionarMedidorIndividual(alcance)
         if (resultado.tipo === 'seleccionado') {
-          medidoresIndividuales.push({ alcance, resultado })
+          const clave = claveDeAlcanceDeMedidor(alcance.unidadFuncionalId, alcance.servicioMedido)
+          const dnAdoptado = configuracionMedidores.medidoresIndividualesAdoptadosDN?.[clave]
+          medidoresIndividuales.push({
+            alcance,
+            resultado: {
+              ...resolverMedidorAdoptado(resultado, dnAdoptado),
+              ambito: 'individual',
+              unidadFuncionalId: alcance.unidadFuncionalId,
+              servicioMedido: alcance.servicioMedido,
+              nConsumos: resultado.nConsumos,
+            },
+          })
         } else if (resultado.tipo === 'fueraDeTabla06') {
           motivos.push({
             tipo: 'medidorIndividualFueraDeTabla06',

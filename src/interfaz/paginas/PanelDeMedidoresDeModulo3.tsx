@@ -1,33 +1,36 @@
-// Panel de Módulo 3 — Medidores (D-δ.56, M3-D parte 1). Superficie de UI
-// sobre resolverEstadoModulo3: NO calcula nada, arma los controles de
-// configuración (propiedad horizontal, provisión de ACS global + override
-// por UF) y formatea el resultado que el motor ya devuelve.
+// Panel de Módulo 3 — Medidores (D-δ.56 parte 1 + D-δ.57 parte 2).
+// Superficie de UI sobre resolverEstadoModulo3: NO calcula nada, arma los
+// controles de configuración y de override manual, y formatea lo que el
+// motor ya devuelve.
 //
 // La configuración SÍ se persiste en Proyecto.configuracionMedidores
-// (D-δ.55) -- a diferencia del input provisional de hfMedidor del Panel de
-// Presión. Los resultados (Qc, DN, C, hf, estado) NO se persisten: se
-// recalculan en cada render llamando a resolverEstadoModulo3.
+// (propiedad horizontal, provisión de ACS, y el DN adoptado manualmente
+// por medidor). Los resultados (Qc, DN recomendado, C, hf) NO se
+// persisten: se recalculan en cada render. El DN adoptado es
+// HIDRÁULICAMENTE EFECTIVO (D-δ.57): al pulsar ↑/↓ cambia el DN, y con él
+// C y hf; "Auto" vuelve al recomendado.
 //
-// Rápido / Profesional: se deriva del modo de trabajo ya existente
-// (resolverModoDeTrabajo sobre configuracionHidraulica, D-δ.51) -- no se
-// introduce un eje nuevo. Rápido muestra el resultado protagonista con
-// columnas mínimas; Profesional agrega detalle técnico (caudal medio,
-// umbral de Tabla N°6, cantidad de consumos del alcance).
+// Rápido / Profesional se deriva del modo de trabajo ya existente
+// (resolverModoDeTrabajo, D-δ.51). Profesional agrega detalle técnico. Los
+// controles ↓/DN/↑/Auto se muestran en ambos modos (coherencia con el
+// control de DN de tuberías de D-δ.52).
 //
-// M3-D parte 2 (pendiente): override manual de medidor recomendado vs.
-// adoptado (↑/↓/Auto sobre Tabla N°6, hidráulicamente efectivo). M3-E
-// (pendiente): integración de hfMedidor al balance de presión de M2.
+// M3-E (pendiente): integración de estas pérdidas al balance de presión.
 import type { Proyecto } from '../../modelo/proyecto'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
 import {
   resolverEstadoModulo3,
   type MedidorIndividualEvaluado,
-  type ResultadoModulo3,
+  type ResultadoMedidorGeneral,
 } from '../../motor/modulo3/resolverEstadoModulo3'
 import { tipoProvisionACSEfectivo } from '../../motor/modulo3/tipoProvisionACSEfectivo'
+import type { MedidorEvaluado } from '../../motor/medidores/resolverMedidorAdoptado'
 import { resolverModoDeTrabajo } from './modoDeTrabajo'
+import { resolverControlDeMedidor } from './resolverControlDeMedidor'
 import {
+  conMedidorGeneralAdoptado,
+  conMedidorIndividualAdoptado,
   conModulo3Iniciado,
   conPropiedadHorizontal,
   conTipoProvisionACS,
@@ -124,9 +127,7 @@ function ConfiguracionDeMedidores({
                       <option value="central">{ETIQUETA_TIPO_PROVISION_ACS.central}</option>
                     </select>
                   </label>{' '}
-                  <small>
-                    efectivo: {ETIQUETA_TIPO_PROVISION_ACS[tipoProvisionACSEfectivo(config, uf.id)]}
-                  </small>
+                  <small>efectivo: {ETIQUETA_TIPO_PROVISION_ACS[tipoProvisionACSEfectivo(config, uf.id)]}</small>
                 </p>
               )
             })}
@@ -137,8 +138,71 @@ function ConfiguracionDeMedidores({
   )
 }
 
-function TablaMedidorGeneral({ resultado, esProfesional }: { resultado: ResultadoModulo3; esProfesional: boolean }) {
-  const g = resultado.medidorGeneral
+// Control compacto ↓ / DN / ↑ / Auto de un medidor. `onAdoptar` recibe el
+// DN elegido o 'auto' para volver al recomendado.
+function ControlDeDnDeMedidor({
+  medidor,
+  onAdoptar,
+}: {
+  medidor: MedidorEvaluado
+  onAdoptar: (dn: number | 'auto') => void
+}) {
+  const control = resolverControlDeMedidor(medidor)
+  return (
+    <span>
+      <button
+        type="button"
+        disabled={control.dnAnterior_mm === null}
+        onClick={() => control.dnAnterior_mm !== null && onAdoptar(control.dnAnterior_mm)}
+        aria-label="Diámetro inmediato inferior"
+      >
+        ↓
+      </button>{' '}
+      <strong>{fmt(control.dnAdoptado_mm, 'diametro')} mm</strong>{' '}
+      <button
+        type="button"
+        disabled={control.dnSiguiente_mm === null}
+        onClick={() => control.dnSiguiente_mm !== null && onAdoptar(control.dnSiguiente_mm)}
+        aria-label="Diámetro inmediato superior"
+      >
+        ↑
+      </button>{' '}
+      {control.origen === 'manual' ? (
+        <>
+          <em>Manual</em>{' '}
+          <button type="button" onClick={() => onAdoptar('auto')}>
+            Auto
+          </button>{' '}
+          <small>(recomendado: {fmt(control.dnRecomendado_mm, 'diametro')} mm)</small>
+        </>
+      ) : (
+        <em>Auto</em>
+      )}
+      {control.criterioSeleccion === 'inferiorAlRecomendado' ? (
+        <>
+          {' '}
+          <span role="img" aria-label="advertencia">
+            ⚠
+          </span>{' '}
+          <small>El medidor adoptado no satisface el criterio de selección de la Tabla N°6 para este caudal.</small>
+        </>
+      ) : null}
+    </span>
+  )
+}
+
+function TablaMedidorGeneral({
+  resultado,
+  esProfesional,
+  onCambiar,
+  proyecto,
+}: {
+  resultado: ResultadoMedidorGeneral
+  esProfesional: boolean
+  onCambiar: (proyecto: Proyecto) => void
+  proyecto: Proyecto
+}) {
+  const { recomendado, adoptado } = resultado
   return (
     <div>
       <h3>Medidor general</h3>
@@ -147,30 +211,40 @@ function TablaMedidorGeneral({ resultado, esProfesional }: { resultado: Resultad
           <tr>
             <th>Qc utilizado</th>
             <td>
-              {fmt(g.qcDiseno_m3h, 'caudal')} m³/h{esProfesional ? ` (${fmt(g.qcDiseno_lps, 'caudal')} l/s)` : ''}
+              {fmt(resultado.qcDiseno_m3h, 'caudal')} m³/h
+              {esProfesional ? ` (${fmt(resultado.qcDiseno_lps, 'caudal')} l/s)` : ''}
             </td>
           </tr>
           <tr>
-            <th>DN recomendado</th>
-            <td>{fmt(g.dnMedidor_mm, 'diametro')} mm</td>
+            <th>DN</th>
+            <td>
+              <ControlDeDnDeMedidor
+                medidor={resultado}
+                onAdoptar={(dn) => onCambiar(conMedidorGeneralAdoptado(proyecto, dn))}
+              />
+            </td>
           </tr>
           <tr>
             <th>Capacidad máxima C</th>
-            <td>{fmt(g.capacidadMaxima_m3h, 'caudal')} m³/h</td>
+            <td>{fmt(adoptado.capacidadMaxima_m3h, 'caudal')} m³/h</td>
           </tr>
           <tr>
             <th>Pérdida de carga hf</th>
-            <td>{fmt(g.hfMedidor_mca, 'perdida')} m.c.a.</td>
+            <td>{fmt(adoptado.hfMedidor_mca, 'perdida')} m.c.a.</td>
           </tr>
           {esProfesional ? (
             <>
               <tr>
+                <th>DN recomendado</th>
+                <td>{fmt(recomendado.dnMedidor_mm, 'diametro')} mm (C {fmt(recomendado.capacidadMaxima_m3h, 'caudal')} m³/h)</td>
+              </tr>
+              <tr>
                 <th>Caudal medio (Tabla N°6)</th>
-                <td>{fmt(g.caudalMedio_m3h, 'caudal')} m³/h</td>
+                <td>{fmt(adoptado.caudalMedio_m3h, 'caudal')} m³/h</td>
               </tr>
               <tr>
                 <th>Umbral de fila (Tabla N°6)</th>
-                <td>Qc proyecto ≥ {fmt(g.qcProyectoTabla_m3h, 'caudal')} m³/h</td>
+                <td>Qc proyecto ≥ {fmt(adoptado.qcProyectoTabla_m3h, 'caudal')} m³/h</td>
               </tr>
             </>
           ) : null}
@@ -180,7 +254,17 @@ function TablaMedidorGeneral({ resultado, esProfesional }: { resultado: Resultad
   )
 }
 
-function FilaMedidorIndividual({ medidor, esProfesional }: { medidor: MedidorIndividualEvaluado; esProfesional: boolean }) {
+function FilaMedidorIndividual({
+  medidor,
+  esProfesional,
+  onCambiar,
+  proyecto,
+}: {
+  medidor: MedidorIndividualEvaluado
+  esProfesional: boolean
+  onCambiar: (proyecto: Proyecto) => void
+  proyecto: Proyecto
+}) {
   const { resultado } = medidor
   return (
     <tr>
@@ -188,11 +272,20 @@ function FilaMedidorIndividual({ medidor, esProfesional }: { medidor: MedidorInd
       <td>{ETIQUETA_SERVICIO_MEDIDO[resultado.servicioMedido]}</td>
       <td>
         {fmt(resultado.qcDiseno_m3h, 'caudal')} m³/h
-        {esProfesional ? ` (${fmt(resultado.qunitTotal_lps, 'caudal')} l/s, ${resultado.nConsumos} consumos)` : ''}
+        {esProfesional ? ` (${fmt(resultado.qcDiseno_lps, 'caudal')} l/s, ${resultado.nConsumos} consumos)` : ''}
       </td>
-      <td>{fmt(resultado.dnMedidor_mm, 'diametro')} mm</td>
-      <td>{fmt(resultado.capacidadMaxima_m3h, 'caudal')} m³/h</td>
-      <td>{fmt(resultado.hfMedidor_mca, 'perdida')} m.c.a.</td>
+      <td>
+        <ControlDeDnDeMedidor
+          medidor={resultado}
+          onAdoptar={(dn) =>
+            onCambiar(
+              conMedidorIndividualAdoptado(proyecto, resultado.unidadFuncionalId, resultado.servicioMedido, dn),
+            )
+          }
+        />
+      </td>
+      <td>{fmt(resultado.adoptado.capacidadMaxima_m3h, 'caudal')} m³/h</td>
+      <td>{fmt(resultado.adoptado.hfMedidor_mca, 'perdida')} m.c.a.</td>
     </tr>
   )
 }
@@ -246,7 +339,12 @@ export function PanelDeMedidoresDeModulo3({
 
           {estado.estado === 'evaluado' ? (
             <>
-              <TablaMedidorGeneral resultado={estado.resultado} esProfesional={esProfesional} />
+              <TablaMedidorGeneral
+                resultado={estado.resultado.medidorGeneral}
+                esProfesional={esProfesional}
+                onCambiar={onCambiar}
+                proyecto={proyecto}
+              />
 
               {estado.resultado.medidoresIndividuales.length > 0 ? (
                 <div>
@@ -268,6 +366,8 @@ export function PanelDeMedidoresDeModulo3({
                           key={`${medidor.resultado.unidadFuncionalId}·${medidor.resultado.servicioMedido}`}
                           medidor={medidor}
                           esProfesional={esProfesional}
+                          onCambiar={onCambiar}
+                          proyecto={proyecto}
                         />
                       ))}
                     </tbody>

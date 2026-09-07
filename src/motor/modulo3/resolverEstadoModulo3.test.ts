@@ -120,8 +120,11 @@ describe('resolverEstadoModulo3 (M3-C, D-δ.55)', () => {
     )
     expect(estado.estado).toBe('evaluado')
     if (estado.estado !== 'evaluado') return
-    expect(estado.resultado.medidorGeneral.tipo).toBe('seleccionado')
     expect(estado.resultado.medidorGeneral.ambito).toBe('general')
+    expect(estado.resultado.medidorGeneral.adoptado.origen).toBe('automatico')
+    expect(estado.resultado.medidorGeneral.adoptado.dnMedidor_mm).toBe(
+      estado.resultado.medidorGeneral.recomendado.dnMedidor_mm,
+    )
     expect(estado.resultado.medidoresIndividuales).toEqual([])
   })
 
@@ -141,7 +144,8 @@ describe('resolverEstadoModulo3 (M3-C, D-δ.55)', () => {
     const m = estado.resultado.medidoresIndividuales[0]!
     expect(m.resultado.unidadFuncionalId).toBe('uf-1')
     expect(m.resultado.servicioMedido).toBe('aguaFria')
-    expect(m.resultado.hfMedidor_mca).toBeGreaterThan(0)
+    expect(m.resultado.adoptado.hfMedidor_mca).toBeGreaterThan(0)
+    expect(m.resultado.adoptado.origen).toBe('automatico')
     // el alcance compuesto trae los consumos (auditable, sin recalcular)
     expect(m.alcance.consumos.length).toBeGreaterThan(0)
   })
@@ -312,5 +316,140 @@ describe('resolverEstadoModulo3 (M3-C, D-δ.55)', () => {
     const resultado = validarProyecto(p, catalogoArtefactos, coeficientesMayoracion, catalogoSistemasDeTuberia)
     expect(resultado.valido).toBe(false)
     expect(resultado.problemas.some((x) => x.codigo === 'configuracionMedidoresUnidadFuncionalInexistente')).toBe(true)
+  })
+})
+
+describe('resolverEstadoModulo3 — override manual de medidor (M3-D parte 2, D-δ.57)', () => {
+  it('sin override: adoptado = recomendado (origen automatico) para general e individuales', () => {
+    const { uf, nodos, tramos } = ufBano('uf-1')
+    const estado = resolver(
+      proyecto({
+        ufs: [uf],
+        red: redDe({ nodos, tramos }),
+        config: { esPropiedadHorizontal: true, tipoProvisionACS: 'central' },
+        tipo: 'viviendaMultifamiliar',
+      }),
+    )
+    if (estado.estado !== 'evaluado') throw new Error('esperaba evaluado')
+    expect(estado.resultado.medidorGeneral.adoptado.origen).toBe('automatico')
+    for (const m of estado.resultado.medidoresIndividuales) {
+      expect(m.resultado.adoptado.origen).toBe('automatico')
+      expect(m.resultado.adoptado.dnMedidor_mm).toBe(m.resultado.recomendado.dnMedidor_mm)
+    }
+  })
+
+  it('override del medidor general: DN/C/hf adoptados cambian, Qc no; hf efectiva usa el C adoptado', () => {
+    const { uf, nodos, tramos } = ufBano('uf-1')
+    const base = proyecto({
+      ufs: [uf],
+      red: redDe({ nodos, tramos }),
+      config: { esPropiedadHorizontal: false, tipoProvisionACS: 'individual' },
+    })
+    const auto = resolver(base)
+    if (auto.estado !== 'evaluado') throw new Error('esperaba evaluado')
+    const dnRecomendado = auto.resultado.medidorGeneral.recomendado.dnMedidor_mm
+
+    const conOverride = resolver({
+      ...base,
+      configuracionMedidores: { ...base.configuracionMedidores!, medidorGeneralAdoptadoDN: 75 },
+    })
+    if (conOverride.estado !== 'evaluado') throw new Error('esperaba evaluado')
+    const g = conOverride.resultado.medidorGeneral
+    expect(g.adoptado.origen).toBe('manual')
+    expect(g.adoptado.dnMedidor_mm).toBe(75)
+    expect(g.adoptado.capacidadMaxima_m3h).toBe(80)
+    expect(g.recomendado.dnMedidor_mm).toBe(dnRecomendado)
+    expect(g.qcDiseno_lps).toBe(auto.resultado.medidorGeneral.qcDiseno_lps) // Q no cambia
+    // hf efectiva coherente con el C adoptado, distinta de la recomendada
+    expect(g.adoptado.hfMedidor_mca).toBeLessThan(g.recomendado.hfMedidor_mca)
+  })
+
+  it('D2-9. override individual aislado: uf-1|AF no afecta uf-1|AC ni uf-2 ni el general', () => {
+    const a = ufBano('uf-1')
+    const b = ufBano('uf-2')
+    const base = proyecto({
+      ufs: [a.uf, b.uf],
+      red: redDe(a, b),
+      config: { esPropiedadHorizontal: true, tipoProvisionACS: 'central' },
+      tipo: 'viviendaMultifamiliar',
+    })
+    const auto = resolver(base)
+    if (auto.estado !== 'evaluado') throw new Error('esperaba evaluado')
+
+    const conOverride = resolver({
+      ...base,
+      configuracionMedidores: {
+        ...base.configuracionMedidores!,
+        medidoresIndividualesAdoptadosDN: { 'uf-1|aguaFria': 75 },
+      },
+    })
+    if (conOverride.estado !== 'evaluado') throw new Error('esperaba evaluado')
+
+    const get = (e: typeof conOverride, uf: string, servicio: string) =>
+      e.estado === 'evaluado'
+        ? e.resultado.medidoresIndividuales.find(
+            (m) => m.resultado.unidadFuncionalId === uf && m.resultado.servicioMedido === servicio,
+          )!
+        : (() => {
+            throw new Error('no evaluado')
+          })()
+
+    expect(get(conOverride, 'uf-1', 'aguaFria').resultado.adoptado.dnMedidor_mm).toBe(75)
+    expect(get(conOverride, 'uf-1', 'aguaFria').resultado.adoptado.origen).toBe('manual')
+    // el resto sigue en automatico con el mismo DN que sin override
+    for (const [uf, servicio] of [
+      ['uf-1', 'aguaCaliente'],
+      ['uf-2', 'aguaFria'],
+      ['uf-2', 'aguaCaliente'],
+    ] as const) {
+      expect(get(conOverride, uf, servicio).resultado.adoptado.origen).toBe('automatico')
+      expect(get(conOverride, uf, servicio).resultado.adoptado.dnMedidor_mm).toBe(
+        get(auto, uf, servicio).resultado.adoptado.dnMedidor_mm,
+      )
+    }
+    expect(conOverride.resultado.medidorGeneral.adoptado.origen).toBe('automatico')
+  })
+
+  it('D2-11. cambiar ACS individual->central no reutiliza un override en otro alcance', () => {
+    const { uf, nodos, tramos } = ufBano('uf-1')
+    const red = redDe({ nodos, tramos })
+    // override sobre uf-1|aguaFria, luego se pasa a central (aparece un
+    // alcance uf-1|aguaCaliente que NO debe heredar el override de AF).
+    const p = proyecto({
+      ufs: [uf],
+      red,
+      config: {
+        esPropiedadHorizontal: true,
+        tipoProvisionACS: 'central',
+        medidoresIndividualesAdoptadosDN: { 'uf-1|aguaFria': 75 },
+      },
+      tipo: 'viviendaMultifamiliar',
+    })
+    const estado = resolver(p)
+    if (estado.estado !== 'evaluado') throw new Error('esperaba evaluado')
+    const af = estado.resultado.medidoresIndividuales.find((m) => m.resultado.servicioMedido === 'aguaFria')!
+    const ac = estado.resultado.medidoresIndividuales.find((m) => m.resultado.servicioMedido === 'aguaCaliente')!
+    expect(af.resultado.adoptado.origen).toBe('manual')
+    expect(af.resultado.adoptado.dnMedidor_mm).toBe(75)
+    expect(ac.resultado.adoptado.origen).toBe('automatico') // NO hereda el override de AF
+  })
+
+  it('override huérfano (alcance inexistente) se ignora, no rompe ni contamina', () => {
+    const { uf, nodos, tramos } = ufBano('uf-1')
+    const estado = resolver(
+      proyecto({
+        ufs: [uf],
+        red: redDe({ nodos, tramos }),
+        config: {
+          esPropiedadHorizontal: true,
+          tipoProvisionACS: 'individual', // sólo alcance uf-1|aguaFria
+          medidoresIndividualesAdoptadosDN: { 'uf-1|aguaCaliente': 60, 'uf-inexistente|aguaFria': 32 },
+        },
+        tipo: 'viviendaMultifamiliar',
+      }),
+    )
+    if (estado.estado !== 'evaluado') throw new Error('esperaba evaluado')
+    expect(estado.resultado.medidoresIndividuales).toHaveLength(1)
+    expect(estado.resultado.medidoresIndividuales[0]!.resultado.adoptado.origen).toBe('automatico')
   })
 })

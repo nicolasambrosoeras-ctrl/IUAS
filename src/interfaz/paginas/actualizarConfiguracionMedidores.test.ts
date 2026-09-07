@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 import type { MetadatosProyecto, ParametrosProyecto, Proyecto } from '../../modelo/proyecto'
 import {
   CONFIGURACION_MEDIDORES_INICIAL,
+  conMedidorGeneralAdoptado,
+  conMedidorIndividualAdoptado,
   conModulo3Iniciado,
   conPropiedadHorizontal,
   conTipoProvisionACS,
@@ -89,6 +91,47 @@ describe('actualizarConfiguracionMedidores (D-δ.56)', () => {
     conPropiedadHorizontal(p0, true)
     conTipoProvisionACS(p0, 'central')
     conTipoProvisionACSDeUnidadFuncional(p0, 'uf-1', 'central')
+    conMedidorGeneralAdoptado(p0, 25)
+    conMedidorIndividualAdoptado(p0, 'uf-1', 'aguaFria', 25)
     expect(JSON.stringify(p0)).toBe(snapshot)
+  })
+
+  it('conMedidorGeneralAdoptado: fija el DN; "auto" lo quita', () => {
+    let p = conModulo3Iniciado(proyectoBase())
+    p = conMedidorGeneralAdoptado(p, 25)
+    expect(p.configuracionMedidores?.medidorGeneralAdoptadoDN).toBe(25)
+    p = conMedidorGeneralAdoptado(p, 'auto')
+    expect(p.configuracionMedidores?.medidorGeneralAdoptadoDN).toBeUndefined()
+  })
+
+  it('D2-9. conMedidorIndividualAdoptado: override aislado por UF + servicio', () => {
+    let p = conModulo3Iniciado(proyectoBase())
+    p = conMedidorIndividualAdoptado(p, 'uf-1', 'aguaFria', 25)
+    p = conMedidorIndividualAdoptado(p, 'uf-1', 'aguaCaliente', 19)
+    p = conMedidorIndividualAdoptado(p, 'uf-2', 'aguaFria', 32)
+    expect(p.configuracionMedidores?.medidoresIndividualesAdoptadosDN).toEqual({
+      'uf-1|aguaFria': 25,
+      'uf-1|aguaCaliente': 19,
+      'uf-2|aguaFria': 32,
+    })
+
+    // quitar uf-1|aguaFria no toca las otras
+    p = conMedidorIndividualAdoptado(p, 'uf-1', 'aguaFria', 'auto')
+    expect(p.configuracionMedidores?.medidoresIndividualesAdoptadosDN).toEqual({
+      'uf-1|aguaCaliente': 19,
+      'uf-2|aguaFria': 32,
+    })
+  })
+
+  it('D2-10. si el override individual queda vacío, se elimina la clave (nunca un {} residual)', () => {
+    let p = conModulo3Iniciado(proyectoBase())
+    p = conMedidorIndividualAdoptado(p, 'uf-1', 'aguaFria', 25)
+    p = conMedidorIndividualAdoptado(p, 'uf-1', 'aguaFria', 'auto')
+    expect(p.configuracionMedidores?.medidoresIndividualesAdoptadosDN).toBeUndefined()
+  })
+
+  it('backward compatibility: proyecto sin config, un solo updater arranca desde la config inicial + el cambio', () => {
+    const p = conMedidorGeneralAdoptado(proyectoBase(), 25)
+    expect(p.configuracionMedidores).toEqual({ ...CONFIGURACION_MEDIDORES_INICIAL, medidorGeneralAdoptadoDN: 25 })
   })
 })

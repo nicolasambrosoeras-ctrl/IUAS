@@ -196,6 +196,20 @@ export type ConfiguracionDeMedidores = {
   // Override opcional por unidad funcional, para proyectos mixtos.
   // Ausencia de entrada para una UF = usar el default del Proyecto.
   readonly tipoProvisionACSPorUnidadFuncional?: Readonly<Record<string, TipoProvisionACS>>;
+  // M3-D parte 2 (D-δ.57): diámetro nominal (mm) de la fila de Tabla N°6
+  // adoptado manualmente para el medidor GENERAL, sobrescribiendo el DN
+  // recomendado automáticamente. Ausente = usar el recomendado (control
+  // "Auto"). Sólo se persiste esta decisión -- C, hf y Q se recalculan
+  // (el DN adoptado es hidráulicamente efectivo, análogo a
+  // Tramo.dnComercialAdoptado de D-δ.52). Un DN que no exista en Tabla N°6
+  // se ignora (se vuelve a automático), nunca hace fallar el cálculo.
+  readonly medidorGeneralAdoptadoDN?: number;
+  // Ídem por alcance de medidor individual. Clave:
+  // `${unidadFuncionalId}|${servicioMedido}` (ver claveDeAlcanceDeMedidor).
+  // Entradas cuyo alcance ya no existe (p. ej. tras cambiar ACS
+  // central↔individual) se ignoran al resolver -- no afectan ningún otro
+  // medidor.
+  readonly medidoresIndividualesAdoptadosDN?: Readonly<Record<string, number>>;
 };
 
 export type Proyecto = {
