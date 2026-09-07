@@ -325,13 +325,18 @@ consumos"*. "Simultaneidad total" = `K = 1` (suma sin coeficiente);
 "2.9 y siguientes" = pipeline `Qmax → Kc → K → Qc` con `K < 1`. Dan
 números distintos.
 
-**Estado**: ABIERTA. Es la **decisión roja 2 de M3** (ver D-δ.53). Bloquea
-M3-B2 (motor del medidor individual). **No bloquea** M3-B0/M3-B1 (Tabla
-N°6 + medidor general), ya cerrados: el medidor general usa el `Qc` global
-del proyecto (§2.9.2 completo, CRIT-A5), sin ambigüedad. Recomendación
-preliminar sin cerrar: `Qunit individual = ΣquTotal de la UF` (`K = 1`),
-por ser §2.6 la regla específica y dedicada del medidor individual frente
-a la remisión genérica de §2.12.1.e.
+**Estado**: RESUELTA para el dimensionamiento del medidor individual —
+**decisión roja 2 de M3, cerrada** por el usuario (ver D-δ.53). Se adopta
+la prescripción específica de §2.6: `Qunit = Σ (cantidad · qu efectivo)`
+con `K = 1` (simultaneidad total), sin `Kc`/`K`/`a`, tanto para la
+selección por Tabla N°6 como para el `Qcl` de la fórmula (6). La remisión
+de §2.12.1.e a §2.9 y siguientes se documenta como contradicción interna
+de la Guía; prevalece §2.6 por ser la regla dedicada del objeto.
+Formalizado como **CRIT-A33** en `CRITERIOS.md`; implementado en
+`motor/medidores/seleccionarMedidorIndividual.ts` (M3-B2a). Lo que sigue
+**abierto** no es esta contradicción sino la derivación
+`topología → conjunto de consumos por medidor` y la cardinalidad/ubicación
+de medidores individuales (M3-B2b).
 
 ## Encabezados de Tabla N°9 inconsistentes con su comportamiento numérico
 
@@ -4528,17 +4533,20 @@ registro está verificada contra ese texto.
   consistente con DN25, no con DN19.
 
 - **Decisión roja 2 (caudal del medidor individual: §2.6 vs §2.12.1.e) --
-  DIFERIDA a M3-B2.** Evidencia literal confirmada: §2.6 exige
+  RESUELTA (alternativa A), formalizada como CRIT-A33.** §2.6 exige
   "simultaneidad total de los consumos" para el individual (`K=1`, suma);
   §2.12.1.e remite genéricamente a "2.9 y siguientes" (pipeline de
-  simultaneidad, `K<1`). Recomendación preliminar (no cerrada, sin código):
-  `Qunit individual = ΣquTotal de la UF` (`K=1`), tanto para selección como
-  para `Qcl` de pérdida. Antes de M3-B2: (1) revisar figuras 2.2–2.7 de
-  micro-medición; (2) cuántos medidores individuales existen realmente por
-  configuración; (3) si AF/AC siempre implican medidores separados;
-  (4) cerrar formalmente la contradicción. Ver también la sección
-  "Contradicción entre Qunit (Fig. 2.8 e) y simultaneidad total…" más
-  arriba en este archivo.
+  simultaneidad, `K<1`). Se adopta **§2.6** por ser la regla específica y
+  dedicada del dimensionamiento del medidor individual:
+  `Qunit = Σ (cantidad · qu efectivo)` con `K=1`, sin `Kc`/`K`/`a`, **el
+  mismo `Qunit`** para la selección por Tabla N°6 y para el `Qcl` de la
+  fórmula (6) (no se adopta solución híbrida — sin evidencia oficial que
+  justifique dos caudales). La contradicción de §2.12.1.e se documenta
+  como interna de la Guía; no se afirma coherencia. Implementado en
+  `motor/medidores/seleccionarMedidorIndividual.ts` (M3-B2a). Lo que sigue
+  para M3-B2b: (1) reconstruir figuras 2.2–2.7 de micro-medición;
+  (2) cuántos ramales medidos existen por configuración; (3) AF / AC
+  central / ACS individual; (4) ubicación del medidor respecto del origen.
 
 ### Frontera M3 / M2 (registrada, no toda implementada)
 
@@ -4584,16 +4592,56 @@ sigue en su lugar.
   `tsc -b` verde, `vite build` verde, lint 11 baseline / 0 nuevos. Sin
   cambios de UI ni de runtime de la app (Playwright no afectado).
 
+### M3-B2a -- implementado (medidor individual, motor puro de alcance declarado)
+
+- `motor/medidores/seleccionarMedidorIndividual.ts`: recibe un **alcance
+  declarado** —`{ unidadFuncionalId, servicioMedido: 'aguaFria' |
+  'aguaCaliente', consumos: [{ etiqueta, cantidad, qu_lps }] }`— con el
+  `qu` efectivo de cada consumo **ya resuelto** para el servicio medido.
+  `Qunit = Σ (cantidad · qu_lps)` con `K=1` (CRIT-A33), sin `Kc`/`K`/`a`.
+  Ese `Qunit` alimenta la selección por Tabla N°6 y el `Qcl` de la fórmula
+  (6). Resultado discriminado: `'seleccionado'` / `'fueraDeTabla06'` /
+  `'sinConsumo'` (alcance vacío o todos `qu=0`), cada uno con el eco del
+  alcance (`unidadFuncionalId`, `servicioMedido`, `nConsumos`,
+  `qunitTotal_lps`) para la memoria de cálculo y el futuro DTO.
+- **NO autodetecta** cuántos medidores individuales hay ni dónde van (eso
+  es M3-B2b). **NO** impone "1 AF + 1 AC por UF". **NO** toca
+  `RedHidraulica`.
+- **Semántica AF/AC:** la resolución `artefacto → qu efectivo por red`
+  (sin doble conteo) es responsabilidad del llamador y ya la cierra
+  `resolverQuEfectivoParaTramo` / CRIT-A15 (artefacto de una sola red →
+  `quTotal`; mixto → `quFria`+`quCaliente` = total; paso por ACS
+  contemplado). Este motor **suma lo que recibe**, no reinterpreta `qu`.
+  La investigación previa confirmó que el modelo tiene **una única
+  semántica cerrada** para esto — no fue decisión roja.
+- **`resolverSeleccionYPerdidaDeMedidor`**: núcleo común extraído de
+  `seleccionarMedidorGeneral` al aparecer el segundo consumidor real
+  (conversión de unidades, `C` de la fila, tope de Tabla N°6, sin
+  verificación metrológica). `seleccionarMedidorGeneral` pasa a
+  envolverlo; su tipo público y comportamiento no cambian.
+- CRIT-A33 en `CRITERIOS.md`. 11 tests nuevos (los 10 casos pedidos +
+  validaciones). Suite 953 → 964, `tsc -b` / `vite build` verdes, lint 11
+  baseline / 0 nuevos.
+
 ### Qué NO se hizo (y por qué)
 
-- **Medidor individual** -- M3-B2, bloqueado por la decisión roja 2.
+- **M3-B2b -- cardinalidad y ubicación de medidores individuales.** Qué
+  ramales medidos existen según la configuración física real (AF, AC
+  central con ramal común medido, ACS individual sin ramal medido),
+  qué UF abastecen, dónde está el medidor respecto del origen y del
+  almacenamiento. Requiere reconstruir antes las figuras 2.2–2.7 de
+  micro-medición. No se persiste ninguna cardinalidad todavía.
 - **`EstadoModulo3`** -- M3-C. Propuesta preliminar en la corrida M3-A
   (`noIniciado` / `error` / `incompleto` / `evaluado` + `todosCumplen`,
   separando "cálculo completo" de "medidor cumple"). No implementada.
 - **Persistencia** (`esPropiedadHorizontal`, `medidorAdoptadoDN`) -- M3-C.
-- **Integración `hfMedidor` M3→M2** (reemplazo del input provisional, DTO
-  por ámbito `{ general?, porUnidadFuncional }`) -- M3-E; puede requerir
-  cerrar antes el origen hidráulico (D-δ.36/D-δ.38).
+- **Integración `hfMedidor` M3→M2** (reemplazo del input provisional) --
+  M3-E. El DTO **no** se fija todavía como
+  `porUnidadFuncional: Record<ufId, {hf}>` (una UF puede tener más de un
+  ramal medido). Dirección: `{ general?, individuales: [...] }` donde cada
+  individual declara suficiente alcance para decidir si pertenece al
+  camino de un terminal. Puede requerir cerrar antes el origen hidráulico
+  (D-δ.36/D-δ.38).
 - **Override manual de medidor adoptado** (handoff §24) -- registrado como
   cuestión abierta; patrón candidato análogo a `dnComercialAdoptado`
   (D-δ.52). Sin evidencia suficiente todavía.
@@ -4601,8 +4649,11 @@ sigue en su lugar.
 
 ### Estado
 
-**D-δ.53 -- PARCIALMENTE CERRADA.** M3-A (contrato de dominio) y M3-B0/B1
-(Tabla N°6 + selección del medidor general) cerrados. M3-B2 en adelante
-(medidor individual, `EstadoModulo3`, persistencia, integración con
-presión, UI) pendientes; M3-B2 bloqueado por la contradicción §2.6 vs
-§2.12.1.e hasta nueva decisión del usuario.
+**D-δ.53 -- PARCIALMENTE CERRADA.** Cerrados: M3-A (contrato de dominio),
+M3-B0 (Tabla N°6), M3-B1 (medidor general), M3-B2a (medidor individual por
+alcance declarado, `K=1` / CRIT-A33). Decisiones rojas 1, 2 y 3 resueltas.
+Pendientes: M3-B2b (cardinalidad/ubicación de medidores individuales,
+requiere reconstruir figuras 2.2–2.7), `EstadoModulo3` (M3-C), persistencia
+(M3-C), integración `hfMedidor` M3→M2 (M3-E), UI (M3-D), auditoría
+end-to-end (M3-F). Ninguno bloqueado por decisión roja; sí a la espera de
+la próxima decisión del usuario sobre por dónde seguir.

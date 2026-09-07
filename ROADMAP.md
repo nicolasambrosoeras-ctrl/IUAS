@@ -253,7 +253,8 @@ recalcula demanda, no toca la topología.
 - **M3-A** — contrato de dominio: arqueología del repo, inventario
   normativo verificado contra el texto oficial de la Resolución 641/2023
   (§2.6, §2.12, §2.12.1, Tabla N°6), frontera M3/M2, y resolución de las
-  decisiones rojas 1 y 3 por el usuario;
+  tres decisiones rojas por el usuario (1: M3 separado de `RedHidraulica`;
+  2: `K=1` para el medidor individual; 3: Tabla N°6 verificada);
 - **M3-B0** — Tabla N°6 (ERAS §2.12 / ISO 4064) transcripta y verificada
   (`normativa/eras-2023/tabla-06-medidores`), con `seleccionarFilaTabla06PorCaudal`
   (regla literal `Qc_tabla >= Qc`, sin interpolación de DN);
@@ -262,18 +263,28 @@ recalcula demanda, no toca la topología.
   Tabla N°6 → `hfMedidor` vía `calcularPerdidaCargaMedidor` (CRIT-A25).
   Resultado auditable; `Qc > 40 m³/h` → `fueraDeTabla06` (sin
   extrapolar); sin verificación metrológica (ERAS no publica Q1..Q4/Qmin);
+- **M3-B2a** — motor puro del **medidor individual** por unidad funcional,
+  sobre **alcance declarado** (`motor/medidores/seleccionarMedidorIndividual`):
+  `Qunit = Σ (cantidad · qu efectivo)` con **`K=1`** (simultaneidad total,
+  §2.6 / CRIT-A33), sin `Kc`/`K`/`a`; mismo `Qunit` para selección
+  (Tabla N°6) y para el `Qcl` de la pérdida. No autodetecta cantidad ni
+  ubicación de medidores; no impone "1 AF + 1 AC por UF"; no toca
+  `RedHidraulica`. Núcleo tabular compartido con el general
+  (`resolverSeleccionYPerdidaDeMedidor`);
 - **CRIT-A32** — formaliza Tabla N°6, la regla de selección y la
   inconsistencia oficial del ejemplo de "vivienda tipo" (empareja DN19 con
   `C=7`; la tabla asigna `C=5` a DN19). La tabla es la fuente de verdad.
+- **CRIT-A33** — caudal de diseño del medidor individual por simultaneidad
+  total (`K=1`): prevalece §2.6 (regla dedicada) sobre §2.12.1.e (remisión
+  genérica). La contradicción interna de la Guía queda documentada.
 
 **Pendiente:**
 
-- **M3-B2** — medidor individual por unidad funcional. **Bloqueado** por
-  la contradicción normativa §2.6 ("simultaneidad total de los consumos",
-  `K=1`) vs. §2.12.1.e (remisión a §2.9 y siguientes, `K<1`) — decisión
-  roja 2, requiere decisión del usuario. Antes: revisar figuras 2.2–2.7 de
-  micro-medición, cantidad real de medidores individuales por
-  configuración, si AF/AC siempre implican medidores separados;
+- **M3-B2b** — cardinalidad y ubicación de los medidores individuales:
+  qué ramales medidos existen según la configuración física real (AF, AC
+  central, ACS individual), qué UF abastecen, dónde está el medidor
+  respecto del origen y del almacenamiento. Requiere reconstruir antes las
+  figuras 2.2–2.7 de micro-medición. Sin decisión roja pendiente;
 - **Tabla N°8** (Anexo A de la Guía, ampliación de rango de Qc) — es una
   lámina no transcripta; se incorpora si aporta umbrales por encima de los
   40 m³/h de Tabla N°6;
