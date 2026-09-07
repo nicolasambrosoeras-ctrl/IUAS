@@ -49,6 +49,10 @@ import { conCotaDeNodo } from './actualizarRedHidraulica'
 import { TarjetaDeTerminal } from './TarjetaDeTerminal'
 import { resolverInfoCotaDeTerminal } from './resolverInfoCotaDeTerminal'
 import { filtrarCandidatosParaTerminalCritico } from './filtrarCandidatosParaTerminalCritico'
+import { resolverRedDeTerminal } from './resolverRedDeTerminal'
+import { ETIQUETA_RED } from './humanizarModulo2'
+import { ordenarCandidatosParaListado } from './ordenarCandidatosParaListado'
+import { resolverResumenDeCumplimiento } from './resolverResumenDeCumplimiento'
 
 // Mismo criterio que resolverCambioDeLongitud (resolverResultadoDeTramoParaUi.ts):
 // campo vacío = "no provisto todavía" (undefined, nunca 0); NaN o negativo
@@ -77,6 +81,26 @@ function parsearEntradaHidraulica(texto: string): number | undefined | 'ignorar'
 
 function esTerminalDeArtefacto(nodo: Nodo): nodo is Nodo & { referencia: ReferenciaDeArtefacto } {
   return nodo.referencia?.tipo === 'artefacto'
+}
+
+// D-δ.48: describirReferenciaPendiente devuelve la MISMA etiqueta para el
+// terminal AF y el terminal AC de un mismo Artefacto mixto (se deriva
+// solo de la referencia funcional UF→Local→Artefacto, nunca de la
+// conectividad física) -- sin la Red, "Terminal más desfavorable" podía
+// señalar, por ejemplo, "Unidad funcional 1 → Baño → Lavatorio" sin que
+// se supiera si es el de agua fría o el de agua caliente de esa misma
+// canilla. Se agrega acá, no en describirReferenciaPendiente, porque esa
+// función también la usa AvisoCoberturaIncompleta para artefactos que
+// TODAVÍA no tienen ninguna conexión física (ahí no hay Red que mostrar).
+function etiquetaConRed(proyecto: Proyecto, catalogoArtefactos: readonly ArtefactoNormativo[], nodoId: string, referencia: ReferenciaDeArtefacto): string {
+  const etiquetaBase = describirReferenciaPendiente(proyecto, catalogoArtefactos, referencia)
+  const red = resolverRedDeTerminal(proyecto, nodoId)
+  return red === undefined ? etiquetaBase : `${etiquetaBase} (${ETIQUETA_RED[red]})`
+}
+
+// D-δ.48, sección 22: nunca solo color -- símbolo + texto explícito.
+function simboloDeCumplimiento(cumple: boolean): string {
+  return cumple ? '✓' : '✕'
 }
 
 function textoDeEstadoModulo2(estado: EstadoModulo2): string {
@@ -158,6 +182,7 @@ export function PanelDePresionDeModulo2({
     terminalMasDesfavorable !== undefined && terminalMasDesfavorable.tipo !== 'sinCandidatoDeterminable'
       ? nodosTerminales.find((nodo) => nodo.id === terminalMasDesfavorable.nodoId)
       : undefined
+  const resumenDeCumplimiento = resolverResumenDeCumplimiento(candidatos)
 
   return (
     <section>
@@ -300,11 +325,57 @@ export function PanelDePresionDeModulo2({
         <p>El proyecto no tiene terminales hidráulicos (nodos con referencia a Artefacto) todavía.</p>
       ) : (
         <>
-          {candidatos.map(({ nodoId, resultado }) => {
+          {/* D-δ.48: resultado principal primero -- resumen agregado +
+              terminal más desfavorable -- el detalle por terminal queda
+              debajo, ordenado por margen (ver sección 17/23 del brief). */}
+          {resumenDeCumplimiento.verificables > 0 ? (
+            <p>
+              <strong>
+                {resumenDeCumplimiento.cumplen === resumenDeCumplimiento.verificables
+                  ? '✓ TODOS LOS PUNTOS VERIFICABLES CUMPLEN'
+                  : `✕ ${resumenDeCumplimiento.verificables - resumenDeCumplimiento.cumplen} DE ${resumenDeCumplimiento.verificables} PUNTOS NO CUMPLEN`}
+              </strong>
+            </p>
+          ) : null}
+
+          {terminalMasDesfavorable !== undefined ? (
+            <div>
+              <h4>Terminal más desfavorable</h4>
+              {terminalMasDesfavorable.tipo === 'sinCandidatoDeterminable' ? (
+                <p>Ningún terminal alcanzó balanceCompleto todavía.</p>
+              ) : (
+                <p>
+                  <strong>
+                    {nodoMasDesfavorable !== undefined
+                      ? etiquetaConRed(proyecto, catalogoArtefactos, terminalMasDesfavorable.nodoId, nodoMasDesfavorable.referencia)
+                      : terminalMasDesfavorable.nodoId}
+                  </strong>{' '}
+                  — Presión residual disponible: {formatearNumero(terminalMasDesfavorable.presionResidual_mca, 'm')} m.c.a., Presión
+                  mínima requerida: {formatearNumero(terminalMasDesfavorable.presionMinimaRequerida_mca, 'm')} m.c.a., Margen:{' '}
+                  {terminalMasDesfavorable.margen_mca >= 0 ? '+' : ''}
+                  {formatearNumero(terminalMasDesfavorable.margen_mca, 'm')} m.c.a. —{' '}
+                  {simboloDeCumplimiento(terminalMasDesfavorable.cumpleMinimo)}{' '}
+                  {terminalMasDesfavorable.cumpleMinimo ? 'CUMPLE' : 'NO CUMPLE'}
+                  {terminalMasDesfavorable.tipo === 'candidatoProvisional' ? (
+                    <>
+                      {' '}
+                      <small>
+                        (resultado provisional: {terminalMasDesfavorable.terminalesExcluidos.length} terminal(es)
+                        todavía sin balanceCompleto podrían resultar más desfavorables)
+                      </small>
+                    </>
+                  ) : null}
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          <h4>Terminales</h4>
+          {ordenarCandidatosParaListado(candidatos).map(({ nodoId, resultado }) => {
             const nodoDelTerminal = nodosTerminales.find((n) => n.id === nodoId)
             const etiqueta =
               nodoDelTerminal !== undefined
-                ? describirReferenciaPendiente(proyecto, catalogoArtefactos, nodoDelTerminal.referencia)
+                ? etiquetaConRed(proyecto, catalogoArtefactos, nodoId, nodoDelTerminal.referencia)
                 : nodoId
             const esRaizDelCamino = nodosRaiz.some((n) => n.id === nodoId)
             const infoCota = resolverInfoCotaDeTerminal(proyecto, nodoId, nodoDelTerminal, esRaizDelCamino, onCambiar)
@@ -319,36 +390,6 @@ export function PanelDePresionDeModulo2({
               />
             )
           })}
-
-          {terminalMasDesfavorable !== undefined ? (
-            <div>
-              <h4>Terminal más desfavorable</h4>
-              {terminalMasDesfavorable.tipo === 'sinCandidatoDeterminable' ? (
-                <p>Ningún terminal alcanzó balanceCompleto todavía.</p>
-              ) : (
-                <p>
-                  <strong>
-                    {nodoMasDesfavorable !== undefined
-                      ? describirReferenciaPendiente(proyecto, catalogoArtefactos, nodoMasDesfavorable.referencia)
-                      : terminalMasDesfavorable.nodoId}
-                  </strong>{' '}
-                  — Presidual: {formatearNumero(terminalMasDesfavorable.presionResidual_mca, 'm')}, Pmin:{' '}
-                  {formatearNumero(terminalMasDesfavorable.presionMinimaRequerida_mca, 'm')}, margen:{' '}
-                  {formatearNumero(terminalMasDesfavorable.margen_mca, 'm')} —{' '}
-                  {terminalMasDesfavorable.cumpleMinimo ? 'Cumple' : 'No cumple'}
-                  {terminalMasDesfavorable.tipo === 'candidatoProvisional' ? (
-                    <>
-                      {' '}
-                      <small>
-                        (resultado provisional: {terminalMasDesfavorable.terminalesExcluidos.length} terminal(es)
-                        todavía sin balanceCompleto podrían resultar más desfavorables)
-                      </small>
-                    </>
-                  ) : null}
-                </p>
-              )}
-            </div>
-          ) : null}
         </>
       )}
     </section>

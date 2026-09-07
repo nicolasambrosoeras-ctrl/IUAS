@@ -63,7 +63,8 @@ function textoDeEstadoDeTerminal(resultado: ResultadoPresionResidualDeCamino): s
     case 'balanceIncompleto':
       return `Incompleto (falta ${resultado.terminosFaltantes.join(', ')})`
     case 'balanceCompleto':
-      return resultado.cumpleMinimo ? 'Cumple' : 'No cumple'
+      // D-δ.48, sección 22: nunca solo color -- símbolo + texto explícito.
+      return resultado.cumpleMinimo ? '✓ Cumple' : '✕ No cumple'
   }
 }
 
