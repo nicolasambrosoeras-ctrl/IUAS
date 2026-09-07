@@ -2103,5 +2103,98 @@ El resultado es "todos esos consumos a la vez", que es lo que pide §2.6.
 declarado: recibe la lista de consumos con su `qu` efectivo ya resuelto
 para el servicio medido, suma con `K = 1`, entra a Tabla N°6 y a la
 fórmula (6)). La derivación `topología → conjunto de consumos por medidor`
-y la cardinalidad quedan para M3-B2b. Ver D-δ.53 en
+y la cardinalidad las resuelve **CRIT-A34** (M3-B2b). Ver D-δ.53 en
 `PENDIENTES-DE-ARQUITECTURA.md`.
+
+## CRIT-A34 — Cardinalidad y alcance de los medidores individuales por unidad funcional
+
+**Artículo:** ERAS-2023 §2.6, §2.19.1, §2.19.4, §2.19.5; Figuras 2.2–2.7 y
+2.14–2.16 de la Guía.
+
+**Texto/figuras oficiales** (Resolución 641/2023; las figuras son láminas,
+reconstruidas desde fuentes oficiales / AySA — ver D-δ.54 en
+`PENDIENTES-DE-ARQUITECTURA.md`):
+
+- §2.6: en propiedad horizontal (*"más de un propietario"*) es obligatorio
+  un sistema de medición individual por unidad, en *"todos los ramales de
+  agua fría y caliente que abastezcan a cada unidad funcional"*; los
+  medidores individuales *"no sustituyen al medidor general"*.
+- §2.19.1: la Guía distingue *"Sistemas individuales y centrales"* de
+  producción de agua caliente.
+- §2.19.5 + Fig. 2.16: *"Cada ramal de distribución de agua caliente
+  **desde el medidor** hasta la entrada a cada unidad funcional debe estar
+  provisto de llave de paso"* — en ACS **central** existe un medidor
+  individual de AC además del de AF.
+- §2.19.4 + Fig. 2.14/2.15: el sistema central de ACS (acumulador,
+  recirculación, medidores de AC agrupados en sala/sector común) es un
+  caso físico distinto del individual.
+- Figs. 2.4–2.7: variantes de **ubicación** del sector de micromedición
+  (sala exclusiva vs. gabinete sectorizado; con bombeo o presurización).
+  No alteran el cálculo del medidor individual ni permiten inferir el tipo
+  de ACS.
+
+**Criterio físico adoptado (interpretación IUAS):**
+
+- **Caso `individual`** (producción de ACS dentro de la UF): desde
+  instalaciones comunes entra sólo el suministro de AF, medido. El medidor
+  individual de AF está aguas arriba de la división interna AF-directa /
+  AF→producción-ACS. **Por conservación de masa** (D-δ.6) contabiliza
+  **todo** el consumo de agua de la UF: para cada artefacto su `quTotal`,
+  con independencia de a qué red(es) esté conectado físicamente. **No hay
+  medidor de AC** (no existe un ramal común de AC entrando a la UF).
+  ⇒ **1 alcance por UF**, `servicioMedido = 'aguaFria'`.
+- **Caso `central`** (producción de ACS común): AF y AC llegan a la UF por
+  ramales comunes distintos, cada uno con su medidor. Artefacto mixto:
+  `quFría` al medidor de AF y `quCaliente` al de AC (suman `quTotal`, sin
+  doble conteo). Artefacto de una sola red: su `quTotal` a esa red.
+  ⇒ **alcance de AF** siempre (si la UF tiene algún consumo conectado);
+  **alcance de AC** sólo si hay consumo de AC — **nunca un medidor de AC
+  vacío**.
+- **Sin propiedad horizontal ⇒ 0 alcances individuales.**
+
+**`individual` vs `central` es configuración física DECLARADA por UF, no
+inferida:** el modelo (`ReferenciaDeProduccionACS = { tipo: 'produccionACS' }`)
+no distingue central de individual, y **no se adopta** la convención
+"`produccionACS` dentro del subárbol de la UF ⇒ individual" — inferencia
+frágil, descartada en D-δ.54. El tipo de provisión de ACS es un dato de
+entrada (`ConfiguracionDeMedicionIndividual.tipoProvisionACSPorUnidadFuncional`),
+que M3-C podrá persistir (eventualmente como configuración global con
+override por UF). `RedHidraulica` se consulta **sólo** para la
+conectividad física de cada artefacto (CRIT-A15), vía
+`determinarConectividadFisica`.
+
+**Identidad del alcance:** `unidadFuncionalId + servicioMedido`
+(`'aguaFria' | 'aguaCaliente'`). En los esquemas normativos observados
+cada ramal medido individual identifica una UF y un servicio. **Si
+aparece evidencia real de más de un ramal medido del mismo servicio para
+la misma UF, es una decisión roja** — no se modela todavía.
+
+**Universo de consumos:** artefactos **computables** (`origen ===
+'normativo'`) y **físicamente conectados** (con al menos un terminal en
+`RedHidraulica`). Un artefacto declarado sin conexión física es una
+brecha de cobertura (S1), no un consumo de este cálculo. **El filtro de
+participación CRIT-A8** (coexistencia física por Local) **no se aplica en
+este slice**: no restar consumos es conservador para el
+dimensionamiento del medidor (medidor mayor, menor pérdida), coherente
+con *"garantizar el registro de los caudales reales máximos"* de §2.6. Su
+incorporación queda como refinamiento futuro.
+
+**Alcance — qué NO resuelve este criterio:**
+
+- No selecciona el medidor ni calcula la pérdida: eso es CRIT-A33
+  (`K = 1`) + CRIT-A32 (Tabla N°6), en
+  `motor/medidores/seleccionarMedidorIndividual.ts`. Este criterio sólo
+  produce los **alcances** (el input de ese motor).
+- No persiste nada (ni `esPropiedadHorizontal`, ni el tipo de ACS): son
+  entradas puras. La persistencia es M3-C.
+- No introduce ninguna entidad de medidor en `RedHidraulica` (decisión
+  roja 1 / D-δ.35).
+- No modela variantes de ubicación del sector de micromedición
+  (Figs. 2.4–2.7): no afectan el cálculo.
+- No cubre >1 ramal medido del mismo servicio por UF (decisión roja si
+  aparece).
+
+**Estado:** Firme como interpretación IUAS trazable, con base en figuras
+normativas reconstruidas (D-δ.54). Implementado en
+`motor/medidores/resolverAlcancesDeMedidoresIndividuales.ts`. Ver D-δ.54
+en `PENDIENTES-DE-ARQUITECTURA.md`.
