@@ -304,18 +304,21 @@ recalcula demanda, no toca la topología.
   `EstadoModulo3` visible, progressive disclosure Rápido/Profesional
   (derivado del modo de trabajo de M2, sin eje nuevo). Caudal `> 40 m³/h`
   → `'incompleto'`, nunca DN inventado.
+- **M3-D parte 2** — override manual de medidor recomendado vs. adoptado
+  (D-δ.57): `configuracionMedidores` gana `medidorGeneralAdoptadoDN?` y
+  `medidoresIndividualesAdoptadosDN?` (Record por clave `UF|servicio`);
+  `resolverMedidorAdoptado` (puro) hace el DN adoptado **hidráulicamente
+  efectivo** (C de esa fila, `hf` recalculada, `Q` intacto);
+  `resolverEstadoModulo3` los aplica; `ResultadoModulo3` pasa a
+  `recomendado`+`adoptado` por medidor; control ↓/DN/↑/Auto por Tabla N°6;
+  `criterioSeleccion: 'satisface' | 'inferiorAlRecomendado'` sin
+  `todosCumplen`. Overrides huérfanos ignorados al leer.
 
 **Pendiente:**
 
 - **Tabla N°8** (Anexo A de la Guía, ampliación de rango de Qc) — es una
   lámina no transcripta; se incorpora si aporta umbrales por encima de los
   40 m³/h de Tabla N°6;
-- **M3-D parte 2** — override manual de medidor recomendado vs. adoptado
-  (↑/↓/Auto sobre Tabla N°6, hidráulicamente efectivo, análogo a
-  `dnComercialAdoptado` de D-δ.52); campos persistidos nuevos
-  (`medidorGeneralAdoptado?`, `medidoresIndividualesAdoptados?` con
-  identidad `UF + servicio`); `resolverEstadoModulo3` los aplica; test
-  anti-stale;
 - **M3-E** — integración `hfMedidor` M3→M2: reemplazo del input provisional
   del Panel de Presión por el resultado de M3, como DTO
   `{ general?, individuales: [...] }` (una UF puede tener más de un ramal

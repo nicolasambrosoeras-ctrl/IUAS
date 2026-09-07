@@ -4974,5 +4974,101 @@ agregarla es una decisión de infraestructura aparte, no parte de M3-D.
 ### Estado
 
 **D-δ.56 -- CERRADA** para la parte 1 (configuración + resultados +
-Rápido/Profesional). M3-D parte 2 (override manual) y M3-E siguen
-pendientes, sin decisión roja.
+Rápido/Profesional). M3-D parte 2 (override manual) → D-δ.57. M3-E sigue
+pendiente, sin decisión roja.
+
+## D-δ.57 -- M3-D parte 2: override manual de medidor (recomendado vs. adoptado, hidráulicamente efectivo) -- CERRADA
+
+Segunda parte de la UI de Módulo 3. Misma filosofía que D-δ.52 para el
+DN comercial de tuberías: **recomendado** (resultado automático de Tabla
+N°6, CRIT-A32) vs. **adoptado** (decisión explícita del usuario). Sin
+override, `adoptado = recomendado`.
+
+### Persistencia (`ConfiguracionDeMedidores` ampliada)
+
+```ts
+medidorGeneralAdoptadoDN?: number
+medidoresIndividualesAdoptadosDN?: Readonly<Record<string, number>>  // clave: `${ufId}|${servicioMedido}`
+```
+
+- Optativos: un Proyecto sin overrides se comporta **idéntico** (sin
+  migración). Sólo se persiste la **decisión** (el DN); `C`, `hf` y `Q`
+  se recalculan.
+- Identidad del alcance individual: `unidadFuncionalId + servicioMedido`
+  (`claveDeAlcanceDeMedidor`, en `motor/medidores/`) -- **nunca** sólo la
+  UF.
+- Un DN que no exista en Tabla N°6 (dato persistido corrupto) se ignora
+  -- se vuelve a automático, nunca hace fallar el cálculo.
+
+### `resolverMedidorAdoptado` (`motor/medidores/`, puro)
+
+Dado el `'seleccionado'` del núcleo (B1/B2a) + el DN adoptado (o
+`undefined` = automático) devuelve `MedidorEvaluado`:
+
+```ts
+{ qcDiseno_lps, qcDiseno_m3h, qcl_lpm,
+  recomendado: { dn, C, caudalMedio, umbral, hf },
+  adoptado:    { dn, C, caudalMedio, umbral, hf,   // ← EFECTIVOS (de la fila adoptada)
+                 origen: 'automatico' | 'manual',
+                 criterioSeleccion: 'satisface' | 'inferiorAlRecomendado' } }
+```
+
+- **El DN adoptado es hidráulicamente efectivo:** `C` sale de esa fila y
+  `hf = 0,036·(Qcl/C_adoptado)²` (CRIT-A25). `Qcl` / `Qc` **no cambian**.
+- `criterioSeleccion = 'inferiorAlRecomendado'` cuando el usuario adopta
+  una fila cuyo umbral `Qc_tabla < Qc_diseño`. **No** es "fuera de rango
+  metrológico" -- ERAS no publica `Qmin`/`Q1..Q4`; sólo significa que el
+  medidor adoptado no satisface la selección automática. `hf` se sigue
+  calculando (C existe).
+
+### Orquestador (`resolverEstadoModulo3`)
+
+- Aplica los overrides: `ResultadoModulo3` pasa a
+  `{ medidorGeneral, medidoresIndividuales }` donde cada medidor es un
+  `MedidorEvaluado` (`recomendado` + `adoptado` + caudales) más el ámbito
+  y, en el individual, `unidadFuncionalId` / `servicioMedido` /
+  `nConsumos`.
+- **Aislamiento**: cambiar el override de `uf-1|aguaFria` no toca
+  `uf-1|aguaCaliente`, ni `uf-2`, ni el general.
+- **Overrides huérfanos** (clave cuyo alcance ya no existe, p. ej. tras
+  cambiar ACS individual↔central) se **ignoran** al resolver -- nunca se
+  reutilizan para otro alcance, nunca contaminan. Poda a nivel de lectura
+  (cero infra); las entradas quedan inertes en la config persistida.
+- **`EstadoModulo3` no cambia de semántica**: sigue
+  `noIniciado`/`error`/`incompleto`/`evaluado`. Un módulo puede estar
+  `'evaluado'` con un medidor adoptado inferior al recomendado -- la
+  condición vive en `adoptado.criterioSeleccion`, **no** se agrega
+  `todosCumplen`.
+
+### UI
+
+- `interfaz/paginas/resolverControlDeMedidor.ts` -- view-model del control
+  ↓ / DN / ↑ / Auto: navega por el orden **real** de Tabla N°6
+  (`15/19/25/32/38/50/60/75`), extremos → botón deshabilitado.
+- `actualizarConfiguracionMedidores.ts` -- `conMedidorGeneralAdoptado` /
+  `conMedidorIndividualAdoptado` (`'auto'` quita el override; record
+  vacío se elimina).
+- `PanelDeMedidoresDeModulo3.tsx` -- control compacto `↓ DN ↑` +
+  `Manual`/`Auto` + "recomendado: N mm" + advertencia ⚠ cuando el
+  adoptado no satisface el criterio de Tabla N°6. Se muestra en Rápido y
+  Profesional (coherencia con el control de DN de tuberías de D-δ.52).
+
+### Verificación
+
+`tsc -b` verde, `vite build` verde, el dev server sirve el panel
+reescrito sin error de transform. **Sin Playwright / tests de
+componente** (el repo no tiene esa infra). 19 tests nuevos:
+`resolverMedidorAdoptado` (incl. anti-stale D2-12: DN, C, caudal medio,
+umbral y hf del adoptado son todos de la **misma** fila),
+`resolverControlDeMedidor` (↑/↓ y extremos), updaters (aislamiento
+UF+servicio, limpieza de record vacío), y la integración en el
+orquestador (aislamiento, no-reutilización de override al cambiar ACS,
+huérfanos ignorados).
+
+### Estado
+
+**D-δ.57 -- CERRADA.** M3-D completo (parte 1 + parte 2). Pendiente sin
+decisión roja: **M3-E** (integración de `hfMedidor` M3→M2), M3-F
+(auditoría end-to-end). Menores: Tabla N°8 (`> 40 m³/h`), CRIT-A8 en el
+universo de consumos de B2b, poda activa de overrides huérfanos al
+cambiar ACS (hoy ignorados al leer).
