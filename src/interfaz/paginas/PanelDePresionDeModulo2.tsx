@@ -257,7 +257,7 @@ export function PanelDePresionDeModulo2({
         <>
           {nodosRaiz.map((nodo, indice) => (
             <label key={nodo.id} style={{ marginRight: '1rem' }}>
-              Cota del pelo de agua mínimo de cálculo{nodosRaiz.length > 1 ? ` (alimentación ${indice + 1})` : ''} [m]:{' '}
+              Pelo de agua mínimo{nodosRaiz.length > 1 ? ` (alimentación ${indice + 1})` : ''} [m]:{' '}
               <input
                 type="number"
                 step="any"
@@ -272,12 +272,6 @@ export function PanelDePresionDeModulo2({
               />
             </label>
           ))}
-          <p>
-            <small>
-              La carga disponible se obtiene de la diferencia de nivel entre el pelo de agua mínimo y la conexión del
-              artefacto.
-            </small>
-          </p>
         </>
       ) : (
         <>
@@ -298,7 +292,7 @@ export function PanelDePresionDeModulo2({
               />
             </label>
           ))}
-          <label>
+          <label style={{ marginRight: '1rem' }}>
             Presión disponible (Pdisponible) [m.c.a.]:{' '}
             <input
               type="number"
@@ -314,18 +308,10 @@ export function PanelDePresionDeModulo2({
               style={{ width: '6rem' }}
             />
           </label>
-          <p>
-            <small>
-              Condición de borde hidráulica del origen (red pública, bombeo — sin modelar todavía, D-δ.36): ingresar
-              el valor conocido en m.c.a. en el punto de alimentación.
-            </small>
-          </p>
         </>
-      )}
-
-      <h4>Medidor</h4>
+      )}{' '}
       <label>
-        Pérdida de carga del medidor (hfMedidor) [m.c.a.]:{' '}
+        Medidor provisional M3 (hfMedidor) [m.c.a.]:{' '}
         <input
           type="number"
           min={0}
@@ -340,12 +326,20 @@ export function PanelDePresionDeModulo2({
           style={{ width: '6rem' }}
         />
       </label>
-      <p>
-        <small>
-          Dato hidráulico de entrada para M2 (D-δ.35) — <strong>no representa una selección comercial de medidor</strong>.
-          Valor manual hasta completar M3.
-        </small>
-      </p>
+      <details>
+        <summary>
+          <small>¿Cómo se completan estos datos?</small>
+        </summary>
+        <p>
+          <small>
+            <strong>Tanque elevado</strong>: la carga disponible se obtiene de la diferencia de nivel entre el pelo de
+            agua mínimo y la conexión del artefacto. <strong>Presión conocida</strong>: condición de borde hidráulica
+            del origen (red pública, bombeo — sin modelar todavía, D-δ.36), en m.c.a. en el punto de alimentación.
+            <strong> Medidor</strong>: dato de entrada para M2 (D-δ.35), <em>no</em> una selección comercial de medidor
+            — valor manual hasta completar M3. Ninguno de estos tres se inventa: son condiciones externas del proyecto.
+          </small>
+        </p>
+      </details>
 
       {nodosTerminales.length === 0 ? (
         <p>El proyecto no tiene terminales hidráulicos (nodos con referencia a Artefacto) todavía.</p>

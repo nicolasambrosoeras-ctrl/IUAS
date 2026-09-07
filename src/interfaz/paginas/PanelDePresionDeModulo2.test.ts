@@ -60,8 +60,9 @@ describe('PanelDePresionDeModulo2 (UI)', () => {
     )
 
     expect(html).toContain('Presión disponible (Pdisponible) [m.c.a.]')
-    expect(html).toContain('Pérdida de carga del medidor (hfMedidor) [m.c.a.]')
-    expect(html).toContain('no representa una selección comercial de medidor')
+    expect(html).toContain('Medidor provisional M3 (hfMedidor) [m.c.a.]')
+    // D-δ.51: la aclaración se compactó dentro de un <details> "¿Cómo se completan estos datos?".
+    expect(html).toContain('una selección comercial de medidor')
   })
 
   it('sin Pdisponible provisto: pide ingresarlo, no intenta mostrar un balance con datos faltantes', () => {

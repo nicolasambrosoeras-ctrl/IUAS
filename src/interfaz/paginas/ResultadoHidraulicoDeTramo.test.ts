@@ -335,3 +335,51 @@ describe("ResultadoHidraulicoDeTramo (UI) — metodoPerdidaLocalizada 'estimado'
     },
   )
 })
+
+describe('CabeceraDeModulo2 -- toggle de modo de trabajo (D-δ.51)', () => {
+  function proyectoRapido(): Proyecto {
+    const artefacto: Artefacto = { id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }
+    const local: Local = { id: 'l1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', nivel: 0, cotaHidraulicaReferencia_m: 1, locales: [local] }
+    const nodos: Nodo[] = [
+      { id: 'n-general' },
+      { id: 'n0' },
+      { id: 'n-af', referencia: referenciaA('uf-1', 'l1', 'a1') },
+    ]
+    const tramos: Tramo[] = [
+      { id: 't-general', nodoOrigenId: 'n-general', nodoDestinoId: 'n0', red: 'AF', longitud_m: 10 },
+      { id: 't-af', nodoOrigenId: 'n0', nodoDestinoId: 'n-af', red: 'AF', longitud_m: 5 },
+    ]
+    const redHidraulica: RedHidraulica = { nodos, tramos }
+    return {
+      metadatos: metadatos(),
+      parametros: { tipoDeProyecto: 'viviendaIndividual', presionSobreAcera_m: 0, alturaArtefactoMasDesfavorable_m: 0 },
+      unidadesFuncionales: [uf],
+      redHidraulica,
+      configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'estimado', granularidadHidraulica: 'simplificada', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
+    }
+  }
+
+  it('en Rápido: muestra el toggle con Rápido activo (aria-pressed) y la config avanzada colapsada', () => {
+    const html = renderToStaticMarkup(
+      createElement(ResultadoHidraulicoDeTramo, { proyecto: proyectoRapido(), catalogoArtefactos, onCambiar: () => {} }),
+    )
+    expect(html).toContain('Modo de trabajo:')
+    expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>Rápido<\/button>/)
+    expect(html).toContain('Configuración avanzada')
+    // <details> de config avanzada SIN atributo open en Rápido
+    expect(html).toMatch(/<details><summary>Configuración avanzada<\/summary>/)
+  })
+
+  it('en Profesional: Profesional activo y config avanzada abierta', () => {
+    const proyecto: Proyecto = {
+      ...proyectoRapido(),
+      configuracionHidraulica: { ...proyectoRapido().configuracionHidraulica, granularidadHidraulica: 'profesional', metodoPerdidaLocalizada: 'detallado' },
+    }
+    const html = renderToStaticMarkup(
+      createElement(ResultadoHidraulicoDeTramo, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
+    )
+    expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>Profesional<\/button>/)
+    expect(html).toMatch(/<details open=""><summary>Configuración avanzada/)
+  })
+})

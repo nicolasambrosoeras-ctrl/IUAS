@@ -9,6 +9,7 @@
 // validarProyecto (gate en MotorDemandaPantalla), así que redHidraulica,
 // si existe, ya es estructuralmente válida y sus referencias a Artefactos
 // ya existen.
+import type { CSSProperties } from 'react'
 import type { GranularidadHidraulica, MaterialTuberiaId, MetodoPerdidaDistribuida, MetodoPerdidaLocalizada, Proyecto, TipoDeLocal } from '../../modelo/proyecto'
 import type { ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
@@ -30,6 +31,12 @@ import {
   conSistemaDeTuberia,
 } from './actualizarConfiguracionHidraulica'
 import { conLongitudDeTramo } from './actualizarRedHidraulica'
+import {
+  aplicarModoProfesional,
+  aplicarModoRapido,
+  resolverModoDeTrabajo,
+  ETIQUETA_MODO_DE_TRABAJO,
+} from './modoDeTrabajo'
 import { resolverResultadoDeTramoParaUi } from './resolverResultadoDeTramoParaUi'
 import { DimensionamientoDeTramo } from './DimensionamientoDeTramo'
 import { AccesoriosDeTramoEditor } from './AccesoriosDeTramoEditor'
@@ -95,6 +102,78 @@ function opcionesDeMaterial(materialActual: MaterialTuberiaId): readonly Materia
   }
   const actual = catalogoMaterialesTuberia.find((material) => material.id === materialActual)
   return actual === undefined ? conSistemaCompatible : [...conSistemaCompatible, actual]
+}
+
+// D-δ.51: cabecera de Módulo 2. Reemplaza la exposición simultánea de los
+// 5 selectores técnicos + párrafo largo por un toggle de MODO DE TRABAJO
+// (Rápido / Profesional -- concepto de producto derivado, ver
+// modoDeTrabajo.ts) + una línea de resumen. La configuración técnica
+// completa sigue disponible, sin perder ninguna capacidad del motor
+// (D-δ.47), dentro de "Configuración avanzada" (abierta por defecto en
+// Profesional/Avanzado, colapsada en Rápido).
+function CabeceraDeModulo2({
+  proyecto,
+  onCambiar,
+}: {
+  proyecto: Proyecto
+  onCambiar: (proyecto: Proyecto) => void
+}) {
+  const modo = resolverModoDeTrabajo(proyecto.configuracionHidraulica)
+  const botonModo = (activo: boolean): CSSProperties => ({
+    padding: '0.25rem 0.9rem',
+    fontWeight: activo ? 700 : 400,
+    border: '1px solid #888',
+    borderRadius: '999px',
+    background: activo ? '#e8f0fe' : 'transparent',
+    cursor: 'pointer',
+  })
+
+  return (
+    <section>
+      <h3>Módulo 2 · Tuberías</h3>
+      <p>
+        <strong>Modo de trabajo:</strong>{' '}
+        <button
+          type="button"
+          aria-pressed={modo === 'rapido'}
+          style={botonModo(modo === 'rapido')}
+          onClick={() => onCambiar(aplicarModoRapido(proyecto))}
+        >
+          Rápido
+        </button>{' '}
+        <button
+          type="button"
+          aria-pressed={modo === 'profesional'}
+          style={botonModo(modo === 'profesional')}
+          onClick={() => onCambiar(aplicarModoProfesional(proyecto))}
+        >
+          Profesional
+        </button>
+        {modo === 'avanzado' ? <span> · {ETIQUETA_MODO_DE_TRABAJO.avanzado} (combinación técnica personalizada)</span> : null}
+      </p>
+      {modo === 'rapido' ? (
+        <p>
+          <small>
+            IUAS calcula primero con hipótesis típicas: PPR · cálculo habitual (Hazen-Williams) · pérdidas
+            localizadas estimadas. Valores iniciales — 5&nbsp;m por Local · 10&nbsp;m alimentación · +3&nbsp;m/piso
+            según el nivel de la unidad funcional. <strong>Todos editables.</strong>
+          </small>
+        </p>
+      ) : (
+        <p>
+          <small>
+            El proyectista declara la geometría física: longitudes por Tramo, accesorios relevados, tees (CRIT-A31),
+            cotas. Sin longitud vertical automática. Longitudes iniciales propuestas (10&nbsp;m alimentación,
+            5&nbsp;m por Tramo) sólo donde faltaban.
+          </small>
+        </p>
+      )}
+      <details open={modo !== 'rapido'}>
+        <summary>Configuración avanzada</summary>
+        <ConfiguracionHidraulicaFormulario proyecto={proyecto} onCambiar={onCambiar} />
+      </details>
+    </section>
+  )
 }
 
 // Método de pérdida distribuida: configuración global y única del
@@ -351,7 +430,7 @@ export function ResultadoHidraulicoDeTramo({
         <h2>Módulo 2 — Tuberías</h2>
       </summary>
 
-      <ConfiguracionHidraulicaFormulario proyecto={proyecto} onCambiar={onCambiar} />
+      <CabeceraDeModulo2 proyecto={proyecto} onCambiar={onCambiar} />
 
       {tramos.length === 0 ? (
         <p>El proyecto no tiene una red hidráulica cargada.</p>
