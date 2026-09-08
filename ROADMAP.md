@@ -390,15 +390,26 @@ Primer módulo del bloque de reserva. Detalle en
   `VReservaDiseño = Dc·3,6·Tc` con `1 ≤ Tc ≤ 4 h` (CRIT-A35). `Qc` real de
   M1 sin redondear; `qConexion_lps` como input explícito (fuente futura:
   Tabla N°1 §2.7). Goldens G3 (Tabla N°3, 0,77 m³) y G4 (Tabla N°4,
-  ≈ 2,82 m³) componiendo M1 real. Sin `EstadoModulo4`, sin config
-  persistida, sin UI.
+  ≈ 2,82 m³) componiendo M1 real.
+- **M4-C** (D-δ.63) — `Proyecto.configuracionAbastecimiento?`
+  (`{ esquema, periodoConsumoMaximo_h? }`, global, optativa,
+  backward-compatible; `Tc` persistido porque es decisión de proyecto) +
+  `validarConfiguracionAbastecimiento` integrada en `validarProyecto` +
+  `resolverEstadoModulo4` puro (`motor/modulo4/`). `EstadoModulo4` =
+  `noIniciado | error | incompleto | evaluado`; `ResultadoModulo4`
+  discriminado (`sinReservaPorTanque` para `directa` vs `reservaCalculada`
+  para esquemas con tanque — un tanque con `déficit 0` sí produce
+  `reservaCalculada` V=0, distinto de `directa`). Compone el `Qc` real de
+  M1; `qConexion_lps` sigue como boundary input explícito (Tabla N°1 no
+  tiene resolver todavía). Sin UI, sin integración M4→M2.
 
-**Pendiente:** M4-C (`configuracionAbastecimiento` persistida +
-`EstadoModulo4`) → M4-D (UI Rápido/Profesional) → M4-E (integración M4→M2
-sólo si aparece un dato físico real necesario — hoy no) → M4-F
-(auditoría). También: derivar `Qconexión` de Tabla N°1; volumen adoptado
-vs requerido; reparto tanque de bombeo / de reserva (§2.11.3); obligación
-de reserva por §2.8 independiente del déficit.
+**Pendiente:** derivar `Qconexión` de Tabla N°1 (persistiendo diámetro de
+conexión + presión, con un resolver interpolador nuevo) → M4-D (UI
+Rápido/Profesional) → integración M4→M2 (derivar el origen de M2 desde el
+esquema y retirar el selector efímero del Panel de Presión, con regresión
+propia) → auditoría. También: volumen adoptado vs requerido; reparto
+tanque de bombeo / de reserva (§2.11.3); obligación de reserva por §2.8
+independiente del déficit.
 
 **Hallazgos de M4-A:**
 

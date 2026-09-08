@@ -6115,3 +6115,205 @@ de esta corrida.
 verificado contra los ejemplos oficiales (Tablas N°3 y N°4). Baseline
 verde. Siguiente slice: M4-C (`configuracionAbastecimiento` persistida +
 `EstadoModulo4`).
+
+## D-δ.63 -- M4-C: configuración de abastecimiento persistida + `EstadoModulo4` -- CERRADA
+
+Incremento **funcional**. Cierra el contrato persistido y el orquestador
+de Módulo 4, **sin UI**, **sin** derivar `Qconexión` de Tabla N°1 y
+**sin** integrar todavía el selector de M2.
+
+### Modelo -- `Proyecto.configuracionAbastecimiento?`
+
+Nueva configuración física **global** del proyecto, optativa y
+backward-compatible (mismo patrón que `configuracionMedidores?`):
+
+```ts
+type EsquemaDeAbastecimiento = 'directa' | 'tanqueElevado' | 'cisternaBombeoElevado'
+
+type ConfiguracionDeAbastecimiento = {
+  readonly esquema: EsquemaDeAbastecimiento
+  readonly periodoConsumoMaximo_h?: number   // Tc, decisión del proyectista, 1..4 h
+}
+```
+
+- Se llama `configuracionAbastecimiento` (no `origenHidraulico`): representa
+  **cómo se abastece físicamente** el proyecto, no la frontera del balance
+  de M2 (que se **derivará** del esquema en un slice posterior).
+- **`Tc` (`periodoConsumoMaximo_h`) se persiste** porque es una decisión de
+  proyecto, no un derivado: la norma deja elegirlo entre 1 y 4 h (§2.10.2 /
+  CRIT-A35) y cambia el resultado. Único parámetro propio de M4 hoy → vive
+  dentro de `configuracionAbastecimiento`, sin estructura adicional
+  (`configuracionModulo4` separada se evaluará si aparece un segundo
+  parámetro propio).
+- **Ausencia ≠ `directa`**: un `Proyecto` sin `configuracionAbastecimiento`
+  es M4 **no iniciado**, no "alimentación directa". Sin migración; sin
+  default persistido.
+- `ESQUEMAS_DE_ABASTECIMIENTO` (tupla `as const` en `modelo/proyecto`) es la
+  lista runtime para validar datos persistidos.
+
+### Validación -- `validarConfiguracionAbastecimiento`
+
+`src/validacion/configuracionAbastecimiento/`, integrada en
+`validarProyecto`. Dos códigos nuevos (ambos `error`):
+
+- `configuracionAbastecimientoEsquemaInvalido` -- `esquema` fuera de la
+  unión (JSON persistido corrupto).
+- `configuracionAbastecimientoPeriodoConsumoMaximoInvalido` -- `Tc`
+  presente pero no finito o fuera de `[1, 4]` h. **Nunca clamp, nunca
+  corrección silenciosa.**
+
+El chequeo de `Tc` es **independiente del esquema**: si el campo existe
+debe ser estructuralmente válido (un `directa` con un `Tc` VÁLIDO
+sobrante simplemente no lo usa; un `directa` con un `Tc` roto sí es
+error -- el dato persistido está corrupto). Ausencia de
+`configuracionAbastecimiento` **no** es un problema de validación (M4 no
+iniciado ≠ proyecto inválido); un proyecto viejo sin M4 sigue siendo
+válido.
+
+### Orquestador -- `motor/modulo4/resolverEstadoModulo4`
+
+Función pura. Firma por objeto (por el `qConexion_lps` optativo):
+
+```ts
+resolverEstadoModulo4({ proyecto, catalogoArtefactos, coeficientesMayoracion, qConexion_lps? })
+  → EstadoModulo4
+```
+
+Compone `calcularSimultaneidad` (Qc global real de M1, CRIT-A5, sin
+redondear -- mismo patrón que `resolverEstadoModulo3`) y
+`calcularReservaDiaria` (M4-B, CRIT-A35). No reimplementa nada, no toca
+M2/M3/`RedHidraulica`, no persiste.
+
+**`EstadoModulo4`** = `noIniciado | error | incompleto | evaluado`:
+
+- `noIniciado` -- sin `configuracionAbastecimiento`.
+- `error` -- `configuracionAbastecimiento` persistida estructuralmente
+  inválida. Nunca para un input todavía no disponible.
+- `incompleto` -- config válida pero falta un insumo de un esquema **con
+  tanque**: `faltaPeriodoConsumoMaximo`, `faltaCaudalDeConexion`,
+  `sinArtefactosComputables`, `qcGlobalIndeterminado` (motivos tipados;
+  los textos de UI vienen después). Se acumulan todos a la vez. El
+  esquema **`directa` nunca cae en `incompleto`**.
+- `evaluado` -- estado de cálculo determinado. **No** significa "cumple
+  normativa" (no verifica la obligatoriedad de §2.8 -- faltan datos de
+  destino/planta, slice posterior; ni compara contra un volumen adoptado
+  -- todavía no existe).
+
+**`ResultadoModulo4`** discriminado, para no representar `directa` con una
+reserva artificial:
+
+```ts
+type ResultadoModulo4 =
+  | { tipo: 'sinReservaPorTanque'; esquema: 'directa' }
+  | { tipo: 'reservaCalculada'; esquema: 'tanqueElevado' | 'cisternaBombeoElevado'; reserva: ResultadoReservaDiaria }
+```
+
+- `directa` → `evaluado` + `sinReservaPorTanque`, sin necesitar `Tc` ni
+  `Qconexión`.
+- **`Qconexión ≥ Qc` con un esquema con tanque → `evaluado` +
+  `reservaCalculada` con `déficit = 0` y `volumen = 0`** -- distinto de
+  `sinReservaPorTanque`, y la distinción sobrevive en los tipos (test E7).
+- `tanqueElevado` y `cisternaBombeoElevado` → **misma Reserva Total Diaria
+  de Diseño** (sin reparto entre tanques, §2.11.3 diferido; test E8).
+
+### Updaters -- `interfaz/paginas/actualizarConfiguracionAbastecimiento`
+
+Funciones puras (sin React), mismo lugar y patrón que
+`actualizarConfiguracionMedidores`:
+
+- `conEsquemaDeAbastecimiento(proyecto, esquema)` -- **elegir el esquema
+  es lo que inicia M4** (no hay `conModulo4Iniciado` con default: D-δ.63
+  no persiste un default preventivo; el usuario elige). `directa` descarta
+  `Tc`; entre esquemas con tanque `Tc` se conserva (mismo parámetro de
+  reserva total).
+- `conPeriodoConsumoMaximo(proyecto, número | undefined)` -- fija o quita
+  `Tc`. **Sin clamp ni validación de rango** (eso es de la capa de
+  validación; nunca se corrige el dato del usuario en silencio). Exige M4
+  ya iniciado (`throw` si no).
+
+### `qConexión` -- boundary input temporal (mini-arqueología Tabla N°1)
+
+`src/normativa/eras-2023/tabla-01-gastos-conexion/` es **sólo datos
+puros**: `tablaGastosConexion` (gasto en l/s por 8 diámetros nominales
+`0013..0075` m y presión disponible 4–35 m), `reglaInterpolacion`
+(interpolación lineal entre presiones consecutivas, §2.7),
+`diametroMinimoConexion_m = 0,019`, `rangoPresionValida_m = { min: 4,
+max: 35 }`. **No existe ninguna función selectora/interpoladora** ni test.
+Para derivar `qConexión` haría falta: (1) un campo nuevo de **diámetro de
+conexión** en el modelo (hoy `ParametrosProyecto` sólo tiene
+`presionSobreAcera_m`, `alturaArtefactoMasDesfavorable_m`,
+`tipoDeProyecto`); (2) un resolver puro con interpolación; (3) un
+criterio sobre qué presión usar (el demo carga `presionSobreAcera_m: 2`,
+**por debajo** del `rangoPresionValida_m` de la tabla) y sobre la
+selección/interpolación de diámetro. Es un slice propio.
+
+Por eso `qConexion_lps` sigue siendo **input explícito** de
+`resolverEstadoModulo4` (mismo estatus que `presionDisponible` para M2).
+**No se persiste** como resultado canónico; **no** se introduce por UI;
+**no** se deriva de Tabla N°1 -- todo eso es el siguiente slice, que
+persistirá los **datos físicos** (diámetro de conexión, presión) y no el
+`qConexión` derivado.
+
+### Tests (34 nuevos → 1087/1087, 121 archivos)
+
+- `validacion/configuracionAbastecimiento/index.test.ts` -- C1..C10:
+  proyecto sin config válido + M4 no iniciado, los tres esquemas válidos,
+  `Tc` 1/4 h válidos, `Tc` <1 / >4 / `NaN` / ±∞ → error sin clamp,
+  esquema desconocido → error, `directa` + `Tc` roto → error, integración
+  en `validarProyecto` (proyecto viejo sin M4 sigue válido; M4 mal
+  configurado invalida).
+- `motor/modulo4/resolverEstadoModulo4.test.ts` -- E1..E10 +:
+  `noIniciado`; `directa` → `evaluado`/`sinReservaPorTanque` sin `Tc` ni
+  `Qconexión`; `incompleto` por `Tc` / `Qconexión` / sin computables;
+  `evaluado`/`reservaCalculada`; **`Qconexión ≥ Qc` → `reservaCalculada`
+  V=0, no `sinReservaPorTanque`**; `tanqueElevado` == `cisternaBombeoElevado`
+  en volumen; **Qc exacto de M1 sin redondeo** (G2 → 0,771 m³ ≠ 0,792 m³);
+  pureza (no muta el `Proyecto`, idempotente); config inválida → `error`
+  no `incompleto`; acumulación de motivos.
+- `motor/modulo4/resolverEstadoModulo4.golden.test.ts` -- golden de
+  **orquestación** M1 → M4: caso G3 (Tabla N°3) a través de
+  `resolverEstadoModulo4` → `reservaCalculada` ≈ 0,7712 m³ (publicado
+  0,77).
+- `interfaz/paginas/actualizarConfiguracionAbastecimiento.test.ts` --
+  iniciar M4 al elegir esquema, inmutabilidad, cambio de esquema no toca
+  otros campos del `Proyecto`, `Tc` conservado entre esquemas con tanque,
+  `Tc` descartado al pasar a `directa`, `conPeriodoConsumoMaximo` sin
+  clamp, `throw` con M4 no iniciado, idempotencia al quitar `Tc` ausente.
+
+### Verificación
+
+`vitest` 1087/1087 (121 archivos; +34 tests, +4 archivos), `tsc -b`
+verde, `npm run build` verde, `eslint .` 11 baseline / 0 nuevos, working
+tree limpio.
+
+### Qué NO se hizo (deliberado, próximos slices)
+
+Derivar `Qconexión` de Tabla N°1 (requiere modelo de diámetro de conexión
++ resolver + criterio); UI de M4 (M4-D); integración M4→M2 (derivar el
+origen de M2 desde el esquema y eliminar el selector efímero del Panel de
+Presión, con tests de regresión propios); volumen adoptado / "a
+ejecutar"; catálogo comercial de tanques; reparto tanque de bombeo /
+reserva (§2.11.3); verificación de la obligatoriedad de reserva de §2.8
+(faltan datos de destino/planta); reserva contra incendio; población/
+dotación. Ninguno bloquea este cierre.
+
+### Decisiones rojas
+
+Ninguna. La mini-arqueología de Tabla N°1 no forzó una estructura
+persistida distinta de la propuesta; no hay en el repo un modelo de
+abastecimiento/origen persistido incompatible (el "Tipo de alimentación"
+de M2 es un selector de presentación efímero, D-δ.43); la configuración
+global alcanza para los casos que el producto ya soporta (esquemas mixtos
+por sector quedan registrados como alcance futuro y su reducción a global
+sería una decisión roja previa si el modelo llegara a representarlos).
+
+### Estado
+
+**D-δ.63 -- CERRADA.** `Proyecto.configuracionAbastecimiento` (global,
+optativa, backward-compatible), `Tc` persistido, `validarProyecto`
+integrado, `resolverEstadoModulo4` puro con `ResultadoModulo4`
+discriminado (`directa` sin reserva artificial; tanque con `déficit = 0`
+sí produce `reservaCalculada` V=0), `Qc` real de M1 reutilizado,
+`qConexión` como boundary explícito, composición M1→M4 probada. Baseline
+verde. Siguiente slice recomendado: derivar `Qconexión` de Tabla N°1
+(persistiendo diámetro de conexión + presión) **o** UI de M4 (M4-D).
