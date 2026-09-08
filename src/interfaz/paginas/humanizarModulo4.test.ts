@@ -106,6 +106,7 @@ describe('humanizarModulo4', () => {
       problema: {
         codigo: 'parametrosDiametroNominalConexionNoAdmisible',
         severidad: 'error',
+        alcance: 'abastecimiento',
         campo: 'parametros.diametroNominalConexion_m',
         valorRecibido: 0.013,
       },

@@ -10,8 +10,8 @@ import { useState } from 'react'
 import type { Proyecto, UnidadFuncional, Local, TipoDeLocal, RegimenLocal, Artefacto } from '../../modelo/proyecto'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import type { ResultadoDeCalculo, Paso, ValorCalculado } from '../../modelo/resultado'
-import type { ProblemaValidacion, CodigoValidacion } from '../../validacion'
-import { validarProyecto } from '../../validacion'
+import type { ProblemaValidacion, CodigoValidacion, AlcanceValidacion } from '../../validacion'
+import { validarProyecto, erroresQueBloqueanLaDemanda, erroresDeModulosPosteriores } from '../../validacion'
 import { calcularSimultaneidad } from '../../motor/demanda/simultaneidad/calcularSimultaneidad'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion, type TipoDeProyecto } from '../../normativa/eras-2023/coeficientes-mayoracion'
@@ -947,19 +947,65 @@ const MENSAJES_DE_VALIDACION: Readonly<Record<CodigoValidacion, string>> = {
     'El volumen adoptado del tanque de bombeo debe ser un número mayor o igual a cero.',
 }
 
+// FIX P0: sólo se muestra cuando hay un error de ALCANCE 'demanda' -- lo
+// único que impide de verdad ejecutar el Motor de Demanda. Los errores de
+// otros módulos van a RevisionesPendientes y no apagan M1. Copy sin
+// códigos internos ni "[error]" (UI-CRIT-10 / brief §15).
 function ProblemasValidacion({ problemas }: { problemas: readonly ProblemaValidacion[] }) {
   return (
-    <section>
-      <h2>Problemas de validación</h2>
-      <p>El Proyecto no es válido. El Motor de Demanda no se ejecuta.</p>
+    <div className="ui-card ui-card--config ui-stack--sm">
+      <h4 className="ui-card__titulo" style={{ color: 'var(--color-error)' }}>
+        No se puede calcular la demanda todavía
+      </h4>
       <ul>
         {problemas.map((problema, indice) => (
-          <li key={indice}>
-            [{problema.severidad}] {MENSAJES_DE_VALIDACION[problema.codigo]} ({problema.codigo})
-          </li>
+          <li key={indice}>{MENSAJES_DE_VALIDACION[problema.codigo]}</li>
         ))}
       </ul>
-    </section>
+      <p>
+        <small>Corregí los datos indicados para obtener el caudal de cálculo.</small>
+      </p>
+    </div>
+  )
+}
+
+const REVISION_POR_ALCANCE: Readonly<
+  Record<Exclude<AlcanceValidacion, 'demanda'>, { titulo: string; ancla: string }>
+> = {
+  tuberias: { titulo: 'Tuberías', ancla: '#tuberias' },
+  medidores: { titulo: 'Medidores', ancla: '#medidores' },
+  abastecimiento: { titulo: 'Abastecimiento y reserva', ancla: '#abastecimiento' },
+}
+
+// FIX P0 (brief §17): errores de módulos POSTERIORES a Demanda. No apagan
+// M1 -- se listan agrupados por su sección, con enlace a donde se
+// corrigen, y sin exponer códigos internos.
+function RevisionesPendientes({ problemas }: { problemas: readonly ProblemaValidacion[] }) {
+  if (problemas.length === 0) {
+    return null
+  }
+  const grupos = (Object.keys(REVISION_POR_ALCANCE) as Array<keyof typeof REVISION_POR_ALCANCE>)
+    .map((alcance) => ({
+      alcance,
+      mensajes: problemas.filter((p) => p.alcance === alcance).map((p) => MENSAJES_DE_VALIDACION[p.codigo]),
+    }))
+    .filter((grupo) => grupo.mensajes.length > 0)
+
+  return (
+    <div className="ui-callout ui-callout--warn ui-stack--sm" role="status">
+      <div>
+        <strong>Revisiones pendientes en otras etapas</strong>
+        <p>
+          <small>La Demanda se calcula normalmente. Estas revisiones afectan sólo a su etapa.</small>
+        </p>
+        {grupos.map(({ alcance, mensajes }) => (
+          <p key={alcance} style={{ margin: '0.35rem 0 0' }}>
+            <a href={REVISION_POR_ALCANCE[alcance].ancla}>{REVISION_POR_ALCANCE[alcance].titulo}</a>:{' '}
+            {mensajes.join(' · ')}
+          </p>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -1121,14 +1167,21 @@ export function MotorDemandaPantalla() {
     backfillLongitudesDePredimensionamiento(proyectoInicial),
   )
   const validacion = validarProyecto(proyecto, catalogoArtefactos, coeficientesMayoracion, catalogoSistemasDeTuberia)
+  // FIX P0 (UI-CRIT-10): la dependencia es M1 -> M4, nunca al revés. Sólo
+  // un error de alcance 'demanda' impide calcular Qc; un Tc fuera de rango
+  // (o cualquier error de M2/M3/M4) NO apaga M1 ni desmonta el resto de la
+  // app -- se muestra en su sección vía RevisionesPendientes.
+  const erroresDemanda = erroresQueBloqueanLaDemanda(validacion)
+  const demandaValida = erroresDemanda.length === 0
+  const erroresPosteriores = erroresDeModulosPosteriores(validacion)
 
   // UI-01C (D-δ.74): resumen compacto del proyecto para la sidebar. Se
   // arma en el punto de composición a partir de resultados YA existentes
   // (calcularSimultaneidad / resolverEstadoModulo2 / resolverEstadoModulo4),
-  // no de un nuevo motor de estado global. Sólo con un Proyecto válido:
-  // con un Proyecto inválido no hay Qc que resumir y el resto ya lo indica
-  // "Pendiente".
-  const resumen = validacion.valido
+  // no de un nuevo motor de estado global. Se calcula si M1 puede calcular
+  // Qc (demandaValida): un error de M2/M3/M4 no lo impide -- cada métrica
+  // ya cae a "Pendiente" por su cuenta.
+  const resumen = demandaValida
     ? resolverResumenDeProyecto(proyecto, catalogoArtefactos, coeficientesMayoracion)
     : undefined
 
@@ -1168,14 +1221,17 @@ export function MotorDemandaPantalla() {
             descripcion="Caudal de cálculo del proyecto"
           >
             <ProyectoFormulario proyecto={proyecto} onCambiar={setProyecto} />
-            {validacion.valido ? (
-              <ResultadoDemandaModulo1 proyecto={proyecto} />
+            {demandaValida ? (
+              <>
+                <ResultadoDemandaModulo1 proyecto={proyecto} />
+                <RevisionesPendientes problemas={erroresPosteriores} />
+              </>
             ) : (
-              <ProblemasValidacion problemas={validacion.problemas} />
+              <ProblemasValidacion problemas={erroresDemanda} />
             )}
           </SeccionDeTrabajo>
 
-          {validacion.valido ? (
+          {demandaValida ? (
             <>
               <SeccionDeTrabajo id="tuberias" nombreAccesible="Tuberías">
                 <ResultadoHidraulicoDeTramo

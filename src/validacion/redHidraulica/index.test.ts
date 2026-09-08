@@ -417,6 +417,7 @@ describe('validarRedHidraulica', () => {
       {
         codigo: 'redHidraulicaNodoTeeTramoSalidaRectaInvalido',
         severidad: 'error',
+        alcance: 'tuberias',
         campo: 'redHidraulica.nodos[1].tee.tramoSalidaRectaId',
         valorRecibido: 'tramo-inexistente',
       },

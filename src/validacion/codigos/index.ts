@@ -33,10 +33,57 @@ export type CodigoValidacion =
 
 export type Severidad = 'error' | 'advertencia';
 
+// Alcance de un problema de validación: a qué parte del pipeline pertenece
+// (UX-02 / UI-01E — FIX P0). Es una clasificación de DOMINIO, no de
+// presentación: gobierna el gating del cálculo. `calcularSimultaneidad`
+// (Demanda / M1) sólo consume la estructura del Proyecto y las referencias
+// de catálogo, así que un error de 'tuberias' / 'medidores' /
+// 'abastecimiento' NO puede impedir que M1 calcule Qc (la dependencia va
+// M1 -> M4, nunca al revés). Ver `alcanceDeCodigo` y
+// MotorDemandaPantalla (UI-CRIT-10).
+export type AlcanceValidacion = 'demanda' | 'tuberias' | 'medidores' | 'abastecimiento';
+
 export type DescripcionCodigo = {
   severidad: Severidad;
   descripcion: string;
 };
+
+// Un error bloquea el cálculo de Demanda SÓLO si su alcance es 'demanda'.
+// El resto son problemas del módulo correspondiente y se muestran en su
+// sección, sin apagar M1 ni desmontar el resto de la app.
+const ALCANCE_POR_CODIGO: Readonly<Record<CodigoValidacion, AlcanceValidacion>> = {
+  proyectoRegimenLocalAusente: 'demanda',
+  proyectoCantidadNoPositiva: 'demanda',
+  proyectoUnidadFuncionalSinLocales: 'demanda',
+  proyectoLocalSinArtefactos: 'demanda',
+  proyectoSinArtefactosComputables: 'demanda',
+  catalogoArtefactoIdInexistente: 'demanda',
+  catalogoTipoDeProyectoInexistente: 'demanda',
+  redHidraulicaNodoIdDuplicado: 'tuberias',
+  redHidraulicaTramoIdDuplicado: 'tuberias',
+  redHidraulicaTramoNodoInexistente: 'tuberias',
+  redHidraulicaTramoOrigenIgualDestino: 'tuberias',
+  redHidraulicaReferenciaArtefactoInvalida: 'tuberias',
+  redHidraulicaTramoLongitudNoPositiva: 'tuberias',
+  redHidraulicaTramoLongitudIncompatibleConCota: 'tuberias',
+  redHidraulicaTramoAccesorioTipoNoSoportado: 'tuberias',
+  redHidraulicaTramoAccesorioCantidadNoPositiva: 'tuberias',
+  redHidraulicaNodoTeeEstructuraNoSoportada: 'tuberias',
+  redHidraulicaNodoTeeTramoSalidaRectaInvalido: 'tuberias',
+  configuracionHidraulicaSistemaDeTuberiaIdInexistente: 'tuberias',
+  configuracionHidraulicaSistemaMaterialIncompatible: 'tuberias',
+  configuracionMedidoresUnidadFuncionalInexistente: 'medidores',
+  configuracionAbastecimientoEsquemaInvalido: 'abastecimiento',
+  configuracionAbastecimientoPeriodoConsumoMaximoInvalido: 'abastecimiento',
+  parametrosDiametroNominalConexionNoAdmisible: 'abastecimiento',
+  parametrosDesnivelConexionNoFinito: 'abastecimiento',
+  configuracionAbastecimientoVolumenTanqueElevadoInvalido: 'abastecimiento',
+  configuracionAbastecimientoVolumenTanqueBombeoInvalido: 'abastecimiento',
+} as const;
+
+export function alcanceDeCodigo(codigo: CodigoValidacion): AlcanceValidacion {
+  return ALCANCE_POR_CODIGO[codigo];
+}
 
 export const codigosValidacion: Readonly<Record<CodigoValidacion, DescripcionCodigo>> = {
   proyectoRegimenLocalAusente: {
@@ -167,6 +214,7 @@ export const codigosValidacion: Readonly<Record<CodigoValidacion, DescripcionCod
 export type ProblemaValidacion = {
   codigo: CodigoValidacion;
   severidad: Severidad;
+  alcance: AlcanceValidacion;
   campo: string;
   valorRecibido: unknown;
   limite?: unknown;
@@ -186,6 +234,7 @@ export function crearProblema(
   return {
     codigo,
     severidad: codigosValidacion[codigo].severidad,
+    alcance: ALCANCE_POR_CODIGO[codigo],
     campo,
     valorRecibido,
     ...(limite !== undefined ? { limite } : {}),

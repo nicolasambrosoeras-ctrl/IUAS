@@ -5,7 +5,7 @@ import type { Proyecto } from '../modelo/proyecto';
 import type { ArtefactoNormativo } from '../normativa/eras-2023/catalogo-artefactos';
 import type { TipoProyectoNormativo } from '../normativa/eras-2023/coeficientes-mayoracion';
 import type { SistemaDeTuberiaCatalogado } from '../motor/tuberias/sistemaDeTuberia';
-import type { ResultadoValidacion } from './codigos';
+import type { ProblemaValidacion, ResultadoValidacion } from './codigos';
 import { validarInvariantesDeProyecto } from './proyecto';
 import { validarReferenciasDeCatalogo } from './catalogo';
 import { validarRedHidraulica } from './redHidraulica';
@@ -36,4 +36,26 @@ export function validarProyecto(
   };
 }
 
-export type { ProblemaValidacion, ResultadoValidacion, CodigoValidacion, Severidad } from './codigos';
+export type { ProblemaValidacion, ResultadoValidacion, CodigoValidacion, Severidad, AlcanceValidacion } from './codigos';
+export { alcanceDeCodigo } from './codigos';
+
+// Errores (severidad 'error') que realmente impiden calcular la Demanda
+// (M1). Un Proyecto puede tener errores de otros módulos y aun así M1
+// calcula Qc con normalidad (UI-CRIT-10). No incluye advertencias.
+export function erroresQueBloqueanLaDemanda(
+  resultado: ResultadoValidacion,
+): readonly ProblemaValidacion[] {
+  return resultado.problemas.filter(
+    (problema) => problema.severidad === 'error' && problema.alcance === 'demanda',
+  );
+}
+
+// Errores de módulos posteriores a Demanda (Tuberías / Medidores /
+// Abastecimiento): no bloquean M1, se muestran en su sección.
+export function erroresDeModulosPosteriores(
+  resultado: ResultadoValidacion,
+): readonly ProblemaValidacion[] {
+  return resultado.problemas.filter(
+    (problema) => problema.severidad === 'error' && problema.alcance !== 'demanda',
+  );
+}
