@@ -149,6 +149,22 @@ icono + título + texto para advertencias humanizadas. No cajas rojas
 grandes para información no crítica (p. ej. presión fuera de Tabla N°1 es
 `warn`/incompleto, no error de `Proyecto`).
 
+**Badges de velocidad de M2 (DEPLOY-01 / D-δ.75).** `.ui-badge--warn`
+(Elevada, ámbar), `.ui-badge--alto` (Muy alta, naranja — token
+`--color-naranja`), `.ui-badge--error` (No admisible, rojo). Umbrales de
+comunicación 2,0 / 2,5 m/s; la inadmisibilidad la marca el dominio
+(`V > Vmax`), no la UI.
+
+**Pills de Red AF/AC (UX-02 / UI-01E, D-δ.77, UI-CRIT-09).**
+`.ui-badge--red-fria` (azul frío, tokens `--color-af*`) y
+`.ui-badge--red-caliente` (salmón, `--color-ac*`) vía el componente
+`BadgeDeRed` (la variante sale del valor `RedDeTramo`, nunca de
+`:nth-child` ni del texto). Es **identidad de categoría física**, no un
+estado: nunca reutiliza `--color-error`, y es independiente de los badges
+de velocidad. Conservan el texto "Agua fría" / "Agua caliente" — el color
+no es el único canal. Se usan donde una pill representa la Red de un tramo
+(columna "Red" de la tabla de M2, detalle de tramo en Profesional).
+
 ---
 
 ## 7. Empty states
@@ -312,6 +328,16 @@ Reglas: UF ya presente al montar → **expandida**; UF agregada o duplicada
 exclusivo); estado por `uf.id`, **no persistido**. En ≤ 560 px la cabecera
 colapsada apila nombre y resumen sin overflow horizontal.
 
+**Carga contextual de artefactos (UX-02 / UI-01E, D-δ.77).** El Local
+nuevo nace con Régimen **Domiciliario** (default, selector libre).
+"+ Agregar artefacto" propone el primer artefacto habitual del Tipo de
+Local que falte (`sugerenciaDeArtefacto`, sólo domiciliario). Cuando no
+hay candidato (agotados / cochera / otros / régimen no domiciliario) se
+abre `.m1-artefacto-borrador`: una fila `<select>` "Seleccionar
+artefacto…" **puramente de UI** — no está en `Proyecto` hasta que hay un
+tipo real. El banner `.m1-declaracion` (pregunta AF/AC) sigue al artefacto
+**efectivo** por id de fila; nunca queda stale (UI-CRIT-08).
+
 ---
 
 ## 12. Responsive
@@ -394,3 +420,6 @@ se llama "Estado del cálculo: cálculo disponible" (no "Estado de Módulo
 | **UI-CRIT-04** | El mecanismo de inicio de `noIniciado` puede variar por módulo. |
 | **UI-CRIT-05** | Estado del cálculo ≠ resultado de cumplimiento. |
 | **UI-CRIT-06** | Precisión de presentación ≠ precisión de cálculo. |
+| **UI-CRIT-07** | Los defaults de creación son contextuales y nunca reinterpretan datos existentes. |
+| **UI-CRIT-08** | La conectividad se decide sobre el artefacto efectivo, nunca sobre un tipo provisional/stale. |
+| **UI-CRIT-09** | AF/AC tienen identidad cromática de categoría física, independiente de advertencia/error. |

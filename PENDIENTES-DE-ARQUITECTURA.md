@@ -8347,10 +8347,120 @@ rearquitectura (sólo lifting a `ProyectoFormulario` + extracción de
 
 ### Estado
 
-**D-δ.76 -- CERRADA.** Se publica como `v0.4.0-beta.2` sobre el mismo
+**D-δ.76 -- CERRADA.** Publicada como `v0.4.0-beta.2` sobre el mismo
 hosting (`https://nicolasambrosoeras-ctrl.github.io/IUAS/`); el tag apunta
-al commit desplegado, `v0.4.0-beta.1` no se mueve. **UX-TEST-01 -- NO
-iniciar. REPORT-01 -- NO iniciar.**
+al commit desplegado, `v0.4.0-beta.1` no se movió. Siguiente:
+**UX-02 / UI-01E** (D-δ.77, abajo). **UX-TEST-01 -- NO iniciar.
+REPORT-01 -- NO iniciar.**
+
+## D-δ.77 -- UX-02 / UI-01E: defaults contextuales de carga + semántica visual de redes -- CERRADA (subpunto F elevado)
+
+Incremento de **carga y lectura** de M1/M2. Sólo capa de interfaz: no
+toca `motor/`, `Proyecto`, updaters, catálogo normativo ni fórmulas;
+baseline transversal M1-M4 **12/12 byte-idéntico**; suite 1252 → 1263.
+
+### Criterios de UI registrados
+
+- **UI-CRIT-07 -- Los defaults de creación son contextuales y nunca
+  reinterpretan datos existentes.** El Régimen del Local nuevo, y el
+  artefacto que propone "+ Agregar artefacto", son *defaults de creación*:
+  el usuario los cambia libremente y los Locales/Artefactos ya cargados
+  no se tocan jamás. No hay migración de `Proyecto`; un proyecto viejo
+  carga idéntico. El mapping Tipo-de-Local → artefactos habituales es
+  comportamiento de **producto**, vive en `interfaz/` (nunca en `motor/`),
+  usa ids canónicos del catálogo, y sólo cubre Régimen `domiciliario`
+  (el único con relación firme en el repo).
+- **UI-CRIT-08 -- La conectividad se decide sobre el artefacto EFECTIVO,
+  nunca sobre un tipo provisional o stale.** El orden es: determinar el
+  tipo real → crear la fila → resolver la Red (con
+  `sincronizarConectividadFisicaDeArtefacto`; si no hay precedente, se
+  pregunta AF/AC). La pregunta pendiente se referencia por **id de fila**,
+  no por tipo de catálogo: si el usuario cambia el `<select>` de esa fila
+  antes de responder, la pregunta se re-evalúa contra el tipo nuevo (se
+  cierra si ya tiene precedente inequívoco, sigue abierta apuntando al
+  tipo nuevo si no). Eliminar la fila cancela la pregunta. "Cancelar"
+  retira la fila recién creada (efecto neto idéntico al de antes de este
+  incremento: "no lo agregué después de todo").
+- **UI-CRIT-09 -- AF/AC tienen identidad cromática de CATEGORÍA física,
+  independiente de estados de advertencia/error.** Las pills de Red usan
+  azul frío (Agua fría) y salmón (Agua caliente), nunca `--color-error`
+  ni el info primario saturado. El color no es el único canal: la pill
+  conserva su texto. La variante se elige por el valor `RedDeTramo`
+  (`BadgeDeRed`), no por selectores frágiles ni por el texto. No se
+  relaciona con los badges de velocidad de M2 (semánticas separadas).
+
+### Borrador de artefacto (brief §11/§12): por qué NO toca el dominio
+
+`Artefacto.artefactoId` es un `string` no vacío que referencia el
+catálogo. Un "borrador sin tipo" NO se modela con un `artefactoId`
+ficticio (`''` / `'sinSeleccionar'`): eso contaminaría el dominio,
+dispararía la barrera de cobertura y entraría en el pipeline de demanda.
+En su lugar el borrador es **estado local de `LocalFormulario`**
+(`useState<boolean>`): renderiza una fila `<select>` "Seleccionar
+artefacto…" que no existe en `Proyecto`. Recién cuando el usuario elige
+un tipo real se ejecuta el alta normal. Sin persistencia, sin efecto en
+Qc/M2/M3/M4 mientras no haya tipo.
+
+### Cambio de flujo respecto de D-δ.52
+
+Antes: "preguntar AF/AC → crear la fila sólo al responder" (el comentario
+de `LocalFormulario` decía "en vez de crear el artefacto incompleto y
+repararlo después"). Ahora (brief §14): "crear la fila con el tipo real →
+resolver conectividad". Un `Artefacto` creado y todavía sin terminal en
+`redHidraulica` **ya era** un estado válido (la barrera de cobertura
+S1/S2 lo señala); este incremento sólo lo hace transitorio y explícito
+mientras el banner AF/AC está abierto, y lo revierte si el usuario
+Cancela. `reconciliarConectividadFisicaPorCambioDeArtefacto` (D-δ.52) se
+reutiliza tal cual para el caso "cambió el `<select>` con pregunta
+pendiente".
+
+### Subpunto F -- contador "puntos" de M2: DECISIÓN ROJA de nomenclatura
+
+**Evidencia.** El `<summary>` de cada fila de la tabla de dimensionamiento
+de M2 muestra `{etiqueta} · {nPuntos} {punto|puntos}`.
+`nPuntos = contarTerminalesFisicosDeLocal(redHidraulica, uf, local, red)`
+cuenta **Nodos terminales distintos** = una referencia de `Artefacto` por
+Red, **sin considerar `Artefacto.cantidad`**. En el proyecto de ejemplo
+todas las cantidades son 1, así que "4 puntos" == "4 artefactos"; la
+divergencia aparece sólo con `cantidad > 1` (p. ej. `Lavatorio ×2` cuenta
+como 1). Además D-δ.76 fijó, para el resumen de UF en M1, que
+"N artefactos" = **suma de `cantidad`**. Renombrar el contador de M2 a
+"artefacto(s)" sería (a) falso para `cantidad > 1` y (b) el mismo término
+con dos significados entre M1 y M2.
+
+**Alternativas.** (1) Mantener "puntos" (status quo; vago pero no falso).
+(2) "N bocas" / "N conexiones" (describe con precisión lo que se cuenta:
+puntos de conexión física a la red). (3) Hacer que M2 sume `cantidad`
+para igualar a M1 — cambia el número mostrado, lo que el brief §27
+prohíbe sin tocar topología.
+
+**Impacto.** Sólo copy en un `<summary>`; cero efecto de cálculo. Bajo
+riesgo en cualquier dirección.
+
+**Recomendación técnica.** Opción (2), "N bocas" o "N conexiones": es lo
+que la función mide y evita el choque terminológico con M1. Si se
+prefiere una sola palabra en toda la app, "conexiones".
+
+**Pregunta (a resolver, típicamente dentro de UX-TEST-01):** ¿qué palabra
+usa M2 para ese contador — "puntos" (sin cambio), "bocas" o "conexiones"?
+
+Mientras tanto se mantuvo "puntos" sin cambios; **no bloquea** el resto de
+UX-02, que se publica igual.
+
+### Decisiones rojas
+
+Sólo el subpunto F (arriba). El resto fue capa de presentación:
+`sugerenciaDeArtefacto` es un helper puro de `interfaz/`; el borrador es
+estado local; la reconciliación de la pregunta pendiente reutiliza
+primitivas D-δ.52 ya cerradas; las pills usan tokens nuevos mínimos sobre
+la paleta existente. Snapshot numérico transversal idéntico.
+
+### Estado
+
+**D-δ.77 -- CERRADA** (subpunto F elevado como decisión de nomenclatura,
+no bloqueante). Publicada como `v0.4.0-beta.3` sobre el mismo hosting; el
+tag apunta al commit desplegado, `beta.1` y `beta.2` no se mueven.
+**UX-TEST-01 -- NO iniciar. REPORT-01 -- NO iniciar.**
 
 ## Regla — `resguardo-documentacion/` es inmutable
 

@@ -700,6 +700,46 @@ salvo bug inequívoco o decisión roja explícita.
     apunta al commit desplegado y `v0.4.0-beta.1` no se mueve. Ver
     también `SISTEMA-VISUAL.md` §11b.
 
+- **D-δ.77 — UX-02 / UI-01E: defaults contextuales de carga + semántica
+  visual de redes.** Incremento de carga y lectura; sólo capa de
+  interfaz, sin hidráulica, dominio ni updaters nuevos. Baseline
+  transversal 12/12 byte-idéntico; suite 1252 → 1263.
+  - **Régimen del Local nuevo** = Domiciliario (default de creación, no un
+    bloqueo; el selector sigue libre y los Locales existentes no se
+    tocan). **UI-CRIT-07**.
+  - **Sugerencia contextual de artefacto** (`sugerenciaDeArtefacto.ts`,
+    helper puro): "+ Agregar artefacto" ya no usa `catalogoArtefactos[0]`
+    ("Inodoro con válvula automática"). Mapping `TipoLocal` → artefactos
+    habituales por prioridad (ids canónicos del catálogo `eras-2023`),
+    sólo Régimen domiciliario (baño / toilette / cocina / lavadero /
+    jardín, brief §7). Elige el primer candidato **ausente** del Local
+    (presencia por tipo, no por `cantidad`).
+  - **Borrador de UI** cuando no hay candidato (agotados, o
+    cochera/otros/régimen no domiciliario): fila "Seleccionar artefacto…"
+    puramente presentacional — no se persiste en `Proyecto`, no dispara
+    conectividad, no afecta Qc hasta que hay un tipo real.
+  - **Conectividad sobre el artefacto efectivo** (**UI-CRIT-08**): se crea
+    la fila con el tipo real y luego se resuelve la Red. La pregunta AF/AC
+    se referencia por id de fila; si el usuario cambia el `<select>` antes
+    de responder, el banner se re-deriva o se cierra (si el tipo nuevo ya
+    tiene precedente) — nunca stale. "Cancelar" retira la fila recién
+    creada.
+  - **Pills de Red AF/AC** (`BadgeDeRed`, **UI-CRIT-09**): identidad
+    cromática de categoría física — Agua fría azul/celeste, Agua caliente
+    salmón/rojo suave (nunca `--color-error`). El color no es el único
+    canal (conservan el texto). Tokens `--color-af` / `--color-ac`.
+    Independientes de los badges de velocidad (§33).
+  - **Pendiente (decisión roja, subpunto F, brief §26/§51-A):** el
+    contador de M2 "Baño 1 · N puntos" cuenta *Artefactos (filas) de ese
+    Local conectados a esa Red*, **ignorando `Artefacto.cantidad`**;
+    además D-δ.76 ya fijó "artefactos = suma de cantidades" para el
+    resumen de UF en M1. Renombrar "puntos" → "artefacto(s)" en M2 sería
+    ambiguo/contradictorio. Se dejó como está y se elevó una decisión de
+    nomenclatura; no bloquea el resto del incremento.
+  - **Publicación**: `v0.4.0-beta.3` sobre el mismo GitHub Pages; el tag
+    apunta al commit desplegado, `beta.1` y `beta.2` no se mueven. Ver
+    `SISTEMA-VISUAL.md` §6 y §11b.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal byte-idéntico). Ya no existe deuda visual
@@ -707,9 +747,11 @@ bloqueante antes de reporting.
 
 **Orden de fases tras el cierre visual:** **DEPLOY-01** (piloto web
 `v0.4.0-beta.1`, D-δ.75 — publicado) → **UX-01 / UI-01D** (UF colapsables,
-D-δ.76 — `v0.4.0-beta.2`) → **UX-TEST-01** (NO iniciada: observación de
-uso real de terceros; su output prioriza bugs / UX / contenido /
-PERSIST-01) → **REPORT-01** (NO iniciada).
+D-δ.76 — `v0.4.0-beta.2`) → **UX-02 / UI-01E** (defaults contextuales +
+redes AF/AC, D-δ.77 — `v0.4.0-beta.3`) → **UX-TEST-01** (NO iniciada:
+observación de uso real de terceros; su output prioriza bugs / UX /
+contenido / nomenclatura "puntos" de M2 / PERSIST-01) → **REPORT-01** (NO
+iniciada).
 
 **REPORT-01 — memoria técnica integral (NO iniciada).** Extender el
 generador `pdfMake` actual (hoy esencialmente M1) hacia: Datos del
@@ -763,3 +805,13 @@ de bombas, presurizadores, `hfEquipoACS`, reporting PDF de M4.
   - **Ediciones que revalidan todo el árbol** (~300 ms con proyecto
     grande) son render/DOM, no cálculo. Memoización de filas / trabajo
     incremental si molesta en uso real.
+- **Nomenclatura del contador de M2 (UX-02 / UI-01E, subpunto F).** En el
+  `<summary>` de cada fila de la tabla de dimensionamiento, "Baño 1 · N
+  puntos" cuenta *Artefactos (filas) del Local conectados a esa Red*, sin
+  considerar `Artefacto.cantidad`. No se renombró a "artefacto(s)" porque
+  (a) sería falso para `cantidad > 1` y (b) contradiría la convención
+  "artefactos = suma de cantidades" que D-δ.76 fijó para el resumen de UF
+  en M1. Opciones sobre la mesa: mantener "puntos", usar
+  "bocas"/"conexiones", o unificar contra M1 (cambiaría el número, lo que
+  el brief prohíbe sin tocar topología). A resolver en UX-TEST-01 con
+  feedback real de proyectistas.
