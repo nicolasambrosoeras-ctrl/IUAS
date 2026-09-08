@@ -49,6 +49,7 @@ import { parsearCota } from './parsearCota'
 import { calcularCotaHidraulicaDefaultDeNivel, nombreDeNivel } from './nivelUnidadFuncional'
 import { resumenDeUnidadFuncional } from './resumenDeUnidadFuncional'
 import { sugerirArtefactoParaLocal } from './sugerenciaDeArtefacto'
+import { SelectorDeModoDeTrabajo } from './SelectorDeModoDeTrabajo'
 import { proyectoInicial } from './proyectoDeEjemplo'
 
 const TIPOS_DE_LOCAL: readonly TipoDeLocal[] = [
@@ -132,6 +133,10 @@ function ArtefactoFormulario({
   onCambiarTipo: (nuevoArtefactoId: string) => void
   onEliminar: () => void
 }) {
+  // UX-02 / UI-01E (brief §41-42): `qu` sale del label del <select> (lo
+  // alargaba y ensuciaba la lectura) y pasa a metadata secundaria. Sigue
+  // visible y consultable; se lee del catálogo real, no se recalcula.
+  const quTotal_lps = catalogoArtefactos.find((c) => c.id === artefacto.artefactoId)?.quTotal_lps
   return (
     <div className="m1-artefacto">
       <select
@@ -141,7 +146,7 @@ function ArtefactoFormulario({
       >
         {catalogoArtefactos.map((catalogoItem) => (
           <option key={catalogoItem.id} value={catalogoItem.id}>
-            {catalogoItem.nombre} (qu={formatearNumero(catalogoItem.quTotal_lps, 'l/s')} l/s)
+            {catalogoItem.nombre}
           </option>
         ))}
       </select>
@@ -163,6 +168,9 @@ function ArtefactoFormulario({
       <button type="button" className="m1-btn-eliminar" aria-label="Eliminar artefacto" onClick={onEliminar}>
         Eliminar
       </button>
+      {quTotal_lps !== undefined ? (
+        <span className="m1-artefacto__qu">qu {formatearNumero(quTotal_lps, 'l/s')} L/s</span>
+      ) : null}
     </div>
   )
 }
@@ -1194,8 +1202,13 @@ export function MotorDemandaPantalla() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <h1>IUAS — Instalaciones internas</h1>
-        <p>Proyecto de ejemplo — vivienda unifamiliar · Todos los datos pueden modificarse.</p>
+        <div className="app-header__titulo">
+          <h1>IUAS — Instalaciones internas</h1>
+          <p>Proyecto de ejemplo — vivienda unifamiliar · Todos los datos pueden modificarse.</p>
+        </div>
+        {/* UX-02 / UI-01E (brief §47-49): Modo de trabajo global, a la
+            derecha del título en desktop, apilado debajo en móvil. */}
+        <SelectorDeModoDeTrabajo proyecto={proyecto} onCambiar={setProyecto} />
         {/* DEPLOY-01 (preflight D): el proyecto vive sólo en memoria de la
             pestaña -- no hay persistencia todavía (PERSIST-01 es un slice
             posterior). Aviso único, no bloqueante, sin lenguaje de alarma. */}

@@ -103,6 +103,20 @@ describe('MotorDemandaPantalla — estructura de navegación (UI-01A)', () => {
     expect(html).toContain('>Duplicar</button>')
   })
 
+  it('UX-02 / UI-01E: el selector "Modo de trabajo" es único y vive en la cabecera global', () => {
+    expect(html).toContain('class="app-modo"')
+    // exactamente un segmented control en toda la pantalla
+    expect(html.split('class="ui-segmented"').length - 1).toBe(1)
+    // en la cabecera, antes del contenido / de la etapa 01
+    expect(at(html, 'class="app-modo"')).toBeLessThan(at(html, 'class="app-contenido"'))
+    expect(at(html, 'class="app-modo"')).toBeLessThan(at(html, 'id="demanda"'))
+    // NO dentro de la sección de Tuberías
+    const tuberias = at(html, 'id="tuberias"')
+    const medidores = at(html, 'id="medidores"')
+    expect(html.slice(tuberias, medidores)).not.toContain('ui-segmented')
+    expect(html.slice(tuberias, medidores)).not.toContain('Modo de trabajo:')
+  })
+
   it('la Verificación hidráulica queda DESPUÉS de Abastecimiento (etapa final del flujo)', () => {
     expect(at(html, 'id="abastecimiento"')).toBeLessThan(at(html, 'id="verificacion-hidraulica"'))
     // y su ayuda deja claro que integra los resultados anteriores

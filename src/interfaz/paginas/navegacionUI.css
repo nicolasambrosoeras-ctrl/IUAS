@@ -13,9 +13,19 @@
 
 /* --- Cabecera de la aplicación / proyecto --- */
 .app-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--esp-sm) var(--esp-lg);
   padding: var(--esp-lg) 0 var(--esp-md);
   margin-bottom: var(--esp-lg);
   border-bottom: 1px solid var(--color-borde);
+}
+
+.app-header__titulo {
+  flex: 1 1 20rem;
+  min-width: 0;
 }
 
 .app-header h1 {
@@ -28,10 +38,30 @@
   font-size: var(--fs-ayuda);
 }
 
+/* UX-02 / UI-01E: control global "Modo de trabajo". Desktop: a la derecha
+   del título (no crece). Móvil: la cabecera envuelve y queda debajo,
+   alineado a la izquierda. */
+.app-modo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-xs) var(--esp-sm);
+  flex: 0 0 auto;
+}
+
+.app-modo__etiqueta {
+  font-size: var(--fs-meta);
+  font-weight: var(--peso-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-texto-3);
+}
+
 /* DEPLOY-01 (preflight D): aviso de piloto. Discreto, ancho acotado para
    que no domine la cabecera, y con el color de texto normal (el modifier
    --info sólo aporta el borde izquierdo verde, sin tinte de alarma). */
 .app-header p.app-aviso-piloto {
+  flex-basis: 100%;
   margin-top: var(--esp-md);
   max-width: 62ch;
   color: var(--color-texto-2);

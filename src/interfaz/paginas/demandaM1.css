@@ -165,10 +165,15 @@
   align-items: end;
 }
 
+/* UX-02 / UI-01E (brief §38-40): en desktop ancho entran 2 Locales por
+   fila; a medida que el ancho disponible baja (sidebar incluida) cae solo
+   a 1 columna -- sin breakpoint manual: cada card pide >= 26rem o el 100 %
+   del contenedor. Cada Local sigue siendo una card independiente. */
 .m1-uf__locales {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr));
   gap: var(--esp-sm);
+  align-items: start;
 }
 
 .m1-uf__ayuda {
@@ -233,6 +238,14 @@
 
 .m1-artefacto:last-of-type {
   border-bottom: none;
+}
+
+/* qu como metadata secundaria (brief §41-42): segunda línea de la fila,
+   discreta, siempre visible. */
+.m1-artefacto__qu {
+  grid-column: 1 / -1;
+  font-size: var(--fs-meta);
+  color: var(--color-texto-3);
 }
 
 .m1-artefacto__cantidad {

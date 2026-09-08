@@ -360,18 +360,22 @@ describe('CabeceraDeModulo2 -- toggle de modo de trabajo (D-δ.51)', () => {
     }
   }
 
-  it('en Rápido: muestra el toggle con Rápido activo (aria-pressed) y la config avanzada colapsada', () => {
+  // UX-02 / UI-01E (brief §47-50): el selector Rápido/Profesional se movió
+  // a la cabecera GLOBAL de la app (SelectorDeModoDeTrabajo). En M2 queda
+  // sólo la explicación del modo activo + "Configuración avanzada".
+  it('en Rápido: explicación del modo Rápido y config avanzada colapsada; SIN selector de modo en M2', () => {
     const html = renderToStaticMarkup(
       createElement(ResultadoHidraulicoDeTramo, { proyecto: proyectoRapido(), catalogoArtefactos, onCambiar: () => {} }),
     )
-    expect(html).toContain('Modo de trabajo:')
-    expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>Rápido<\/button>/)
+    expect(html).not.toContain('Modo de trabajo:')
+    expect(html).not.toMatch(/<button[^>]*aria-pressed[^>]*>(Rápido|Profesional)<\/button>/)
+    expect(html).toContain('IUAS calcula primero con hipótesis típicas')
     expect(html).toContain('Configuración avanzada')
     // <details> de config avanzada SIN atributo open en Rápido
     expect(html).toMatch(/<details><summary>Configuración avanzada<\/summary>/)
   })
 
-  it('en Profesional: Profesional activo y config avanzada abierta', () => {
+  it('en Profesional: explicación del modo Profesional y config avanzada abierta', () => {
     const proyecto: Proyecto = {
       ...proyectoRapido(),
       configuracionHidraulica: { ...proyectoRapido().configuracionHidraulica, granularidadHidraulica: 'profesional', metodoPerdidaLocalizada: 'detallado' },
@@ -379,7 +383,8 @@ describe('CabeceraDeModulo2 -- toggle de modo de trabajo (D-δ.51)', () => {
     const html = renderToStaticMarkup(
       createElement(ResultadoHidraulicoDeTramo, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
     )
-    expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>Profesional<\/button>/)
+    expect(html).not.toMatch(/<button[^>]*aria-pressed[^>]*>(Rápido|Profesional)<\/button>/)
+    expect(html).toContain('El proyectista declara la geometría física')
     expect(html).toMatch(/<details open=""><summary>Configuración avanzada/)
   })
 })

@@ -35,12 +35,7 @@ import {
   normalizarOverridesDeDnSegunSistema,
 } from './actualizarRedHidraulica'
 import { denominacionesComercialesDelSistema, resolverControlDeDnDeTramo } from './resolverControlDeDnDeTramo'
-import {
-  aplicarModoProfesional,
-  aplicarModoRapido,
-  resolverModoDeTrabajo,
-  ETIQUETA_MODO_DE_TRABAJO,
-} from './modoDeTrabajo'
+import { resolverModoDeTrabajo } from './modoDeTrabajo'
 import { nombreDeNivel } from './nivelUnidadFuncional'
 import { resolverResultadoDeTramoParaUi } from './resolverResultadoDeTramoParaUi'
 import { resolverFilaDeDimensionamiento } from './resolverFilaDeDimensionamiento'
@@ -128,35 +123,10 @@ function CabeceraDeModulo2({
 
   return (
     <section className="ui-stack--sm">
-      {/* El selector de modo es un control de vista real, no un par de
-          botones sueltos (sección 36): segmented control con el modo
-          activo claramente identificable. */}
-      <p className="ui-cluster">
-        <strong>Modo de trabajo:</strong>{' '}
-        <span className="ui-segmented" role="group" aria-label="Modo de trabajo">
-          <button
-            type="button"
-            className="ui-segmented__opcion"
-            aria-pressed={modo === 'rapido'}
-            onClick={() => onCambiar(aplicarModoRapido(proyecto))}
-          >
-            Rápido
-          </button>
-          <button
-            type="button"
-            className="ui-segmented__opcion"
-            aria-pressed={modo === 'profesional'}
-            onClick={() => onCambiar(aplicarModoProfesional(proyecto))}
-          >
-            Profesional
-          </button>
-        </span>
-        {modo === 'avanzado' ? (
-          <span className="ui-badge ui-badge--muted">
-            {ETIQUETA_MODO_DE_TRABAJO.avanzado} · combinación técnica personalizada
-          </span>
-        ) : null}
-      </p>
+      {/* UX-02 / UI-01E (brief §47-50): el selector Rápido/Profesional es
+          ahora un control GLOBAL en la cabecera de la app -- acá queda
+          sólo la explicación del modo activo y la configuración propia de
+          M2 (material, método, geometría) en "Configuración avanzada". */}
       {modo === 'rapido' ? (
         <p>
           <small>
