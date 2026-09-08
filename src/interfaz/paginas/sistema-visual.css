@@ -60,6 +60,16 @@
   --color-naranja-suave: #fbe9dd;
   --color-naranja-borde: #eec3a2;
 
+  /* UX-02 / UI-01E -- identidad de CATEGORÍA de red AF/AC (UI-CRIT-09).
+     Sutiles, distintos del info primario y del error: Agua fría en azul
+     frío, Agua caliente en salmón. Nunca reutilizan --color-error. */
+  --color-af: #1f5f9e;
+  --color-af-suave: #e8f1fa;
+  --color-af-borde: #b9d4ea;
+  --color-ac: #a4442f;
+  --color-ac-suave: #fbeae5;
+  --color-ac-borde: #e8c4b8;
+
   --color-neutro: #5b6660;
   --color-neutro-suave: #eef0ee;
   --color-neutro-borde: #d6dad4;
@@ -534,6 +544,21 @@ summary > h3 {
   border-color: var(--color-naranja-borde);
   background: var(--color-naranja-suave);
   color: var(--color-naranja);
+}
+
+/* UX-02 / UI-01E: pills de Red por categoría física (AF/AC). Sólo
+   describen a qué red pertenece el tramo -- nunca un estado de
+   advertencia/error. */
+.ui-badge--red-fria {
+  border-color: var(--color-af-borde);
+  background: var(--color-af-suave);
+  color: var(--color-af);
+}
+
+.ui-badge--red-caliente {
+  border-color: var(--color-ac-borde);
+  background: var(--color-ac-suave);
+  color: var(--color-ac);
 }
 
 .ui-badge--muted {

@@ -12,6 +12,7 @@
 import type { ReactNode } from 'react'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import { ETIQUETA_RED } from './humanizarModulo2'
+import { BadgeDeRed } from './BadgeDeRed'
 import { resolverCambioDeLongitud } from './resolverResultadoDeTramoParaUi'
 import type { EstadoDeFila, FilaDeDimensionamiento } from './resolverFilaDeDimensionamiento'
 import type { ControlDeDnDeTramo } from './resolverControlDeDnDeTramo'
@@ -124,7 +125,7 @@ export function TablaDimensionamientoDeModulo2({
                   )}
                 </td>
                 <td>
-                  <span className="ui-badge ui-badge--muted">{ETIQUETA_RED[entrada.red]}</span>
+                  <BadgeDeRed red={entrada.red} />
                 </td>
                 <td className="col-num">
                   <CeldaLongitud entrada={entrada} />

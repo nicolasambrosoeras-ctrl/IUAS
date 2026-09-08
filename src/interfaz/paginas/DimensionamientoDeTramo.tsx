@@ -14,9 +14,9 @@
 // resolverResultadoDeTramoParaUi, no vuelve a llamar al motor.
 import type { CSSProperties } from 'react'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
-import { ETIQUETA_RED } from './humanizarModulo2'
 import { resolverCambioDeLongitud, type ResultadoDeTramoParaUi } from './resolverResultadoDeTramoParaUi'
 import { BadgeVelocidad } from './BadgeVelocidad'
+import { BadgeDeRed } from './BadgeDeRed'
 
 const estiloFila: CSSProperties = {
   display: 'flex',
@@ -47,7 +47,7 @@ export function DimensionamientoDeTramo({
     <div>
       <div style={estiloFila}>
         <strong>{etiqueta}</strong>
-        <span className="ui-badge ui-badge--muted">{ETIQUETA_RED[red]}</span>
+        <BadgeDeRed red={red} />
         <label>
           Longitud [m]:{' '}
           <input
