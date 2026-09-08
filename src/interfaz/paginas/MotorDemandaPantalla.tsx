@@ -41,6 +41,7 @@ import { PanelDeModulo4 } from './PanelDeModulo4'
 import { PanelDePresionDeModulo2 } from './PanelDePresionDeModulo2'
 import { NavegacionDeSecciones, SeccionDeTrabajo } from './NavegacionDeSecciones'
 import { MetodologiaYFuentesTecnicas } from './MetodologiaYFuentesTecnicas'
+import { resolverResumenDeProyecto } from './resolverResumenDeProyecto'
 import './sistema-visual.css'
 import './navegacionUI.css'
 import './demandaM1.css'
@@ -896,6 +897,16 @@ export function MotorDemandaPantalla() {
   )
   const validacion = validarProyecto(proyecto, catalogoArtefactos, coeficientesMayoracion, catalogoSistemasDeTuberia)
 
+  // UI-01C (D-δ.74): resumen compacto del proyecto para la sidebar. Se
+  // arma en el punto de composición a partir de resultados YA existentes
+  // (calcularSimultaneidad / resolverEstadoModulo2 / resolverEstadoModulo4),
+  // no de un nuevo motor de estado global. Sólo con un Proyecto válido:
+  // con un Proyecto inválido no hay Qc que resumir y el resto ya lo indica
+  // "Pendiente".
+  const resumen = validacion.valido
+    ? resolverResumenDeProyecto(proyecto, catalogoArtefactos, coeficientesMayoracion)
+    : undefined
+
   // UI-01A (D-δ.72): shell de dos columnas (índice + contenido). El flujo
   // de trabajo se ordena Demanda → Tuberías → Medidores → Abastecimiento →
   // Verificación hidráulica; la verificación es la etapa 5 pero sigue
@@ -910,7 +921,7 @@ export function MotorDemandaPantalla() {
       </header>
 
       <div className="app-layout">
-        <NavegacionDeSecciones />
+        <NavegacionDeSecciones resumen={resumen} />
 
         <main className="app-contenido">
           {/* UI-01C (D-δ.74): el encabezado "01 Demanda" abre la etapa,

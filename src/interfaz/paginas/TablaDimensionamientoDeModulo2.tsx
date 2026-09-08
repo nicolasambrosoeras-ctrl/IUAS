@@ -13,9 +13,30 @@ import type { ReactNode } from 'react'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import { ETIQUETA_RED } from './humanizarModulo2'
 import { resolverCambioDeLongitud } from './resolverResultadoDeTramoParaUi'
-import type { FilaDeDimensionamiento } from './resolverFilaDeDimensionamiento'
+import type { EstadoDeFila, FilaDeDimensionamiento } from './resolverFilaDeDimensionamiento'
 import type { ControlDeDnDeTramo } from './resolverControlDeDnDeTramo'
 import { ControlDeDn } from './ControlDeDn'
+
+// UI-01C (§33): el estado de la fila como badge compacto. "controlar"
+// (CRIT-A24: aceptada en el menor DN comercial) es un estado admisible
+// terminal -- badge NEUTRO "DN mínimo", nunca un warning.
+function BadgeEstadoDeFila({ estado, texto }: { estado: EstadoDeFila; texto: string }) {
+  if (estado === 'ok') {
+    return (
+      <span className="ui-badge ui-badge--ok" aria-label="Verifica">
+        ✓
+      </span>
+    )
+  }
+  if (estado === 'controlar') {
+    return (
+      <span className="ui-badge ui-badge--muted" title="Diámetro comercial mínimo evaluable (CRIT-A24)">
+        DN mínimo
+      </span>
+    )
+  }
+  return <span className="ui-badge ui-badge--warn">{texto}</span>
+}
 
 export type EntradaDeTabla = {
   readonly clave: string
@@ -116,7 +137,9 @@ export function TablaDimensionamientoDeModulo2({
                 </td>
                 <td className="col-num">{fila.vTexto} m/s</td>
                 <td className="col-num">{fila.perdidaTotalTexto}</td>
-                <td className="col-estado">{fila.estadoTexto}</td>
+                <td className="col-estado">
+                  <BadgeEstadoDeFila estado={fila.estado} texto={fila.estadoTexto} />
+                </td>
               </tr>
             )
           })}

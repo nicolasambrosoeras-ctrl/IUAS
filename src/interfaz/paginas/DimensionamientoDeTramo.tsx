@@ -17,13 +17,6 @@ import type { RedDeTramo } from '../../modelo/redHidraulica'
 import { ETIQUETA_RED } from './humanizarModulo2'
 import { resolverCambioDeLongitud, type ResultadoDeTramoParaUi } from './resolverResultadoDeTramoParaUi'
 
-const estiloBadge: CSSProperties = {
-  padding: '0.05rem 0.5rem',
-  borderRadius: '999px',
-  border: '1px solid #999',
-  fontSize: '0.85em',
-}
-
 const estiloFila: CSSProperties = {
   display: 'flex',
   flexWrap: 'wrap',
@@ -53,7 +46,7 @@ export function DimensionamientoDeTramo({
     <div>
       <div style={estiloFila}>
         <strong>{etiqueta}</strong>
-        <span style={estiloBadge}>{ETIQUETA_RED[red]}</span>
+        <span className="ui-badge ui-badge--muted">{ETIQUETA_RED[red]}</span>
         <label>
           Longitud [m]:{' '}
           <input

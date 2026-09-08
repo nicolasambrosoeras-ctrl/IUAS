@@ -44,8 +44,6 @@
 // (MotorDemandaPantalla.tsx), no acá. En 'profesional' el input
 // individual se conserva sin cambios.
 import type { Proyecto } from '../../modelo/proyecto'
-import { ESQUEMAS_DE_ABASTECIMIENTO } from '../../modelo/proyecto'
-import { resolverOrigenHidraulicoEfectivo } from '../../motor/modulo4/resolverOrigenHidraulico'
 import type { Nodo, ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { catalogoMaterialesTuberia } from '../../motor/tuberias/materialTuberia'
@@ -57,12 +55,6 @@ import {
 } from '../../motor/tuberias/presion/resolverTerminalMasDesfavorable'
 import { resolverEstadoModulo2, type EstadoModulo2 } from '../../motor/modulo2/resolverEstadoModulo2'
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
-import { resolverEstadoModulo3 } from '../../motor/modulo3/resolverEstadoModulo3'
-import {
-  resolverPerdidasDeMedidoresParaTerminal,
-  type OrigenHidraulicoDeMedidores,
-  type PerdidasDeMedidoresParaTerminal,
-} from '../../motor/modulo3/resolverPerdidasDeMedidoresParaTerminal'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 import { describirReferenciaPendiente } from './ResultadoHidraulicoDeTramo'
 import { agruparMotivosDeModulo2 } from './agruparMotivosDeModulo2'
@@ -72,6 +64,7 @@ import { TarjetaDeTerminal } from './TarjetaDeTerminal'
 import { resolverInfoCotaDeTerminal } from './resolverInfoCotaDeTerminal'
 import { filtrarCandidatosParaTerminalCritico } from './filtrarCandidatosParaTerminalCritico'
 import { resolverRedDeTerminal } from './resolverRedDeTerminal'
+import { resolverEntradasDeVerificacion } from './resolverEntradasDeVerificacion'
 import { ETIQUETA_RED } from './humanizarModulo2'
 import { ordenarCandidatosParaListado } from './ordenarCandidatosParaListado'
 import { resolverResumenDeCumplimiento } from './resolverResumenDeCumplimiento'
@@ -103,6 +96,10 @@ function simboloDeCumplimiento(cumple: boolean): string {
   return cumple ? '✓' : '✕'
 }
 
+// UI-01C (D-δ.74 / UI-CRIT-05): "estado del cálculo" ≠ "resultado de
+// cumplimiento". El discriminante interno sigue siendo `completo`, pero en
+// la superficie principal ese estado se llama "cálculo disponible" para no
+// leerse como un veredicto junto a "CUMPLE / NO CUMPLE".
 function textoDeEstadoModulo2(estado: EstadoModulo2): string {
   switch (estado.estado) {
     case 'noIniciado':
@@ -112,7 +109,7 @@ function textoDeEstadoModulo2(estado: EstadoModulo2): string {
     case 'error':
       return `Error (${estado.problemas.length} problema${estado.problemas.length === 1 ? '' : 's'})`
     case 'completo':
-      return 'Completo'
+      return 'cálculo disponible'
   }
 }
 
@@ -125,70 +122,19 @@ export function PanelDePresionDeModulo2({
   catalogoArtefactos: readonly ArtefactoNormativo[]
   onCambiar: (proyecto: Proyecto) => void
 }) {
-  // M4-G (D-δ.68): el origen hidráulico se DERIVA del esquema de
-  // abastecimiento persistido -- fuente única, sin selector local. Un
-  // esquema ausente o corrupto -> `origenEfectivo` undefined -> la
-  // verificación de presión queda 'incompleta' (nunca throw, nunca un
-  // default).
+  // M4-G (D-δ.68): el origen hidráulico, la presión disponible en la raíz
+  // y la pérdida de medidores por terminal se DERIVAN del Proyecto
+  // (esquema de abastecimiento persistido + M3). UI-01C (D-δ.74): esa
+  // derivación se extrajo a `resolverEntradasDeVerificacion` porque ahora
+  // tiene un segundo consumidor -- el resumen compacto del proyecto en la
+  // sidebar. Un esquema ausente o corrupto -> `origenEfectivo` undefined
+  // -> la verificación de presión queda 'incompleta' (nunca throw).
   const esquemaAbastecimiento = proyecto.configuracionAbastecimiento?.esquema
-  const esquemaValido =
-    esquemaAbastecimiento !== undefined &&
-    (ESQUEMAS_DE_ABASTECIMIENTO as readonly string[]).includes(esquemaAbastecimiento)
-  const origenEfectivo = esquemaValido ? resolverOrigenHidraulicoEfectivo(esquemaAbastecimiento) : undefined
-
-  // Condición de borde para el balance (D-δ.38):
-  //  - tanque elevado -> Pdisponible = 0; la carga la expresa Δz (raíz =
-  //    pelo de agua mínimo).
-  //  - alimentación directa -> Pdisponible = presión sobre acera
-  //    (`presionSobreAcera_m`, editable en el Panel de Módulo 4). NO se le
-  //    resta `desnivelConexion_m`: ese desnivel es sólo de Tabla N°1.
-  //  - sin origen derivable -> undefined (verificación incompleta).
-  const presionDisponible_mca =
-    origenEfectivo === 'tanqueElevado'
-      ? 0
-      : origenEfectivo === 'directa'
-        ? proyecto.parametros.presionSobreAcera_m
-        : undefined
+  const { origenEfectivo, origenTexto, presionDisponible_mca, perdidasDeMedidoresDeTerminal, hfMedidorDeTerminal } =
+    resolverEntradasDeVerificacion(proyecto, catalogoArtefactos, coeficientesMayoracion)
 
   const nodosTerminales = proyecto.redHidraulica?.nodos.filter(esTerminalDeArtefacto) ?? []
 
-  // M3-E (D-δ.58): la pérdida de medidores aplicable a cada terminal la
-  // produce M3, según origen hidráulico + UF + red del terminal + tipo de
-  // ACS. El origen ahora viene del esquema global (D-δ.68): directa -> el
-  // medidor general entra al camino; tanque elevado (y cisterna+bombeo) ->
-  // queda aguas arriba del almacenamiento y NO entra.
-  const origenHidraulico: OrigenHidraulicoDeMedidores | undefined =
-    origenEfectivo === 'tanqueElevado'
-      ? 'tanqueElevado'
-      : origenEfectivo === 'directa'
-        ? 'alimentacionDirecta'
-        : undefined
-  const estadoModulo3 = resolverEstadoModulo3(proyecto, catalogoArtefactos, coeficientesMayoracion)
-
-  const perdidasDeMedidoresDeTerminal = (nodoTerminalId: string): PerdidasDeMedidoresParaTerminal | undefined => {
-    if (origenHidraulico === undefined) {
-      // Sin esquema de abastecimiento no hay origen del que derivar si el
-      // medidor general pertenece al camino -- coherente con que tampoco
-      // haya balance de presión.
-      return undefined
-    }
-    const nodo = nodosTerminales.find((n) => n.id === nodoTerminalId)
-    const red = resolverRedDeTerminal(proyecto, nodoTerminalId)
-    if (nodo === undefined || red === undefined) {
-      return undefined
-    }
-    return resolverPerdidasDeMedidoresParaTerminal({
-      estadoModulo3,
-      configuracionMedidores: proyecto.configuracionMedidores,
-      unidadFuncionalIdDelTerminal: nodo.referencia.unidadFuncionalId,
-      redDelTerminal: red,
-      origenHidraulico,
-    })
-  }
-  const hfMedidorDeTerminal = (nodoTerminalId: string): number | undefined => {
-    const perdidas = perdidasDeMedidoresDeTerminal(nodoTerminalId)
-    return perdidas?.estado === 'determinadas' ? perdidas.hfTotal_mca : undefined
-  }
   // Nodos raiz (sin ningun Tramo entrante): resolverDesnivelDeCamino
   // necesita su cota_m tanto como la del terminal -- se exponen acá para
   // poder completar Δz desde la UI sin un editor gráfico de topología.
@@ -259,7 +205,6 @@ export function PanelDePresionDeModulo2({
     resultadoCritico?.tipo === 'balanceCompleto'
       ? proyecto.redHidraulica?.nodos.find((n) => n.id === resultadoCritico.raizId)?.cota_m
       : undefined
-  const origenTexto = origenEfectivo === 'tanqueElevado' ? 'Tanque elevado' : 'Alimentación directa'
 
   const motivosAgrupados =
     estadoModulo2.estado === 'incompleto'
@@ -267,35 +212,39 @@ export function PanelDePresionDeModulo2({
       : []
 
   return (
-    <section>
+    <section className="ui-stack">
       <h3>Verificación de presión</h3>
       <p>
         <small>
-          Estado de Módulo 2: <strong>{textoDeEstadoModulo2(estadoModulo2)}</strong>
+          Estado del cálculo: <strong>{textoDeEstadoModulo2(estadoModulo2)}</strong>
         </small>
       </p>
 
-      <h4>Alimentación</h4>
+      {/* UI-CRIT-02 (sección 20): la alimentación es DATO/DECISIÓN de
+          entrada de la verificación, no su resultado -- superficie de
+          configuración, separada de la card de veredicto. */}
+      <div className="ui-card ui-card--config ui-stack--sm">
+        <h4 className="ui-card__titulo">Datos para la verificación</h4>
 
-      {origenEfectivo === undefined ? (
-        <p>
-          <small>
-            Configurá el esquema de abastecimiento en el <strong>Módulo 4</strong> para verificar la presión.
-          </small>
-        </p>
-      ) : (
-        <>
+        {origenEfectivo === undefined ? (
           <p>
             <small>
-              Origen hidráulico: <strong>{origenTexto}</strong> — derivado del esquema de abastecimiento del
-              Módulo 4.
-              {esquemaAbastecimiento === 'cisternaBombeoElevado'
-                ? ' El esquema incluye cisterna y bombeo aguas arriba del tanque elevado.'
-                : ''}
+              Configurá el esquema de abastecimiento en el <strong>Módulo 4</strong> para verificar la presión.
             </small>
           </p>
+        ) : (
+          <>
+            <p>
+              <small>
+                Origen hidráulico: <strong>{origenTexto}</strong> — derivado del esquema de abastecimiento del
+                Módulo 4.
+                {esquemaAbastecimiento === 'cisternaBombeoElevado'
+                  ? ' El esquema incluye cisterna y bombeo aguas arriba del tanque elevado.'
+                  : ''}
+              </small>
+            </p>
 
-          {origenEfectivo === 'tanqueElevado' ? (
+            {origenEfectivo === 'tanqueElevado' ? (
             nodosRaiz.map((nodo, indice) => (
               <label key={nodo.id} style={{ marginRight: '1rem' }}>
                 Pelo de agua mínimo{nodosRaiz.length > 1 ? ` (alimentación ${indice + 1})` : ''} [m]:{' '}
@@ -340,24 +289,25 @@ export function PanelDePresionDeModulo2({
               </p>
             </>
           )}
-        </>
-      )}
-      <details>
-        <summary>
-          <small>¿Cómo se completan estos datos?</small>
-        </summary>
-        <p>
-          <small>
-            El <strong>origen hidráulico</strong> se toma del esquema de abastecimiento del Módulo 4 (D-δ.68).
-            <strong> Tanque elevado</strong> (esquemas con tanque, incluido cisterna + bombeo): la carga disponible se
-            obtiene de la diferencia de nivel entre el pelo de agua mínimo y la conexión del artefacto.
-            <strong> Alimentación directa</strong>: la condición de borde es la presión sobre el nivel de acera
-            (<code>presionSobreAcera_m</code>), que se edita en el Módulo 4. La <strong>pérdida de los medidores</strong>{' '}
-            la calcula el Módulo 3 según ese origen y el camino de cada terminal (D-δ.58). Completá el Módulo 3 —
-            Medidores para cerrar el balance.
-          </small>
-        </p>
-      </details>
+          </>
+        )}
+        <details>
+          <summary>
+            <small>¿Cómo se completan estos datos?</small>
+          </summary>
+          <p>
+            <small>
+              El <strong>origen hidráulico</strong> se toma del esquema de abastecimiento del Módulo 4 (D-δ.68).
+              <strong> Tanque elevado</strong> (esquemas con tanque, incluido cisterna + bombeo): la carga disponible se
+              obtiene de la diferencia de nivel entre el pelo de agua mínimo y la conexión del artefacto.
+              <strong> Alimentación directa</strong>: la condición de borde es la presión sobre el nivel de acera
+              (<code>presionSobreAcera_m</code>), que se edita en el Módulo 4. La{' '}
+              <strong>pérdida de los medidores</strong> la calcula el Módulo 3 según ese origen y el camino de cada
+              terminal (D-δ.58). Completá el Módulo 3 — Medidores para cerrar el balance.
+            </small>
+          </p>
+        </details>
+      </div>
 
       {nodosTerminales.length === 0 ? (
         <p>El proyecto no tiene terminales hidráulicos (nodos con referencia a Artefacto) todavía.</p>
@@ -365,9 +315,12 @@ export function PanelDePresionDeModulo2({
         // Estado incompleto (brief seccion 24): el protagonista es "qué
         // falta", agrupado -- nunca una lista de N terminales repitiendo
         // el mismo motivo. El detalle por terminal queda detras de un
-        // disclosure secundario para auditoria.
-        <div>
-          <h4>⚠ No se puede calcular la presión todavía</h4>
+        // disclosure secundario para auditoria. UI-01C (§17): superficie
+        // NEUTRA -- "falta información" no es un error catastrófico.
+        <div className="ui-card ui-card--config ui-stack--sm">
+          <h4 className="ui-card__titulo" style={{ color: 'var(--color-advertencia)' }}>
+            No se puede calcular la presión todavía
+          </h4>
           {motivosAgrupados.length > 0 ? (
             <>
               <p>Para completar Módulo 2:</p>
@@ -411,7 +364,16 @@ export function PanelDePresionDeModulo2({
           ) : null}
         </div>
       ) : (
-        <div className="ui-card ui-card--resultado ui-stack--sm">
+        // UI-01C (§17-18): la variante visual de la card se deriva
+        // EXCLUSIVAMENTE del veredicto ya calculado (`cumpleGlobal`) -- no
+        // se recalcula cumplimiento. CUMPLE → superficie verde suave;
+        // NO CUMPLE → superficie roja suave. El color refuerza, nunca es
+        // el único indicador (el badge lleva símbolo + texto).
+        <div
+          className={`ui-card ui-card--resultado ui-stack--sm ${
+            cumpleGlobal ? 'ui-card--ok' : 'ui-card--error'
+          }`}
+        >
           {/* Verdict protagonista y conclusión visual del flujo (secciones
               25-27, 38, 79): el veredicto global se lee de un vistazo. */}
           <p className="ui-cluster" style={{ fontSize: '1.15em' }}>

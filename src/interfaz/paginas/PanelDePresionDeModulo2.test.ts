@@ -114,9 +114,13 @@ describe('PanelDePresionDeModulo2 (UI)', () => {
     expect(html).toContain('no tiene terminales hidráulicos')
   })
 
-  it('muestra el estado de Módulo 2 (resolverEstadoModulo2) sin recalcular hidráulica en React', () => {
+  it('muestra el estado del cálculo (resolverEstadoModulo2) sin recalcular hidráulica en React', () => {
+    // UI-01C (D-δ.74 / UI-CRIT-05): la línea se llama "Estado del cálculo"
+    // en la superficie principal para no leerse como un veredicto de
+    // cumplimiento; el discriminante interno (resolverEstadoModulo2) no
+    // cambia.
     const html = render(proyectoCon([]))
-    expect(html).toContain('Estado de Módulo 2')
+    expect(html).toContain('Estado del cálculo')
     expect(html).toContain('No iniciado')
   })
 

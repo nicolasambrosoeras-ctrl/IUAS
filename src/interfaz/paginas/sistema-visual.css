@@ -423,6 +423,21 @@ summary > h3 {
   border-color: var(--color-primario-borde);
 }
 
+/* Variantes semánticas de resultado (UI-01C §17-18): el color refuerza el
+   veredicto ya calculado; nunca es el único indicador (icono + texto en
+   el badge). */
+.ui-card--ok {
+  border-color: var(--color-exito-borde);
+  border-left: 3px solid var(--color-exito);
+  background: var(--color-exito-suave);
+}
+
+.ui-card--error {
+  border-color: var(--color-error-borde);
+  border-left: 3px solid var(--color-error);
+  background: var(--color-error-suave);
+}
+
 /* --- Ritmo vertical --- */
 .ui-stack > * + * {
   margin-top: var(--esp-md);
@@ -687,6 +702,89 @@ summary > h3 {
    overflow global (secciones 28, 45). */
 .tabla-scroll {
   overflow-x: auto;
+}
+
+/* --- Control de DN adoptado (↓ DN ↑ · Auto), UI-01C §31-32 ---
+   Presentación compacta y coherente; conserva ↓/↑/Auto/manual, el
+   disabled en los extremos y el comportamiento exacto (el motor consume
+   `Tramo.dnComercialAdoptado`). */
+.control-dn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.1rem;
+  white-space: nowrap;
+}
+
+.control-dn__valor {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.control-dn__dn {
+  min-width: 3.5em;
+  text-align: right;
+  font-weight: var(--peso-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.control-dn__paso {
+  min-height: 1.6rem;
+  min-width: 1.6rem;
+  padding: 0 0.3rem;
+  font-size: var(--fs-ayuda);
+  line-height: 1;
+}
+
+.control-dn__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: var(--fs-meta);
+  color: var(--color-texto-3);
+}
+
+.control-dn__auto {
+  min-height: 1.4rem;
+  padding: 0.05rem 0.4rem;
+  font-size: var(--fs-meta);
+  background: transparent;
+  border-color: var(--color-borde);
+  color: var(--color-primario);
+}
+
+/* --- Configuración hidráulica avanzada de M2 (UI-01C §34): grupos por
+   concepto en vez de una sucesión plana de selects --- */
+.config-hidraulica {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-md);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.config-hidraulica__grupo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--esp-sm) var(--esp-lg);
+}
+
+.config-hidraulica__grupo > label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--esp-xs);
+}
+
+.config-hidraulica__grupo > p {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.config-hidraulica__grupo > details {
+  flex-basis: 100%;
 }
 
 /* ==================================================================

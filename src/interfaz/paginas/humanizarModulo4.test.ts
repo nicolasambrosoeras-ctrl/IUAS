@@ -9,6 +9,7 @@ import {
   formatearCaudal_lps,
   formatearPresion_m,
   formatearVolumen_L,
+  formatearVolumen_L_rapido,
   formatearVolumen_m3,
   litrosDesde_m3,
   litrosParaInput,
@@ -67,6 +68,16 @@ describe('humanizarModulo4', () => {
       expect(litrosParaInput(1)).toBe(1000)
       expect(litrosParaInput(1.5005)).toBe(1500.5)
       expect(litrosParaInput(0.75)).toBe(750)
+    })
+
+    it('formatearVolumen_L_rapido redondea al litro entero SÓLO para mostrar (UI-01C §39)', () => {
+      // El valor de cálculo/persistencia sigue siendo el m³ exacto; esto
+      // es sólo presentación en modo Rápido.
+      expect(formatearVolumen_L_rapido(0.484732)).toBe('485')
+      expect(formatearVolumen_L_rapido(0.015268)).toBe('15')
+      expect(formatearVolumen_L_rapido(0.7711688248)).toBe('771')
+      expect(formatearVolumen_L_rapido(1)).toBe('1000')
+      expect(formatearVolumen_L_rapido(0)).toBe('0')
     })
   })
 

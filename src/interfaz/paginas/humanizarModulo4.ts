@@ -85,6 +85,15 @@ export function litrosParaInput(valor_m3: number): number {
   return Number((valor_m3 * LITROS_POR_M3).toFixed(6))
 }
 
+// UI-01C (D-δ.74 / UI-CRIT-06): en modo Rápido, "484,732 L" comunica una
+// precisión comercial que la escala doméstica no tiene. Se redondea al
+// litro entero SÓLO PARA MOSTRAR -- el core, la persistencia y los CRIT
+// siguen con el valor exacto en m³ (§40). El modo Profesional mantiene
+// `formatearVolumen_L` (hasta 3 decimales) + el equivalente en m³.
+export function formatearVolumen_L_rapido(valor_m3: number): string {
+  return Math.round(litrosDesde_m3(valor_m3)).toLocaleString('es-AR', { useGrouping: false })
+}
+
 export function describirMotivoIncompletitudModulo4(motivo: DiagnosticoIncompletitudModulo4): string {
   switch (motivo.tipo) {
     case 'faltaPeriodoConsumoMaximo':

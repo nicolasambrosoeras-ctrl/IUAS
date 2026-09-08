@@ -53,6 +53,7 @@ import {
   formatearPresion_m,
   formatearVolumen_m3,
   formatearVolumen_L,
+  formatearVolumen_L_rapido,
   litrosParaInput,
   m3DesdeLitros,
 } from './humanizarModulo4'
@@ -285,7 +286,19 @@ function TrazaDeConexion({
   )
 }
 
-function VerificacionDeAdopcion({ adopcion }: { adopcion: ResultadoAdopcionDeReserva }) {
+function VerificacionDeAdopcion({
+  adopcion,
+  esProfesional,
+}: {
+  adopcion: ResultadoAdopcionDeReserva
+  esProfesional: boolean
+}) {
+  // UI-01C (§39): en Rápido los volúmenes se muestran redondeados al
+  // litro; en Profesional con precisión completa. Sólo presentación -- el
+  // valor persistido (m³) no cambia.
+  const volL = (valor_m3: number): string =>
+    esProfesional ? formatearVolumen_L(valor_m3) : formatearVolumen_L_rapido(valor_m3)
+
   if (adopcion.tipo === 'noAplica') {
     return null
   }
@@ -330,17 +343,17 @@ function VerificacionDeAdopcion({ adopcion }: { adopcion: ResultadoAdopcionDeRes
         <tbody>
           <tr>
             <th>Reserva requerida</th>
-            <td>{formatearVolumen_L(adopcion.volumenRequerido_m3)} L</td>
+            <td>{volL(adopcion.volumenRequerido_m3)} L</td>
           </tr>
           <tr>
             <th>Volumen adoptado</th>
-            <td>{formatearVolumen_L(adopcion.volumenAdoptado_m3)} L</td>
+            <td>{volL(adopcion.volumenAdoptado_m3)} L</td>
           </tr>
           <tr>
             <th>Diferencia</th>
             <td>
               {adopcion.diferencia_m3 >= 0 ? '+' : ''}
-              {formatearVolumen_L(adopcion.diferencia_m3)} L
+              {volL(adopcion.diferencia_m3)} L
             </td>
           </tr>
           <tr>
@@ -359,16 +372,16 @@ function VerificacionDeAdopcion({ adopcion }: { adopcion: ResultadoAdopcionDeRes
         <tbody>
           <tr>
             <th>Reserva Total Diaria requerida</th>
-            <td>{formatearVolumen_L(adopcion.volumenRequerido_m3)} L</td>
+            <td>{volL(adopcion.volumenRequerido_m3)} L</td>
           </tr>
           <tr>
             <th>Mínimo por tanque (1/3)</th>
-            <td>{formatearVolumen_L(adopcion.minimoPorTanque_m3)} L</td>
+            <td>{volL(adopcion.minimoPorTanque_m3)} L</td>
           </tr>
           <tr>
             <th>Tanque de bombeo / cisterna</th>
             <td>
-              {formatearVolumen_L(adopcion.volumenTanqueBombeoAdoptado_m3)} L ·{' '}
+              {volL(adopcion.volumenTanqueBombeoAdoptado_m3)} L ·{' '}
               {marca(adopcion.tanqueBombeoCumpleMinimo)}
               {adopcion.tanqueBombeoCumpleMinimo ? 'cumple el mínimo' : 'no alcanza el mínimo'}
             </td>
@@ -376,7 +389,7 @@ function VerificacionDeAdopcion({ adopcion }: { adopcion: ResultadoAdopcionDeRes
           <tr>
             <th>Tanque elevado / reserva</th>
             <td>
-              {formatearVolumen_L(adopcion.volumenTanqueElevadoAdoptado_m3)} L ·{' '}
+              {volL(adopcion.volumenTanqueElevadoAdoptado_m3)} L ·{' '}
               {marca(adopcion.tanqueElevadoCumpleMinimo)}
               {adopcion.tanqueElevadoCumpleMinimo ? 'cumple el mínimo' : 'no alcanza el mínimo'}
             </td>
@@ -384,7 +397,7 @@ function VerificacionDeAdopcion({ adopcion }: { adopcion: ResultadoAdopcionDeRes
           <tr>
             <th>Total adoptado</th>
             <td>
-              {formatearVolumen_L(adopcion.totalAdoptado_m3)} L · {marca(adopcion.totalCumple)}
+              {volL(adopcion.totalAdoptado_m3)} L · {marca(adopcion.totalCumple)}
               {adopcion.totalCumple ? 'cubre la reserva' : 'no cubre la reserva'}
             </td>
           </tr>
@@ -407,11 +420,13 @@ function AdopcionDeCapacidad({
   proyecto,
   onCambiar,
   adopcion,
+  esProfesional,
 }: {
   esquema: 'tanqueElevado' | 'cisternaBombeoElevado'
   proyecto: Proyecto
   onCambiar: OnCambiar
   adopcion: ResultadoAdopcionDeReserva
+  esProfesional: boolean
 }) {
   const config = proyecto.configuracionAbastecimiento
   return (
@@ -465,7 +480,7 @@ function AdopcionDeCapacidad({
           />
         </label>
       </p>
-      <VerificacionDeAdopcion adopcion={adopcion} />
+      <VerificacionDeAdopcion adopcion={adopcion} esProfesional={esProfesional} />
     </div>
   )
 }
@@ -505,11 +520,17 @@ function ResultadoDeReserva({
           </>
         ) : (
           // Resultado protagonista de M4 (sección 25): la reserva requerida
-          // se lee a simple vista, en litros; m³ como equivalente
-          // secundario sólo en Profesional (UI-CRIT-03 / D-δ.71).
+          // se lee a simple vista, en litros; en Rápido redondeada al litro
+          // (UI-CRIT-06 / §39), en Profesional con precisión completa + m³
+          // equivalente (UI-CRIT-03 / D-δ.71).
           <div className="ui-metrica">
             <span className="ui-metrica__etiqueta">Reserva requerida</span>
-            <span className="ui-metrica__valor">{formatearVolumen_L(reserva.volumenReservaDiseno_m3)} L</span>
+            <span className="ui-metrica__valor">
+              {esProfesional
+                ? formatearVolumen_L(reserva.volumenReservaDiseno_m3)
+                : formatearVolumen_L_rapido(reserva.volumenReservaDiseno_m3)}{' '}
+              L
+            </span>
             {esProfesional ? (
               <span className="ui-metrica__nota">{formatearVolumen_m3(reserva.volumenReservaDiseno_m3)} m³</span>
             ) : null}
@@ -559,6 +580,7 @@ function ResultadoDeReserva({
           proyecto={proyecto}
           onCambiar={onCambiar}
           adopcion={resultado.adopcion}
+          esProfesional={esProfesional}
         />
       </div>
     </div>

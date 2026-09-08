@@ -60,13 +60,6 @@ import { AccesoriosDeTramoEditor } from './AccesoriosDeTramoEditor'
 import { TeeDeNodoEditor } from './TeeDeNodoEditor'
 import { conLongitudDeTramo } from './actualizarRedHidraulica'
 
-const estiloCard = {
-  border: '1px solid #ddd',
-  borderRadius: '0.5rem',
-  padding: '0.75rem 1rem',
-  marginBottom: '1rem',
-}
-
 function SeccionDeTeeInline({
   proyecto,
   catalogoArtefactos,
@@ -354,7 +347,7 @@ export function LocalYRedCard({
   const granularidadHidraulica = proyecto.configuracionHidraulica.granularidadHidraulica
 
   return (
-    <article style={mostrarEncabezado ? estiloCard : undefined}>
+    <article className={mostrarEncabezado ? 'ui-card' : undefined}>
       {mostrarEncabezado ? (
         <h4>
           {etiquetaLocal} — {ETIQUETA_RED[red]}

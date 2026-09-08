@@ -5,6 +5,8 @@
 // desmonta módulos; todas las etapas permanecen montadas.
 import { useEffect, useState, type ReactNode } from 'react'
 import { EncabezadoDeEtapa } from './EncabezadoDeEtapa'
+import { ResumenDeProyectoPanel } from './ResumenDeProyecto'
+import type { ResumenDeProyecto } from './resolverResumenDeProyecto'
 
 // Las cinco etapas del flujo de trabajo del proyectista (UI-CRIT-01):
 // Demanda → Tuberías → Medidores → Abastecimiento → Verificación
@@ -95,7 +97,7 @@ function useSaltoInicialAlAncla(): void {
   }, [])
 }
 
-export function NavegacionDeSecciones() {
+export function NavegacionDeSecciones({ resumen }: { resumen?: ResumenDeProyecto | undefined }) {
   const activa = useSeccionActiva(SECCIONES.map((seccion) => seccion.id))
   useSaltoInicialAlAncla()
 
@@ -119,6 +121,10 @@ export function NavegacionDeSecciones() {
           )
         })}
       </ol>
+      {/* Resumen compacto del proyecto (UI-01C §23): consume resultados
+          existentes vía `resolverResumenDeProyecto`; no calcula ni
+          persiste nada. Se oculta en la barra horizontal (≤ 900 px). */}
+      {resumen !== undefined ? <ResumenDeProyectoPanel resumen={resumen} /> : null}
     </nav>
   )
 }

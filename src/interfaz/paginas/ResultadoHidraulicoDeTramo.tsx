@@ -199,104 +199,118 @@ function ConfiguracionHidraulicaFormulario({
   proyecto: Proyecto
   onCambiar: (proyecto: Proyecto) => void
 }) {
+  // UI-01C (§34): la configuración avanzada se agrupa por CONCEPTOS ya
+  // existentes (método de cálculo · geometría de relevamiento · tubería)
+  // en vez de una sucesión plana de selects. Sin nuevas categorías de
+  // dominio: los mismos cinco controles y updaters.
   return (
-    <section>
-      <h3>Configuración hidráulica</h3>
-      <label>
-        Método de cálculo de pérdidas distribuidas:{' '}
-        <select
-          value={proyecto.configuracionHidraulica.metodoPerdidaDistribuida}
-          onChange={(evento) =>
-            onCambiar(conMetodoPerdidaDistribuida(proyecto, evento.target.value as MetodoPerdidaDistribuida))
-          }
-        >
-          <option value="hazenWilliams">Hazen-Williams</option>
-          <option value="darcyWeisbach">Darcy-Weisbach</option>
-        </select>
-      </label>
-      <label>
-        Pérdidas localizadas:{' '}
-        <select
-          value={proyecto.configuracionHidraulica.metodoPerdidaLocalizada}
-          onChange={(evento) =>
-            onCambiar(conMetodoPerdidaLocalizada(proyecto, evento.target.value as MetodoPerdidaLocalizada))
-          }
-        >
-          <option value="detallado">Detalladas (relevamiento de accesorios)</option>
-          <option value="estimado">Estimadas (cálculo habitual)</option>
-        </select>
-      </label>
-      <label>
-        Granularidad hidráulica:{' '}
-        <select
-          value={proyecto.configuracionHidraulica.granularidadHidraulica}
-          onChange={(evento) =>
-            onCambiar(conGranularidadHidraulica(proyecto, evento.target.value as GranularidadHidraulica))
-          }
-        >
-          <option value="simplificada">Simplificada (Local + red)</option>
-          <option value="profesional">Profesional (cada tramo real)</option>
-        </select>
-      </label>
-      <p>
-        <small>
-          Simplificada: longitud y accesorios se cargan una sola vez por Local+red -- los ramales hacia cada
-          Artefacto no piden datos propios. Profesional: cada tramo físico real (incluidos los ramales) admite su
-          propia longitud y accesorios, para modelar recorridos internos distintos hasta cada Artefacto.
-        </small>
-      </p>
-      <label>
-        Material de la tubería:{' '}
-        <select
-          value={proyecto.configuracionHidraulica.materialTuberiaId}
-          onChange={(evento) => {
-            const conNuevoMaterial = conMaterialTuberia(
-              proyecto,
-              evento.target.value as MaterialTuberiaId,
-              catalogoSistemasDeTuberia,
-            )
-            // D-δ.52: descartar los overrides de DN que ya no existan en el
-            // catálogo del sistema resultante.
-            onCambiar(
-              normalizarOverridesDeDnSegunSistema(
-                conNuevoMaterial,
-                denominacionesComercialesDelSistema(conNuevoMaterial.configuracionHidraulica.sistemaDeTuberiaId),
-              ),
-            )
-          }}
-        >
-          {opcionesDeMaterial(proyecto.configuracionHidraulica.materialTuberiaId).map((material) => (
-            <option key={material.id} value={material.id}>
-              {material.nombre}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        Sistema de tubería:{' '}
-        <select
-          value={proyecto.configuracionHidraulica.sistemaDeTuberiaId}
-          onChange={(evento) => {
-            const conNuevoSistema = conSistemaDeTuberia(proyecto, evento.target.value)
-            onCambiar(
-              normalizarOverridesDeDnSegunSistema(
-                conNuevoSistema,
-                denominacionesComercialesDelSistema(evento.target.value),
-              ),
-            )
-          }}
-        >
-          {catalogoSistemasDeTuberia.map((sistema) => (
-            <option key={sistema.id} value={sistema.id}>
-              {sistema.denominacion}
-            </option>
-          ))}
-        </select>
-      </label>
-      <details>
-        <summary>Parámetros de cálculo</summary>
-        <ParametroDeCalculoDelMaterial proyecto={proyecto} />
-      </details>
+    <section className="config-hidraulica">
+      <fieldset className="config-hidraulica__grupo">
+        <legend>Método de cálculo</legend>
+        <label>
+          Pérdidas distribuidas:{' '}
+          <select
+            value={proyecto.configuracionHidraulica.metodoPerdidaDistribuida}
+            onChange={(evento) =>
+              onCambiar(conMetodoPerdidaDistribuida(proyecto, evento.target.value as MetodoPerdidaDistribuida))
+            }
+          >
+            <option value="hazenWilliams">Hazen-Williams</option>
+            <option value="darcyWeisbach">Darcy-Weisbach</option>
+          </select>
+        </label>
+        <label>
+          Pérdidas localizadas:{' '}
+          <select
+            value={proyecto.configuracionHidraulica.metodoPerdidaLocalizada}
+            onChange={(evento) =>
+              onCambiar(conMetodoPerdidaLocalizada(proyecto, evento.target.value as MetodoPerdidaLocalizada))
+            }
+          >
+            <option value="detallado">Detalladas (relevamiento de accesorios)</option>
+            <option value="estimado">Estimadas (cálculo habitual)</option>
+          </select>
+        </label>
+        <details>
+          <summary>Parámetros de cálculo</summary>
+          <ParametroDeCalculoDelMaterial proyecto={proyecto} />
+        </details>
+      </fieldset>
+
+      <fieldset className="config-hidraulica__grupo">
+        <legend>Geometría de relevamiento</legend>
+        <label>
+          Granularidad hidráulica:{' '}
+          <select
+            value={proyecto.configuracionHidraulica.granularidadHidraulica}
+            onChange={(evento) =>
+              onCambiar(conGranularidadHidraulica(proyecto, evento.target.value as GranularidadHidraulica))
+            }
+          >
+            <option value="simplificada">Simplificada (Local + red)</option>
+            <option value="profesional">Profesional (cada tramo real)</option>
+          </select>
+        </label>
+        <p>
+          <small>
+            Simplificada: longitud y accesorios se cargan una sola vez por Local+red -- los ramales hacia cada
+            Artefacto no piden datos propios. Profesional: cada tramo físico real (incluidos los ramales) admite su
+            propia longitud y accesorios, para modelar recorridos internos distintos hasta cada Artefacto.
+          </small>
+        </p>
+      </fieldset>
+
+      <fieldset className="config-hidraulica__grupo">
+        <legend>Tubería</legend>
+        <label>
+          Material:{' '}
+          <select
+            value={proyecto.configuracionHidraulica.materialTuberiaId}
+            onChange={(evento) => {
+              const conNuevoMaterial = conMaterialTuberia(
+                proyecto,
+                evento.target.value as MaterialTuberiaId,
+                catalogoSistemasDeTuberia,
+              )
+              // D-δ.52: descartar los overrides de DN que ya no existan en el
+              // catálogo del sistema resultante.
+              onCambiar(
+                normalizarOverridesDeDnSegunSistema(
+                  conNuevoMaterial,
+                  denominacionesComercialesDelSistema(conNuevoMaterial.configuracionHidraulica.sistemaDeTuberiaId),
+                ),
+              )
+            }}
+          >
+            {opcionesDeMaterial(proyecto.configuracionHidraulica.materialTuberiaId).map((material) => (
+              <option key={material.id} value={material.id}>
+                {material.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Sistema:{' '}
+          <select
+            value={proyecto.configuracionHidraulica.sistemaDeTuberiaId}
+            onChange={(evento) => {
+              const conNuevoSistema = conSistemaDeTuberia(proyecto, evento.target.value)
+              onCambiar(
+                normalizarOverridesDeDnSegunSistema(
+                  conNuevoSistema,
+                  denominacionesComercialesDelSistema(evento.target.value),
+                ),
+              )
+            }}
+          >
+            {catalogoSistemasDeTuberia.map((sistema) => (
+              <option key={sistema.id} value={sistema.id}>
+                {sistema.denominacion}
+              </option>
+            ))}
+          </select>
+        </label>
+      </fieldset>
     </section>
   )
 }

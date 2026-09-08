@@ -1,0 +1,62 @@
+/* UI-01C (D-δ.74) — resumen compacto del proyecto en la sidebar (§23).
+   Sólo presentación. */
+
+.resumen-proyecto {
+  margin-top: var(--esp-sm);
+  padding: var(--esp-sm) var(--esp-sm) var(--esp-xs);
+  border-top: 1px solid var(--color-borde);
+}
+
+.resumen-proyecto__titulo {
+  margin: 0 0 var(--esp-xs);
+  font-size: var(--fs-meta);
+  font-weight: var(--peso-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-texto-3);
+}
+
+.resumen-proyecto__fila {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  padding: var(--esp-xs) 0;
+}
+
+.resumen-proyecto__fila + .resumen-proyecto__fila {
+  border-top: 1px solid var(--color-borde);
+}
+
+.resumen-proyecto__etiqueta {
+  font-size: var(--fs-meta);
+  color: var(--color-texto-2);
+}
+
+.resumen-proyecto__valor {
+  font-size: var(--fs-ayuda);
+  font-weight: var(--peso-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-texto);
+}
+
+.resumen-proyecto__valor--positivo {
+  color: var(--color-exito);
+}
+
+.resumen-proyecto__valor--negativo {
+  color: var(--color-error);
+}
+
+.resumen-proyecto__pendiente {
+  font-weight: var(--peso-regular);
+  color: var(--color-texto-3);
+}
+
+/* En la barra horizontal (tablet/mobile) el resumen no cabe de forma
+   legible: se oculta (§58). El usuario sigue teniendo cada resultado en
+   su etapa. */
+@media (max-width: 900px) {
+  .resumen-proyecto {
+    display: none;
+  }
+}

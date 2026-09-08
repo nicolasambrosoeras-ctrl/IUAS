@@ -24,8 +24,8 @@ export function MetodologiaYFuentesTecnicas() {
         este catálogo no provienen de una tabla publicada por ERAS-2023; su origen se indica para cada material.
       </p>
       <p>Darcy-Weisbach es una metodología técnica adoptada por el proyecto, no una prescripción específica de ERAS-2023.</p>
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ borderCollapse: 'collapse' }}>
+      <div className="tabla-scroll">
+        <table className="tabla-tecnica">
           <thead>
             <tr>
               <th>Material</th>

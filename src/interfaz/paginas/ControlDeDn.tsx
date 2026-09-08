@@ -3,17 +3,11 @@
 // vía Tramo.dnComercialAdoptado) -- este componente sólo cambia esa
 // denominación. ↑/↓ se mueven por el catálogo comercial real; se
 // deshabilitan en los extremos.
-import type { CSSProperties } from 'react'
+//
+// UI-01C (§31-32): presentación compacta coherente con el sistema visual
+// (clases `.control-dn*` en sistema-visual.css, sin inline styles) y
+// nombres accesibles explícitos en los botones. Comportamiento intacto.
 import type { ControlDeDnDeTramo } from './resolverControlDeDnDeTramo'
-
-const estiloBoton: CSSProperties = {
-  border: '1px solid #999',
-  background: 'transparent',
-  borderRadius: '4px',
-  cursor: 'pointer',
-  padding: '0 0.35rem',
-  lineHeight: 1.4,
-}
 
 export function ControlDeDn({
   control,
@@ -27,34 +21,45 @@ export function ControlDeDn({
     return <>—</>
   }
   return (
-    <span style={{ whiteSpace: 'nowrap', display: 'inline-flex', gap: '0.2rem', alignItems: 'baseline' }}>
-      <button
-        type="button"
-        aria-label="Diámetro comercial inmediato inferior"
-        disabled={control.anterior === null}
-        onClick={() => control.anterior !== null && onCambiarDnAdoptado(control.anterior)}
-        style={estiloBoton}
-      >
-        ↓
-      </button>
-      <strong>{control.denominacionAdoptada}</strong>
-      <button
-        type="button"
-        aria-label="Diámetro comercial inmediato superior"
-        disabled={control.siguiente === null}
-        onClick={() => control.siguiente !== null && onCambiarDnAdoptado(control.siguiente)}
-        style={estiloBoton}
-      >
-        ↑
-      </button>
-      {control.origen === 'manual' ? (
-        <>
-          <small style={{ opacity: 0.7 }}>manual</small>
-          <button type="button" onClick={() => onCambiarDnAdoptado(undefined)} style={estiloBoton}>
-            Auto
-          </button>
-        </>
-      ) : null}
+    <span className="control-dn">
+      <span className="control-dn__valor">
+        <button
+          type="button"
+          className="control-dn__paso"
+          aria-label="Adoptar el DN comercial inmediato inferior"
+          disabled={control.anterior === null}
+          onClick={() => control.anterior !== null && onCambiarDnAdoptado(control.anterior)}
+        >
+          ↓
+        </button>
+        <span className="control-dn__dn">{control.denominacionAdoptada}</span>
+        <button
+          type="button"
+          className="control-dn__paso"
+          aria-label="Adoptar el DN comercial inmediato superior"
+          disabled={control.siguiente === null}
+          onClick={() => control.siguiente !== null && onCambiarDnAdoptado(control.siguiente)}
+        >
+          ↑
+        </button>
+      </span>
+      <span className="control-dn__meta">
+        {control.origen === 'manual' ? (
+          <>
+            <span>Manual</span>
+            <button
+              type="button"
+              className="control-dn__auto"
+              aria-label="Volver al DN recomendado automáticamente"
+              onClick={() => onCambiarDnAdoptado(undefined)}
+            >
+              Auto
+            </button>
+          </>
+        ) : (
+          <span>Auto</span>
+        )}
+      </span>
     </span>
   )
 }
