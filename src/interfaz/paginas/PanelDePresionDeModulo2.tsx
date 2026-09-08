@@ -65,6 +65,7 @@ import { resolverInfoCotaDeTerminal } from './resolverInfoCotaDeTerminal'
 import { filtrarCandidatosParaTerminalCritico } from './filtrarCandidatosParaTerminalCritico'
 import { resolverRedDeTerminal } from './resolverRedDeTerminal'
 import { resolverEntradasDeVerificacion } from './resolverEntradasDeVerificacion'
+import { resolverCoherenciaDeCotasDeTanque } from '../../motor/modulo4/resolverCoherenciaDeCotasDeTanque'
 import { ETIQUETA_RED } from './humanizarModulo2'
 import { ordenarCandidatosParaListado } from './ordenarCandidatosParaListado'
 import { resolverResumenDeCumplimiento } from './resolverResumenDeCumplimiento'
@@ -281,23 +282,52 @@ export function PanelDePresionDeModulo2({
                 </small>
               </p>
             ) : (
-            nodosRaiz.map((nodo, indice) => (
-              <label key={nodo.id} style={{ marginRight: '1rem' }}>
-                Pelo de agua mínimo{nodosRaiz.length > 1 ? ` (alimentación ${indice + 1})` : ''} [m]:{' '}
-                <input
-                  type="number"
-                  step="any"
-                  value={nodo.cota_m ?? ''}
-                  onChange={(evento) => {
-                    const resultado = parsearCota(evento.target.value)
-                    if (resultado !== 'ignorar') {
-                      onCambiar(conCotaDeNodo(proyecto, nodo.id, resultado))
-                    }
-                  }}
-                  style={{ width: '4.5rem' }}
-                />
-              </label>
-            ))
+            <>
+              {nodosRaiz.map((nodo, indice) => {
+                const coherencia = resolverCoherenciaDeCotasDeTanque({
+                  esquema: esquemaAbastecimiento,
+                  granularidad: proyecto.configuracionHidraulica.granularidadHidraulica,
+                  cotaPeloDeAguaMinimo_m: nodo.cota_m,
+                  desnivelConexion_m: proyecto.parametros.desnivelConexion_m,
+                })
+                return (
+                  <div key={nodo.id}>
+                    <label style={{ marginRight: '1rem' }}>
+                      Pelo de agua mínimo (cota respecto de la acera)
+                      {nodosRaiz.length > 1 ? ` — alimentación ${indice + 1}` : ''} [m]:{' '}
+                      <input
+                        type="number"
+                        step="any"
+                        value={nodo.cota_m ?? ''}
+                        onChange={(evento) => {
+                          const resultado = parsearCota(evento.target.value)
+                          if (resultado !== 'ignorar') {
+                            onCambiar(conCotaDeNodo(proyecto, nodo.id, resultado))
+                          }
+                        }}
+                        style={{ width: '4.5rem' }}
+                      />
+                    </label>
+                    {coherencia.tipo === 'peloEncimaDeLaAlimentacion' ? (
+                      <p className="ui-callout ui-callout--warn" role="alert">
+                        <small>
+                          Revisá las cotas: el pelo de agua mínimo informado
+                          ({formatearNumero(coherencia.cotaPeloDeAguaMinimo_m, 'm')} m) queda por encima del punto de
+                          alimentación del tanque
+                          ({formatearNumero(coherencia.desnivelAlimentacionTanque_m, 'm')} m).
+                        </small>
+                      </p>
+                    ) : null}
+                  </div>
+                )
+              })}
+              <p>
+                <small>
+                  Positivo = por encima de la acera; negativo = por debajo. Mismo nivel de referencia que el punto de
+                  alimentación del tanque en Abastecimiento y reserva.
+                </small>
+              </p>
+            </>
             )
           ) : (
             <>

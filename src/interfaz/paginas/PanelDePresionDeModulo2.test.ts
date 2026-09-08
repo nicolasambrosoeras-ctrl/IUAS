@@ -49,17 +49,22 @@ function proyectoCon(
     redHidraulica?: RedHidraulica
     configuracionAbastecimiento?: ConfiguracionDeAbastecimiento
     presionSobreAcera_m?: number
+    desnivelConexion_m?: number
+    granularidadHidraulica?: 'simplificada' | 'profesional'
   } = {},
 ): Proyecto {
   return {
     metadatos: metadatos(),
-    parametros: parametros(opciones.presionSobreAcera_m ?? 0),
+    parametros: {
+      ...parametros(opciones.presionSobreAcera_m ?? 0),
+      ...(opciones.desnivelConexion_m !== undefined ? { desnivelConexion_m: opciones.desnivelConexion_m } : {}),
+    },
     unidadesFuncionales,
     ...(opciones.redHidraulica !== undefined ? { redHidraulica: opciones.redHidraulica } : {}),
     configuracionHidraulica: {
       metodoPerdidaDistribuida: 'hazenWilliams',
       metodoPerdidaLocalizada: 'detallado',
-      granularidadHidraulica: 'profesional',
+      granularidadHidraulica: opciones.granularidadHidraulica ?? 'profesional',
       materialTuberiaId: 'ppr',
       sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
     },
@@ -161,6 +166,97 @@ describe('PanelDePresionDeModulo2 (UI)', () => {
     expect(html).toContain('Origen hidráulico: <strong>Tanque elevado</strong>')
     expect(html).toContain('cisterna y bombeo aguas arriba del tanque elevado')
     expect(html).toContain('Pelo de agua mínimo')
+  })
+
+  // --- D-δ.79 P1/P2: pelo de agua mínimo efectivo + coherencia de cotas ---
+
+  function redConRaizConCota(cota_m: number): RedHidraulica {
+    const { red } = ufConTerminal()
+    return { ...red, nodos: red.nodos.map((n) => (n.id === 'raiz' ? { ...n, cota_m } : n)) }
+  }
+
+  it('P2: Profesional + tanque elevado — etiqueta con datum explícito y nota de signo', () => {
+    const { uf } = ufConTerminal()
+    const html = render(
+      proyectoCon([uf], {
+        redHidraulica: redConRaizConCota(10),
+        configuracionAbastecimiento: { esquema: 'tanqueElevado' },
+        desnivelConexion_m: 12,
+      }),
+    )
+    expect(html).toContain('Pelo de agua mínimo (cota respecto de la acera)')
+    expect(html).toContain('Positivo = por encima de la acera; negativo = por debajo')
+  })
+
+  it('P2: pelo de agua mínimo por encima del punto de alimentación → advertencia no bloqueante (no rompe el cálculo)', () => {
+    const { uf } = ufConTerminal()
+    const html = render(
+      proyectoCon([uf], {
+        redHidraulica: redConRaizConCota(15),
+        configuracionAbastecimiento: { esquema: 'tanqueElevado' },
+        desnivelConexion_m: 12,
+      }),
+    )
+    expect(html).toContain('Revisá las cotas: el pelo de agua mínimo informado')
+    expect(html).toContain('queda por encima del punto de alimentación del tanque')
+    // sigue mostrando el input editable y el estado del cálculo
+    expect(html).toContain('Pelo de agua mínimo (cota respecto de la acera)')
+    expect(html).toContain('Estado del cálculo')
+  })
+
+  it('P2: pelo de agua mínimo por debajo del punto de alimentación → sin advertencia', () => {
+    const { uf } = ufConTerminal()
+    const html = render(
+      proyectoCon([uf], {
+        redHidraulica: redConRaizConCota(9),
+        configuracionAbastecimiento: { esquema: 'tanqueElevado' },
+        desnivelConexion_m: 12,
+      }),
+    )
+    expect(html).not.toContain('Revisá las cotas')
+  })
+
+  it('P2: en modo Rápido no aparece la advertencia de cotas (el dato manual no se usa)', () => {
+    const { uf } = ufConTerminal()
+    const html = render(
+      proyectoCon([uf], {
+        redHidraulica: redConRaizConCota(15),
+        configuracionAbastecimiento: { esquema: 'tanqueElevado' },
+        desnivelConexion_m: 12,
+        granularidadHidraulica: 'simplificada',
+      }),
+    )
+    expect(html).not.toContain('Revisá las cotas')
+    expect(html).toContain('Pelo de agua mínimo estimado')
+  })
+
+  it('P1: Rápido + tanque elevado + alimentación 10 m → muestra pelo de agua mínimo estimado 9,50 m read-only', () => {
+    const { uf } = ufConTerminal()
+    const html = render(
+      proyectoCon([uf], {
+        redHidraulica: redConRaizConCota(20),
+        configuracionAbastecimiento: { esquema: 'tanqueElevado' },
+        desnivelConexion_m: 10,
+        granularidadHidraulica: 'simplificada',
+      }),
+    )
+    expect(html).toContain('Pelo de agua mínimo estimado')
+    expect(html).toContain('9,500 m')
+    expect(html).toContain('Hipótesis IUAS del modo Rápido')
+    // no hay input manual editable en Rápido
+    expect(html).not.toContain('Pelo de agua mínimo (cota respecto de la acera)')
+  })
+
+  it('P1: Rápido + tanque elevado sin desnivel de alimentación → callout para completarlo en M4', () => {
+    const { uf } = ufConTerminal()
+    const html = render(
+      proyectoCon([uf], {
+        redHidraulica: redConRaizConCota(20),
+        configuracionAbastecimiento: { esquema: 'tanqueElevado' },
+        granularidadHidraulica: 'simplificada',
+      }),
+    )
+    expect(html).toContain('Completá el punto de alimentación del tanque')
   })
 
   it('M4-G: agrupa los motivos de incompletitud sin exponer ids de Nodo/Tramo', () => {

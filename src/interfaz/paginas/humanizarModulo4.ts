@@ -25,14 +25,18 @@ export const ETIQUETA_ESQUEMA_ABASTECIMIENTO: Readonly<Record<EsquemaDeAbastecim
 
 // Etiqueta del input de desnivel según el esquema: el "punto de cálculo"
 // físico es distinto en cada uno (D-δ.65 / CRIT-A37).
+// Desnivel FIRMADO respecto del nivel de acera (positivo = por encima de
+// la acera; negativo = por debajo). El datum se nombra explícitamente para
+// que sea inequívoco frente a la "cota del pelo de agua mínimo" de la
+// verificación de presión (mismo datum, ver CRIT-A39 y Nodo.cota_m).
 export function etiquetaDesnivelConexion(esquema: EsquemaDeAbastecimiento): string {
   switch (esquema) {
     case 'directa':
-      return 'Desnivel hasta el punto alimentado de cálculo'
+      return 'Desnivel del punto alimentado de cálculo respecto de la acera'
     case 'tanqueElevado':
-      return 'Desnivel hasta el punto de alimentación del tanque'
+      return 'Desnivel del punto de alimentación del tanque respecto de la acera'
     case 'cisternaBombeoElevado':
-      return 'Desnivel hasta el punto de alimentación de la cisterna'
+      return 'Desnivel del punto de alimentación de la cisterna respecto de la acera'
   }
 }
 
