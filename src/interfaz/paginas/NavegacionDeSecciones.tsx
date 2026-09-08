@@ -10,13 +10,29 @@ import { useEffect, useState, type ReactNode } from 'react'
 // hidráulica. La verificación es la etapa 5 del flujo, pero sigue
 // perteneciendo funcionalmente al dominio de Módulo 2 (integra M2 + M3 +
 // M4); NO existe un "Módulo 5".
-const SECCIONES: readonly { readonly id: string; readonly numero: number; readonly etiqueta: string }[] = [
-  { id: 'demanda', numero: 1, etiqueta: 'Demanda' },
-  { id: 'tuberias', numero: 2, etiqueta: 'Tuberías' },
-  { id: 'medidores', numero: 3, etiqueta: 'Medidores' },
-  { id: 'abastecimiento', numero: 4, etiqueta: 'Abastecimiento y reserva' },
-  { id: 'verificacion-hidraulica', numero: 5, etiqueta: 'Verificación hidráulica' },
+//
+// UI-01B (D-δ.73): el índice se agrupa visualmente en PROYECTO (etapas
+// 1–4, el dimensionamiento) y VERIFICACIÓN (etapa 5, la conclusión del
+// flujo). Es sólo jerarquía de presentación: no cambia el orden, los
+// anchors ni la cantidad de destinos.
+const SECCIONES: readonly {
+  readonly id: string
+  readonly numero: number
+  readonly etiqueta: string
+  readonly grupo: string
+}[] = [
+  { id: 'demanda', numero: 1, etiqueta: 'Demanda', grupo: 'Proyecto' },
+  { id: 'tuberias', numero: 2, etiqueta: 'Tuberías', grupo: 'Proyecto' },
+  { id: 'medidores', numero: 3, etiqueta: 'Medidores', grupo: 'Proyecto' },
+  { id: 'abastecimiento', numero: 4, etiqueta: 'Abastecimiento y reserva', grupo: 'Proyecto' },
+  { id: 'verificacion-hidraulica', numero: 5, etiqueta: 'Verificación hidráulica', grupo: 'Verificación' },
 ]
+
+// "1" -> "01": el número de etapa se alinea como metadato tabular en el
+// índice y en los encabezados de etapa (sección 13 del brief).
+function numeroDeEtapa(numero: number): string {
+  return String(numero).padStart(2, '0')
+}
 
 // Sección actualmente en viewport, para resaltar su entrada en el índice.
 // Estado de PRESENTACIÓN (no se persiste, no alimenta ningún cálculo).
@@ -85,17 +101,22 @@ export function NavegacionDeSecciones() {
   return (
     <nav className="app-nav" aria-label="Secciones del proyecto">
       <ol>
-        {SECCIONES.map((seccion) => (
-          <li key={seccion.id}>
-            <a
-              href={`#${seccion.id}`}
-              aria-current={activa === seccion.id ? 'true' : undefined}
-            >
-              <span className="app-nav-num">{seccion.numero}</span>
-              {seccion.etiqueta}
-            </a>
-          </li>
-        ))}
+        {SECCIONES.map((seccion, indice) => {
+          const abreGrupo = indice === 0 || SECCIONES[indice - 1]?.grupo !== seccion.grupo
+          return (
+            <li key={seccion.id}>
+              {abreGrupo ? (
+                <span className="app-nav-grupo" aria-hidden="true">
+                  {seccion.grupo}
+                </span>
+              ) : null}
+              <a href={`#${seccion.id}`} aria-current={activa === seccion.id ? 'true' : undefined}>
+                <span className="app-nav-num">{numeroDeEtapa(seccion.numero)}</span>
+                {seccion.etiqueta}
+              </a>
+            </li>
+          )
+        })}
       </ol>
     </nav>
   )

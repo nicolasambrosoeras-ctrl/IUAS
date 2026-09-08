@@ -1,31 +1,51 @@
-/* UI-01A (D-δ.72) — CSS ESTRUCTURAL únicamente: shell de layout,
-   navegación lateral/índice, anchors de sección y responsive básico.
-   NO define paleta, tipografía, cards, botones ni estética final (eso es
-   UI-01B). El core M1–M4 no depende de nada de este archivo. */
+/* UI-01A (D-δ.72) — CSS ESTRUCTURAL del shell: layout de dos columnas,
+   navegación lateral / índice, anchors de sección y responsive.
+   UI-01B (D-δ.73) lo reescribe sobre el sistema de tokens de
+   sistema-visual.css: sigue siendo el dueño de la ESTRUCTURA del shell y
+   de la sidebar (posición, grid, sticky, breakpoints), ahora con la
+   estética final. El core M1–M4 no depende de nada de este archivo. */
 
 .app-shell {
-  max-width: 1200px;
+  max-width: 1240px;
   margin: 0 auto;
-  padding: 0 1rem 3rem;
+  padding: 0 var(--esp-lg) var(--esp-xl);
 }
 
+/* --- Cabecera de la aplicación / proyecto --- */
 .app-header {
-  padding: 1rem 0 0.5rem;
+  padding: var(--esp-lg) 0 var(--esp-md);
+  margin-bottom: var(--esp-lg);
+  border-bottom: 1px solid var(--color-borde);
 }
 
-/* Índice + contenido. En desktop el índice es una columna sticky; el
-   contenido nunca se desmonta (one-page). */
+.app-header h1 {
+  margin: 0;
+}
+
+.app-header p {
+  margin: var(--esp-xs) 0 0;
+  color: var(--color-texto-2);
+  font-size: var(--fs-ayuda);
+}
+
+/* --- Índice + contenido. En desktop el índice es una columna sticky; el
+   contenido nunca se desmonta (one-page). --- */
 .app-layout {
   display: grid;
-  grid-template-columns: 210px minmax(0, 1fr);
-  gap: 2rem;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: var(--esp-xl);
   align-items: start;
 }
 
 .app-nav {
   position: sticky;
-  top: 1rem;
+  top: var(--esp-md);
   align-self: start;
+  padding: var(--esp-sm);
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio-card);
+  box-shadow: var(--sombra-1);
 }
 
 .app-nav > ol {
@@ -34,31 +54,63 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 1px;
+}
+
+/* Encabezado de grupo dentro del índice (PROYECTO / VERIFICACIÓN,
+   sección 9). Es un <span aria-hidden> no interactivo dentro del primer
+   <li> de cada grupo. */
+.app-nav-grupo {
+  display: block;
+  margin: var(--esp-md) 0 var(--esp-xs);
+  padding: 0 var(--esp-sm);
+  font-size: var(--fs-meta);
+  font-weight: var(--peso-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-texto-3);
+}
+
+.app-nav > ol > li:first-child .app-nav-grupo {
+  margin-top: var(--esp-xs);
 }
 
 .app-nav a {
-  display: block;
-  padding: 0.35rem 0.6rem;
+  display: flex;
+  align-items: baseline;
+  gap: var(--esp-sm);
+  padding: 0.4rem 0.6rem;
   text-decoration: none;
-  color: inherit;
+  color: var(--color-texto-2);
+  border-radius: var(--radio-control);
   border-left: 3px solid transparent;
-  border-radius: 2px;
+  transition: background var(--trans-rapida), color var(--trans-rapida);
 }
 
 .app-nav a:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--color-superficie-2);
+  color: var(--color-texto);
 }
 
+/* Sección activa: no depende sólo del color — fondo suave + acento a la
+   izquierda + peso tipográfico (sección 9). */
 .app-nav a[aria-current='true'] {
-  border-left-color: currentColor;
-  font-weight: 700;
+  background: var(--color-primario-suave);
+  border-left-color: var(--color-primario);
+  color: var(--color-primario-fuerte);
+  font-weight: var(--peso-semibold);
 }
 
 .app-nav-num {
-  display: inline-block;
-  width: 1.5em;
-  opacity: 0.55;
+  flex: none;
+  min-width: 1.6em;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-meta);
+  color: var(--color-texto-3);
+}
+
+.app-nav a[aria-current='true'] .app-nav-num {
+  color: var(--color-primario);
 }
 
 /* `minmax(0, 1fr)` + este min-width evitan que una tabla ancha rompa el
@@ -67,52 +119,81 @@
   min-width: 0;
 }
 
-/* Anchor de cada etapa: deja aire arriba al saltar desde el índice. */
+/* --- Ritmo entre etapas del flujo --- */
 .seccion-de-trabajo {
-  scroll-margin-top: 1rem;
+  scroll-margin-top: var(--esp-md);
 }
 
 .seccion-de-trabajo + .seccion-de-trabajo {
-  margin-top: 2.5rem;
+  margin-top: var(--esp-xl);
 }
 
-/* Viewport reducido: el índice pasa a barra superior desplazable, no una
-   columna lateral que coma el ancho útil. */
-@media (max-width: 720px) {
+/* ==================================================================
+   RESPONSIVE
+   ================================================================== */
+
+/* Tablet / ancho intermedio: el índice pasa a barra superior desplazable,
+   no una columna lateral que coma el ancho útil (sección 45). */
+@media (max-width: 900px) {
+  .app-shell {
+    padding: 0 var(--esp-md) var(--esp-xl);
+  }
+
   .app-layout {
     grid-template-columns: 1fr;
-    gap: 1rem;
+    gap: var(--esp-md);
   }
 
   .app-nav {
     top: 0;
     z-index: 10;
-    margin: 0 -1rem;
-    padding: 0.35rem 1rem;
-    background: #fff;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+    margin: 0 calc(-1 * var(--esp-md));
+    padding: var(--esp-xs) var(--esp-md);
+    border-radius: 0;
+    border-width: 0 0 1px;
+    box-shadow: none;
     overflow-x: auto;
   }
 
   .app-nav > ol {
     flex-direction: row;
-    gap: 0.35rem;
+    align-items: center;
+    gap: var(--esp-xs);
     white-space: nowrap;
+  }
+
+  /* En la barra horizontal los rótulos de grupo agregan ruido; el orden
+     numerado ya transmite la secuencia. */
+  .app-nav-grupo {
+    display: none;
   }
 
   .app-nav a {
     border-left: none;
     border-bottom: 3px solid transparent;
+    border-radius: var(--radio-control) var(--radio-control) 0 0;
   }
 
   .app-nav a[aria-current='true'] {
     border-left-color: transparent;
-    border-bottom-color: currentColor;
+    border-bottom-color: var(--color-primario);
+  }
+}
+
+/* Mobile: sin overflow global, cards apiladas, navegación usable
+   (sección 46). */
+@media (max-width: 560px) {
+  .app-shell {
+    padding: 0 var(--esp-sm) var(--esp-xl);
   }
 
-  .app-nav-num {
-    width: auto;
-    margin-right: 0.2em;
+  .app-header {
+    padding-top: var(--esp-md);
+  }
+
+  .app-nav {
+    margin: 0 calc(-1 * var(--esp-sm));
+    padding: var(--esp-xs) var(--esp-sm);
   }
 }
 

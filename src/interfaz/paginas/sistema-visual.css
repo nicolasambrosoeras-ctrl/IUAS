@@ -1,0 +1,658 @@
+/* UI-01B (D-δ.73) — SISTEMA VISUAL TRANSVERSAL.
+   Hoja única de tokens + estilos base de elementos + utilidades de
+   presentación (`.ui-*`). NO cambia cálculo, dominio, Proyecto, motores ni
+   semántica: sólo apariencia. Se construye sobre el CSS estructural de
+   UI-01A (navegacionUI.css), que sigue siendo el dueño del layout del
+   shell y de la navegación lateral.
+
+   Referencia visual: aplicación técnica moderna, fondo suave, superficies
+   claras, verde profundo como identidad, verde muy suave para superficies
+   positivas/seleccionadas, tipografía sobria, bordes suaves, radius
+   moderado, sombras discretas, alta densidad informativa. Ver
+   SISTEMA-VISUAL.md. */
+
+/* ==================================================================
+   1. TOKENS
+   ================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* --- Color: fondo y superficies --- */
+  --color-fondo-app: #f3f5f3;
+  --color-superficie: #ffffff;
+  --color-superficie-2: #f7f9f7;
+  --color-superficie-sel: #eaf4ee;
+
+  /* --- Color: bordes --- */
+  --color-borde: #e2e5e1;
+  --color-borde-fuerte: #c8cec7;
+
+  /* --- Color: texto --- */
+  --color-texto: #1b241f;
+  --color-texto-2: #58635c;
+  --color-texto-3: #8b948c;
+
+  /* --- Color: identidad primaria (verde profundo) --- */
+  --color-primario: #1a6b53;
+  --color-primario-fuerte: #124c3c;
+  --color-primario-suave: #e4f1ea;
+  --color-primario-borde: #b6d7c7;
+  --color-primario-contraste: #ffffff;
+
+  /* --- Color: estados --- */
+  --color-exito: #1a7a4f;
+  --color-exito-suave: #e6f4ec;
+  --color-exito-borde: #b7ddc6;
+
+  --color-advertencia: #8a5a12;
+  --color-advertencia-suave: #f9f0df;
+  --color-advertencia-borde: #ecd7ac;
+
+  --color-error: #b02a21;
+  --color-error-suave: #fbeae8;
+  --color-error-borde: #eabfba;
+
+  --color-neutro: #5b6660;
+  --color-neutro-suave: #eef0ee;
+  --color-neutro-borde: #d6dad4;
+
+  /* Anillo de foco: verde algo más claro que el primario, visible sobre
+     superficies claras y sobre el propio primario. */
+  --color-foco: #2f9d78;
+
+  /* --- Espaciado (ritmo base 4 px) --- */
+  --esp-xs: 0.25rem;
+  --esp-sm: 0.5rem;
+  --esp-md: 1rem;
+  --esp-lg: 1.5rem;
+  --esp-xl: 2.5rem;
+
+  /* --- Radius --- */
+  --radio-control: 6px;
+  --radio-card: 10px;
+  --radio-panel: 14px;
+  --radio-pastilla: 999px;
+
+  /* --- Tipografía --- */
+  --fuente-sistema: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --fuente-mono: ui-monospace, SFMono-Regular, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+
+  --fs-metrica: 1.75rem; /* número técnico protagonista */
+  --fs-titulo-app: 1.4rem;
+  --fs-titulo-etapa: 1.15rem;
+  --fs-titulo-card: 0.95rem;
+  --fs-body: 0.875rem; /* 14 px */
+  --fs-ayuda: 0.8125rem;
+  --fs-meta: 0.75rem;
+
+  --peso-regular: 400;
+  --peso-medio: 500;
+  --peso-semibold: 600;
+
+  --lh-apretada: 1.25;
+  --lh-normal: 1.5;
+
+  /* --- Sombras (muy discretas) --- */
+  --sombra-1: 0 1px 2px rgba(18, 42, 32, 0.06), 0 1px 3px rgba(18, 42, 32, 0.04);
+  --sombra-2: 0 2px 10px rgba(18, 42, 32, 0.08);
+
+  /* --- Transiciones --- */
+  --trans-rapida: 120ms ease;
+}
+
+/* ==================================================================
+   2. BASE — elementos
+   ================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--fuente-sistema);
+  font-size: var(--fs-body);
+  line-height: var(--lh-normal);
+  color: var(--color-texto);
+  background: var(--color-fondo-app);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-primario-suave);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0 0 var(--esp-sm);
+  font-weight: var(--peso-semibold);
+  line-height: var(--lh-apretada);
+  color: var(--color-texto);
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--fs-titulo-app);
+  letter-spacing: -0.01em;
+}
+
+h2 {
+  font-size: var(--fs-titulo-etapa);
+}
+
+h3 {
+  font-size: 1rem;
+}
+
+h4 {
+  font-size: 0.9375rem;
+}
+
+h5,
+h6 {
+  font-size: var(--fs-ayuda);
+  color: var(--color-texto-2);
+}
+
+p {
+  margin: 0 0 var(--esp-sm);
+}
+
+a {
+  color: var(--color-primario);
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  color: var(--color-primario-fuerte);
+}
+
+small {
+  font-size: var(--fs-ayuda);
+  color: var(--color-texto-2);
+  line-height: var(--lh-normal);
+}
+
+code,
+kbd,
+samp {
+  font-family: var(--fuente-mono);
+  font-size: 0.9em;
+  background: var(--color-superficie-2);
+  border: 1px solid var(--color-borde);
+  border-radius: 4px;
+  padding: 0.05em 0.35em;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--color-borde);
+  margin: var(--esp-md) 0;
+}
+
+strong,
+b {
+  font-weight: var(--peso-semibold);
+}
+
+/* --- Controles --- */
+
+input,
+select,
+textarea,
+button {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.4;
+  color: inherit;
+}
+
+input[type='text'],
+input[type='number'],
+input:not([type]),
+select,
+textarea {
+  min-height: 2rem;
+  padding: 0.3rem 0.5rem;
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde-fuerte);
+  border-radius: var(--radio-control);
+  color: var(--color-texto);
+  transition: border-color var(--trans-rapida), box-shadow var(--trans-rapida);
+}
+
+textarea {
+  min-height: 4rem;
+}
+
+input[type='number'] {
+  font-variant-numeric: tabular-nums;
+}
+
+input:hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  border-color: var(--color-primario-borde);
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled,
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+input[aria-invalid='true'],
+select[aria-invalid='true'] {
+  border-color: var(--color-error-borde);
+}
+
+label {
+  color: var(--color-texto);
+}
+
+fieldset {
+  margin: 0;
+  padding: var(--esp-sm) var(--esp-md) var(--esp-md);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio-card);
+  background: var(--color-superficie-2);
+}
+
+legend {
+  padding: 0 var(--esp-xs);
+  font-weight: var(--peso-semibold);
+  color: var(--color-texto-2);
+}
+
+/* Botón base = acción habitual discreta (secondary). Las jerarquías
+   PRIMARY / DANGER / GHOST se piden explícitamente con `.ui-btn--*`
+   (sección 19 del brief): no todos los botones son verdes. */
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--esp-xs);
+  min-height: 2rem;
+  padding: 0.35rem 0.85rem;
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde-fuerte);
+  border-radius: var(--radio-control);
+  color: var(--color-texto);
+  font-weight: var(--peso-medio);
+  cursor: pointer;
+  transition: background var(--trans-rapida), border-color var(--trans-rapida), color var(--trans-rapida);
+}
+
+button:hover:not(:disabled) {
+  background: var(--color-superficie-2);
+  border-color: var(--color-primario-borde);
+}
+
+button:active:not(:disabled) {
+  background: var(--color-primario-suave);
+}
+
+/* --- Foco visible: nunca se quita sin reemplazo (sección 18) --- */
+
+:focus-visible {
+  outline: 2px solid var(--color-foco);
+  outline-offset: 2px;
+  border-radius: var(--radio-control);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-foco);
+  outline-offset: 1px;
+  border-color: var(--color-primario);
+}
+
+/* --- Tablas --- */
+
+table {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+th {
+  text-align: left;
+  padding: 0.4rem 0.75rem;
+  font-weight: var(--peso-semibold);
+  font-size: var(--fs-ayuda);
+  color: var(--color-texto-2);
+  border-bottom: 1px solid var(--color-borde-fuerte);
+  background: var(--color-superficie-2);
+}
+
+td {
+  padding: 0.4rem 0.75rem;
+  border-bottom: 1px solid var(--color-borde);
+  vertical-align: baseline;
+}
+
+tbody tr:hover td {
+  background: var(--color-superficie-2);
+}
+
+/* Muchas tablas de este proyecto son pares clave/valor (th en la primera
+   columna). Ahí el fondo de encabezado de columna no corresponde. */
+tbody th {
+  background: transparent;
+  border-bottom: 1px solid var(--color-borde);
+  font-weight: var(--peso-medio);
+  color: var(--color-texto-2);
+}
+
+/* --- details / summary (progressive disclosure) --- */
+
+details {
+  border-radius: var(--radio-card);
+}
+
+summary {
+  cursor: pointer;
+  font-weight: var(--peso-medio);
+  padding: 0.15rem 0;
+  color: var(--color-texto);
+}
+
+summary:hover {
+  color: var(--color-primario-fuerte);
+}
+
+/* Los paneles de M1–M4 montan su <h2> dentro de <summary>. Que se lea
+   como un encabezado de etapa y no como un bloque de documento impreso:
+   inline, tamaño de etapa, sin margen propio. */
+summary > h2 {
+  display: inline;
+  font-size: var(--fs-titulo-etapa);
+  margin: 0;
+}
+
+summary > h2 + *,
+summary > h3 {
+  display: inline;
+  margin: 0;
+}
+
+/* ==================================================================
+   3. UTILIDADES DE PRESENTACIÓN  (`.ui-*`)
+   Clases semánticas de presentación, no acopladas a nombres del motor
+   (sección 49). Se aplican de forma incremental por módulo.
+   ================================================================== */
+
+/* --- Superficies / tarjetas (sección 15) --- */
+.ui-card {
+  background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio-card);
+  padding: var(--esp-md);
+  box-shadow: var(--sombra-1);
+}
+
+.ui-card + .ui-card {
+  margin-top: var(--esp-md);
+}
+
+.ui-card__titulo {
+  margin: 0 0 var(--esp-sm);
+  font-size: var(--fs-titulo-card);
+  font-weight: var(--peso-semibold);
+  color: var(--color-texto);
+}
+
+/* Configuración / decisión del proyectista: superficie secundaria (sección 16). */
+.ui-card--config {
+  background: var(--color-superficie-2);
+  box-shadow: none;
+}
+
+/* Resultado derivado por IUAS: superficie limpia y destacada (sección 16). */
+.ui-card--resultado {
+  border-color: var(--color-primario-borde);
+}
+
+/* --- Ritmo vertical --- */
+.ui-stack > * + * {
+  margin-top: var(--esp-md);
+}
+
+.ui-stack--sm > * + * {
+  margin-top: var(--esp-sm);
+}
+
+.ui-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-sm);
+}
+
+/* --- Métrica: número técnico protagonista (secciones 25, 35, 39) --- */
+.ui-metrica {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.ui-metrica__etiqueta {
+  font-size: var(--fs-meta);
+  font-weight: var(--peso-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-texto-3);
+}
+
+.ui-metrica__valor {
+  font-size: var(--fs-metrica);
+  font-weight: var(--peso-semibold);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-metrica__unidad {
+  font-size: var(--fs-ayuda);
+  font-weight: var(--peso-regular);
+  color: var(--color-texto-2);
+}
+
+.ui-metrica__nota {
+  font-size: var(--fs-ayuda);
+  color: var(--color-texto-2);
+}
+
+/* --- Badges / estados (secciones 31, 32) --- */
+.ui-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--color-neutro-borde);
+  border-radius: var(--radio-pastilla);
+  background: var(--color-neutro-suave);
+  color: var(--color-texto-2);
+  font-size: var(--fs-meta);
+  font-weight: var(--peso-medio);
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.ui-badge--ok {
+  border-color: var(--color-exito-borde);
+  background: var(--color-exito-suave);
+  color: var(--color-exito);
+}
+
+.ui-badge--warn {
+  border-color: var(--color-advertencia-borde);
+  background: var(--color-advertencia-suave);
+  color: var(--color-advertencia);
+}
+
+.ui-badge--error {
+  border-color: var(--color-error-borde);
+  background: var(--color-error-suave);
+  color: var(--color-error);
+}
+
+.ui-badge--muted {
+  border-color: var(--color-neutro-borde);
+  background: transparent;
+  color: var(--color-texto-3);
+}
+
+/* --- Callout / ayuda humanizada (sección 32) --- */
+.ui-callout {
+  display: flex;
+  gap: var(--esp-sm);
+  padding: var(--esp-sm) var(--esp-md);
+  border: 1px solid var(--color-borde);
+  border-left-width: 3px;
+  border-radius: var(--radio-control);
+  background: var(--color-superficie-2);
+  font-size: var(--fs-ayuda);
+}
+
+.ui-callout--warn {
+  border-color: var(--color-advertencia-borde);
+  border-left-color: var(--color-advertencia);
+  background: var(--color-advertencia-suave);
+  color: var(--color-advertencia);
+}
+
+.ui-callout--error {
+  border-color: var(--color-error-borde);
+  border-left-color: var(--color-error);
+  background: var(--color-error-suave);
+  color: var(--color-error);
+}
+
+.ui-callout--info {
+  border-left-color: var(--color-primario);
+}
+
+/* --- Empty state unificado (sección 78) --- */
+.ui-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--esp-sm);
+  padding: var(--esp-lg);
+  border: 1px dashed var(--color-borde-fuerte);
+  border-radius: var(--radio-card);
+  background: var(--color-superficie-2);
+}
+
+.ui-empty__texto {
+  max-width: 46ch;
+  color: var(--color-texto-2);
+  font-size: var(--fs-ayuda);
+}
+
+/* --- Botones: jerarquías explícitas (sección 19) --- */
+.ui-btn--primario {
+  background: var(--color-primario);
+  border-color: var(--color-primario);
+  color: var(--color-primario-contraste);
+}
+
+.ui-btn--primario:hover:not(:disabled) {
+  background: var(--color-primario-fuerte);
+  border-color: var(--color-primario-fuerte);
+  color: var(--color-primario-contraste);
+}
+
+.ui-btn--primario:active:not(:disabled) {
+  background: var(--color-primario-fuerte);
+}
+
+.ui-btn--peligro {
+  border-color: var(--color-error-borde);
+  color: var(--color-error);
+}
+
+.ui-btn--peligro:hover:not(:disabled) {
+  background: var(--color-error-suave);
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.ui-btn--fantasma {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-texto-2);
+}
+
+.ui-btn--fantasma:hover:not(:disabled) {
+  background: var(--color-superficie-2);
+  border-color: var(--color-borde);
+  color: var(--color-texto);
+}
+
+/* --- Segmented control (Rápido / Profesional, sección 36) --- */
+.ui-segmented {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--color-borde-fuerte);
+  border-radius: var(--radio-pastilla);
+  background: var(--color-superficie-2);
+}
+
+.ui-segmented__opcion {
+  min-height: 1.75rem;
+  padding: 0.2rem 0.9rem;
+  border: none;
+  border-radius: var(--radio-pastilla);
+  background: transparent;
+  color: var(--color-texto-2);
+  font-weight: var(--peso-medio);
+}
+
+.ui-segmented__opcion:hover:not(:disabled) {
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-texto);
+}
+
+.ui-segmented__opcion[aria-pressed='true'] {
+  background: var(--color-superficie);
+  color: var(--color-primario-fuerte);
+  box-shadow: var(--sombra-1);
+}
+
+/* --- Números alineados en tablas de resultados (sección 29) --- */
+.ui-num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* --- Diferenciar celda editable de celda calculada (sección 77) --- */
+.ui-td-editable {
+  background: var(--color-superficie);
+}
+
+.ui-td-calculado {
+  color: var(--color-texto);
+}
+
+/* ==================================================================
+   4. MOTION — muy discreto, respeta prefers-reduced-motion (sección 51)
+   ================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
