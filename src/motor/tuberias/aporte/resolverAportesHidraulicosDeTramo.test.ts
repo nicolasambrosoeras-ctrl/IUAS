@@ -139,7 +139,12 @@ describe('resolverAportesHidraulicosDeTramo — otros casos', () => {
     )
   })
 
-  it('8. quCaliente_lps=null en catálogo: propaga el throw de resolverQuEfectivo', () => {
+  it('8. quCaliente_lps=null + conexión física exclusiva (CRIT-A15): el aporte usa quTotal_lps, sin lanzar', () => {
+    // El catálogo no desagrega AF/AC para valvulaMingitorio (§2.9.1.3),
+    // pero está conectado sólo a AC: CRIT-A15 fila "solo a AC" -> la única
+    // cañería transporta el total. resolverQuEfectivoParaTramo resuelve la
+    // conectividad antes de mirar el campo desagregado, así que el null no
+    // se propaga (corrección del caso M2 "Lavavajillas industrial").
     const valvulaMingitorio = catalogoArtefactos.find((a) => a.id === 'valvulaMingitorio') as ArtefactoNormativo
     expect(valvulaMingitorio.quCaliente_lps).toBeNull()
 
@@ -155,9 +160,45 @@ describe('resolverAportesHidraulicosDeTramo — otros casos', () => {
     ]
     const red: RedHidraulica = { nodos, tramos }
 
-    expect(() => resolverAportesHidraulicosDeTramo([resuelto], red, 't0', catalogoArtefactos)).toThrow(
-      /quCaliente_lps/,
-    )
+    const aportes = resolverAportesHidraulicosDeTramo([resuelto], red, 't0', catalogoArtefactos)
+
+    expect(aportes).toHaveLength(1)
+    expect(aportes[0]?.condicion).toBe('aguaCaliente')
+    expect(aportes[0]?.qu_lps).toBe(valvulaMingitorio.quTotal_lps)
+  })
+
+  it('8b. quFria/quCaliente=null + conexión física a AF y AC (D-δ.79): cada rama aporta quTotal_lps, el tramo común lo atribuye una sola vez', () => {
+    const lavavajillasIndustrial = catalogoArtefactos.find((a) => a.id === 'lavavajillasIndustrial') as ArtefactoNormativo
+    expect(lavavajillasIndustrial.quFria_lps).toBeNull()
+    expect(lavavajillasIndustrial.quTotal_lps).toBe(0.4)
+
+    const resuelto = artefactoResueltoCon('uf-1', 'local-a', 'inst-a', 'lavavajillasIndustrial', 1)
+    const nodos: Nodo[] = [
+      { id: 'n0' },
+      { id: 'nTronco' },
+      { id: 'n-af', referencia: resuelto.referencia },
+      { id: 'n-acs', referencia: { tipo: 'produccionACS' } },
+      { id: 'n-ac', referencia: resuelto.referencia },
+    ]
+    const tramos: Tramo[] = [
+      { id: 'tTronco', nodoOrigenId: 'n0', nodoDestinoId: 'nTronco', red: 'AF' },
+      { id: 'tRamaAF', nodoOrigenId: 'nTronco', nodoDestinoId: 'n-af', red: 'AF' },
+      { id: 'tACSin', nodoOrigenId: 'nTronco', nodoDestinoId: 'n-acs', red: 'AF' },
+      { id: 'tRamaAC', nodoOrigenId: 'n-acs', nodoDestinoId: 'n-ac', red: 'AC' },
+    ]
+    const red: RedHidraulica = { nodos, tramos }
+
+    const ramaAF = resolverAportesHidraulicosDeTramo([resuelto], red, 'tRamaAF', catalogoArtefactos)
+    expect(ramaAF[0]?.condicion).toBe('aguaFria')
+    expect(ramaAF[0]?.qu_lps).toBe(0.4)
+
+    const ramaAC = resolverAportesHidraulicosDeTramo([resuelto], red, 'tRamaAC', catalogoArtefactos)
+    expect(ramaAC[0]?.condicion).toBe('aguaCaliente')
+    expect(ramaAC[0]?.qu_lps).toBe(0.4)
+
+    const tronco = resolverAportesHidraulicosDeTramo([resuelto], red, 'tTronco', catalogoArtefactos)
+    expect(tronco[0]?.condicion).toBe('total')
+    expect(tronco[0]?.qu_lps).toBe(0.4)
   })
 
   it('9. artefacto no aguas abajo del tramo: propaga el throw topológico', () => {

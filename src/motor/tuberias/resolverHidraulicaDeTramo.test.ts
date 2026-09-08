@@ -202,7 +202,12 @@ describe('resolverHidraulicaDeTramo', () => {
     expect(resultado).toEqual({ tipo: 'sinDemanda', qc_lps: 0 })
   })
 
-  it('7. null no es sinDemanda: artefacto no domiciliario con campo requerido null propaga error, nunca devuelve sinDemanda', () => {
+  it('7. artefacto no domiciliario sin desagregar + conexión física exclusiva (CRIT-A15): conDemanda con quTotal_lps, nunca sinDemanda', () => {
+    // valvulaMingitorio (§2.9.1.3: quFria_lps/quCaliente_lps = null)
+    // conectado sólo a AF -> CRIT-A15 fila "solo a AF": qu efectivo =
+    // quTotal_lps. No hay campo null en juego (la única cañería transporta
+    // el total), así que resuelve conDemanda -- nunca sinDemanda por un 0
+    // fabricado.
     const mingitorio = artefacto('inst-mingitorio', 'valvulaMingitorio')
     const uf: UnidadFuncional = {
       id: 'uf-1',
@@ -216,7 +221,56 @@ describe('resolverHidraulicaDeTramo', () => {
     const tramos: Tramo[] = [{ id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF' }]
     const proyecto = proyectoCon('oficinaPrivada', [uf], { nodos, tramos })
 
-    expect(() => resolverHidraulicaDeTramo(proyecto, 't0', catalogoArtefactos)).toThrow(/quFria_lps/)
+    const resultado = resolverHidraulicaDeTramo(proyecto, 't0', catalogoArtefactos)
+
+    if (resultado.tipo !== 'conDemanda') {
+      throw new Error('se esperaba conDemanda: CRIT-A15 fila "solo a AF" -> quTotal_lps, nunca sinDemanda')
+    }
+    expect(resultado.qc_lps).toBe(0.15) // quTotal_lps de valvulaMingitorio (CRIT-A4: n=1)
+  })
+
+  it('7b. lavavajillas industrial (catálogo sin desagregar) conectado a AF + AC: cada ramal evalúa 0,40 L/s y el tramo común que los reúne atribuye 0,40 L/s -- NUNCA 0,80 (D-δ.79)', () => {
+    // ERAS §2.9.1.3 no publica columnas qu(A.Fría)/qu(A.Cal.): no hay base
+    // para partir quTotal_lps entre ramas. Decisión del usuario (D-δ.79, no
+    // norma ERAS): cada conexión física se dimensiona para el caudal total
+    // declarado (0,40 L/s). El tramo común aguas arriba de ambas ramas
+    // atribuye ese caudal al artefacto UNA sola vez (condición 'total' ->
+    // quTotal_lps, sin doble conteo D-δ.8): jamás 0,40 + 0,40 = 0,80.
+    const lavavajillas = artefacto('inst-lvi', 'lavavajillasIndustrial')
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'UF 1',
+      locales: [{ id: 'local-1', tipo: 'cocina', regimen: 'noDomiciliario', artefactos: [lavavajillas] }],
+    }
+    // nTronco ─┬─ tRamaAF ──────────────────→ lavavajillas (n-af)
+    //          └─ tACSin → n-acs(ACS) → tRamaAC → lavavajillas (n-ac)
+    const nodos: Nodo[] = [
+      { id: 'n0' },
+      { id: 'nTronco' },
+      { id: 'n-af', referencia: referenciaDe('uf-1', 'local-1', 'inst-lvi') },
+      { id: 'n-acs', referencia: { tipo: 'produccionACS' } },
+      { id: 'n-ac', referencia: referenciaDe('uf-1', 'local-1', 'inst-lvi') },
+    ]
+    const tramos: Tramo[] = [
+      { id: 'tTronco', nodoOrigenId: 'n0', nodoDestinoId: 'nTronco', red: 'AF' },
+      { id: 'tRamaAF', nodoOrigenId: 'nTronco', nodoDestinoId: 'n-af', red: 'AF' },
+      { id: 'tACSin', nodoOrigenId: 'nTronco', nodoDestinoId: 'n-acs', red: 'AF' },
+      { id: 'tRamaAC', nodoOrigenId: 'n-acs', nodoDestinoId: 'n-ac', red: 'AC' },
+    ]
+    const proyecto = proyectoCon('oficinaPrivada', [uf], { nodos, tramos })
+
+    const ramaAF = resolverHidraulicaDeTramo(proyecto, 'tRamaAF', catalogoArtefactos)
+    if (ramaAF.tipo !== 'conDemanda') throw new Error('se esperaba conDemanda en el ramal AF')
+    expect(ramaAF.qc_lps).toBe(0.4)
+
+    const ramaAC = resolverHidraulicaDeTramo(proyecto, 'tRamaAC', catalogoArtefactos)
+    if (ramaAC.tipo !== 'conDemanda') throw new Error('se esperaba conDemanda en el ramal AC')
+    expect(ramaAC.qc_lps).toBe(0.4)
+
+    const tronco = resolverHidraulicaDeTramo(proyecto, 'tTronco', catalogoArtefactos)
+    if (tronco.tipo !== 'conDemanda') throw new Error('se esperaba conDemanda en el tramo común')
+    expect(tronco.qc_lps).toBe(0.4)
+    expect(tronco.qc_lps).not.toBe(0.8)
   })
 
   it('8. multifamiliar, una UF: aEfectivo=1', () => {

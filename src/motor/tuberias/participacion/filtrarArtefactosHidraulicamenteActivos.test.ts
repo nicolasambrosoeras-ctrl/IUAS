@@ -139,7 +139,11 @@ describe('filtrarArtefactosHidraulicamenteActivos — otros casos', () => {
     expect(resultado).toEqual([])
   })
 
-  it('9. qu requerido = null: propaga el error existente de resolverQuEfectivo', () => {
+  it('9. qu requerido = null + conexión física exclusiva (CRIT-A15): usa quTotal_lps y el artefacto queda activo, sin lanzar', () => {
+    // valvulaMingitorio no desagrega AF/AC (§2.9.1.3) y está conectado
+    // sólo a AF: CRIT-A15 fila "solo a AF" -> qu efectivo = quTotal_lps > 0
+    // -> el artefacto participa. El null de quFria_lps no llega a
+    // propagarse (corrección del caso M2 "Lavavajillas industrial").
     const valvulaMingitorio = catalogoArtefactos.find((a) => a.id === 'valvulaMingitorio') as ArtefactoNormativo
     expect(valvulaMingitorio.quFria_lps).toBeNull()
 
@@ -148,9 +152,37 @@ describe('filtrarArtefactosHidraulicamenteActivos — otros casos', () => {
     const tramos: Tramo[] = [{ id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF' }]
     const red: RedHidraulica = { nodos, tramos }
 
-    expect(() => filtrarArtefactosHidraulicamenteActivos([resuelto], red, 't0', catalogoArtefactos)).toThrow(
-      /quFria_lps/,
-    )
+    const resultado = filtrarArtefactosHidraulicamenteActivos([resuelto], red, 't0', catalogoArtefactos)
+
+    expect(resultado).toHaveLength(1)
+    expect(resultado[0]).toBe(resuelto)
+  })
+
+  it('9b. qu requerido = null + conexión física a AF y AC (D-δ.79): quTotal_lps > 0 en cada rama -> el artefacto participa, sin lanzar', () => {
+    const lavavajillasIndustrial = catalogoArtefactos.find((a) => a.id === 'lavavajillasIndustrial') as ArtefactoNormativo
+    expect(lavavajillasIndustrial.quFria_lps).toBeNull()
+
+    const resuelto = artefactoResueltoCon('uf-1', 'local-a', 'inst-a', 'lavavajillasIndustrial', 1)
+    const nodos: Nodo[] = [
+      { id: 'n0' },
+      { id: 'nTronco' },
+      { id: 'n-af', referencia: resuelto.referencia },
+      { id: 'n-acs', referencia: { tipo: 'produccionACS' } },
+      { id: 'n-ac', referencia: resuelto.referencia },
+    ]
+    const tramos: Tramo[] = [
+      { id: 'tTronco', nodoOrigenId: 'n0', nodoDestinoId: 'nTronco', red: 'AF' },
+      { id: 'tRamaAF', nodoOrigenId: 'nTronco', nodoDestinoId: 'n-af', red: 'AF' },
+      { id: 'tACSin', nodoOrigenId: 'nTronco', nodoDestinoId: 'n-acs', red: 'AF' },
+      { id: 'tRamaAC', nodoOrigenId: 'n-acs', nodoDestinoId: 'n-ac', red: 'AC' },
+    ]
+    const red: RedHidraulica = { nodos, tramos }
+
+    for (const tramoId of ['tTronco', 'tRamaAF', 'tRamaAC']) {
+      const resultado = filtrarArtefactosHidraulicamenteActivos([resuelto], red, tramoId, catalogoArtefactos)
+      expect(resultado).toHaveLength(1)
+      expect(resultado[0]).toBe(resuelto)
+    }
   })
 
   it('10. artefacto normativo inexistente en el catálogo recibido: lanza excepción', () => {

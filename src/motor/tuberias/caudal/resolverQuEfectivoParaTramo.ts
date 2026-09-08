@@ -23,28 +23,59 @@ export function resolverQuEfectivoParaTramo(
   artefactoNormativo: ArtefactoNormativo,
 ): QuEfectivoParaTramo {
   const condicion = determinarCondicionHidraulicaDeCaudal(redHidraulica, tramoId, referencia)
-  const qu_lps = resolverQuEfectivo(artefactoNormativo, condicion)
 
-  // CRIT-A15: si el Artefacto esta conectado fisicamente a una sola red y
-  // el Tramo evaluado resuelve justamente esa conexion, la cañeria unica
-  // transporta el caudal total -- no existe ninguna rama complementaria que
-  // reciba el resto de la mezcla. El override solo se aplica sobre una
-  // fraccion de mezcla positiva ya resuelta (`qu_lps > 0`): un cero
-  // explicito de catalogo (CRIT-A7) no es una fraccion incompleta que haya
-  // que reconstruir, ya es el total correcto para esa condicion -- y un
-  // `qu` requerido = null ya hizo propagar su error mas arriba, sin llegar
-  // a esta linea. La conectividad fisica es una pregunta distinta y no
-  // relativa al Tramo (ver determinarConectividadFisica); se consulta
-  // aparte, sin alterar el significado de `condicion`.
-  if (qu_lps > 0) {
+  // CRIT-A15 y su ampliacion para catalogo sin desagregar: la conectividad
+  // fisica se resuelve ANTES de seleccionar el qu desagregado. Consultar
+  // primero `resolverQuEfectivo` haria propagar su error sobre un campo
+  // `quFria_lps`/`quCaliente_lps` = null sin llegar nunca al override (era
+  // la regresion del caso "Lavavajillas industrial" en M2). Solo interviene
+  // en las ramas AF/AC: el tramo comun aguas arriba de ambas ('total') ya
+  // transporta `quTotal_lps` por seleccion directa. La conectividad fisica
+  // es una pregunta distinta y no relativa al Tramo (ver
+  // determinarConectividadFisica); no altera el significado de `condicion`.
+  if (condicion === 'aguaFria' || condicion === 'aguaCaliente') {
+    const fraccionDeCatalogo =
+      condicion === 'aguaFria' ? artefactoNormativo.quFria_lps : artefactoNormativo.quCaliente_lps
+
+    // Catalogo que NO desagrega AF/AC para esta condicion (`null`): los no
+    // domiciliarios de §2.9.1.3 -- lavavajillas industrial, pileta de
+    // cocina industrial, lavarropas industrial, lavachatas, valvula de
+    // mingitorio. ERAS no publica columnas qu(A.Fria)/qu(A.Cal.) para
+    // ellos, asi que no existe fraccion de mezcla ni base para partir
+    // `quTotal_lps` entre ramas. Ampliacion de CRIT-A15 (decision del
+    // usuario, D-δ.79 -- no norma ERAS): la cañeria de esta rama transporta
+    // el caudal total declarado del artefacto, tanto si es la unica
+    // conexion fisica ("solo a AF"/"solo a AC") como si esta conectado a AF
+    // y AC a la vez (cada conexion se dimensiona para el caudal completo).
+    // El tramo comun aguas arriba sigue en condicion 'total' -> `quTotal`
+    // una sola vez, sin doble conteo (D-δ.8).
+    if (fraccionDeCatalogo === null) {
+      return { condicion, qu_lps: artefactoNormativo.quTotal_lps }
+    }
+
+    // Catalogo que si desagrega + conexion fisica exclusiva que coincide
+    // con la condicion (CRIT-A15 fila "solo a AF"/"solo a AC"): no existe
+    // rama complementaria que reciba el resto de la mezcla, la unica
+    // cañeria entrega el total. El override solo se aplica sobre una
+    // fraccion de mezcla positiva -- un cero explicito de catalogo (CRIT-A7,
+    // p. ej. maquina lavavajillas conectada solo a AC) ya es el total
+    // correcto para esa condicion, no una fraccion incompleta.
     const conectividad = determinarConectividadFisica(redHidraulica, referencia)
-    if (
+    const conexionExclusivaCoincideConCondicion =
       (conectividad === 'soloAF' && condicion === 'aguaFria') ||
       (conectividad === 'soloAC' && condicion === 'aguaCaliente')
-    ) {
-      return { condicion, qu_lps: artefactoNormativo.quTotal_lps }
+    if (conexionExclusivaCoincideConCondicion) {
+      return {
+        condicion,
+        qu_lps: fraccionDeCatalogo > 0 ? artefactoNormativo.quTotal_lps : fraccionDeCatalogo,
+      }
     }
   }
 
+  // Resto de casos: condicion 'total', o rama AF/AC de un artefacto cuyo
+  // catalogo si desagrega y cuya conexion no es exclusiva (AF+AC "twin":
+  // cada rama conserva su fraccion de mezcla). Seleccion directa del qu por
+  // condicion; los errores de resolverQuEfectivo se propagan tal cual.
+  const qu_lps = resolverQuEfectivo(artefactoNormativo, condicion)
   return { condicion, qu_lps }
 }

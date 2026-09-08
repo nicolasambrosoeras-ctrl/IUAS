@@ -89,7 +89,13 @@ describe('resolverQuEfectivoParaTramo — otros casos de composición', () => {
     expect(resultado.qu_lps).toBe(maquinaLavavajillas.quFria_lps)
   })
 
-  it('6. quCaliente_lps=null en catálogo: propaga el throw de resolverQuEfectivo', () => {
+  it('6. quCaliente_lps=null + conectividad soloAC (CRIT-A15): qu_lps = quTotal_lps, sin propagar el throw de resolverQuEfectivo', () => {
+    // El catalogo no desagrega AF/AC para este artefacto (§2.9.1.3), pero
+    // esta conectado fisicamente a una sola red: CRIT-A15 fila "solo a AC"
+    // -> la unica cañeria entrega el total. La conectividad se resuelve
+    // ANTES de seleccionar el qu desagregado, asi que el null de catalogo
+    // no llega a propagarse (regresion corregida del caso M2 "Lavavajillas
+    // industrial").
     const valvulaMingitorio = buscarEnCatalogo('valvulaMingitorio')
     expect(valvulaMingitorio.quCaliente_lps).toBeNull()
 
@@ -105,7 +111,62 @@ describe('resolverQuEfectivoParaTramo — otros casos de composición', () => {
     ]
     const red: RedHidraulica = { nodos, tramos }
 
-    expect(() => resolverQuEfectivoParaTramo(red, 't0', referencia, valvulaMingitorio)).toThrow(/quCaliente_lps/)
+    const resultado = resolverQuEfectivoParaTramo(red, 't0', referencia, valvulaMingitorio)
+
+    expect(resultado.condicion).toBe('aguaCaliente')
+    expect(resultado.qu_lps).toBe(valvulaMingitorio.quTotal_lps)
+    expect(resultado.qu_lps).toBe(0.15)
+  })
+
+  it('6b. lavavajillas industrial (catálogo sin desagregar) conectado a AF + AC: cada rama transporta quTotal_lps, el tramo común lo atribuye una sola vez (D-δ.79, ampliación CRIT-A15)', () => {
+    // ERAS §2.9.1.3 no publica columnas qu(A.Fría)/qu(A.Cal.) para este
+    // artefacto -> no hay base para partir quTotal_lps entre ramas. Decisión
+    // del usuario (D-δ.79, no norma ERAS): cada conexión física se
+    // dimensiona para el caudal total declarado. El tramo común aguas arriba
+    // de ambas ramas queda en condición 'total' -> quTotal_lps una sola vez,
+    // NUNCA 0,80 L/s (sin doble conteo, D-δ.8).
+    const lavavajillasIndustrial = buscarEnCatalogo('lavavajillasIndustrial')
+    expect(lavavajillasIndustrial.quFria_lps).toBeNull()
+    expect(lavavajillasIndustrial.quCaliente_lps).toBeNull()
+    expect(lavavajillasIndustrial.quTotal_lps).toBe(0.4)
+
+    const referencia = referenciaDe('uf-1', 'local-cocina', 'inst-lavavajillas')
+    // nTronco ─┬─ tRamaAF ───────────────────→ lavavajillas (n-af)
+    //          └─ tACSin → n-acs(ACS) → tRamaAC → lavavajillas (n-ac, misma identidad)
+    const nodos: Nodo[] = [
+      { id: 'n0' },
+      { id: 'nTronco' },
+      { id: 'n-af', referencia },
+      { id: 'n-acs', referencia: { tipo: 'produccionACS' } },
+      { id: 'n-ac', referencia },
+    ]
+    const tramos: Tramo[] = [
+      { id: 'tTronco', nodoOrigenId: 'n0', nodoDestinoId: 'nTronco', red: 'AF' },
+      { id: 'tRamaAF', nodoOrigenId: 'nTronco', nodoDestinoId: 'n-af', red: 'AF' },
+      { id: 'tACSin', nodoOrigenId: 'nTronco', nodoDestinoId: 'n-acs', red: 'AF' },
+      { id: 'tRamaAC', nodoOrigenId: 'n-acs', nodoDestinoId: 'n-ac', red: 'AC' },
+    ]
+    const red: RedHidraulica = { nodos, tramos }
+
+    const ramaAF = resolverQuEfectivoParaTramo(red, 'tRamaAF', referencia, lavavajillasIndustrial)
+    expect(ramaAF.condicion).toBe('aguaFria')
+    expect(ramaAF.qu_lps).toBe(0.4)
+
+    const ramaAC = resolverQuEfectivoParaTramo(red, 'tRamaAC', referencia, lavavajillasIndustrial)
+    expect(ramaAC.condicion).toBe('aguaCaliente')
+    expect(ramaAC.qu_lps).toBe(0.4)
+
+    // Tramo AF que alimenta al equipo ACS: condición aguaCaliente (mezcla),
+    // catálogo sin desagregar -> también quTotal_lps.
+    const alimentacionACS = resolverQuEfectivoParaTramo(red, 'tACSin', referencia, lavavajillasIndustrial)
+    expect(alimentacionACS.condicion).toBe('aguaCaliente')
+    expect(alimentacionACS.qu_lps).toBe(0.4)
+
+    // Tramo troncal que reúne ambas ramas: condición 'total' -> quTotal_lps
+    // atribuido al artefacto UNA sola vez, nunca 0,4 + 0,4.
+    const tronco = resolverQuEfectivoParaTramo(red, 'tTronco', referencia, lavavajillasIndustrial)
+    expect(tronco.condicion).toBe('total')
+    expect(tronco.qu_lps).toBe(0.4)
   })
 
   it('7. artefacto no aguas abajo: propaga el throw de determinarCondicionHidraulicaDeCaudal', () => {
@@ -205,5 +266,48 @@ describe('resolverQuEfectivoParaTramo — CRIT-A15 (conectividad física exclusi
 
     expect(resultado.condicion).toBe('aguaFria')
     expect(resultado.qu_lps).toBe(0.2)
+  })
+
+  it('13. lavavajillas industrial (catálogo sin desagregar) conectado solo a AF: qu_lps = quTotal_lps, no lanza', () => {
+    // §2.9.1.3: quFria_lps/quCaliente_lps = null. Con una sola conexion
+    // fisica (AF), CRIT-A15 fila "solo a AF" -> la unica cañeria transporta
+    // el total. Antes de la correccion, resolverQuEfectivo lanzaba sobre el
+    // null de quFria_lps antes de llegar al override (caso M2 real).
+    const lavavajillasIndustrial = buscarEnCatalogo('lavavajillasIndustrial')
+    expect(lavavajillasIndustrial.quFria_lps).toBeNull()
+    const referencia = referenciaDe('uf-1', 'local-cocina', 'inst-lvi')
+    const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n1', referencia }]
+    const tramos: Tramo[] = [{ id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF' }]
+    const red: RedHidraulica = { nodos, tramos }
+
+    const resultado = resolverQuEfectivoParaTramo(red, 't0', referencia, lavavajillasIndustrial)
+
+    expect(resultado.condicion).toBe('aguaFria')
+    expect(resultado.qu_lps).toBe(lavavajillasIndustrial.quTotal_lps)
+    expect(resultado.qu_lps).toBe(0.4)
+  })
+
+  it('14. lavavajillas industrial conectado solo a AC (simétrico): qu_lps = quTotal_lps, no lanza', () => {
+    const lavavajillasIndustrial = buscarEnCatalogo('lavavajillasIndustrial')
+    expect(lavavajillasIndustrial.quCaliente_lps).toBeNull()
+    const referencia = referenciaDe('uf-1', 'local-cocina', 'inst-lvi')
+    const nodos: Nodo[] = [
+      { id: 'n0' },
+      { id: 'n1', referencia: { tipo: 'produccionACS' } },
+      { id: 'n2', referencia },
+    ]
+    const tramos: Tramo[] = [
+      { id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF' },
+      { id: 't1', nodoOrigenId: 'n1', nodoDestinoId: 'n2', red: 'AC' },
+    ]
+    const red: RedHidraulica = { nodos, tramos }
+
+    const resultadoEntrada = resolverQuEfectivoParaTramo(red, 't0', referencia, lavavajillasIndustrial)
+    const resultadoRama = resolverQuEfectivoParaTramo(red, 't1', referencia, lavavajillasIndustrial)
+
+    expect(resultadoEntrada.condicion).toBe('aguaCaliente')
+    expect(resultadoEntrada.qu_lps).toBe(0.4)
+    expect(resultadoRama.condicion).toBe('aguaCaliente')
+    expect(resultadoRama.qu_lps).toBe(0.4)
   })
 })
