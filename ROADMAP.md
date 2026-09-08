@@ -446,15 +446,25 @@ Primer módulo del bloque de reserva. Detalle en
   `directa` = "no aplica" sin V=0 ni §2.8; adopción pendiente/insuficiente
   **no degrada** "Evaluado". 20 tests SSR/unit + smoke Playwright 24/24,
   consola limpia, manifests intactos.
+- **M4-G** (D-δ.68) — `configuracionAbastecimiento.esquema` como **fuente
+  única** del origen hidráulico de M2. `resolverOrigenHidraulicoEfectivo`
+  (puro, 3→2: `directa`→directa; `tanqueElevado` y `cisternaBombeoElevado`
+  → tanque elevado). El Panel de Presión de M2 **retira** su selector
+  local `tipoAlimentacion` y el input manual de Pdisponible: deriva
+  `presionDisponible_mca` (0 / `presionSobreAcera_m` — la misma magnitud,
+  D-δ.38 — / undefined) y el origen para M3-E desde el esquema. Esquema
+  ausente/corrupto → verificación de presión `'incompleto'` (resto de M2
+  sigue calculándose). Regresión numérica: directa y tanque byte-idénticos
+  al histórico; `cisternaBombeoElevado` ≡ `tanqueElevado`. Primitivas de
+  M2 sin tocar; sin imports de `motor/modulo4` en `motor/tuberias`.
 
-**Pendiente:** **M4-G** — integración `configuracionAbastecimiento` →
-origen efectivo de M2 y retiro del selector efímero `tipoAlimentacion`
-del Panel de Presión, con auditoría de regresión M2 propia
-(`cisternaBombeoElevado` → M2 sigue empezando en el tanque elevado) →
-auto-derivación geométrica del desnivel por esquema → auditoría end-to-end
-de M4. También: sugerencia comercial de capacidad; obligación de reserva
-por §2.8 independiente del déficit; división en secciones iguales de
-tanques ≥ 4.000 L; geometría/bombas; reporting M1–M4.
+**Pendiente:** **M4-H** — auditoría end-to-end y cierre de Módulo 4
+(M1→Qc, conexión, Tabla N°1, interpolación, reserva, esquemas, adopción,
+§2.11.3, UI, integración M4→M2, backward compatibility, navegador) →
+auto-derivación geométrica del desnivel por esquema. También: sugerencia
+comercial de capacidad; obligación de reserva por §2.8 independiente del
+déficit; división en secciones iguales de tanques ≥ 4.000 L;
+geometría/bombas; reporting M1–M4.
 
 **Hallazgos de M4-A:**
 

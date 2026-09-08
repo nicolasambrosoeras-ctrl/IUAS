@@ -6987,3 +6987,166 @@ verificación §2.11.3, `directa` semánticamente correcta, incompletos
 humanizados, Rápido/Profesional, reactividad verificada en navegador.
 Baseline verde. Siguiente slice: **M4-G** -- integración
 `configuracionAbastecimiento` → origen efectivo de M2.
+
+## D-δ.68 -- M4-G: `configuracionAbastecimiento.esquema` como fuente única del origen hidráulico de M2 -- CERRADA
+
+Incremento **funcional** de integración. Sin fórmulas nuevas, sin tocar
+las primitivas hidráulicas de M2, sin cambiar el cálculo de M4.
+
+### Arqueología del Panel de Presión (antes de editar)
+
+El `PanelDePresionDeModulo2` tenía dos estados locales que elegían el
+origen **independientemente** del resto del proyecto:
+
+- `tipoAlimentacion: 'tanqueElevado' | 'presionConocida'` (radios, default
+  `'presionConocida'`). Derivaba `presionDisponible_mca` (0 para tanque)
+  y el `origenHidraulico` que consume M3-E
+  (`resolverPerdidasDeMedidoresParaTerminal`).
+- `presionDisponibleTexto` (input manual "Presión disponible
+  (Pdisponible) [m.c.a.]"), sólo para `presionConocida`.
+
+**Semántica de la presión directa (§8/§41):** verificada contra D-δ.38 —
+*"la presión mínima garantizada sobre el nivel de vereda — exactamente lo
+que representa el campo legado `ParametrosProyecto.presionSobreAcera_m`
+[...] `Pdisponible_mca = presionSobreAcera_m`"* — y contra el propio
+encabezado del panel (*"exactamente el contrato ya vigente"*). Es el
+**CASO A**: misma magnitud física, misma frontera (cota ≈ 0 = acera).
+**Sin decisión roja.**
+
+Se **conservan** sin cambios: los inputs de cota de la raíz
+(`conCotaDeNodo`) — "pelo de agua mínimo" para tanque, "cota del punto de
+alimentación" para directa —, que son un dato **geométrico** sin
+equivalente persistido en M4 (distinto de `desnivelConexion_m`, que es
+sólo de Tabla N°1).
+
+### Helper puro -- `resolverOrigenHidraulicoEfectivo` (`motor/modulo4/`)
+
+```ts
+resolverOrigenHidraulicoEfectivo(esquema): 'directa' | 'tanqueElevado'
+  directa               -> 'directa'
+  tanqueElevado         -> 'tanqueElevado'
+  cisternaBombeoElevado -> 'tanqueElevado'   // cisterna y bomba aguas
+                                             // arriba del almacenamiento;
+                                             // NO es un tercer origen
+```
+
+Función total sobre `EsquemaDeAbastecimiento`. Un esquema no reconocido en
+runtime (JSON corrupto) → `throw` controlado (lo detecta antes
+`validarConfiguracionAbastecimiento` como `error`). No conoce presiones,
+cotas, Tabla N°1, RTD ni bombas. **No vive dentro de las primitivas
+hidráulicas de M2** (que siguen agnósticas de M4).
+
+### `PanelDePresionDeModulo2` -- integración
+
+- **Eliminados**: `type TipoDeAlimentacion`, los dos `useState`, la función
+  local `parsearEntradaHidraulica`, los radios de tipo de alimentación y
+  el input manual de Pdisponible. **Sin fallback oculto.**
+- **Derivado** de `proyecto.configuracionAbastecimiento?.esquema`:
+  - `origenEfectivo` (vía el helper; `undefined` si el esquema falta o es
+    inválido — se filtra con `ESQUEMAS_DE_ABASTECIMIENTO` antes de llamar
+    al helper, para no lanzar).
+  - `presionDisponible_mca` = `0` (tanque) / `parametros.presionSobreAcera_m`
+    (directa) / `undefined` (sin esquema). **`presionSobreAcera_m` se usa
+    TAL CUAL — nunca `− desnivelConexion_m`** (ese desnivel es sólo de
+    Tabla N°1; M2 calcula su propio Δz de camino).
+  - `origenHidraulico` para M3-E = `'tanqueElevado'` / `'alimentacionDirecta'`
+    / `undefined`.
+- **Presentación**: sin esquema → *"Configurá el esquema de abastecimiento
+  en el Módulo 4 para verificar la presión."* (el resto de M2 —
+  dimensionamiento, topología, pérdidas — **sigue calculándose**: la
+  primitiva `resolverEstadoModulo2` recibe `presionDisponible_mca =
+  undefined`, empuja el motivo `presionDisponibleNoProvista` y clasifica
+  sólo la verificación de presión como `'incompleto'`, exactamente como
+  antes cuando faltaba el Pdisponible manual). Con esquema → línea
+  *"Origen hidráulico: Tanque elevado | Alimentación directa — derivado
+  del esquema de abastecimiento del Módulo 4"* (+ nota "cisterna y bombeo
+  aguas arriba" para `cisternaBombeoElevado`); en directa, la presión
+  sobre acera se muestra **read-only** ("se edita en el Módulo 4").
+- `agruparMotivosDeModulo2`: el texto de `presionDisponibleNoProvista`
+  pasó de *"Falta indicar el tipo de alimentación y sus datos."* a
+  *"Falta configurar el esquema de abastecimiento en el Módulo 4."*
+
+**No se creó `updater` de origen** — es derivado; se cambia editando el
+esquema en el Panel de Módulo 4 (`conEsquemaDeAbastecimiento`). **No** se
+tocó M2 core, M4 cálculo, `resolverModoDeTrabajo`, el orden de la
+one-page, ni §2.8.
+
+### M3-E (medidor general por origen) -- sin cambio de reglas
+
+El origen que consume `resolverPerdidasDeMedidoresParaTerminal` ahora
+viene del esquema global. Reglas intactas: `directa` → el medidor general
+**entra** al camino; `tanqueElevado` y `cisternaBombeoElevado` → **no
+entra** (aguas arriba del almacenamiento). Individuales, sin cambio.
+
+### Tests (12 nuevos → 1208/1208, 130 archivos)
+
+- `motor/modulo4/resolverOrigenHidraulico.test.ts` (5): mapeo 3→2,
+  `tanqueElevado ≡ cisternaBombeoElevado`, esquema desconocido → throw.
+- `motor/modulo4/integracionOrigenM2.test.ts` (7) — **regresión numérica**:
+  - **G3**: `resolverPresionResidualDeCamino` para `tanqueElevado` y
+    `cisternaBombeoElevado` es **byte-idéntico** (`toEqual`), y
+    `presionSobreAcera_m` no influye en los esquemas con tanque.
+  - **G4/G25**: `directa` usa `presionSobreAcera_m` como Pdisponible; +5 m
+    de acera → +5,000 m de presión residual (`balanceCompleto`).
+  - **G26 (anti-atajo)**: `directa` con esquema ≡ pasar `presionSobreAcera_m`
+    TAL CUAL a la primitiva (nunca menos un desnivel).
+  - **G6/G7/G8**: medidor general en el camino sólo en `directa`;
+    `cisternaBombeoElevado` idéntico a `tanqueElevado`.
+  - **G20**: cambiar el `hf` del medidor general mueve el resultado en
+    `directa` pero **no** en los esquemas con tanque.
+- `interfaz/paginas/PanelDePresionDeModulo2.test.ts` reescrito (8 SSR):
+  sin selector local ni input de Pdisponible; orienta al Módulo 4; origen
+  derivado por esquema (directa → "Alimentación directa" + presión sobre
+  acera read-only + cota del punto de alimentación; tanque → "Tanque
+  elevado" + pelo de agua mínimo; cisterna → mismo origen + nota); motivo
+  de incompletitud apunta al Módulo 4.
+- `agruparMotivosDeModulo2.test.ts`: nuevo texto.
+
+Suites de M2 históricas (D-δ.47..D-δ.52, D-δ.60) verdes sin cambios:
+dimensionamiento, DN manual, topología, pérdidas, terminal crítico
+intactos — las primitivas de M2 no se tocaron.
+
+### Auditoría de dependencias
+
+`grep` de imports desde `motor/modulo4` / `tabla-01` / `reserva` dentro de
+`motor/tuberias/**`: **ninguno**. `resolverOrigenHidraulicoEfectivo`
+importa sólo el tipo `EsquemaDeAbastecimiento` de `modelo/proyecto`. Sin
+dependencia circular; las primitivas hidráulicas siguen sin conocer M4.
+
+### Smoke de navegador (Playwright 1.63.0 transitorio, vite dev real)
+
+**20/20 checks OK, consola 0 errores / 0 warnings.** Demo sin M4 → el
+Panel de Presión no tiene selector local ni input de Pdisponible, orienta
+al Módulo 4 y el resto de M2 sigue visible; elegir `directa` → M2 muestra
+"Alimentación directa" + presión sobre acera read-only + "Cota del punto
+de alimentación"; `tanqueElevado` → "Tanque elevado" + "Pelo de agua
+mínimo"; `cisternaBombeoElevado` → mismo origen efectivo + nota de
+cisterna/bombeo aguas arriba; round-trip directa↔tanque↔cisterna sin
+stale ni reaparición del selector. `git diff -- package.json
+package-lock.json` **vacío**.
+
+### Verificación
+
+`vitest` 1208/1208 (130 archivos; +12 tests, +2 archivos), `tsc -b`
+verde, `npm run build` verde, `eslint .` 11 baseline / 0 nuevos, working
+tree limpio.
+
+### Decisiones rojas
+
+Ninguna. `presionSobreAcera_m` es inequívocamente la misma magnitud que
+el `Pdisponible` directo del panel (D-δ.38 lo dice verbatim); M2 no tiene
+otra frontera directa interna; el mapeo 3→2 cubre todos los esquemas
+soportados; retirar el selector no obligó a persistir geometría nueva
+(las cotas de raíz ya se persistían en `Nodo.cota_m`); la integración no
+metió M4 en primitivas hidráulicas; no hay esquema sectorizado modelado.
+
+### Estado
+
+**D-δ.68 -- CERRADA.** `configuracionAbastecimiento.esquema` es la fuente
+única del origen hidráulico de M2 (mapeo puro 3→2, selector local
+retirado sin fallback, esquema ausente/corrupto manejado como
+`'incompleto'` sin degradar el resto de M2, M4 incompleto no impide
+derivar el origen). Regresión numérica de M2 verde (directa y tanque
+byte-idénticos al histórico; cisterna ≡ tanque). Sin acoplamiento a
+primitivas hidráulicas. Baseline verde, smoke 20/20. Siguiente slice:
+**M4-H** -- auditoría end-to-end y cierre de M4.
