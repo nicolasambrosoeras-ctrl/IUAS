@@ -3,6 +3,8 @@ import type { Proyecto } from '../../modelo/proyecto'
 import {
   conEsquemaDeAbastecimiento,
   conPeriodoConsumoMaximo,
+  conVolumenTanqueBombeoAdoptado,
+  conVolumenTanqueElevadoAdoptado,
 } from './actualizarConfiguracionAbastecimiento'
 
 function proyectoBase(): Proyecto {
@@ -114,5 +116,72 @@ describe('actualizarConfiguracionAbastecimiento (D-δ.63)', () => {
   it('quitar un Tc ausente es idempotente (devuelve el mismo objeto)', () => {
     const proyecto = conEsquemaDeAbastecimiento(proyectoBase(), 'tanqueElevado')
     expect(conPeriodoConsumoMaximo(proyecto, undefined)).toBe(proyecto)
+  })
+})
+
+describe('actualizarConfiguracionAbastecimiento — capacidades adoptadas (D-δ.66)', () => {
+  it('fija y quita el volumen de tanque elevado, sin clamp ni validación', () => {
+    let proyecto = conEsquemaDeAbastecimiento(proyectoBase(), 'tanqueElevado')
+
+    proyecto = conVolumenTanqueElevadoAdoptado(proyecto, 2.5)
+    expect(proyecto.configuracionAbastecimiento?.volumenTanqueElevadoAdoptado_m3).toBe(2.5)
+
+    // valor inválido: se persiste tal cual (lo marca la validación aparte)
+    proyecto = conVolumenTanqueElevadoAdoptado(proyecto, -1)
+    expect(proyecto.configuracionAbastecimiento?.volumenTanqueElevadoAdoptado_m3).toBe(-1)
+
+    proyecto = conVolumenTanqueElevadoAdoptado(proyecto, undefined)
+    expect(proyecto.configuracionAbastecimiento).toEqual({ esquema: 'tanqueElevado' })
+  })
+
+  it('fija y quita el volumen de tanque de bombeo', () => {
+    let proyecto = conEsquemaDeAbastecimiento(proyectoBase(), 'cisternaBombeoElevado')
+    proyecto = conVolumenTanqueBombeoAdoptado(proyecto, 1)
+    expect(proyecto.configuracionAbastecimiento?.volumenTanqueBombeoAdoptado_m3).toBe(1)
+    proyecto = conVolumenTanqueBombeoAdoptado(proyecto, undefined)
+    expect(proyecto.configuracionAbastecimiento?.volumenTanqueBombeoAdoptado_m3).toBeUndefined()
+  })
+
+  it('0 es un valor válido y se persiste', () => {
+    let proyecto = conEsquemaDeAbastecimiento(proyectoBase(), 'tanqueElevado')
+    proyecto = conVolumenTanqueElevadoAdoptado(proyecto, 0)
+    expect(proyecto.configuracionAbastecimiento?.volumenTanqueElevadoAdoptado_m3).toBe(0)
+  })
+
+  it('conVolumenTanque* con M4 no iniciado -> throw', () => {
+    expect(() => conVolumenTanqueElevadoAdoptado(proyectoBase(), 2)).toThrow(/Módulo 4 no iniciado/)
+    expect(() => conVolumenTanqueBombeoAdoptado(proyectoBase(), 2)).toThrow(/Módulo 4 no iniciado/)
+  })
+
+  it('se puede limpiar un volumen persistido aunque el esquema actual no contenga ese tanque', () => {
+    let proyecto = conEsquemaDeAbastecimiento(proyectoBase(), 'cisternaBombeoElevado')
+    proyecto = conVolumenTanqueBombeoAdoptado(proyecto, 1)
+    proyecto = conEsquemaDeAbastecimiento(proyecto, 'tanqueElevado') // conserva el volumen de bombeo (no poda destructiva)
+    expect(proyecto.configuracionAbastecimiento?.volumenTanqueBombeoAdoptado_m3).toBe(1)
+    proyecto = conVolumenTanqueBombeoAdoptado(proyecto, undefined) // pero se puede limpiar
+    expect(proyecto.configuracionAbastecimiento?.volumenTanqueBombeoAdoptado_m3).toBeUndefined()
+  })
+
+  it('quitar un volumen ausente es idempotente', () => {
+    const proyecto = conEsquemaDeAbastecimiento(proyectoBase(), 'tanqueElevado')
+    expect(conVolumenTanqueElevadoAdoptado(proyecto, undefined)).toBe(proyecto)
+  })
+
+  it('cambiar de esquema entre tanques conserva ambas capacidades; pasar a directa las descarta', () => {
+    let proyecto = conEsquemaDeAbastecimiento(proyectoBase(), 'cisternaBombeoElevado')
+    proyecto = conVolumenTanqueBombeoAdoptado(proyecto, 1)
+    proyecto = conVolumenTanqueElevadoAdoptado(proyecto, 2)
+    proyecto = conPeriodoConsumoMaximo(proyecto, 2)
+
+    const aElevado = conEsquemaDeAbastecimiento(proyecto, 'tanqueElevado')
+    expect(aElevado.configuracionAbastecimiento).toEqual({
+      esquema: 'tanqueElevado',
+      periodoConsumoMaximo_h: 2,
+      volumenTanqueElevadoAdoptado_m3: 2,
+      volumenTanqueBombeoAdoptado_m3: 1,
+    })
+
+    const aDirecta = conEsquemaDeAbastecimiento(proyecto, 'directa')
+    expect(aDirecta.configuracionAbastecimiento).toEqual({ esquema: 'directa' })
   })
 })

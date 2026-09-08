@@ -939,6 +939,10 @@ const MENSAJES_DE_VALIDACION: Readonly<Record<CodigoValidacion, string>> = {
     'El diámetro nominal de la conexión debe ser uno de los diámetros de la Tabla N°1 y mayor o igual a 19 mm.',
   parametrosDesnivelConexionNoFinito:
     'El desnivel de la conexión respecto de la acera debe ser un número (puede ser negativo, cero o positivo).',
+  configuracionAbastecimientoVolumenTanqueElevadoInvalido:
+    'El volumen adoptado del tanque elevado debe ser un número mayor o igual a cero.',
+  configuracionAbastecimientoVolumenTanqueBombeoInvalido:
+    'El volumen adoptado del tanque de bombeo debe ser un número mayor o igual a cero.',
 }
 
 function ProblemasValidacion({ problemas }: { problemas: readonly ProblemaValidacion[] }) {

@@ -2436,3 +2436,95 @@ Ausencia de cualquiera → no es problema de validación (Módulo 4 quedará
 `motor/modulo4/resolverPresionDeCalculoDeConexion.ts` y consumido por
 `motor/modulo4/resolverEstadoModulo4.ts`. Ver D-δ.65 en
 `PENDIENTES-DE-ARQUITECTURA.md`.
+
+## CRIT-A38 — Adopción y distribución de la Reserva Total Diaria (§2.11.3)
+
+**Artículo:** ERAS-2023 §2.11.3 "Distribución Reserva Total Diaria".
+
+**Texto oficial confirmado** (verificado contra la Resolución 641/2023,
+argentina.gob.ar):
+
+> "Los tanques de bombeo y reserva deben poseer un volumen mínimo de 1/3
+> de la Reserva Total Diaria."
+
+También, de §2.11: "Tanques de bombeo y reserva de 4.000 litros o más
+deben estar divididos en dos o más secciones iguales" (constructivo, no
+se modela en M4).
+
+**Distinción requerido vs adoptado.** M4 separa dos dimensiones:
+
+- **`volumenReservaDiseño_m3` (requerido)**: lo que exige el cálculo
+  (§2.10.2 / CRIT-A35). Derivado, nunca persistido.
+- **capacidad adoptada**: lo que el proyectista declara —
+  `configuracionAbastecimiento.volumenTanqueElevadoAdoptado_m3` (superior)
+  y `.volumenTanqueBombeoAdoptado_m3` (inferior / cisterna). Decisiones de
+  proyecto, **persistidas**; en m³; **sin default y sin catálogo
+  comercial** (el usuario declara la capacidad real). `0` es válido;
+  ausencia ≠ 0.
+
+**Reglas de verificación (`resolverAdopcionDeReserva`, función pura;
+comparaciones exactas `>=`, sin tolerancia ni redondeo):**
+
+- **`directa`** → `noAplica`. No se fabrica una verificación con
+  requerido/adoptado = 0 (semánticamente distinto de "hay tanque con RTD
+  0").
+- **`tanqueElevado`** (un único almacenamiento): sin capacidad adoptada →
+  `sinAdopcion`; con capacidad → `verificada` con `diferencia_m3 =
+  adoptado − requerido` y `estado = adoptado >= requerido ? 'suficiente'
+  : 'insuficiente'`. **No** se aplica el mínimo individual de 1/3 (no hay
+  sistema dividido). El volumen de tanque de bombeo se ignora.
+- **`cisternaBombeoElevado`** (dos tanques): falta una o ambas capacidades
+  → `adopcionIncompleta` (señala cuál falta). Con ambas →
+  `verificadaDistribuida` con **tres verificaciones independientes**:
+  - `tanqueBombeoCumpleMinimo` = `VTB >= VRTD / 3`
+  - `tanqueElevadoCumpleMinimo` = `VTR >= VRTD / 3`
+  - `totalCumple` = `VTB + VTR >= VRTD`  [FÍSICA: la capacidad total debe
+    cubrir la reserva requerida]
+
+  `estado = 'suficiente'` **si y sólo si las tres** son verdaderas.
+
+**Interpretación explícita de §2.11.3** (para no reintroducir un reparto
+único): la norma exige que **cada** tanque tenga como mínimo 1/3 de la
+**Reserva Total Diaria** — no 1/3 del volumen adoptado total, no un
+reparto fijo 1/3 + 2/3, no suma exacta. Casos discriminantes cubiertos
+por tests:
+
+- `VRTD=3, VTB=0,5, VTR=2,5` → total alcanza (3 ≥ 3) pero `VTB < 1` →
+  **insuficiente**.
+- `VRTD=3, VTB=1, VTR=1` → cada uno ≥ 1/3 pero total `2 < 3` →
+  **insuficiente**.
+- `VRTD=3, VTB=1, VTR=3` → `VTB` es 25 % del total adoptado (4 m³) pero
+  `1 ≥ 3/3` → **suficiente** (se mide contra la RTD, no contra el total).
+- Sobredimensionado (`VTB+VTR > VRTD`) → **suficiente**, sin penalización.
+
+**`evaluado` ≠ `suficiente`.** La adopción es una dimensión **adicional**
+del resultado (`ResultadoModulo4.reservaCalculada.adopcion`): un esquema
+con tanque y reserva calculada queda `EstadoModulo4 = 'evaluado'` aunque
+no se haya declarado ninguna capacidad. Separar computabilidad ("la
+reserva requerida es 0,771 m³") de decisión de proyecto ("qué tanque se
+adopta") — mismo patrón que Módulo 3.
+
+**`VRTD = 0` no implica ausencia de obligación de tanque.** Cuando
+`Qconexión >= Qc`, `VRTD = 0` y los mínimos/total se satisfacen
+trivialmente, pero eso **no** significa que el tanque no sea obligatorio
+(§2.8) ni que el esquema sea innecesario. Los nombres reflejan que se
+evalúa "capacidad respecto de la RTD calculada", **no** cumplimiento
+normativo global del abastecimiento (sin `cumpleNorma` /
+`instalacionValida` / `abastecimientoAprobado`).
+
+**Sin redondeo comercial.** La planilla oficial Tabla N°3 muestra
+`0,77 m³` de diseño → `1,00 m³` "a ejecutar", pero la Guía **no** enuncia
+una regla general de redondeo comercial: M4 mantiene requerido y adoptado
+como valores separados sin transformarlos.
+
+**Alcance — qué NO resuelve:** no persiste porcentajes de reparto (se
+derivan de los volúmenes); no fija un default 1/3 + 2/3 (la UI futura
+podrá sugerirlo); no dimensiona geometría del tanque (ancho/alto/nivel
+mínimo/cámara de aire) ni el equipo de bombeo (caudal/potencia/ciclos);
+no verifica la obligatoriedad de reserva de §2.8; no divide en secciones
+iguales los tanques ≥ 4.000 L.
+
+**Estado:** Firme. Implementado en
+`motor/modulo4/resolverAdopcionDeReserva.ts`, integrado en
+`motor/modulo4/resolverEstadoModulo4.ts`. Ver D-δ.66 en
+`PENDIENTES-DE-ARQUITECTURA.md`.

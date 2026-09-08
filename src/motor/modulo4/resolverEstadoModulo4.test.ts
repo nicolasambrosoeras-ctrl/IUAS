@@ -328,4 +328,151 @@ describe('resolverEstadoModulo4 (D-δ.63 / D-δ.65)', () => {
     expect(conexion.qConexion_lps).not.toBe(0.66)
     expect(conexion.qConexion_lps).not.toBe(0.72)
   })
+
+  // --- adopción de reserva (M4-E / D-δ.66) ---
+
+  it('sin capacidad adoptada -> EstadoModulo4 sigue evaluado, con adopcion.tipo = sinAdopcion', () => {
+    const estado = resolver(
+      construirProyecto({
+        configuracionAbastecimiento: { esquema: 'tanqueElevado', periodoConsumoMaximo_h: 2 },
+        conexion: { presionSobreAcera_m: 5, diametroNominalConexion_m: 0.019, desnivelConexion_m: 0 },
+      }),
+    )
+    expect(estado.estado).toBe('evaluado')
+    if (estado.estado !== 'evaluado' || estado.resultado.tipo !== 'reservaCalculada') {
+      throw new Error('inesperado')
+    }
+    expect(estado.resultado.adopcion).toEqual({
+      tipo: 'sinAdopcion',
+      volumenRequerido_m3: estado.resultado.reserva.volumenReservaDiseno_m3,
+    })
+  })
+
+  it('capacidad de tanque elevado adoptada suficiente -> adopcion.estado suficiente con diferencia', () => {
+    const estado = resolver(
+      construirProyecto({
+        configuracionAbastecimiento: {
+          esquema: 'tanqueElevado',
+          periodoConsumoMaximo_h: 2,
+          volumenTanqueElevadoAdoptado_m3: 1,
+        },
+        conexion: { presionSobreAcera_m: 5, diametroNominalConexion_m: 0.019, desnivelConexion_m: 0 },
+      }),
+    )
+    if (estado.estado !== 'evaluado' || estado.resultado.tipo !== 'reservaCalculada') {
+      throw new Error('inesperado')
+    }
+    const { adopcion, reserva } = estado.resultado
+    expect(adopcion.tipo).toBe('verificada')
+    if (adopcion.tipo !== 'verificada') throw new Error('inesperado')
+    expect(adopcion.estado).toBe('suficiente')
+    // Reserva ≈ 0,7712 m³ (G3) -> diferencia ≈ +0,2288 m³.
+    expect(reserva.volumenReservaDiseno_m3).toBeCloseTo(0.7711688248, 7)
+    expect(adopcion.diferencia_m3).toBeCloseTo(0.2288311752, 7)
+  })
+
+  it('cisternaBombeoElevado: adopción incompleta y luego verificada distribuida (EstadoModulo4 evaluado en ambos)', () => {
+    const conexion = { presionSobreAcera_m: 5, diametroNominalConexion_m: 0.019, desnivelConexion_m: 0 }
+
+    const incompleto = resolver(
+      construirProyecto({
+        configuracionAbastecimiento: { esquema: 'cisternaBombeoElevado', periodoConsumoMaximo_h: 2 },
+        conexion,
+      }),
+    )
+    if (incompleto.estado !== 'evaluado' || incompleto.resultado.tipo !== 'reservaCalculada') {
+      throw new Error('inesperado')
+    }
+    expect(incompleto.resultado.adopcion).toMatchObject({
+      tipo: 'adopcionIncompleta',
+      faltaTanqueBombeo: true,
+      faltaTanqueElevado: true,
+    })
+
+    const vrtd = incompleto.resultado.reserva.volumenReservaDiseno_m3
+
+    const suficiente = resolver(
+      construirProyecto({
+        configuracionAbastecimiento: {
+          esquema: 'cisternaBombeoElevado',
+          periodoConsumoMaximo_h: 2,
+          volumenTanqueBombeoAdoptado_m3: vrtd / 3,
+          volumenTanqueElevadoAdoptado_m3: (2 * vrtd) / 3,
+        },
+        conexion,
+      }),
+    )
+    if (suficiente.estado !== 'evaluado' || suficiente.resultado.tipo !== 'reservaCalculada') {
+      throw new Error('inesperado')
+    }
+    expect(suficiente.resultado.adopcion).toMatchObject({
+      tipo: 'verificadaDistribuida',
+      estado: 'suficiente',
+    })
+
+    const insuficiente = resolver(
+      construirProyecto({
+        configuracionAbastecimiento: {
+          esquema: 'cisternaBombeoElevado',
+          periodoConsumoMaximo_h: 2,
+          volumenTanqueBombeoAdoptado_m3: vrtd / 3 - 0.01, // inferior por debajo del mínimo
+          volumenTanqueElevadoAdoptado_m3: vrtd, // pero el total sigue >= VRTD
+        },
+        conexion,
+      }),
+    )
+    if (insuficiente.estado !== 'evaluado' || insuficiente.resultado.tipo !== 'reservaCalculada') {
+      throw new Error('inesperado')
+    }
+    expect(insuficiente.resultado.adopcion).toMatchObject({
+      tipo: 'verificadaDistribuida',
+      tanqueBombeoCumpleMinimo: false,
+      totalCumple: true,
+      estado: 'insuficiente',
+    })
+  })
+
+  it('reactividad: la MISMA capacidad adoptada cambia de suficiente a insuficiente al cambiar Tc', () => {
+    const conexion = { presionSobreAcera_m: 5, diametroNominalConexion_m: 0.019, desnivelConexion_m: 0 }
+    const conTc = (tc_h: number) =>
+      resolver(
+        construirProyecto({
+          configuracionAbastecimiento: {
+            esquema: 'tanqueElevado',
+            periodoConsumoMaximo_h: tc_h,
+            volumenTanqueElevadoAdoptado_m3: 1,
+          },
+          conexion,
+        }),
+      )
+
+    const conTc1 = conTc(1)
+    const conTc4 = conTc(4)
+    if (
+      conTc1.estado !== 'evaluado' ||
+      conTc1.resultado.tipo !== 'reservaCalculada' ||
+      conTc4.estado !== 'evaluado' ||
+      conTc4.resultado.tipo !== 'reservaCalculada'
+    ) {
+      throw new Error('inesperado')
+    }
+    expect(conTc1.resultado.adopcion).toMatchObject({ tipo: 'verificada', estado: 'suficiente' })
+    expect(conTc4.resultado.adopcion).toMatchObject({ tipo: 'verificada', estado: 'insuficiente' })
+  })
+
+  it('directa: el resultado sigue siendo sinReservaPorTanque, sin bloque adopcion', () => {
+    const estado = resolver(
+      construirProyecto({
+        configuracionAbastecimiento: {
+          esquema: 'directa',
+          volumenTanqueElevadoAdoptado_m3: 3,
+          volumenTanqueBombeoAdoptado_m3: 2,
+        },
+      }),
+    )
+    expect(estado).toEqual({
+      estado: 'evaluado',
+      resultado: { tipo: 'sinReservaPorTanque', esquema: 'directa' },
+    })
+  })
 })

@@ -1,11 +1,12 @@
-// Estado y resultado de Módulo 4 (Reserva), D-δ.63 / D-δ.65. Primitiva de
-// dominio pura, independiente de UI, que orquesta el cálculo de reserva
-// del Proyecto componiendo piezas ya cerradas:
+// Estado y resultado de Módulo 4 (Reserva), D-δ.63 / D-δ.65 / D-δ.66.
+// Primitiva de dominio pura, independiente de UI, que orquesta el cálculo
+// de reserva del Proyecto componiendo piezas ya cerradas:
 //
 //   calcularSimultaneidad              -> Qc global del proyecto (M1, CRIT-A5)
 //   resolverPresionDeCalculoDeConexion -> presión de cálculo (§2.7, CRIT-A37)
 //   resolverGastoTabla01              -> Qconexión (Tabla N°1 §2.7, CRIT-A36)
 //   calcularReservaDiaria             -> Reserva Total Diaria de Diseño (§2.10.2, CRIT-A35)
+//   resolverAdopcionDeReserva        -> capacidad adoptada vs requerida (§2.11.3, CRIT-A38)
 //
 // No reimplementa ninguna fórmula ni regla: compone y clasifica. NO conoce
 // React, NO toca RedHidraulica ni M2/M3, NO persiste nada.
@@ -34,13 +35,23 @@
 //
 //  - 'evaluado': el estado de cálculo de M4 está determinado. 'directa'
 //    -> `sinReservaPorTanque`. Esquema con tanque -> `reservaCalculada`
-//    con la Reserva Total Diaria de Diseño y la traza de conexión
-//    (presión de acera -> desnivel -> presión de cálculo -> Tabla N°1 ->
-//    Qconexión). Incluye el caso `déficit = 0` (Qconexión >= Qc): es una
-//    reserva calculada de volumen 0, NO `sinReservaPorTanque`.
+//    con la Reserva Total Diaria de Diseño, la traza de conexión (presión
+//    de acera -> desnivel -> presión de cálculo -> Tabla N°1 -> Qconexión)
+//    y la verificación de la capacidad adoptada (`adopcion`). Incluye el
+//    caso `déficit = 0` (Qconexión >= Qc): es una reserva calculada de
+//    volumen 0, NO `sinReservaPorTanque`.
 //
-//    'evaluado' NO significa "cumple normativa" (no verifica §2.8 ni
-//    compara contra un volumen adoptado).
+//    La ADOPCIÓN de tanque NO degrada el estado: un esquema con tanque y
+//    reserva calculada queda 'evaluado' aunque no se haya declarado
+//    ninguna capacidad (`adopcion.tipo` = 'sinAdopcion' /
+//    'adopcionIncompleta'). Separar computabilidad (el cálculo está
+//    resuelto) de decisión de proyecto (qué tanque se adopta) -- mismo
+//    patrón que Módulo 3 (evaluado ≠ cumple).
+//
+//    'evaluado' NO significa "cumple normativa" (no verifica §2.8 ni la
+//    obligatoriedad de reserva; `adopcion.estado = 'suficiente'` sólo
+//    dice que la capacidad adoptada cubre la RTD calculada y, con dos
+//    tanques, los mínimos de §2.11.3).
 import type { Proyecto } from '../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import type { TipoProyectoNormativo } from '../../normativa/eras-2023/coeficientes-mayoracion'
@@ -54,6 +65,7 @@ import { validarConfiguracionAbastecimiento } from '../../validacion/configuraci
 import { validarParametrosDeConexion } from '../../validacion/parametrosConexion'
 import { calcularSimultaneidad } from '../demanda/simultaneidad/calcularSimultaneidad'
 import { calcularReservaDiaria, type ResultadoReservaDiaria } from '../reserva/calcularReservaDiaria'
+import { resolverAdopcionDeReserva, type ResultadoAdopcionDeReserva } from './resolverAdopcionDeReserva'
 import { resolverPresionDeCalculoDeConexion } from './resolverPresionDeCalculoDeConexion'
 
 // Traza auditable de cómo se obtuvo el Qconexión: presión sobre acera ->
@@ -74,6 +86,12 @@ export type ResultadoModulo4 =
       readonly esquema: 'tanqueElevado' | 'cisternaBombeoElevado'
       readonly conexion: TrazaDeConexionModulo4
       readonly reserva: ResultadoReservaDiaria
+      // Verificación de la capacidad ADOPTADA respecto de la reserva
+      // calculada (§2.11.3 / CRIT-A38). Es una dimensión adicional del
+      // resultado, NO afecta el estado 'evaluado': el cálculo de la
+      // reserva puede estar determinado aunque todavía no se haya elegido
+      // tanque (`adopcion.tipo` = 'sinAdopcion' / 'adopcionIncompleta').
+      readonly adopcion: ResultadoAdopcionDeReserva
     }
 
 export type DiagnosticoErrorModulo4 = {
@@ -224,6 +242,12 @@ export function resolverEstadoModulo4(entrada: EntradaEstadoModulo4): EstadoModu
     qConexion_lps: trazaDeConexion.qConexion_lps,
     tc_h,
   })
+  const adopcion = resolverAdopcionDeReserva({
+    esquema: configuracion.esquema,
+    volumenReservaRequerido_m3: reserva.volumenReservaDiseno_m3,
+    volumenTanqueElevadoAdoptado_m3: configuracion.volumenTanqueElevadoAdoptado_m3,
+    volumenTanqueBombeoAdoptado_m3: configuracion.volumenTanqueBombeoAdoptado_m3,
+  })
   return {
     estado: 'evaluado',
     resultado: {
@@ -231,6 +255,7 @@ export function resolverEstadoModulo4(entrada: EntradaEstadoModulo4): EstadoModu
       esquema: configuracion.esquema,
       conexion: trazaDeConexion,
       reserva,
+      adopcion,
     },
   }
 }

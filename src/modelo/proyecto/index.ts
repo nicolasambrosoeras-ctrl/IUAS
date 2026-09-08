@@ -276,6 +276,23 @@ export type ConfiguracionDeAbastecimiento = {
   // Ausente con un esquema con tanque = dato faltante (EstadoModulo4
   // 'incompleto'), nunca se asume un valor.
   readonly periodoConsumoMaximo_h?: number;
+  // Capacidades ADOPTADAS por el proyectista, en m³ (M4-E, D-δ.66). Son
+  // decisiones de proyecto, NO derivados: nunca se persiste la Reserva
+  // Total Diaria calculada, sus tercios, sumas ni estados de verificación.
+  // Optativas, sin default y sin catálogo comercial (el usuario declara la
+  // capacidad real). 0 es un valor estructuralmente válido; ausencia ≠ 0.
+  //
+  //   volumenTanqueElevadoAdoptado_m3 -> almacenamiento SUPERIOR
+  //     (esquemas 'tanqueElevado' y 'cisternaBombeoElevado').
+  //   volumenTanqueBombeoAdoptado_m3  -> almacenamiento INFERIOR / cisterna
+  //     (sólo 'cisternaBombeoElevado').
+  //
+  // Un campo que no corresponde al esquema actual se IGNORA en el cálculo
+  // (nunca lo invalida), y NO se poda de forma destructiva al cambiar de
+  // esquema -- así una decisión previa del mismo componente físico puede
+  // reaparecer si se vuelve a ese esquema.
+  readonly volumenTanqueElevadoAdoptado_m3?: number;
+  readonly volumenTanqueBombeoAdoptado_m3?: number;
 };
 
 export type Proyecto = {

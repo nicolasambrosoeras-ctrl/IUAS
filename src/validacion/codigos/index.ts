@@ -27,7 +27,9 @@ export type CodigoValidacion =
   | 'configuracionAbastecimientoEsquemaInvalido'
   | 'configuracionAbastecimientoPeriodoConsumoMaximoInvalido'
   | 'parametrosDiametroNominalConexionNoAdmisible'
-  | 'parametrosDesnivelConexionNoFinito';
+  | 'parametrosDesnivelConexionNoFinito'
+  | 'configuracionAbastecimientoVolumenTanqueElevadoInvalido'
+  | 'configuracionAbastecimientoVolumenTanqueBombeoInvalido';
 
 export type Severidad = 'error' | 'advertencia';
 
@@ -149,6 +151,16 @@ export const codigosValidacion: Readonly<Record<CodigoValidacion, DescripcionCod
     severidad: 'error',
     descripcion:
       'parametros.desnivelConexion_m, cuando está presente, debe ser un número finito (puede ser negativo, cero o positivo: es un desnivel firmado, no una longitud).',
+  },
+  configuracionAbastecimientoVolumenTanqueElevadoInvalido: {
+    severidad: 'error',
+    descripcion:
+      'configuracionAbastecimiento.volumenTanqueElevadoAdoptado_m3, cuando está presente, debe ser un número finito >= 0. Que sea menor a la reserva requerida NO es un problema de validación (es una verificación derivada).',
+  },
+  configuracionAbastecimientoVolumenTanqueBombeoInvalido: {
+    severidad: 'error',
+    descripcion:
+      'configuracionAbastecimiento.volumenTanqueBombeoAdoptado_m3, cuando está presente, debe ser un número finito >= 0.',
   },
 } as const;
 

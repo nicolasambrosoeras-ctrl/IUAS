@@ -12,6 +12,13 @@
 // lo ignora); un esquema 'directa' con un `periodoConsumoMaximo_h`
 // estructuralmente inválido sí es un error -- el dato persistido está roto.
 //
+// M4-E (D-δ.66): mismo criterio para las capacidades adoptadas
+// (`volumenTanqueElevadoAdoptado_m3` / `volumenTanqueBombeoAdoptado_m3`).
+// Si están presentes, deben ser un número finito >= 0 (0 es válido).
+// Que la capacidad adoptada sea menor a la reserva requerida NO es un
+// problema de validación -- es una verificación DERIVADA
+// (resolverAdopcionDeReserva). Ausencia tampoco es un problema.
+//
 // Ausencia de `configuracionAbastecimiento` NO es un problema de
 // validación: es el estado 'noIniciado' de Módulo 4 (ver
 // resolverEstadoModulo4).
@@ -27,7 +34,12 @@ export function validarConfiguracionAbastecimiento(proyecto: Proyecto): readonly
   }
 
   const problemas: ProblemaValidacion[] = [];
-  const { esquema, periodoConsumoMaximo_h } = configuracionAbastecimiento;
+  const {
+    esquema,
+    periodoConsumoMaximo_h,
+    volumenTanqueElevadoAdoptado_m3,
+    volumenTanqueBombeoAdoptado_m3,
+  } = configuracionAbastecimiento;
 
   if (!(ESQUEMAS_DE_ABASTECIMIENTO as readonly string[]).includes(esquema)) {
     problemas.push(
@@ -50,6 +62,35 @@ export function validarConfiguracionAbastecimiento(proyecto: Proyecto): readonly
         ),
       );
     }
+  }
+
+  const esVolumenAdoptadoInvalido = (valor: number): boolean =>
+    !Number.isFinite(valor) || valor < 0;
+
+  if (
+    volumenTanqueElevadoAdoptado_m3 !== undefined &&
+    esVolumenAdoptadoInvalido(volumenTanqueElevadoAdoptado_m3)
+  ) {
+    problemas.push(
+      crearProblema(
+        'configuracionAbastecimientoVolumenTanqueElevadoInvalido',
+        'configuracionAbastecimiento.volumenTanqueElevadoAdoptado_m3',
+        volumenTanqueElevadoAdoptado_m3,
+      ),
+    );
+  }
+
+  if (
+    volumenTanqueBombeoAdoptado_m3 !== undefined &&
+    esVolumenAdoptadoInvalido(volumenTanqueBombeoAdoptado_m3)
+  ) {
+    problemas.push(
+      crearProblema(
+        'configuracionAbastecimientoVolumenTanqueBombeoInvalido',
+        'configuracionAbastecimiento.volumenTanqueBombeoAdoptado_m3',
+        volumenTanqueBombeoAdoptado_m3,
+      ),
+    );
   }
 
   return problemas;

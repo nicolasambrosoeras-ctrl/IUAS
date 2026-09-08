@@ -162,3 +162,103 @@ describe('validarConfiguracionAbastecimiento (D-δ.63)', () => {
     expect(resultado.problemas.some((p) => p.campo.startsWith('configuracionAbastecimiento'))).toBe(false)
   })
 })
+
+describe('validarConfiguracionAbastecimiento — capacidades adoptadas (D-δ.66)', () => {
+  it('V1: ambas capacidades ausentes -> sin problemas', () => {
+    expect(
+      validarConfiguracionAbastecimiento(
+        conAbastecimiento({ esquema: 'cisternaBombeoElevado', periodoConsumoMaximo_h: 2 }),
+      ),
+    ).toEqual([])
+  })
+
+  it('V2/V3: volumen 0 y volumen positivo son válidos', () => {
+    expect(
+      validarConfiguracionAbastecimiento(
+        conAbastecimiento({
+          esquema: 'cisternaBombeoElevado',
+          volumenTanqueElevadoAdoptado_m3: 0,
+          volumenTanqueBombeoAdoptado_m3: 1.75,
+        }),
+      ),
+    ).toEqual([])
+  })
+
+  it('V4: volumen de tanque elevado negativo -> error', () => {
+    const problemas = validarConfiguracionAbastecimiento(
+      conAbastecimiento({ esquema: 'tanqueElevado', volumenTanqueElevadoAdoptado_m3: -1 }),
+    )
+    expect(problemas.map((p) => p.codigo)).toEqual(['configuracionAbastecimientoVolumenTanqueElevadoInvalido'])
+    expect(problemas[0]?.severidad).toBe('error')
+  })
+
+  it('V5: volumen de tanque de bombeo negativo -> error', () => {
+    expect(
+      validarConfiguracionAbastecimiento(
+        conAbastecimiento({ esquema: 'cisternaBombeoElevado', volumenTanqueBombeoAdoptado_m3: -0.001 }),
+      ).map((p) => p.codigo),
+    ).toEqual(['configuracionAbastecimientoVolumenTanqueBombeoInvalido'])
+  })
+
+  it('V6: NaN / Infinity -> error para cada capacidad', () => {
+    for (const valor of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(
+        validarConfiguracionAbastecimiento(
+          conAbastecimiento({ esquema: 'tanqueElevado', volumenTanqueElevadoAdoptado_m3: valor }),
+        ).map((p) => p.codigo),
+      ).toEqual(['configuracionAbastecimientoVolumenTanqueElevadoInvalido'])
+      expect(
+        validarConfiguracionAbastecimiento(
+          conAbastecimiento({ esquema: 'cisternaBombeoElevado', volumenTanqueBombeoAdoptado_m3: valor }),
+        ).map((p) => p.codigo),
+      ).toEqual(['configuracionAbastecimientoVolumenTanqueBombeoInvalido'])
+    }
+  })
+
+  it('V7: un volumen de bombeo presente en un esquema tanqueElevado no rompe el proyecto (no aplica, no invalida)', () => {
+    expect(
+      validarConfiguracionAbastecimiento(
+        conAbastecimiento({
+          esquema: 'tanqueElevado',
+          volumenTanqueElevadoAdoptado_m3: 2,
+          volumenTanqueBombeoAdoptado_m3: 1,
+        }),
+      ),
+    ).toEqual([])
+  })
+
+  it('V8: volúmenes presentes en directa no rompen el proyecto', () => {
+    expect(
+      validarConfiguracionAbastecimiento(
+        conAbastecimiento({
+          esquema: 'directa',
+          volumenTanqueElevadoAdoptado_m3: 2,
+          volumenTanqueBombeoAdoptado_m3: 1,
+        }),
+      ),
+    ).toEqual([])
+  })
+
+  it('adoptado < requerido NO es un problema de validación (es verificación derivada)', () => {
+    // No hay forma de expresar "requerido" acá; sólo se comprueba que un
+    // volumen chico pero válido no genera ningún problema estructural.
+    expect(
+      validarConfiguracionAbastecimiento(
+        conAbastecimiento({ esquema: 'tanqueElevado', volumenTanqueElevadoAdoptado_m3: 0.0001 }),
+      ),
+    ).toEqual([])
+  })
+
+  it('integrado en validarProyecto: un volumen adoptado negativo invalida el proyecto', () => {
+    const resultado = validarProyecto(
+      conAbastecimiento({ esquema: 'tanqueElevado', volumenTanqueElevadoAdoptado_m3: -5 }),
+      catalogoArtefactos,
+      coeficientesMayoracion,
+      catalogoSistemasDeTuberia,
+    )
+    expect(resultado.valido).toBe(false)
+    expect(resultado.problemas.map((p) => p.codigo)).toContain(
+      'configuracionAbastecimientoVolumenTanqueElevadoInvalido',
+    )
+  })
+})
