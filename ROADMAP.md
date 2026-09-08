@@ -435,15 +435,26 @@ Primer módulo del bloque de reserva. Detalle en
   `VRTD`) — sin reparto fijo, sin suma exacta, sobredimensionamiento OK.
   `ResultadoModulo4.reservaCalculada.adopcion` **no degrada**
   `EstadoModulo4` (evaluado ≠ suficiente). Reactivo. CRIT-A38.
+- **M4-F** (D-δ.67) — Panel de Módulo 4 (Abastecimiento y reserva) en la
+  one-page, después de M3. `PanelDeModulo4.tsx` + `humanizarModulo4.ts`,
+  consume `resolverEstadoModulo4` sin recalcular nada; Rápido/Profesional
+  vía `resolverModoDeTrabajo`. Edita esquema, Tc, DN de conexión (select
+  sin DN13), presión sobre acera (nuevo `conPresionSobreAcera` — este
+  campo no tenía editor; una sola fuente), desnivel firmado (etiqueta
+  contextual), capacidades adoptadas. Muestra presión de cálculo,
+  Qconexión (+ interpolación), RTD protagonista, verificación §2.11.3;
+  `directa` = "no aplica" sin V=0 ni §2.8; adopción pendiente/insuficiente
+  **no degrada** "Evaluado". 20 tests SSR/unit + smoke Playwright 24/24,
+  consola limpia, manifests intactos.
 
-**Pendiente:** M4-D (UI Rápido/Profesional — editar esquema, Tc, DN de
-conexión, desnivel, capacidades adoptadas) → auto-derivación geométrica
-del desnivel por esquema → integración M4→M2 (derivar el origen de M2
-desde el esquema y retirar el selector efímero del Panel de Presión, con
-regresión propia) → auditoría. También: sugerencia comercial de
-capacidad; obligación de reserva por §2.8 independiente del déficit;
-división en secciones iguales de tanques ≥ 4.000 L; geometría/bombas;
-reporting.
+**Pendiente:** **M4-G** — integración `configuracionAbastecimiento` →
+origen efectivo de M2 y retiro del selector efímero `tipoAlimentacion`
+del Panel de Presión, con auditoría de regresión M2 propia
+(`cisternaBombeoElevado` → M2 sigue empezando en el tanque elevado) →
+auto-derivación geométrica del desnivel por esquema → auditoría end-to-end
+de M4. También: sugerencia comercial de capacidad; obligación de reserva
+por §2.8 independiente del déficit; división en secciones iguales de
+tanques ≥ 4.000 L; geometría/bombas; reporting M1–M4.
 
 **Hallazgos de M4-A:**
 

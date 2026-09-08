@@ -6831,3 +6831,159 @@ artificial; `VRTD = 0` tratado); `ResultadoModulo4.adopcion` sin degradar
 los datos para diseñar el Panel M4 (M4-D) sin inputs provisionales.**
 Siguiente slice: **UI de M4** o auto-derivación geométrica del desnivel
 por esquema.
+
+## D-δ.67 -- M4-F: Panel de Módulo 4 (Abastecimiento y reserva) -- CERRADA
+
+Incremento **funcional** de UI, sobre contratos ya cerrados (CRIT-A35 a
+CRIT-A38). Sin inputs provisionales, sin integración M4→M2, sin reglas
+hidráulicas/normativas nuevas.
+
+### Componente -- `PanelDeModulo4.tsx` (`interfaz/paginas/`)
+
+`<details open>` con `<h2>Módulo 4 — Abastecimiento y reserva</h2>`,
+montado en `MotorDemandaPantalla` **después** de
+`PanelDeMedidoresDeModulo3` (orden final M1 → M2 → M3 → M4; sin sidebar,
+sin router). Consume `resolverEstadoModulo4({ proyecto, catalogoArtefactos,
+coeficientesMayoracion })` y **no recalcula nada** (Qc, presión de
+cálculo, interpolación, Qconexión, déficit, RTD, mínimos 1/3, suficiencia
+vienen del motor). Rápido/Profesional se deriva de `resolverModoDeTrabajo`
+(D-δ.51), sin eje nuevo.
+
+**Estados:**
+
+- **No iniciado**: texto breve + tres botones (Alimentación directa /
+  Tanque elevado / Cisterna + bombeo + tanque elevado). Elegir el esquema
+  inicia M4 (`conEsquemaDeAbastecimiento`); no se persiste ningún default.
+- **Configuración** (siempre visible con esquema elegido): selector de
+  esquema (radios). Con esquema de tanque, además: período de consumo
+  máximo [h] (input, ayuda "cualquier valor entre 1 y 4 h", sin clamp),
+  DN de conexión [mm] (`<select>` **sólo con DN admisibles como conexión**:
+  19/25/32/38/50/60/75 -- nunca DN13; "Seleccionar…" cuando falta),
+  presión sobre acera [m], desnivel de conexión [m] (firmado, etiqueta
+  contextual al esquema, ayuda "positivo si está por encima de la acera;
+  negativo si está por debajo").
+- **Error**: lista los problemas de validación con
+  `codigosValidacion[codigo].descripcion` (castellano, sin `throw` a
+  React).
+- **Incompleto**: motivos humanizados (`describirMotivoIncompletitudModulo4`),
+  sin enums crudos. `presionConexionFueraDeTabla` → mensaje específico
+  con la presión de cálculo y el rango "4–35 m", nunca "proyecto
+  inválido".
+- **Evaluado / directa** (`sinReservaPorTanque`): "El cálculo de Reserva
+  Total Diaria por tanque no aplica a este esquema." + nota discreta
+  "La obligatoriedad normativa de disponer reserva (§2.8) se evalúa por
+  separado." **No** muestra "no necesita tanque" / "cumple" / "V = 0" ni
+  campos de Tc/DN/desnivel/tanques.
+- **Evaluado / reservaCalculada**: bloque **Conexión** (Rápido: sólo
+  "Caudal de conexión: X L/s"; Profesional: tabla P acera → desnivel →
+  presión de cálculo → DN → Qconexión con nota de interpolación).
+  **Reserva Total Diaria de Diseño** como protagonista ("Reserva
+  requerida: X m³ (≈ Y L)"); si `deficit_lps === 0`: "Reserva calculada
+  por déficit: 0 m³" + "Este resultado no determina por sí solo la
+  obligatoriedad de disponer tanque." Profesional: tabla Qc / Qconexión /
+  déficit / Tc / RTD. Bloque **Capacidad adoptada**: input(s) de volumen
+  + `VerificacionDeAdopcion` según `adopcion.tipo`:
+  - `sinAdopcion` / `adopcionIncompleta` → "Cálculo completo · adopción
+    pendiente" + qué falta. **El estado del cálculo sigue "Evaluado"**
+    (separado del estado de adopción).
+  - `verificada` → tabla Requerido / Adoptado / Diferencia / "✓ Suficiente"
+    o "⚠ Insuficiente".
+  - `verificadaDistribuida` → RTD requerida, mínimo por tanque (1/3),
+    por-tanque (adoptado + ✓/⚠ mínimo), total adoptado + ✓/⚠, estado
+    conjunto, + cita textual de §2.11.3 ("cada uno debe disponer como
+    mínimo de 1/3 de la Reserva Total Diaria" -- **no** "1/3 abajo y 2/3
+    arriba").
+  Nunca "Cumple norma" / "instalación válida".
+
+### Helpers -- `humanizarModulo4.ts` (puro)
+
+`ETIQUETA_ESTADO_MODULO_4`, `ETIQUETA_ESQUEMA_ABASTECIMIENTO`,
+`etiquetaDesnivelConexion(esquema)`, formateadores es-AR
+(`formatearVolumen_m3` 3 dec, `formatearCaudal_lps` / `formatearPresion_m`
+2 dec, `volumenEnLitros` presentación), `describirMotivoIncompletitudModulo4`,
+`describirProblemaDeErrorModulo4` (reutiliza el catálogo de códigos, no
+reinterpreta). Litros nunca se persisten.
+
+### Updater nuevo -- `conPresionSobreAcera`
+
+`presionSobreAcera_m` **no tenía ninguna superficie de edición** hasta
+ahora (sólo se fijaba en `proyectoInicial`). El Panel de M4 es su editor,
+vía `conPresionSobreAcera` (`actualizarParametrosDeConexion.ts`) --
+**una sola** propiedad persistida, sin duplicar estado, sin cambiar su
+semántica (D-δ.38), sin imponer el rango `[4, 35]` m (ese rango es de la
+presión de cálculo, no de la de acera; el demo usa 2 m). Es un campo
+obligatorio → el updater siempre toma un `number`. Los demás controles
+usan updaters existentes (`conEsquemaDeAbastecimiento`,
+`conPeriodoConsumoMaximo`, `conDiametroNominalConexion`,
+`conDesnivelConexion`, `conVolumenTanque{Elevado,Bombeo}Adoptado`) y
+`parsearCota` (desnivel firmado) / un `parsearNoNegativo` local (Tc,
+presión, volúmenes -- '' → undefined, negativo/NaN → 'ignorar', sin clamp
+silencioso; mismo principio que `parsearEntradaHidraulica` de M2).
+
+### Tests (20 nuevos → 1196/1196, 128 archivos)
+
+- `PanelDeModulo4.test.ts` -- 16 SSR (`renderToStaticMarkup`, patrón del
+  directorio): encabezado, no iniciado con las 3 opciones, directa
+  ("no aplica" / sin V=0 / sin campos de tanque), tanque incompleto (3
+  motivos humanizados, sin enums), presión fuera de tabla (mensaje
+  específico, sin "inválido"), G3 evaluado (Qconexión 0,60 / RTD 0,771 m³
+  / 771 L / adopción pendiente), adopción suficiente (+0,229 m³, sin
+  "Cumple norma"), adopción insuficiente con estado del cálculo aún
+  "Evaluado", cisterna distribuida insuficiente (3 criterios + §2.11.3),
+  cisterna incompleta, DN13 persistido → Error humano, `Qconexión ≥ Qc`
+  → "déficit: 0" sin "No hace falta tanque", selector de DN sin DN13,
+  Rápido vs Profesional.
+- `humanizarModulo4.test.ts` -- 6 (etiquetas, formateo sin falsa
+  precisión, motivos, reutilización del catálogo de códigos).
+- `actualizarParametrosDeConexion.test.ts` -- `conPresionSobreAcera` (sin
+  clamp/rango, preserva el resto).
+
+### Smoke de navegador (Playwright 1.63.0 transitorio, vite dev real)
+
+**24/24 checks OK, consola 0 errores / 0 warnings.** El demo está en modo
+**Rápido**, así que el smoke verifica esa vista (la Profesional la cubre
+la suite Vitest). S1 no iniciado → elegir tanque; S2 Tc=2/DN19/Pacera=5/
+Δz=0 → Evaluado, "Caudal de conexión: 0,60 L/s", adopción holgada → ✓
+Suficiente; S3 Pacera=8/Δz=1,5 → Qconexión reactivo interpolado 0,69 L/s;
+S4 Pacera=2 → Incompleto con "4–35 m", sin "inválido"; S5 cisterna →
+adopción incompleta → tras cargar ambos volúmenes, 3 criterios + §2.11.3,
+inferior por debajo del mínimo → ⚠ Insuficiente, ambos holgados → ✓
+Suficiente; S6 directa → "no aplica", sin V=0, sin inputs de tanque; S7
+round-trip directa→tanque→cisterna→tanque sin restos stale.
+`git diff -- package.json package-lock.json` **vacío**.
+
+### Verificación
+
+`vitest` 1196/1196 (128 archivos; +20 tests, +2 archivos), `tsc -b`
+verde, `npm run build` verde, `eslint .` 11 baseline / 0 nuevos, working
+tree limpio, manifests de Playwright intactos.
+
+### Qué NO se hizo
+
+Integración `configuracionAbastecimiento` → origen efectivo de M2 y
+retiro del selector efímero `tipoAlimentacion` del Panel de Presión (es
+**M4-G**, con auditoría de regresión M2 propia: directa / tanqueElevado /
+cisternaBombeoElevado, comprobando que `cisternaBombeoElevado` → M2
+sigue empezando en el tanque elevado); auto-derivación geométrica del
+desnivel; §2.8; geometría/bombas/presurizador; catálogo/sugerencia
+comercial; selección automática de DN; PDF/reporting; sidebar; redesign.
+
+### Decisiones rojas
+
+Ninguna. `presionSobreAcera_m` no tenía editor (sin fuente duplicada al
+exponerlo en M4); `resolverModoDeTrabajo` se usa igual que en el Panel de
+M3 (sin acoplamiento nuevo); los updaters existentes representan la
+edición vacía sin corrupción (`'ignorar'` / `undefined`); la presentación
+de `directa` no requiere decidir §2.8 (se muestra "no aplica" + nota
+neutra); ningún input exigió un criterio de dominio nuevo.
+
+### Estado
+
+**D-δ.67 -- CERRADA.** Panel de Módulo 4 operativo: no iniciado usable,
+tres esquemas editables, Tc / DN / presión sobre acera / desnivel firmado
+editables (una sola fuente para `presionSobreAcera_m`), presión de
+cálculo y Qconexión visibles, RTD protagonista, capacidades adoptadas y
+verificación §2.11.3, `directa` semánticamente correcta, incompletos
+humanizados, Rápido/Profesional, reactividad verificada en navegador.
+Baseline verde. Siguiente slice: **M4-G** -- integración
+`configuracionAbastecimiento` → origen efectivo de M2.
