@@ -8129,9 +8129,137 @@ CERRADA PARA EL ALCANCE ACTUAL.** No significa que no pueda mejorarse:
 significa que ya no existe deuda visual bloqueante antes de abordar
 reporting. UI-01A + UI-01B (núcleo) + UI-01C cerrados; core M1–M4
 congelado / intacto (baseline transversal byte-idéntico). Siguiente fase
-**REPORT-01** (memoria técnica integral M1–M4 extendiendo el generador
-`pdfMake` desde M1; mismo dominio, mismos resultados, sin DOM print) --
-**NO iniciar**.
+**DEPLOY-01** (piloto web) → **UX-TEST-01** → **REPORT-01** -- **NO
+iniciar REPORT-01**.
+
+## D-δ.75 -- DEPLOY-01: preflight de piloto + publicación web -- PREFLIGHT CERRADO / READY TO DEPLOY
+
+Fase de **publicación**, no de desarrollo. Cierra riesgos de UX previos al
+primer piloto web y prepara el build estático. Sin cambios de hidráulica,
+dimensionamiento, selección de DN, CRIT-A19 ni Vmax; baseline transversal
+**12/12 byte-idéntico**; suite 1237 → 1247.
+
+### Semántica de los avisos de velocidad de M2 (preflight A)
+
+- Los umbrales **2,0 m/s** y **2,5 m/s** son de **comunicación IUAS**, no
+  límites normativos. No se introdujo ninguna constante `Vmax = 2,5` ni
+  ninguna tabla/fórmula normativa en la capa de UI.
+- La **única** frontera de inadmisibilidad sigue siendo `V > Vmax real
+  aplicable`. La UI la obtiene **leyendo** `limiteMaximo_mps` y `tipo` de
+  `verificarVelocidadAdmisible` (el resultado de dominio que ya viaja
+  hasta `resolverResultadoDeTramoParaUi` vía
+  `ResultadoPerdidaDistribuidaDeTramo`), nunca recalculándola en React.
+  No hizo falta exponer nada nuevo del motor: la clasificación se computa
+  en `textosDePerdidaDistribuidaDeTramo`, donde `verificacionVelocidad`,
+  `velocidadReal_mps` y `velocidadPorDebajoDelMinimo` ya están en scope.
+- `clasificarVelocidadParaUi` (helper puro, presentacional):
+  `normal` (V < 2,0, sin badge) · `elevada` (2,0 ≤ V < 2,5, ámbar) ·
+  `muyAlta` (2,5 ≤ V ≤ Vmax, naranja) · `noAdmisible` (V > Vmax, rojo).
+  El caso terminal CRIT-A24 / D-δ.27 (`velocidadPorDebajoDelMinimo`)
+  siempre clasifica `normal` -- coherente con que su copy de verificación
+  nunca usa lenguaje de advertencia. En `fueraDeDominioNormativo` (sin
+  Vmax conocido) sólo se aplican los umbrales de comunicación, nunca
+  `noAdmisible`.
+- La clasificación visual **no puede** alterar el resultado hidráulico:
+  no colorea la fila, sólo acompaña al valor de V; el color nunca es el
+  único canal (etiqueta de texto + `title` accesible).
+
+### Persistencia (preflight D)
+
+**No existe.** El `Proyecto` vive sólo en `useState` de
+`MotorDemandaPantalla`, sembrado desde `proyectoInicial`. No hay
+`localStorage` / `sessionStorage` / `IndexedDB` / URL-state (el hash es
+sólo navegación one-page). Recargar, cerrar la pestaña o abrir una
+segunda pestaña ⇒ proyecto de ejemplo limpio, cambios perdidos, sin
+sync. Mitigación de piloto: **un** aviso no bloqueante en la cabecera
+(`role="note"`, `ui-callout--info`, sin alarma). **No se implementó
+persistencia** -- eso es **PERSIST-01**, un slice específico posterior al
+piloto (autosave local y/o export/import JSON), a decidir con el feedback
+real.
+
+### Hosting
+
+Ya configurado y previamente usado: `.github/workflows/deploy.yml`
+(workflow oficial de Vite, actions ancladas por hash de commit; existe en
+`origin/main` desde la época de `v0.1.0` / "Paso 6") despliega `./dist` a
+**GitHub Pages** on push a `main`. `vite.config.ts` fija `base: '/IUAS/'`
+sólo en `command === 'build'`. URL esperada:
+`https://nicolasambrosoeras-ctrl.github.io/IUAS/`. **Manifests intactos**
+(`git diff -- package.json package-lock.json` vacío): no se agregó
+ninguna dependencia de deploy; el mecanismo es workflow + config, no el
+`package.json`.
+
+Consecuencia operativa del `base` condicionado por `command`: `vite
+preview` (cuyo `command` es `serve`) **no** reproduce el subpath `/IUAS/`.
+La validación estática local se hizo con un servidor estático mínimo que
+monta `dist/` bajo `/IUAS/` (equivalente a Pages), no con Vite dev ni con
+`vite preview` a `/`.
+
+### Validación (build estático local)
+
+- `dist/` = `index.html` + `assets/index-*.css` (~20 kB) +
+  `assets/index-*.js` (~2,2 MB / ~924 kB gzip, dominado por `pdfmake`).
+- Smoke Playwright contra el estático montado en `/IUAS/`: **31/31,
+  consola 0/0**. Inicio, título, shell, aviso de piloto; M1 editable; M2
+  con el proyecto ejemplo (**2,9 m/s → "Muy alta" / naranja
+  `rgb(181,72,14)`**, **2,1 m/s → "Elevada" / ámbar**, sin "No
+  admisible"); M3 "Iniciar Módulo 3"; M4 ofrece esquema; Verificación
+  sin "Para completar Módulo 2"; botón "Generar memoria PDF de Demanda";
+  los 5 hashes directos alcanzables; 360 px sin overflow.
+- Responsive 1280 / 820 / 480 / 390 / 360: sin overflow horizontal
+  global; nav usable; tabla de M2 con scroll horizontal **local** ≤ 480 px
+  (aceptado para beta, no se hizo versión card).
+- Seguridad: sin `.env*`, sin `import.meta.env` / `VITE_*` en `src/`, sin
+  secretos en el bundle. El deploy sube sólo `./dist`;
+  `resguardo-documentacion/**` y la documentación del repo no se publican.
+- Rendimiento (sanity, sin SLA de hardware): proyecto de estrés = ejemplo
+  con 11 UF (~380 inputs/selects en M1, > 100 artefactos). Navegación
+  entre módulos 31–44 ms; editar coeficiente + recálculo ~330 ms;
+  duplicar UF 200–680 ms; scroll completo ~750 ms. **Sin freeze, sin
+  crash, consola limpia.** El costo está en **render/DOM** en ediciones
+  que revalidan todo el árbol, no en el cálculo hidráulico (la navegación,
+  que no re-renderiza todo, es instantánea). Optimización frontend futura
+  (lazy-load de `pdfmake`, memoización de filas), no bloqueante, **sin
+  backend**.
+
+### Decisiones rojas
+
+- **Publicación efectiva (push a `main` + deploy a GitHub Pages).**
+  `origin/main` está **122 commits atrás** de `HEAD` local (último push
+  ~2026-08-12): publicar implica subir por primera vez todo el trabajo
+  UI-01A/B/C + M3/M4 + este slice, y disparar un deploy automático de
+  producción. El hosting está configurado (no hay que elegir proveedor),
+  pero no pude verificar desde el entorno que Pages siga habilitado con
+  fuente "GitHub Actions" (`gh` no disponible; red intermitente). Por ser
+  una acción saliente y difícil de revertir sobre un estado que el brief
+  no anticipó, el preflight se cierra en **READY TO DEPLOY** y el push
+  queda a confirmación explícita del usuario. Sin esa confirmación no se
+  crea `v0.4.0-beta.1` (el tag se reserva para el artefacto realmente
+  publicado y validado en la URL real).
+- El resto (avisos de velocidad, copy, aviso de piloto) fue presentación
+  pura: no tocó `EstadoModulo2`, motivos tipados, updaters, dominio ni
+  `pdfMake`. El snapshot numérico transversal quedó idéntico.
+
+### Deuda residual -- no bloqueante
+
+- **Sin persistencia** (arriba). Insumo directo de UX-TEST-01; candidato
+  a PERSIST-01.
+- **Memoria PDF sólo de Demanda (M1).** El botón lo dice explícito;
+  REPORT-01 la reemplaza.
+- **Bundle ~924 kB gzip** dominado por `pdfmake` cargado de entrada;
+  lazy-load pendiente.
+- **Ediciones que revalidan todo el árbol** (~300 ms con proyecto
+  grande): render/DOM, no cálculo. Memoización / trabajo incremental si
+  molesta en uso real.
+
+### Estado
+
+**D-δ.75 -- PREFLIGHT CERRADO / READY TO DEPLOY.** Publicación pendiente
+de `git push origin main` (dispara el workflow). Tras URL real verde:
+tag anotado `v0.4.0-beta.1` sobre el commit desplegado + push del tag.
+**No es v1.0.0** (faltan pruebas reales, feedback externo, REPORT-01).
+Siguiente fase **UX-TEST-01** -- **NO iniciar**. **REPORT-01 -- NO
+iniciar.**
 
 ## Regla — `resguardo-documentacion/` es inmutable
 

@@ -596,17 +596,87 @@ salvo bug inequívoco o decisión roja explícita.
   consola 0/0; sin overflow 1280/820/480; manifests intactos. Ver
   `SISTEMA-VISUAL.md`. **CERRADA. UI-01C CERRADO.**
 
+- **D-δ.75 — DEPLOY-01: preflight de piloto + publicación web (beta).**
+  Fase de publicación, no de desarrollo. No cambia hidráulica,
+  dimensionamiento, selección de DN, CRIT-A19 ni Vmax; baseline
+  transversal 12/12 byte-idéntico; suite 1237 → 1247; tsc/build/eslint
+  verdes (eslint 11 baseline / 0 nuevos).
+  - **Preflight A — avisos de velocidad en M2**: badge presentacional
+    junto al valor de V. `clasificarVelocidadParaUi` (helper puro):
+    `normal` V < 2,0 · `elevada` 2,0–2,5 (ámbar) · `muyAlta` 2,5+ hasta
+    Vmax (naranja) · `noAdmisible` V > Vmax (rojo). **2,0 y 2,5 m/s son
+    umbrales de comunicación IUAS, no límites normativos** — no existe
+    ninguna constante `Vmax = 2,5`. La única frontera de inadmisibilidad
+    sigue siendo `V > limiteMaximo_mps` **leído** de
+    `verificarVelocidadAdmisible` (CRIT-A19), nunca recalculado en React.
+    El caso terminal CRIT-A24 (`velocidadPorDebajoDelMinimo`) nunca
+    genera aviso. Token `--color-naranja` + `.ui-badge--alto` (mínimo
+    para distinguir ámbar de naranja, no una paleta nueva). Cobertura de
+    fronteras 1,999 / 2,0 / 2,499 / 2,5 / =Vmax / >Vmax y de la
+    dependencia de Vmax con el diámetro real.
+  - **Preflight B — copy PDF**: "Generar memoria PDF" → "Generar memoria
+    PDF de Demanda". El generador `pdfMake` **no se toca** (sigue
+    cubriendo esencialmente M1); REPORT-01 reemplazará la limitación.
+  - **Preflight C — copy de verificación incompleta**: "Para completar
+    Módulo 2:" → "Para completar la verificación hidráulica:".
+    `EstadoModulo2` y los motivos tipados intactos (sólo presentación).
+  - **Preflight D — persistencia**: **no existe**. El `Proyecto` vive
+    sólo en `useState` de `MotorDemandaPantalla`, sembrado desde
+    `proyectoInicial`. Recargar / cerrar la pestaña / abrir una segunda
+    pestaña ⇒ proyecto de ejemplo limpio, cambios perdidos, sin sync.
+    Sin `localStorage` / `sessionStorage` / `IndexedDB` / URL-state (el
+    hash es sólo navegación). Mitigación de piloto: aviso único no
+    bloqueante en la cabecera (`role="note"`, `ui-callout--info`, sin
+    lenguaje de alarma). **PERSIST-01** (autosave local y/o
+    export/import JSON) queda para después del piloto.
+  - **Hosting**: ya configurado y reutilizado —
+    `.github/workflows/deploy.yml` (workflow oficial de Vite, actions
+    ancladas por hash) despliega `./dist` a **GitHub Pages** on push a
+    `main`; `vite.config.ts` fija `base: '/IUAS/'` en build. URL
+    esperada: `https://nicolasambrosoeras-ctrl.github.io/IUAS/`. No se
+    agregó ninguna dependencia de deploy (manifests intactos).
+  - **Build estático**: `dist/` = `index.html` + `assets/index-*.css`
+    (~20 kB) + `assets/index-*.js` (~2,2 MB / ~924 kB gzip, dominado por
+    `pdfmake`). Servido desde un estático local montado en `/IUAS/`
+    (equivalente a producción, no Vite dev): smoke Playwright 31/31,
+    consola 0/0 — inicio, M1, M2 (2,9 → Muy alta / naranja, 2,1 →
+    Elevada / ámbar, sin "No admisible"), M3 Iniciar, M4, Verificación,
+    PDF de Demanda, los 5 hashes directos, 360 px. Sin overflow global
+    en 1280 / 820 / 480 / 390 / 360; la tabla de M2 tiene scroll
+    horizontal **local** ≤ 480 px (esperado).
+  - **Seguridad**: sin `.env*`, sin `import.meta.env` / `VITE_*` en
+    `src/`, sin secretos en el bundle. El deploy sube sólo `./dist`;
+    `resguardo-documentacion/**` y la documentación del repo **no** se
+    publican.
+  - **Rendimiento (sanity)**: proyecto de estrés = proyecto de ejemplo
+    con 11 UF (~380 inputs/selects en M1, > 100 artefactos). Navegación
+    entre módulos 31–44 ms; editar coeficiente + recálculo ~330 ms;
+    duplicar UF 200–680 ms (crece con el tamaño); scroll completo
+    ~750 ms. Sin freeze, sin crash, consola limpia, sin overflow. El
+    costo es **render/DOM** en ediciones que revalidan todo el árbol, no
+    cálculo hidráulico — optimización frontend futura (p. ej. lazy-load
+    de `pdfmake`, memoización de filas), no bloqueante, **sin backend**.
+  - **Estado**: **READY TO DEPLOY.** Publicación pendiente de `git push`
+    a `main` (que dispara el workflow) — ver decisión pendiente en el
+    handoff. El tag `v0.4.0-beta.1` se reserva para el commit realmente
+    desplegado y validado en la URL real; **aún no creado**.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal byte-idéntico). Ya no existe deuda visual
 bloqueante antes de reporting.
 
-**Siguiente fase (NO iniciada): REPORT-01 — memoria técnica integral.**
-Extender el generador `pdfMake` actual (hoy esencialmente M1) hacia:
-Datos del proyecto · Demanda · Tuberías · Medidores · Abastecimiento y
-reserva · Verificación hidráulica · Metodología y fuentes. Mismo dominio,
-mismos resultados, **no** impresión del DOM. Mantiene: core M1–M4
-congelado + arquitectura UI-01A + sistema visual UI-01B/UI-01C.
+**Orden de fases tras el cierre visual:** **DEPLOY-01** (piloto web,
+D-δ.75 — preflight cerrado, publicación pendiente) → **UX-TEST-01** (NO
+iniciada: observación de uso real de terceros; su output prioriza bugs /
+UX / contenido / PERSIST-01) → **REPORT-01** (NO iniciada).
+
+**REPORT-01 — memoria técnica integral (NO iniciada).** Extender el
+generador `pdfMake` actual (hoy esencialmente M1) hacia: Datos del
+proyecto · Demanda · Tuberías · Medidores · Abastecimiento y reserva ·
+Verificación hidráulica · Metodología y fuentes. Mismo dominio, mismos
+resultados, **no** impresión del DOM. Mantiene: core M1–M4 congelado +
+arquitectura UI-01A + sistema visual UI-01B/UI-01C.
 
 **Hallazgos de M4-A:**
 
@@ -641,3 +711,15 @@ de bombas, presurizadores, `hfEquipoACS`, reporting PDF de M4.
 
 - `docs/adr/` y `docs/arquitectura/` existen como carpetas vacías, sin
   ningún documento real todavía.
+- **Piloto web (DEPLOY-01):**
+  - **Sin persistencia.** Los cambios viven sólo en la sesión de la
+    pestaña; recargar restablece el proyecto de ejemplo. Insumo directo
+    de las pruebas reales; candidato a **PERSIST-01** (autosave local y/o
+    export/import JSON) si el feedback lo confirma.
+  - **Memoria PDF sólo de Demanda (M1).** El botón lo dice explícito;
+    **REPORT-01** extenderá el generador a M1–M4 + Verificación.
+  - **Bundle ~2,2 MB (~924 kB gzip)**, dominado por `pdfmake` cargado de
+    entrada. Optimización frontend futura (lazy-load), no bloqueante.
+  - **Ediciones que revalidan todo el árbol** (~300 ms con proyecto
+    grande) son render/DOM, no cálculo. Memoización de filas / trabajo
+    incremental si molesta en uso real.
