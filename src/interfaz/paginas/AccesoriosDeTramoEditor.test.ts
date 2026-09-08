@@ -77,7 +77,11 @@ describe('AccesoriosDeTramoEditor (UI)', () => {
     )
 
     expect(html).toContain('Codo a 90º')
-    expect(html).toContain('Pérdida localizada de este tramo')
+    // D-δ.79 P3: métrica jerarquizada (ui-metrica) con "sin tee" explícito.
+    expect(html).toContain('ui-metrica__etiqueta')
+    expect(html).toContain('Pérdida localizada')
+    expect(html).toContain('m.c.a.')
+    expect(html).toContain('no incluye las pérdidas nodales por tee')
   })
 
   it('sin velocidad real resuelta todavía: no intenta mostrar una pérdida localizada inventada', () => {
@@ -93,7 +97,7 @@ describe('AccesoriosDeTramoEditor (UI)', () => {
       createElement(AccesoriosDeTramoEditor, { proyecto, tramoId: 't1', velocidadReal_mps: undefined, onCambiar: () => {} }),
     )
 
-    expect(html).not.toContain('Pérdida localizada de este tramo')
+    expect(html).not.toContain('Pérdida localizada')
   })
 
   it('el selector "+ Agregar accesorio" solo ofrece tipos todavía no declarados en este tramo', () => {

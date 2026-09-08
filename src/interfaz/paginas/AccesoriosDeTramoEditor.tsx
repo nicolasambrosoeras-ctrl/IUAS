@@ -153,9 +153,18 @@ export function AccesoriosDeTramoEditor({
         </label>
       ) : null}
       {resultadoLocalizada !== undefined && resultadoLocalizada.tipo === 'calculada' ? (
-        <p>
-          <small>Pérdida localizada de este tramo (accesorios, sin tee): {formatearNumero(resultadoLocalizada.hf_m, 'm')}</small>
-        </p>
+        // Jerarquía visual comparable a la pérdida del tramo (D-δ.79 P3):
+        // el valor localizado es un resultado real ya existente
+        // (resolverPerdidaLocalizadaDeTramo), no un cálculo nuevo de React.
+        // "sin tee" se mantiene explícito: no incluye las pérdidas nodales
+        // por tee, que se contabilizan aparte.
+        <div className="ui-metrica" style={{ marginTop: '0.5rem' }}>
+          <span className="ui-metrica__etiqueta">Pérdida localizada</span>
+          <span className="ui-metrica__valor">
+            {formatearNumero(resultadoLocalizada.hf_m, 'm')} <span className="ui-metrica__unidad">m.c.a.</span>
+          </span>
+          <span className="ui-metrica__nota">Accesorios del tramo · no incluye las pérdidas nodales por tee</span>
+        </div>
       ) : null}
     </div>
   )
