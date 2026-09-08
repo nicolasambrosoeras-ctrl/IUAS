@@ -48,6 +48,7 @@ import './demandaM1.css'
 import { parsearCota } from './parsearCota'
 import { calcularCotaHidraulicaDefaultDeNivel, nombreDeNivel } from './nivelUnidadFuncional'
 import { resumenDeUnidadFuncional } from './resumenDeUnidadFuncional'
+import { sugerirArtefactoParaLocal } from './sugerenciaDeArtefacto'
 import { proyectoInicial } from './proyectoDeEjemplo'
 
 const TIPOS_DE_LOCAL: readonly TipoDeLocal[] = [
@@ -183,27 +184,40 @@ function LocalFormulario({
   onCambiarProyecto: (proyecto: Proyecto) => void
   onEliminar: () => void
 }) {
-  // Solo se llena cuando agregarArtefacto() detecta que el nuevo artefacto
-  // no tiene ningún precedente físico en el proyecto: nada se crea todavía
-  // -- se espera la declaración explícita de Red del usuario (ver más abajo).
-  const [declaracionPendiente, setDeclaracionPendiente] = useState<{ artefactoIdCatalogo: string } | null>(null)
+  // UX-02 / UI-01E: la pregunta AF/AC se refiere SIEMPRE a un Artefacto
+  // que YA existe en el Local (por id de fila, no por tipo de catálogo).
+  // Así, si el usuario cambia el `<select>` de tipo antes de responder, el
+  // banner se re-deriva solo (UI-CRIT-08) y nunca queda stale.
+  const [declaracionPendiente, setDeclaracionPendiente] = useState<{ artefactoRowId: string } | null>(null)
+  // Borrador puramente de UI (brief §11/§12): fila "Seleccionar
+  // artefacto…" sin tipo real todavía. NO se persiste en `Proyecto`, no
+  // dispara conectividad y no afecta Qc mientras no haya un tipo elegido.
+  const [borradorAbierto, setBorradorAbierto] = useState(false)
 
-  // M2-D (sincronización funcional -> hidráulica, primer slice: ALTA):
-  // agregar un Artefacto no solo actualiza la jerarquía funcional (Local)
-  // sino que intenta conectarlo físicamente en redHidraulica -- solo
-  // cuando el punto de inserción es inequívoco (ver
-  // sincronizarConectividadFisicaDeArtefacto). Si no puede determinarlo,
-  // el artefacto queda igual creado funcionalmente pero sin conexión
-  // física, y la barrera de cobertura (S1/S2) lo señala como siempre --
-  // esta función nunca fabrica una conexión ni oculta esa señal.
-  //
-  // Excepción: cuando no hay ningún precedente en todo el proyecto para
-  // este artefactoId (primera instancia de ese tipo), no hay de dónde
-  // deducir AF/AC (CRIT-A15 prohíbe inferirlo del catálogo) -- se pide al
-  // usuario que lo declare explícitamente antes de crear nada, en una
-  // única operación atómica (ver declaracionPendiente más abajo) en vez
-  // de crear el artefacto incompleto y repararlo después.
-  function crearYConectarArtefacto(artefactoIdCatalogo: string, redesDeclaradas?: readonly RedDeTramo[]) {
+  const artefactoPendiente =
+    declaracionPendiente === undefined || declaracionPendiente === null
+      ? undefined
+      : local.artefactos.find((a) => a.id === declaracionPendiente.artefactoRowId)
+
+  function proyectoConArtefactos(artefactos: readonly Artefacto[]): Proyecto {
+    return {
+      ...proyecto,
+      unidadesFuncionales: proyecto.unidadesFuncionales.map((uf) =>
+        uf.id !== unidadFuncionalId
+          ? uf
+          : { ...uf, locales: uf.locales.map((l) => (l.id !== local.id ? l : { ...l, artefactos })) },
+      ),
+    }
+  }
+
+  // M2-D (sincronización funcional -> hidráulica, ALTA): el orden es
+  // AGREGAR (tipo real ya determinado) -> crear la fila -> resolver
+  // conectividad (brief §14). Si `sincronizarConectividadFisicaDeArtefacto`
+  // puede deducir la Red por precedente, conecta y listo; si no
+  // (`redesNoDeterminables`), la fila queda creada sin conexión y se pide
+  // declarar la Red para ESA fila -- nunca se inventa una conexión ni se
+  // oculta la señal de la barrera de cobertura (S1/S2).
+  function altaDeArtefacto(artefactoIdCatalogo: string) {
     const nuevoArtefactoId = generarId('artefacto')
     const nuevoArtefacto: Artefacto = {
       id: nuevoArtefactoId,
@@ -211,47 +225,64 @@ function LocalFormulario({
       cantidad: 1,
       origen: 'normativo',
     }
-    const proyectoConArtefacto: Proyecto = {
-      ...proyecto,
-      unidadesFuncionales: proyecto.unidadesFuncionales.map((uf) =>
-        uf.id !== unidadFuncionalId
-          ? uf
-          : {
-              ...uf,
-              locales: uf.locales.map((l) =>
-                l.id !== local.id ? l : { ...l, artefactos: [...l.artefactos, nuevoArtefacto] },
-              ),
-            },
-      ),
+    const proyectoConArtefacto = proyectoConArtefactos([...local.artefactos, nuevoArtefacto])
+    const sincronizacion = sincronizarConectividadFisicaDeArtefacto(
+      proyectoConArtefacto,
+      unidadFuncionalId,
+      local.id,
+      nuevoArtefactoId,
+    )
+    // D-δ.51: precargar longitud inicial del Tramo representativo recién creado.
+    const proyectoResultante =
+      sincronizacion.tipo === 'sincronizado' ? sincronizacion.proyecto : proyectoConArtefacto
+    onCambiarProyecto(backfillLongitudesDePredimensionamiento(proyectoResultante))
+    setBorradorAbierto(false)
+    setDeclaracionPendiente(
+      sincronizacion.tipo === 'redesNoDeterminables' ? { artefactoRowId: nuevoArtefactoId } : null,
+    )
+  }
+
+  function agregarArtefacto() {
+    const sugerido = sugerirArtefactoParaLocal(local)
+    if (sugerido === undefined) {
+      // Sin candidato contextual (mapping vacío o todos presentes): el
+      // usuario elige el artefacto explícitamente, nunca un default
+      // arbitrario del catálogo (brief §9/§11).
+      setBorradorAbierto(true)
+      return
     }
-    const sincronizacion = redesDeclaradas
-      ? sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(
-          proyectoConArtefacto,
-          unidadFuncionalId,
-          local.id,
-          nuevoArtefactoId,
-          redesDeclaradas,
-        )
-      : sincronizarConectividadFisicaDeArtefacto(proyectoConArtefacto, unidadFuncionalId, local.id, nuevoArtefactoId)
-    // D-δ.51: el bootstrap acaba de crear el Tramo representativo del
-    // nuevo Local+Red -- precargar su longitud inicial (5 m si undefined)
-    // para que el predimensionamiento arranque sin un input vacío.
-    const proyectoResultante = sincronizacion.tipo === 'sincronizado' ? sincronizacion.proyecto : proyectoConArtefacto
+    altaDeArtefacto(sugerido)
+  }
+
+  // Respuesta del usuario a "¿A qué red se conecta?" -- conecta la fila
+  // pendiente (que ya existe) a las Redes declaradas.
+  function declararRedes(redesDeclaradas: readonly RedDeTramo[]) {
+    if (declaracionPendiente === null) {
+      return
+    }
+    const sincronizacion = sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(
+      proyecto,
+      unidadFuncionalId,
+      local.id,
+      declaracionPendiente.artefactoRowId,
+      redesDeclaradas,
+    )
+    const proyectoResultante = sincronizacion.tipo === 'sincronizado' ? sincronizacion.proyecto : proyecto
     onCambiarProyecto(backfillLongitudesDePredimensionamiento(proyectoResultante))
     setDeclaracionPendiente(null)
   }
 
-  function agregarArtefacto() {
-    const primerArtefacto = catalogoArtefactos[0]
-    if (!primerArtefacto) {
-      return
+  // Cancelar (brief §17): mismo efecto neto que antes de este incremento
+  // ("no lo agregué después de todo"). La fila recién creada todavía no
+  // tiene conexión, así que se elimina; no se deja un artefacto huérfano
+  // sin forma de conectarlo.
+  function cancelarDeclaracion() {
+    if (declaracionPendiente !== null) {
+      onCambiarProyecto(
+        proyectoConArtefactos(local.artefactos.filter((a) => a.id !== declaracionPendiente.artefactoRowId)),
+      )
     }
-    const precedente = determinarRedesFisicasPorPrecedente(proyecto, primerArtefacto.id)
-    if (precedente.tipo === 'sinPrecedente') {
-      setDeclaracionPendiente({ artefactoIdCatalogo: primerArtefacto.id })
-      return
-    }
-    crearYConectarArtefacto(primerArtefacto.id)
+    setDeclaracionPendiente(null)
   }
 
   // La `etiqueta` llega como "Local: Baño" / "Local: Baño 2"; en la card
@@ -347,12 +378,28 @@ function LocalFormulario({
               artefacto.id,
             )
             onCambiarProyecto(backfillLongitudesDePredimensionamiento(reconciliado))
+            // UI-CRIT-08: si había una declaración AF/AC pendiente para
+            // ESTA fila y el usuario le cambió el tipo, la pregunta no
+            // puede seguir refiriéndose al tipo anterior. Se re-evalúa el
+            // tipo nuevo: si ahora tiene precedente inequívoco, la
+            // reconciliación ya lo conectó y la pregunta se cierra; si no,
+            // la pregunta sigue abierta pero apuntando al tipo nuevo (el
+            // banner lee la fila en vivo).
+            if (declaracionPendiente?.artefactoRowId === artefacto.id) {
+              const precedenteNuevo = determinarRedesFisicasPorPrecedente(proyectoConTipoNuevo, nuevoArtefactoId)
+              setDeclaracionPendiente(
+                precedenteNuevo.tipo === 'determinado' ? null : { artefactoRowId: artefacto.id },
+              )
+            }
           }}
           onEliminar={() => {
             // M2-D (BAJA): retira tambien la conectividad fisica exclusiva
             // del artefacto antes de que quede una referencia huerfana
             // (D-δ.26) -- nunca toca infraestructura compartida del
             // Local (nodo padre/cabecera).
+            if (declaracionPendiente?.artefactoRowId === artefacto.id) {
+              setDeclaracionPendiente(null)
+            }
             const proyectoSinConectividad = quitarConectividadFisicaDeArtefacto(
               proyecto,
               unidadFuncionalId,
@@ -378,41 +425,61 @@ function LocalFormulario({
           />
         ))}
       </div>
+      {borradorAbierto ? (
+        <div className="m1-artefacto-borrador">
+          <label>
+            Artefacto:{' '}
+            <select
+              aria-label="Seleccionar artefacto para agregar"
+              defaultValue=""
+              onChange={(evento) => {
+                if (evento.target.value !== '') {
+                  altaDeArtefacto(evento.target.value)
+                }
+              }}
+            >
+              <option value="">— Seleccionar artefacto… —</option>
+              {catalogoArtefactos.map((catalogoItem) => (
+                <option key={catalogoItem.id} value={catalogoItem.id}>
+                  {catalogoItem.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="m1-artefacto-borrador__cantidad">Cantidad: 1</span>
+          <button
+            type="button"
+            className="ui-btn--fantasma"
+            onClick={() => setBorradorAbierto(false)}
+          >
+            Cancelar
+          </button>
+        </div>
+      ) : null}
+
       <button type="button" className="m1-agregar-contextual" onClick={agregarArtefacto}>
         + Agregar artefacto
       </button>
-      {declaracionPendiente && (
+
+      {declaracionPendiente && artefactoPendiente && (
         <div className="ui-callout ui-callout--warn m1-declaracion" role="alert">
           <p>
             Es la primera instancia de "
-            {catalogoArtefactos.find((c) => c.id === declaracionPendiente.artefactoIdCatalogo)?.nombre ??
-              declaracionPendiente.artefactoIdCatalogo}
+            {catalogoArtefactos.find((c) => c.id === artefactoPendiente.artefactoId)?.nombre ??
+              artefactoPendiente.artefactoId}
             " en el proyecto: no hay otra conexión física de la que deducir la Red. ¿A qué red se conecta?
           </p>
           <div className="m1-declaracion__opciones">
-            <button
-              type="button"
-              onClick={() => crearYConectarArtefacto(declaracionPendiente.artefactoIdCatalogo, ['AF'])}
-            >
+            <button type="button" onClick={() => declararRedes(['AF'])}>
               Agua fría (AF)
             </button>
-            <button
-              type="button"
-              onClick={() => crearYConectarArtefacto(declaracionPendiente.artefactoIdCatalogo, ['AC'])}
-            >
+            <button type="button" onClick={() => declararRedes(['AC'])}>
               Agua caliente (AC)
             </button>
-            <button
-              type="button"
-              onClick={() => crearYConectarArtefacto(declaracionPendiente.artefactoIdCatalogo, ['AF', 'AC'])}
-            >
+            <button type="button" onClick={() => declararRedes(['AF', 'AC'])}>
               Agua fría y caliente (AF + AC)
             </button>
-            <button
-              type="button"
-              className="ui-btn--fantasma"
-              onClick={() => setDeclaracionPendiente(null)}
-            >
+            <button type="button" className="ui-btn--fantasma" onClick={cancelarDeclaracion}>
               Cancelar
             </button>
           </div>
@@ -543,6 +610,10 @@ function CuerpoDeUnidadFuncional({
     const nuevoLocal: Local = {
       id: generarId('local'),
       tipo: 'bano',
+      // UX-02 / UI-01E (brief §5): default de creación, no un bloqueo. El
+      // selector de Régimen sigue libre y los Locales existentes no se
+      // tocan (UI-CRIT-07).
+      regimen: 'domiciliario',
       artefactos: [],
     }
     cambiarLocales([...locales, nuevoLocal])

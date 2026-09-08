@@ -286,6 +286,22 @@
   color: var(--color-primario-fuerte);
 }
 
+/* UX-02 / UI-01E: fila borrador "Seleccionar artefacto…" (brief §11/§12).
+   Puramente de UI -- todavía no hay un Artefacto en el Proyecto. */
+.m1-artefacto-borrador {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--esp-sm) var(--esp-md);
+  padding: var(--esp-sm) 0;
+  border-bottom: 1px solid var(--color-borde);
+}
+
+.m1-artefacto-borrador__cantidad {
+  font-size: var(--fs-ayuda);
+  color: var(--color-texto-3);
+}
+
 /* --- Declaración de red pendiente --- */
 .m1-declaracion {
   display: flex;
