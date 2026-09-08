@@ -323,7 +323,7 @@ export function PanelDePresionDeModulo2({
           </h4>
           {motivosAgrupados.length > 0 ? (
             <>
-              <p>Para completar Módulo 2:</p>
+              <p>Para completar la verificación hidráulica:</p>
               <ul>
                 {motivosAgrupados.map((texto) => (
                   <li key={texto}>{texto}</li>

@@ -12,6 +12,7 @@ import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia
 import { resolverPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolverPerdidaDistribuidaDeTramo'
 import type { ResultadoPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolverPerdidaDistribuidaDeTramo'
 import type { ResultadoVerificacionVelocidad } from '../../motor/tuberias/velocidad/verificarVelocidadAdmisible'
+import { clasificarVelocidadParaUi, type ClasificacionVelocidad } from './clasificarVelocidadParaUi'
 import { obtenerArtefactosAguasAbajo } from '../../motor/tuberias/topologia/obtenerArtefactosAguasAbajo'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 
@@ -46,6 +47,10 @@ export interface TextosDePerdidaDistribuidaDeTramo {
   readonly limiteVelocidadTexto: string
   readonly verificacionVelocidadTexto: string
   readonly velocidadPorDebajoDelMinimo: boolean
+  // DEPLOY-01 (preflight A): nivel de exigencia de la velocidad para el
+  // badge de comunicación de M2. Presentacional: no altera nada hidráulico.
+  // 'normal' cuando no hay velocidad resuelta o no amerita aviso.
+  readonly clasificacionVelocidad: ClasificacionVelocidad
   readonly hfTexto: string
 }
 
@@ -94,6 +99,7 @@ export function textosDePerdidaDistribuidaDeTramo(
       limiteVelocidadTexto: '—',
       verificacionVelocidadTexto: '—',
       velocidadPorDebajoDelMinimo: false,
+      clasificacionVelocidad: 'normal',
       hfTexto: '—',
     }
   }
@@ -110,6 +116,7 @@ export function textosDePerdidaDistribuidaDeTramo(
       limiteVelocidadTexto: '—',
       verificacionVelocidadTexto: '—',
       velocidadPorDebajoDelMinimo: false,
+      clasificacionVelocidad: 'normal',
       hfTexto: '—',
     }
   }
@@ -120,6 +127,11 @@ export function textosDePerdidaDistribuidaDeTramo(
   const { velocidadPorDebajoDelMinimo, verificacionVelocidad } = resultado
   const limiteVelocidadTexto = textoLimiteVelocidad(verificacionVelocidad)
   const verificacionVelocidadTexto = textoVerificacionVelocidad(verificacionVelocidad, velocidadPorDebajoDelMinimo)
+  const clasificacionVelocidad = clasificarVelocidadParaUi(
+    resultado.velocidadReal_mps,
+    verificacionVelocidad,
+    velocidadPorDebajoDelMinimo,
+  )
 
   if (resultado.tipo === 'sinLongitud') {
     return {
@@ -131,6 +143,7 @@ export function textosDePerdidaDistribuidaDeTramo(
       limiteVelocidadTexto,
       verificacionVelocidadTexto,
       velocidadPorDebajoDelMinimo,
+      clasificacionVelocidad,
       hfTexto: '—',
     }
   }
@@ -144,6 +157,7 @@ export function textosDePerdidaDistribuidaDeTramo(
     limiteVelocidadTexto,
     verificacionVelocidadTexto,
     velocidadPorDebajoDelMinimo,
+    clasificacionVelocidad,
     hfTexto: formatearNumero(resultado.hf_m, 'm'),
   }
 }
@@ -195,6 +209,7 @@ const TEXTOS_DE_ERROR: TextosDePerdidaDistribuidaDeTramo = {
   limiteVelocidadTexto: '—',
   verificacionVelocidadTexto: '—',
   velocidadPorDebajoDelMinimo: false,
+  clasificacionVelocidad: 'normal',
   hfTexto: '—',
 }
 

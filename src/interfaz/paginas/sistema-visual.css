@@ -53,6 +53,13 @@
   --color-error-suave: #fbeae8;
   --color-error-borde: #eabfba;
 
+  /* Nivel intermedio entre advertencia (ámbar) y error (rojo): naranja.
+     DEPLOY-01 -- badge "Muy alta" de velocidad en M2. No es una paleta
+     nueva; es el mínimo token para distinguir ámbar de naranja. */
+  --color-naranja: #b5480e;
+  --color-naranja-suave: #fbe9dd;
+  --color-naranja-borde: #eec3a2;
+
   --color-neutro: #5b6660;
   --color-neutro-suave: #eef0ee;
   --color-neutro-borde: #d6dad4;
@@ -521,6 +528,14 @@ summary > h3 {
   color: var(--color-error);
 }
 
+/* DEPLOY-01: nivel "muy alta" de velocidad -- entre --warn (ámbar) y
+   --error (rojo). */
+.ui-badge--alto {
+  border-color: var(--color-naranja-borde);
+  background: var(--color-naranja-suave);
+  color: var(--color-naranja);
+}
+
 .ui-badge--muted {
   border-color: var(--color-neutro-borde);
   background: transparent;
@@ -696,6 +711,16 @@ summary > h3 {
 
 .tabla-tecnica .col-estado {
   white-space: nowrap;
+}
+
+/* DEPLOY-01: la celda V apila el valor y, debajo, el badge de nivel de
+   velocidad ("Elevada" / "Muy alta" / "No admisible"). El color nunca es
+   el único canal: siempre hay etiqueta de texto. */
+.celda-velocidad {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
 }
 
 /* Envoltorio con scroll horizontal LOCAL: la tabla ancha nunca genera

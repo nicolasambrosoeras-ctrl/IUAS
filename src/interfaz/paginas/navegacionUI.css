@@ -28,6 +28,15 @@
   font-size: var(--fs-ayuda);
 }
 
+/* DEPLOY-01 (preflight D): aviso de piloto. Discreto, ancho acotado para
+   que no domine la cabecera, y con el color de texto normal (el modifier
+   --info sólo aporta el borde izquierdo verde, sin tinte de alarma). */
+.app-header p.app-aviso-piloto {
+  margin-top: var(--esp-md);
+  max-width: 62ch;
+  color: var(--color-texto-2);
+}
+
 /* --- Índice + contenido. En desktop el índice es una columna sticky; el
    contenido nunca se desmonta (one-page). --- */
 .app-layout {

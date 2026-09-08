@@ -15,6 +15,7 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
       limiteVelocidadTexto: '—',
       verificacionVelocidadTexto: '—',
       velocidadPorDebajoDelMinimo: false,
+      clasificacionVelocidad: 'normal',
       hfTexto: '—',
     })
   })
@@ -36,6 +37,7 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
       limiteVelocidadTexto: '—',
       verificacionVelocidadTexto: '—',
       velocidadPorDebajoDelMinimo: false,
+      clasificacionVelocidad: 'normal',
       hfTexto: '—',
     })
   })
@@ -61,6 +63,7 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
       limiteVelocidadTexto: '1,0 – 3,0',
       verificacionVelocidadTexto: 'Admisible',
       velocidadPorDebajoDelMinimo: false,
+      clasificacionVelocidad: 'normal',
       hfTexto: '—',
     })
   })
@@ -89,6 +92,7 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
       limiteVelocidadTexto: '1,0 – 3,0',
       verificacionVelocidadTexto: 'Admisible',
       velocidadPorDebajoDelMinimo: false,
+      clasificacionVelocidad: 'normal',
       hfTexto: '0,457',
     })
   })
@@ -117,6 +121,7 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
       limiteVelocidadTexto: '1,0 – 3,0',
       verificacionVelocidadTexto: 'Aceptada en el menor diámetro comercial (CRIT-A24)',
       velocidadPorDebajoDelMinimo: true,
+      clasificacionVelocidad: 'normal',
       hfTexto: '0,123',
     })
     // La verificación real del motor sigue siendo 'noAdmisible' (evidencia
@@ -124,6 +129,32 @@ describe('textosDePerdidaDistribuidaDeTramo', () => {
     // ni lenguaje de advertencia mientras velocidadPorDebajoDelMinimo sea
     // true (D-delta.27): no hay ninguna acción de dimensionamiento posible.
     expect(textosDePerdidaDistribuidaDeTramo(resultado).verificacionVelocidadTexto).not.toContain('No admisible')
+  })
+
+  it('DEPLOY-01: clasificacionVelocidad se deriva de la V real y de Vmax, sin tocar el resto de la fila', () => {
+    const base = {
+      tipo: 'conPerdidaDistribuida' as const,
+      qc_lps: 0.5,
+      n: 1,
+      diReferenciaPredimensionamiento_mm: 20,
+      candidato: { denominacionComercial: '25 mm', diametroInteriorEfectivo_mm: 18 },
+      verificacionVelocidad: { tipo: 'admisible' as const, limiteMinimo_mps: 1, limiteMaximo_mps: 3 },
+      velocidadPorDebajoDelMinimo: false,
+      longitud_m: 10,
+      hf_m: 0.4,
+      detalle: { metodo: 'hazenWilliams' as const, coeficienteC: 150, perdidaUnitaria_J_m_m: 0.04 },
+    }
+
+    expect(textosDePerdidaDistribuidaDeTramo({ ...base, velocidadReal_mps: 2.1 }).clasificacionVelocidad).toBe('elevada')
+    expect(textosDePerdidaDistribuidaDeTramo({ ...base, velocidadReal_mps: 2.9 }).clasificacionVelocidad).toBe('muyAlta')
+    expect(textosDePerdidaDistribuidaDeTramo({ ...base, velocidadReal_mps: 1.7 }).clasificacionVelocidad).toBe('normal')
+    expect(
+      textosDePerdidaDistribuidaDeTramo({
+        ...base,
+        velocidadReal_mps: 3.4,
+        verificacionVelocidad: { tipo: 'noAdmisible', limiteMinimo_mps: 1, limiteMaximo_mps: 3 },
+      }).clasificacionVelocidad,
+    ).toBe('noAdmisible')
   })
 })
 

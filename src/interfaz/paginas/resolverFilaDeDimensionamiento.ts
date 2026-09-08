@@ -17,6 +17,7 @@ import { resolverPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolver
 import { resolverPerdidaLocalizadaEstimadaDeLocal } from '../../motor/tuberias/presion/resolverPerdidaLocalizadaEstimadaDeLocal'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 import { resolverResultadoDeTramoParaUi } from './resolverResultadoDeTramoParaUi'
+import type { ClasificacionVelocidad } from './clasificarVelocidadParaUi'
 import { nombresDeArtefactosAguasAbajo } from './humanizarModulo2'
 
 export type EstadoDeFila = 'ok' | 'controlar' | 'incompleto'
@@ -27,6 +28,8 @@ export type FilaDeDimensionamiento = {
   readonly qcTexto: string
   readonly dnTexto: string
   readonly vTexto: string
+  // DEPLOY-01 (preflight A): nivel del badge de velocidad de la celda V.
+  readonly clasificacionVelocidad: ClasificacionVelocidad
   readonly hfDistribuidaTexto: string
   // Pérdida representativa de la fila (distribuida del Tramo + localizada
   // estimada del Local+Red, cuando ambas son inequívocas). undefined si
@@ -125,6 +128,7 @@ export function resolverFilaDeDimensionamiento(
     qcTexto: ui.textos.qcTexto,
     dnTexto: ui.textos.diComercialTexto,
     vTexto: ui.textos.vTexto,
+    clasificacionVelocidad: ui.textos.clasificacionVelocidad,
     hfDistribuidaTexto: ui.textos.hfTexto,
     perdidaTotal_mca,
     perdidaTotalTexto: perdidaTotal_mca === undefined ? '—' : `${formatearNumero(perdidaTotal_mca, 'm')} m.c.a.`,

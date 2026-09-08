@@ -167,7 +167,7 @@ describe('PanelDePresionDeModulo2 (UI)', () => {
     const { uf, red } = ufConTerminal()
     const html = render(proyectoCon([uf], { redHidraulica: red }))
 
-    expect(html).toContain('Para completar Módulo 2:')
+    expect(html).toContain('Para completar la verificación hidráulica:')
     expect(html).toContain('Falta configurar el esquema de abastecimiento en el Módulo 4.')
     expect(html).not.toContain('>raiz<')
     expect(html).not.toContain('>terminal<')

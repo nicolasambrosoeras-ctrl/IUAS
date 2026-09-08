@@ -16,6 +16,7 @@ import { resolverCambioDeLongitud } from './resolverResultadoDeTramoParaUi'
 import type { EstadoDeFila, FilaDeDimensionamiento } from './resolverFilaDeDimensionamiento'
 import type { ControlDeDnDeTramo } from './resolverControlDeDnDeTramo'
 import { ControlDeDn } from './ControlDeDn'
+import { BadgeVelocidad } from './BadgeVelocidad'
 
 // UI-01C (§33): el estado de la fila como badge compacto. "controlar"
 // (CRIT-A24: aceptada en el menor DN comercial) es un estado admisible
@@ -135,7 +136,12 @@ export function TablaDimensionamientoDeModulo2({
                     fila.dnTexto
                   )}
                 </td>
-                <td className="col-num">{fila.vTexto} m/s</td>
+                <td className="col-num">
+                  <div className="celda-velocidad">
+                    <span>{fila.vTexto} m/s</span>
+                    <BadgeVelocidad clasificacion={fila.clasificacionVelocidad} />
+                  </div>
+                </td>
                 <td className="col-num">{fila.perdidaTotalTexto}</td>
                 <td className="col-estado">
                   <BadgeEstadoDeFila estado={fila.estado} texto={fila.estadoTexto} />

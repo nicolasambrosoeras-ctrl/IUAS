@@ -16,6 +16,7 @@ import type { CSSProperties } from 'react'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import { ETIQUETA_RED } from './humanizarModulo2'
 import { resolverCambioDeLongitud, type ResultadoDeTramoParaUi } from './resolverResultadoDeTramoParaUi'
+import { BadgeVelocidad } from './BadgeVelocidad'
 
 const estiloFila: CSSProperties = {
   display: 'flex',
@@ -70,6 +71,7 @@ export function DimensionamientoDeTramo({
         </label>
         <span>DN: {textos.diComercialTexto}</span>
         <span>V: {textos.vTexto} m/s</span>
+        <BadgeVelocidad clasificacion={textos.clasificacionVelocidad} />
         <span>hf: {textos.hfTexto} m.c.a.</span>
         <span>{textos.verificacionVelocidadTexto}</span>
         <span style={{ opacity: 0.7 }}>

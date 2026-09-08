@@ -880,7 +880,7 @@ function ResultadoDemandaModulo1({
       <Advertencias advertencias={resultado.advertencias} />
       <Resultados resultado={resultado} />
       <button type="button" onClick={() => generarDocumentoPdf({ proyecto, resultado })}>
-        Generar memoria PDF
+        Generar memoria PDF de Demanda
       </button>
       <Pasos pasos={resultado.pasos} />
     </details>
@@ -918,6 +918,13 @@ export function MotorDemandaPantalla() {
       <header className="app-header">
         <h1>IUAS — Instalaciones internas</h1>
         <p>Proyecto de ejemplo — vivienda unifamiliar · Todos los datos pueden modificarse.</p>
+        {/* DEPLOY-01 (preflight D): el proyecto vive sólo en memoria de la
+            pestaña -- no hay persistencia todavía (PERSIST-01 es un slice
+            posterior). Aviso único, no bloqueante, sin lenguaje de alarma. */}
+        <p className="app-aviso-piloto ui-callout ui-callout--info" role="note">
+          Versión piloto · Los cambios se conservan sólo durante esta sesión. Recargar la página restablece el proyecto de
+          ejemplo.
+        </p>
       </header>
 
       <div className="app-layout">
