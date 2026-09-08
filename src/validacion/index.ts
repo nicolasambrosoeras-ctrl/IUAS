@@ -11,6 +11,7 @@ import { validarReferenciasDeCatalogo } from './catalogo';
 import { validarRedHidraulica } from './redHidraulica';
 import { validarConfiguracionHidraulica } from './configuracionHidraulica';
 import { validarConfiguracionMedidores } from './configuracionMedidores';
+import { validarConfiguracionAbastecimiento } from './configuracionAbastecimiento';
 
 export function validarProyecto(
   proyecto: Proyecto,
@@ -24,6 +25,7 @@ export function validarProyecto(
     ...validarRedHidraulica(proyecto),
     ...validarConfiguracionHidraulica(proyecto, catalogoSistemasDeTuberia),
     ...validarConfiguracionMedidores(proyecto),
+    ...validarConfiguracionAbastecimiento(proyecto),
   ];
 
   return {

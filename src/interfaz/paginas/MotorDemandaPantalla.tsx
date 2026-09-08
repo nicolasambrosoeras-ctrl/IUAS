@@ -931,6 +931,10 @@ const MENSAJES_DE_VALIDACION: Readonly<Record<CodigoValidacion, string>> = {
     'El sistema de tubería seleccionado pertenece a un material distinto del material configurado en el proyecto.',
   configuracionMedidoresUnidadFuncionalInexistente:
     'La configuración de medidores tiene un override de ACS para una unidad funcional que ya no existe.',
+  configuracionAbastecimientoEsquemaInvalido:
+    'El esquema de abastecimiento persistido no es uno de los soportados (directa / tanque elevado / cisterna + bombeo + tanque elevado).',
+  configuracionAbastecimientoPeriodoConsumoMaximoInvalido:
+    'El período de consumo máximo del abastecimiento debe estar entre 1 y 4 horas.',
 }
 
 function ProblemasValidacion({ problemas }: { problemas: readonly ProblemaValidacion[] }) {

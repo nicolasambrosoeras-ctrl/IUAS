@@ -212,6 +212,49 @@ export type ConfiguracionDeMedidores = {
   readonly medidoresIndividualesAdoptadosDN?: Readonly<Record<string, number>>;
 };
 
+// Esquema físico de abastecimiento de agua del Proyecto (D-δ.61/D-δ.63).
+// Decisión física GLOBAL del proyecto, no una entidad por sector. Describe
+// CÓMO se abastece físicamente la instalación -- no desde dónde arranca
+// cada balance de presión de M2 (esa frontera se DERIVA del esquema en un
+// slice de integración posterior, no se persiste acá):
+//  - 'directa': red pública → instalación → terminales. Sin tanque de
+//    reserva modelado; el cálculo de reserva por déficit de caudal
+//    (§2.10.2 / CRIT-A35) NO aplica -- eso es distinto de "hay tanque y su
+//    reserva calculada da 0".
+//  - 'tanqueElevado': red/conexión → tanque elevado → terminales.
+//  - 'cisternaBombeoElevado': red/conexión → tanque inferior / bombeo →
+//    tanque elevado → terminales. La cisterna y la bomba están aguas
+//    arriba del almacenamiento: para M2 el origen sigue siendo el tanque
+//    elevado, no es un tercer origen terminal. El reparto de la reserva
+//    entre tanque de bombeo y de reserva (§2.11.3) no se modela todavía;
+//    la Reserva Total Diaria de Diseño es la misma que para 'tanqueElevado'.
+export type EsquemaDeAbastecimiento = 'directa' | 'tanqueElevado' | 'cisternaBombeoElevado';
+
+// Lista en runtime de los esquemas válidos, para validar datos
+// persistidos (TypeScript no protege un JSON cargado de disco).
+export const ESQUEMAS_DE_ABASTECIMIENTO = [
+  'directa',
+  'tanqueElevado',
+  'cisternaBombeoElevado',
+] as const satisfies readonly EsquemaDeAbastecimiento[];
+
+// Configuración persistida de Módulo 4 (Reserva), D-δ.63. Guarda
+// únicamente decisiones físicas / de proyecto del usuario -- nunca
+// resultados derivados (déficit, volumen de reserva, EstadoModulo4: todo
+// se recalcula). Ausente = Módulo 4 todavía no iniciado (EstadoModulo4
+// 'noIniciado'); NO es un default, y su ausencia NO equivale a 'directa'.
+export type ConfiguracionDeAbastecimiento = {
+  readonly esquema: EsquemaDeAbastecimiento;
+  // Período estimado de consumo máximo `Tc`, en horas, con 1 ≤ Tc ≤ 4
+  // (ERAS §2.10.2 / CRIT-A35). Es una DECISIÓN del proyectista según las
+  // características de la instalación, no un valor derivado -- por eso se
+  // persiste. Sólo interviene en el cálculo cuando el esquema tiene tanque
+  // de reserva; con 'directa' nunca alimenta un cálculo de reserva.
+  // Ausente con un esquema con tanque = dato faltante (EstadoModulo4
+  // 'incompleto'), nunca se asume un valor.
+  readonly periodoConsumoMaximo_h?: number;
+};
+
 export type Proyecto = {
   metadatos: MetadatosProyecto;
   parametros: ParametrosProyecto;
@@ -227,4 +270,9 @@ export type Proyecto = {
   // Proyecto creado antes de que M3 existiera sigue siendo válido y
   // resuelve EstadoModulo3 'noIniciado' sin migración destructiva.
   configuracionMedidores?: ConfiguracionDeMedidores;
+  // Ausente = Módulo 4 no iniciado (D-δ.63). Optativo a propósito, mismo
+  // criterio que configuracionMedidores: un Proyecto creado antes de que
+  // M4 existiera sigue siendo válido y resuelve EstadoModulo4 'noIniciado'
+  // sin migración. La ausencia NO se interpreta como 'directa'.
+  configuracionAbastecimiento?: ConfiguracionDeAbastecimiento;
 };

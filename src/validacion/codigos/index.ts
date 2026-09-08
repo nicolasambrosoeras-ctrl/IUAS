@@ -23,7 +23,9 @@ export type CodigoValidacion =
   | 'redHidraulicaNodoTeeTramoSalidaRectaInvalido'
   | 'configuracionHidraulicaSistemaDeTuberiaIdInexistente'
   | 'configuracionHidraulicaSistemaMaterialIncompatible'
-  | 'configuracionMedidoresUnidadFuncionalInexistente';
+  | 'configuracionMedidoresUnidadFuncionalInexistente'
+  | 'configuracionAbastecimientoEsquemaInvalido'
+  | 'configuracionAbastecimientoPeriodoConsumoMaximoInvalido';
 
 export type Severidad = 'error' | 'advertencia';
 
@@ -125,6 +127,16 @@ export const codigosValidacion: Readonly<Record<CodigoValidacion, DescripcionCod
     severidad: 'error',
     descripcion:
       'configuracionMedidores.tipoProvisionACSPorUnidadFuncional referencia un id de unidad funcional que no existe en el Proyecto.',
+  },
+  configuracionAbastecimientoEsquemaInvalido: {
+    severidad: 'error',
+    descripcion:
+      'configuracionAbastecimiento.esquema no es uno de los esquemas soportados (directa / tanqueElevado / cisternaBombeoElevado).',
+  },
+  configuracionAbastecimientoPeriodoConsumoMaximoInvalido: {
+    severidad: 'error',
+    descripcion:
+      'configuracionAbastecimiento.periodoConsumoMaximo_h, cuando está presente, debe ser un número finito entre 1 y 4 horas (ERAS §2.10.2 / CRIT-A35). Nunca se corrige silenciosamente ni se aplica clamp.',
   },
 } as const;
 
