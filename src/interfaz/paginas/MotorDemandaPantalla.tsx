@@ -40,10 +40,10 @@ import { PanelDeMedidoresDeModulo3 } from './PanelDeMedidoresDeModulo3'
 import { PanelDeModulo4 } from './PanelDeModulo4'
 import { PanelDePresionDeModulo2 } from './PanelDePresionDeModulo2'
 import { NavegacionDeSecciones, SeccionDeTrabajo } from './NavegacionDeSecciones'
-import { EncabezadoDeEtapa } from './EncabezadoDeEtapa'
 import { MetodologiaYFuentesTecnicas } from './MetodologiaYFuentesTecnicas'
 import './sistema-visual.css'
 import './navegacionUI.css'
+import './demandaM1.css'
 import { parsearCota } from './parsearCota'
 import { calcularCotaHidraulicaDefaultDeNivel, nombreDeNivel } from './nivelUnidadFuncional'
 import { proyectoInicial } from './proyectoDeEjemplo'
@@ -130,22 +130,20 @@ function ArtefactoFormulario({
   onEliminar: () => void
 }) {
   return (
-    <div>
-      <label>
-        Artefacto:{' '}
-        <select
-          value={artefacto.artefactoId}
-          onChange={(evento) => onCambiarTipo(evento.target.value)}
-        >
-          {catalogoArtefactos.map((catalogoItem) => (
-            <option key={catalogoItem.id} value={catalogoItem.id}>
-              {catalogoItem.nombre} (qu={formatearNumero(catalogoItem.quTotal_lps, 'l/s')} l/s)
-            </option>
-          ))}
-        </select>
-      </label>{' '}
-      <label>
-        Cantidad:{' '}
+    <div className="m1-artefacto">
+      <select
+        aria-label="Artefacto"
+        value={artefacto.artefactoId}
+        onChange={(evento) => onCambiarTipo(evento.target.value)}
+      >
+        {catalogoArtefactos.map((catalogoItem) => (
+          <option key={catalogoItem.id} value={catalogoItem.id}>
+            {catalogoItem.nombre} (qu={formatearNumero(catalogoItem.quTotal_lps, 'l/s')} l/s)
+          </option>
+        ))}
+      </select>
+      <label className="m1-artefacto__cantidad">
+        Cantidad{' '}
         <input
           type="number"
           value={artefacto.cantidad}
@@ -156,9 +154,11 @@ function ArtefactoFormulario({
             }
           }}
         />
-      </label>{' '}
-      <button type="button" onClick={onEliminar}>
-        Eliminar artefacto
+      </label>
+      {/* Acción destructiva secundaria (sección 13): visible y con nombre
+          accesible, sin el peso de una acción constructiva. */}
+      <button type="button" className="m1-btn-eliminar" aria-label="Eliminar artefacto" onClick={onEliminar}>
+        Eliminar
       </button>
     </div>
   )
@@ -252,59 +252,69 @@ function LocalFormulario({
     crearYConectarArtefacto(primerArtefacto.id)
   }
 
-  return (
-    <article>
-      <h5>{etiqueta}</h5>
-      <label>
-        Tipo:{' '}
-        <select
-          value={local.tipo}
-          onChange={(evento) => onCambiar({ ...local, tipo: evento.target.value as TipoDeLocal })}
-        >
-          {TIPOS_DE_LOCAL.map((tipo) => (
-            <option key={tipo} value={tipo}>
-              {ETIQUETA_TIPO_DE_LOCAL[tipo]}
-            </option>
-          ))}
-        </select>
-      </label>{' '}
-      <label>
-        Régimen:{' '}
-        <select
-          value={local.regimen ?? ''}
-          onChange={(evento) => {
-            if (evento.target.value === '') {
-              const { regimen: _regimen, ...localSinRegimen } = local
-              onCambiar(localSinRegimen)
-              return
-            }
-            onCambiar({ ...local, regimen: evento.target.value as RegimenLocal })
-          }}
-        >
-          <option value="">— sin definir —</option>
-          {REGIMENES_DE_LOCAL.map((regimen) => (
-            <option key={regimen} value={regimen}>
-              {ETIQUETA_REGIMEN[regimen]}
-            </option>
-          ))}
-        </select>
-      </label>{' '}
-      <button type="button" onClick={onEliminar}>
-        Eliminar local
-      </button>
+  // La `etiqueta` llega como "Local: Baño" / "Local: Baño 2"; en la card
+  // el prefijo es redundante (ya es una card de Local).
+  const tituloLocal = etiqueta.replace(/^Local:\s*/, '')
 
-      <h6>Artefactos</h6>
-      {local.artefactos.map((artefacto) => (
-        <ArtefactoFormulario
-          key={artefacto.id}
-          artefacto={artefacto}
-          onCambiar={(artefactoActualizado) =>
-            onCambiar({
-              ...local,
-              artefactos: local.artefactos.map((a) => (a.id === artefacto.id ? artefactoActualizado : a)),
-            })
-          }
-          onCambiarTipo={(nuevoArtefactoId) => {
+  return (
+    <article className="m1-local">
+      <div className="m1-local__cabecera">
+        <h4 className="m1-local__nombre">{tituloLocal}</h4>
+        <button type="button" className="m1-btn-eliminar" onClick={onEliminar}>
+          Eliminar local
+        </button>
+      </div>
+
+      <div className="m1-local__tipos">
+        <label>
+          Tipo:{' '}
+          <select
+            value={local.tipo}
+            onChange={(evento) => onCambiar({ ...local, tipo: evento.target.value as TipoDeLocal })}
+          >
+            {TIPOS_DE_LOCAL.map((tipo) => (
+              <option key={tipo} value={tipo}>
+                {ETIQUETA_TIPO_DE_LOCAL[tipo]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Régimen:{' '}
+          <select
+            value={local.regimen ?? ''}
+            onChange={(evento) => {
+              if (evento.target.value === '') {
+                const { regimen: _regimen, ...localSinRegimen } = local
+                onCambiar(localSinRegimen)
+                return
+              }
+              onCambiar({ ...local, regimen: evento.target.value as RegimenLocal })
+            }}
+          >
+            <option value="">— sin definir —</option>
+            {REGIMENES_DE_LOCAL.map((regimen) => (
+              <option key={regimen} value={regimen}>
+                {ETIQUETA_REGIMEN[regimen]}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <p className="m1-local__seccion">Artefactos</p>
+      <div className="m1-artefactos">
+        {local.artefactos.map((artefacto) => (
+          <ArtefactoFormulario
+            key={artefacto.id}
+            artefacto={artefacto}
+            onCambiar={(artefactoActualizado) =>
+              onCambiar({
+                ...local,
+                artefactos: local.artefactos.map((a) => (a.id === artefacto.id ? artefactoActualizado : a)),
+              })
+            }
+            onCambiarTipo={(nuevoArtefactoId) => {
             // D-δ.52 (CRIT-A15): cambio funcional + reconciliación física
             // AF/AC + backfill de longitudes rápidas, en un único updater
             // (sin render intermedio inconsistente).
@@ -363,40 +373,47 @@ function LocalFormulario({
               ),
             })
           }}
-        />
-      ))}
-      <button type="button" onClick={agregarArtefacto}>
+          />
+        ))}
+      </div>
+      <button type="button" className="m1-agregar-contextual" onClick={agregarArtefacto}>
         + Agregar artefacto
       </button>
       {declaracionPendiente && (
-        <div role="alert">
+        <div className="ui-callout ui-callout--warn m1-declaracion" role="alert">
           <p>
             Es la primera instancia de "
             {catalogoArtefactos.find((c) => c.id === declaracionPendiente.artefactoIdCatalogo)?.nombre ??
               declaracionPendiente.artefactoIdCatalogo}
             " en el proyecto: no hay otra conexión física de la que deducir la Red. ¿A qué red se conecta?
           </p>
-          <button
-            type="button"
-            onClick={() => crearYConectarArtefacto(declaracionPendiente.artefactoIdCatalogo, ['AF'])}
-          >
-            Agua fría (AF)
-          </button>{' '}
-          <button
-            type="button"
-            onClick={() => crearYConectarArtefacto(declaracionPendiente.artefactoIdCatalogo, ['AC'])}
-          >
-            Agua caliente (AC)
-          </button>{' '}
-          <button
-            type="button"
-            onClick={() => crearYConectarArtefacto(declaracionPendiente.artefactoIdCatalogo, ['AF', 'AC'])}
-          >
-            Agua fría y caliente (AF + AC)
-          </button>{' '}
-          <button type="button" onClick={() => setDeclaracionPendiente(null)}>
-            Cancelar
-          </button>
+          <div className="m1-declaracion__opciones">
+            <button
+              type="button"
+              onClick={() => crearYConectarArtefacto(declaracionPendiente.artefactoIdCatalogo, ['AF'])}
+            >
+              Agua fría (AF)
+            </button>
+            <button
+              type="button"
+              onClick={() => crearYConectarArtefacto(declaracionPendiente.artefactoIdCatalogo, ['AC'])}
+            >
+              Agua caliente (AC)
+            </button>
+            <button
+              type="button"
+              onClick={() => crearYConectarArtefacto(declaracionPendiente.artefactoIdCatalogo, ['AF', 'AC'])}
+            >
+              Agua fría y caliente (AF + AC)
+            </button>
+            <button
+              type="button"
+              className="ui-btn--fantasma"
+              onClick={() => setDeclaracionPendiente(null)}
+            >
+              Cancelar
+            </button>
+          </div>
         </div>
       )}
     </article>
@@ -438,17 +455,31 @@ function UnidadFuncionalFormulario({
   const etiquetas = etiquetasDeLocales(locales)
 
   return (
-    <section>
-      <h3>
-        Unidad funcional:{' '}
-        <input
-          type="text"
-          aria-label="Nombre de la unidad funcional"
-          value={uf.nombre}
-          onChange={(evento) => onCambiar({ ...uf, nombre: evento.target.value })}
-        />
-      </h3>
-      <p>
+    <section className="m1-uf">
+      <div className="m1-uf__cabecera">
+        <h3 className="m1-uf__titulo">Unidad funcional</h3>
+        <div className="m1-uf__acciones">
+          <button type="button" className="ui-btn--fantasma" onClick={onDuplicar}>
+            Duplicar
+          </button>
+          {mostrarEliminar ? (
+            <button type="button" className="m1-btn-eliminar" onClick={onEliminar}>
+              Eliminar unidad funcional
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="m1-uf__campos">
+        <label>
+          Nombre:{' '}
+          <input
+            type="text"
+            aria-label="Nombre de la unidad funcional"
+            value={uf.nombre}
+            onChange={(evento) => onCambiar({ ...uf, nombre: evento.target.value })}
+          />
+        </label>
         <label>
           Nivel:{' '}
           <select
@@ -473,7 +504,7 @@ function UnidadFuncionalFormulario({
               </option>
             ))}
           </select>
-        </label>{' '}
+        </label>
         <label>
           Cota hidráulica de referencia [m]:{' '}
           <input
@@ -495,52 +526,47 @@ function UnidadFuncionalFormulario({
             style={{ width: '5rem' }}
           />
         </label>
-        <br />
+      </div>
+      <p className="m1-uf__ayuda">
         <small>
           En modo rápido (granularidad simplificada), esta cota se utiliza para todos los puntos de consumo de la
           unidad funcional.
         </small>
       </p>
-      <button type="button" onClick={onDuplicar}>
-        Duplicar unidad funcional
-      </button>{' '}
-      {mostrarEliminar ? (
-        <button type="button" onClick={onEliminar}>
-          Eliminar unidad funcional
-        </button>
-      ) : null}
 
-      <h4>Locales</h4>
-      {locales.map((local, indice) => (
-        <LocalFormulario
-          key={local.id}
-          local={local}
-          etiqueta={etiquetas[indice] ?? `Local: ${ETIQUETA_TIPO_DE_LOCAL[local.tipo]}`}
-          proyecto={proyecto}
-          unidadFuncionalId={uf.id}
-          onCambiar={(localActualizado) =>
-            cambiarLocales(locales.map((l) => (l.id === local.id ? localActualizado : l)))
-          }
-          onCambiarProyecto={onCambiarProyecto}
-          onEliminar={() => {
-            // M2-D (BAJA de Local completo, D-δ.47): mismo principio que la
-            // baja de un Artefacto individual, pero además poda la cabecera
-            // de bifurcación exclusiva del Local (que ya no puede reutilizar
-            // ningún consumidor futuro, a diferencia de la baja de un solo
-            // Artefacto) para no dejar topología muerta en redHidraulica.
-            const proyectoSinConectividad = quitarConectividadFisicaDeLocal(proyecto, uf.id, local.id)
-            onCambiarProyecto({
-              ...proyectoSinConectividad,
-              unidadesFuncionales: proyectoSinConectividad.unidadesFuncionales.map((unidad) =>
-                unidad.id !== uf.id
-                  ? unidad
-                  : { ...unidad, locales: unidad.locales.filter((l) => l.id !== local.id) },
-              ),
-            })
-          }}
-        />
-      ))}
-      <button type="button" onClick={agregarLocal}>
+      <div className="m1-uf__locales">
+        {locales.map((local, indice) => (
+          <LocalFormulario
+            key={local.id}
+            local={local}
+            etiqueta={etiquetas[indice] ?? `Local: ${ETIQUETA_TIPO_DE_LOCAL[local.tipo]}`}
+            proyecto={proyecto}
+            unidadFuncionalId={uf.id}
+            onCambiar={(localActualizado) =>
+              cambiarLocales(locales.map((l) => (l.id === local.id ? localActualizado : l)))
+            }
+            onCambiarProyecto={onCambiarProyecto}
+            onEliminar={() => {
+              // M2-D (BAJA de Local completo, D-δ.47): mismo principio que la
+              // baja de un Artefacto individual, pero además poda la cabecera
+              // de bifurcación exclusiva del Local (que ya no puede reutilizar
+              // ningún consumidor futuro, a diferencia de la baja de un solo
+              // Artefacto) para no dejar topología muerta en redHidraulica.
+              const proyectoSinConectividad = quitarConectividadFisicaDeLocal(proyecto, uf.id, local.id)
+              onCambiarProyecto({
+                ...proyectoSinConectividad,
+                unidadesFuncionales: proyectoSinConectividad.unidadesFuncionales.map((unidad) =>
+                  unidad.id !== uf.id
+                    ? unidad
+                    : { ...unidad, locales: unidad.locales.filter((l) => l.id !== local.id) },
+                ),
+              })
+            }}
+          />
+        ))}
+      </div>
+
+      <button type="button" className="m1-agregar-contextual" onClick={agregarLocal}>
         + Agregar local
       </button>
     </section>
@@ -581,24 +607,27 @@ function ProyectoFormulario({
   }
 
   return (
-    <section>
-      <h2>Datos del proyecto</h2>
-      <label>
-        Tipología de proyecto:{' '}
-        <select
-          style={{ maxWidth: '100%' }}
-          value={proyecto.parametros.tipoDeProyecto}
-          onChange={(evento) => onCambiar(conTipoDeProyecto(proyecto, evento.target.value as TipoDeProyecto))}
-        >
-          {coeficientesMayoracion.map((entrada) => (
-            <option key={entrada.id} value={entrada.id}>
-              {entrada.nombre} — a = {entrada.a}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <p>Total de unidades funcionales: {unidadesFuncionales.length}</p>
+    <section className="m1">
+      <div className="ui-card ui-card--config m1-config">
+        <h3 className="ui-card__titulo">Datos del proyecto</h3>
+        <label>
+          Tipología de proyecto:{' '}
+          <select
+            style={{ maxWidth: '100%' }}
+            value={proyecto.parametros.tipoDeProyecto}
+            onChange={(evento) => onCambiar(conTipoDeProyecto(proyecto, evento.target.value as TipoDeProyecto))}
+          >
+            {coeficientesMayoracion.map((entrada) => (
+              <option key={entrada.id} value={entrada.id}>
+                {entrada.nombre} — a = {entrada.a}
+              </option>
+            ))}
+          </select>
+        </label>
+        <span className="m1-config__total">
+          Total de unidades funcionales: <strong>{unidadesFuncionales.length}</strong>
+        </span>
+      </div>
 
       {unidadesFuncionales.map((uf) => (
         <UnidadFuncionalFormulario
@@ -625,7 +654,11 @@ function ProyectoFormulario({
           onDuplicar={() => duplicarUnidadFuncional(uf.id)}
         />
       ))}
-      <button type="button" onClick={agregarUnidadFuncional}>
+
+      {/* "Agregar unidad funcional" es la acción de nivel superior de M1
+          (sección 15): jerarquía distinta a "+ Agregar local" (dentro de
+          la UF) y "+ Agregar artefacto" (dentro del Local). */}
+      <button type="button" className="ui-btn--primario m1-agregar-uf" onClick={agregarUnidadFuncional}>
         + Agregar unidad funcional
       </button>
     </section>
@@ -735,11 +768,11 @@ function Resultados({ resultado }: { resultado: ResultadoDeCalculo }) {
 
   return (
     <section className="ui-stack">
-      <h3>Resultado de demanda</h3>
-
-      {/* Qc es el resultado protagonista de M1 (sección 35): número grande,
-          legible de un vistazo; n y Qmax como metadatos de apoyo, y el
-          desarrollo completo por progressive disclosure más abajo. */}
+      {/* Qc es el resultado protagonista de M1 (sección 35 de UI-01B):
+          número grande, legible de un vistazo; n y Qmax como metadatos de
+          apoyo, y el desarrollo completo por progressive disclosure más
+          abajo. La card no se rediseña en UI-01C (§16), sólo se integra en
+          el nuevo perímetro de la etapa. */}
       <div className="ui-card ui-card--resultado ui-metrica">
         <span className="ui-metrica__etiqueta">Caudal de cálculo · Qc</span>
         <span className="ui-metrica__valor">
@@ -842,9 +875,7 @@ function ResultadoDemandaModulo1({
 
   return (
     <details open>
-      <summary className="etapa-cabecera">
-        <EncabezadoDeEtapa numero={1} titulo="Demanda" descripcion="Caudal de cálculo del proyecto" />
-      </summary>
+      <summary>Resultado de demanda</summary>
       <Advertencias advertencias={resultado.advertencias} />
       <Resultados resultado={resultado} />
       <button type="button" onClick={() => generarDocumentoPdf({ proyecto, resultado })}>
@@ -874,15 +905,25 @@ export function MotorDemandaPantalla() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <h1>IUAS — Motor de Demanda</h1>
-        <p>Proyecto de ejemplo — vivienda unifamiliar. Todos los datos pueden modificarse.</p>
+        <h1>IUAS — Instalaciones internas</h1>
+        <p>Proyecto de ejemplo — vivienda unifamiliar · Todos los datos pueden modificarse.</p>
       </header>
 
       <div className="app-layout">
         <NavegacionDeSecciones />
 
         <main className="app-contenido">
-          <SeccionDeTrabajo id="demanda" nombreAccesible="Demanda">
+          {/* UI-01C (D-δ.74): el encabezado "01 Demanda" abre la etapa,
+              antes de "Datos del proyecto" -- toda la configuración que
+              determina la Demanda (tipología, UFs, Locales, Artefactos) y
+              su Resultado viven DENTRO de la etapa 01, en ese orden. */}
+          <SeccionDeTrabajo
+            id="demanda"
+            nombreAccesible="Demanda"
+            numero={1}
+            titulo="Demanda"
+            descripcion="Caudal de cálculo del proyecto"
+          >
             <ProyectoFormulario proyecto={proyecto} onCambiar={setProyecto} />
             {validacion.valido ? (
               <ResultadoDemandaModulo1 proyecto={proyecto} />

@@ -49,6 +49,40 @@ describe('MotorDemandaPantalla — estructura de navegación (UI-01A)', () => {
     expect(a).toBeLessThan(v)
   })
 
+  it('la etapa 01 abre con su encabezado y contiene TODO el perímetro de Demanda (UI-01C)', () => {
+    // UI-01C (D-δ.74): el encabezado "01 Demanda" abre la etapa, ANTES de
+    // "Datos del proyecto". Toda la configuración que determina la Demanda
+    // (tipología, UFs, Locales, Artefactos) y su Resultado viven dentro de
+    // la sección `demanda`, en ese orden; nada de M1 queda antes del
+    // encabezado ni después de la etapa.
+    const seccion = at(html, 'id="demanda"')
+    const encabezado01 = at(html, 'Demanda</h2>')
+    const datosProyecto = at(html, 'Datos del proyecto')
+    const unidadFuncional = at(html, 'Unidad funcional</h3>')
+    const artefactos = at(html, 'Artefactos</p>')
+    const resultado = at(html, 'Resultado de demanda</summary>')
+    const tuberias = at(html, 'id="tuberias"')
+
+    for (const [nombre, indice] of Object.entries({
+      encabezado01,
+      datosProyecto,
+      unidadFuncional,
+      artefactos,
+      resultado,
+    })) {
+      expect(indice, `falta ${nombre} en la etapa 01`).toBeGreaterThan(-1)
+    }
+    // El encabezado 01 abre la etapa, antes de la configuración.
+    expect(seccion).toBeLessThan(encabezado01)
+    expect(encabezado01).toBeLessThan(datosProyecto)
+    // Orden interno: datos del proyecto → UF → Locales/Artefactos → resultado.
+    expect(datosProyecto).toBeLessThan(unidadFuncional)
+    expect(unidadFuncional).toBeLessThan(artefactos)
+    expect(artefactos).toBeLessThan(resultado)
+    // Todo el perímetro de M1 queda dentro de la etapa, antes de Tuberías.
+    expect(resultado).toBeLessThan(tuberias)
+  })
+
   it('la Verificación hidráulica queda DESPUÉS de Abastecimiento (etapa final del flujo)', () => {
     expect(at(html, 'id="abastecimiento"')).toBeLessThan(at(html, 'id="verificacion-hidraulica"'))
     // y su ayuda deja claro que integra los resultados anteriores

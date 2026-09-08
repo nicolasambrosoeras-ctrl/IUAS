@@ -1,0 +1,234 @@
+/* UI-01C (D-δ.74) — estructura visual de la etapa 01 (Demanda / M1).
+   Sólo presentación: agrupa "Datos del proyecto", Unidades Funcionales,
+   Locales y Artefactos con la jerarquía UF → Local → Artefacto, sin
+   tocar updaters ni cálculo. Densidad alta: software técnico, no una
+   colección de cards espaciadas. */
+
+.m1 {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-lg);
+}
+
+/* --- Datos del proyecto (configuración general) --- */
+.m1-config {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--esp-sm) var(--esp-lg);
+}
+
+.m1-config .ui-card__titulo {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.m1-config__total {
+  color: var(--color-texto-2);
+  font-size: var(--fs-ayuda);
+}
+
+/* --- Unidad funcional --- */
+.m1-uf {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-md);
+  padding: var(--esp-md);
+  border: 1px solid var(--color-borde);
+  border-left: 3px solid var(--color-primario-borde);
+  border-radius: var(--radio-card);
+  background: var(--color-superficie);
+}
+
+.m1-uf__cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-sm);
+}
+
+.m1-uf__titulo {
+  margin: 0;
+  font-size: var(--fs-meta);
+  font-weight: var(--peso-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-texto-3);
+}
+
+.m1-uf__acciones {
+  display: flex;
+  gap: var(--esp-xs);
+}
+
+.m1-uf__campos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-sm) var(--esp-md);
+  align-items: end;
+}
+
+.m1-uf__locales {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-sm);
+}
+
+.m1-uf__ayuda {
+  margin: 0;
+}
+
+/* --- Card por Local --- */
+.m1-local {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-sm);
+  padding: var(--esp-md);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio-card);
+  background: var(--color-superficie-2);
+}
+
+.m1-local__cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-sm);
+}
+
+.m1-local__nombre {
+  margin: 0;
+  font-size: var(--fs-titulo-card);
+  font-weight: var(--peso-semibold);
+}
+
+.m1-local__tipos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-sm) var(--esp-md);
+}
+
+.m1-local__seccion {
+  margin: var(--esp-xs) 0 0;
+  font-size: var(--fs-meta);
+  font-weight: var(--peso-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-texto-3);
+}
+
+/* --- Fila de artefacto --- */
+.m1-artefactos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-xs);
+}
+
+.m1-artefacto {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--esp-sm);
+  padding: var(--esp-xs) 0;
+  border-bottom: 1px solid var(--color-borde);
+}
+
+.m1-artefacto:last-of-type {
+  border-bottom: none;
+}
+
+.m1-artefacto__cantidad {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--esp-xs);
+  font-size: var(--fs-ayuda);
+  color: var(--color-texto-2);
+  white-space: nowrap;
+}
+
+.m1-artefacto__cantidad input {
+  width: 4rem;
+}
+
+/* Acción destructiva secundaria: visible y accesible, pero sin el peso de
+   una acción constructiva (secciones 13-14). No depende de hover. */
+.m1-btn-eliminar {
+  min-height: 1.75rem;
+  padding: 0.2rem 0.55rem;
+  font-size: var(--fs-ayuda);
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-texto-3);
+}
+
+.m1-btn-eliminar:hover:not(:disabled) {
+  background: var(--color-error-suave);
+  border-color: var(--color-error-borde);
+  color: var(--color-error);
+}
+
+/* --- Jerarquía de acciones "Agregar" (sección 15) ---
+   "+ Agregar unidad funcional" es la acción de nivel superior (primaria).
+   "+ Agregar local" y "+ Agregar artefacto" son contextuales dentro de su
+   contenedor: más discretas y alineadas a la izquierda. */
+.m1-agregar-uf {
+  align-self: flex-start;
+}
+
+.m1-agregar-contextual {
+  align-self: flex-start;
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-primario);
+}
+
+.m1-agregar-contextual:hover:not(:disabled) {
+  background: var(--color-primario-suave);
+  border-color: var(--color-primario-borde);
+  color: var(--color-primario-fuerte);
+}
+
+/* --- Declaración de red pendiente --- */
+.m1-declaracion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-sm);
+  margin-top: var(--esp-sm);
+}
+
+.m1-declaracion__opciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-xs);
+}
+
+/* --- Responsive --- */
+@media (max-width: 560px) {
+  /* Fila 1: el <select> ocupa todo el ancho. Fila 2: Cantidad a la
+     izquierda, Eliminar a la derecha. */
+  .m1-artefacto {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: var(--esp-xs) var(--esp-sm);
+    padding: var(--esp-sm) 0;
+  }
+
+  .m1-artefacto > select {
+    grid-column: 1 / -1;
+  }
+
+  .m1-artefacto__cantidad {
+    justify-content: flex-start;
+  }
+
+  .m1-btn-eliminar {
+    justify-self: end;
+  }
+
+  .m1-uf__campos {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
