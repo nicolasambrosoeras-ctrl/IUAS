@@ -2198,3 +2198,90 @@ incorporación queda como refinamiento futuro.
 normativas reconstruidas (D-δ.54). Implementado en
 `motor/medidores/resolverAlcancesDeMedidoresIndividuales.ts`. Ver D-δ.54
 en `PENDIENTES-DE-ARQUITECTURA.md`.
+
+## CRIT-A35 — Reserva Total Diaria de Diseño por déficit de caudal (Módulo 4)
+
+**Artículo:** ERAS-2023 §2.10.2 ("Alimentación por tanques y
+determinación del Volumen de Reserva Diaria"); §2.11.1 y §2.11.2 remiten a
+la misma secuencia de cálculo; §2.8 (obligación de reserva) y §2.11.3
+(reparto entre tanques) quedan fuera de este criterio.
+
+**Texto oficial confirmado** (verificado contra la Resolución 641/2023,
+IF-2023-141050544-APN-DNAPYS#MOP, Cap. 2):
+
+> "Si la conexión a conceder por la OPERADORA DEL SERVICIO nos ofrece un
+> caudal inferior al Caudal de Cálculo Qc, debemos prever una reserva de
+> agua que compense ese déficit, en las horas de mayor consumo."
+> "El proyectista deberá analizar el período de consumo, con un mínimo de
+> 1 hora a un máximo de 4 de acuerdo a las características de la
+> instalación a proyectar, con el cual determinará la reserva de agua
+> necesaria."
+
+**Fórmula adoptada** (reconstruida de las planillas de ejemplo Tabla N°3
+y Tabla N°4 de la Guía — ver CASOS-GOLDEN.md G3/G4; las planillas se
+publican como imágenes, no como texto):
+
+```
+Dc        = max(0, Qc − Qconexión)          [l/s]
+Dc_m3h    = Dc · 3,6                         [m³/h]
+VReserva  = Dc_m3h · Tc                      [m³]      con 1 h ≤ Tc ≤ 4 h
+```
+
+`Qc` es el caudal de cálculo del proyecto (M1, CRIT-A5). `Qconexión` es el
+caudal que la operadora otorga en la conexión. `Tc` es el **período de
+consumo máximo**, elegido por el proyectista dentro de la ventana 1–4 h
+que fija la Guía.
+
+**Ejemplos oficiales verificados:**
+
+- **Tabla N°3** (continúa la secuencia de Tabla N°2): `Qc = 0,71 l/s`,
+  `Qconexión = 0,60 l/s`, `Tc = 2 h` → `Dc ≈ 0,39 m³/h` →
+  **Reserva de Diseño ≈ 0,77 m³** (la planilla adopta "a ejecutar" 1,00 m³).
+- **Tabla N°4**: `Qc ≈ 1,96 l/s`, `Qconexión ≈ 1,18 l/s`, `Tc = 1 h` →
+  `Dc ≈ 2,82 m³/h` → **Reserva de Diseño ≈ 2,82 m³** (la planilla la
+  presenta redondeada a ≈ 3 m³).
+
+**Precisión numérica:** se opera con el `Qc` real aguas arriba, **sin
+redondear `Qc` ni `Dc`** antes de calcular el volumen. El redondeo es de
+presentación; las diferencias aparentes entre las celdas de las planillas
+oficiales provienen de su propio redondeo de presentación. Con `Qc` sin
+redondear el ejemplo de Tabla N°3 reproduce 0,771 m³ (≈ 0,77 publicado);
+redondeando `Qc` a 0,71 daría 0,792 m³.
+
+**Criterio adoptado:** primitiva pura `calcularReservaDiaria`
+(`motor/reserva/calcularReservaDiaria.ts`) que recibe `qc_lps`,
+`qConexion_lps` y `tc_h` explícitos y devuelve `deficit_lps`,
+`deficit_m3h` y `volumenReservaDiseno_m3`. No conoce `Proyecto`,
+`RedHidraulica` ni ningún catálogo. Validaciones: `qc_lps ≥ 0`,
+`qConexion_lps ≥ 0`, `1 ≤ tc_h ≤ 4`.
+
+**Alcance — qué NO resuelve este criterio (decisiones cerradas en
+D-δ.61):**
+
+- `Tc` es período de consumo máximo, **no** un tiempo de llenado del
+  tanque.
+- **No** estima población ni usa dotación per cápita: la dotación
+  500/350/150 l/hab·día de §2.9.1.1 es consumo de conjunto urbano, no
+  reserva domiciliaria. **No** multiplica `Qc` por 24 h ni aplica ninguna
+  regla de "24 horas completas de consumo".
+- `Qconexión ≥ Qc` ⇒ `Dc = 0` ⇒ volumen 0. Es un resultado matemático
+  determinado, **no un error**, y **no equivale por sí solo a "tanque no
+  requerido"**: la obligación de reserva puede surgir de §2.8 con
+  independencia del déficit. Esa obligación se modela en un slice
+  posterior.
+- **No** decide el volumen adoptado / "a ejecutar" ni un catálogo
+  comercial de tanques: la Guía muestra 0,77 m³ → 1,00 m³ sin enunciar
+  una regla general de redondeo comercial. `VReserva` es el volumen
+  **requerido/de diseño**.
+- **No** resuelve el reparto entre tanque de bombeo y tanque de reserva
+  (§2.11.3: cada uno ≥ 1/3 de la Reserva Total Diaria cuando ambos
+  existen; no es un reparto único obligatorio 1/3 + 2/3).
+- `Qconexión` entra como **input explícito**. Su fuente futura es la
+  Tabla N°1 (§2.7, `normativa/eras-2023/tabla-01-gastos-conexion`) por
+  diámetro de conexión + presión disponible, con la interpolación lineal
+  ya declarada en esa tabla; hoy el modelo no persiste el diámetro de
+  conexión, así que la derivación queda para un slice posterior.
+
+**Estado:** Firme como transcripción/fórmula normativa, con ejemplos
+oficiales verificados. Implementado en `motor/reserva/calcularReservaDiaria.ts`.
+Ver D-δ.61 (contrato) y D-δ.62 (motor) en `PENDIENTES-DE-ARQUITECTURA.md`.
