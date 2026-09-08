@@ -6471,3 +6471,188 @@ auditado (una observación menor, sin cambio). `EstadoModulo4` intacto
 **M4-D2** -- persistir diámetro de conexión + presión y derivar
 `Qconexión` para `EstadoModulo4` (fijando antes qué punto físico y qué
 geometría usa cada esquema de abastecimiento).
+
+## D-δ.65 -- M4-D2: `Proyecto → presión de cálculo → Tabla N°1 → Qconexión → EstadoModulo4` -- CERRADA
+
+Incremento **funcional**. Cierra la cadena de reserva desde el Proyecto y
+**elimina el boundary provisional `qConexion_lps`** de
+`resolverEstadoModulo4`. Sin UI, sin tocar M2, sin reparto/adopción de
+tanques.
+
+### Modelo -- datos físicos de la conexión en `ParametrosProyecto`
+
+Dos campos **optativos**, junto a `presionSobreAcera_m`:
+
+```ts
+type ParametrosProyecto = {
+  tipoDeProyecto: TipoDeProyecto
+  presionSobreAcera_m: number
+  alturaArtefactoMasDesfavorable_m: number
+  diametroNominalConexion_m?: number   // DN de Tabla N°1, >= 0,019 m
+  desnivelConexion_m?: number          // desnivel FIRMADO respecto de la acera
+}
+```
+
+- **`diametroNominalConexion_m`**: diámetro de la conexión (m). Vive en
+  `ParametrosProyecto` porque es una propiedad física del abastecimiento
+  que Tabla N°1 consume y otros módulos podrían usar -- no en
+  `configuracionAbastecimiento`.
+- **`desnivelConexion_m`**: desnivel **firmado** (no longitud) del punto
+  de alimentación de cálculo respecto de la acera. `> 0` por encima
+  (resta), `= 0` igual, `< 0` por debajo (suma el descenso: restar un
+  negativo). Ver CRIT-A37.
+- **Backward-compatible, sin migración.** Ausencia ≠ 0, ausencia ≠ DN
+  mínimo: **no hay default**. Un proyecto viejo sigue válido; M4 con
+  esquema de tanque queda `incompleto` hasta que se declaren.
+- `presionSobreAcera_m` **no se movió** (rompería compatibilidad) y su
+  semántica -- "presión mínima garantizada sobre el nivel de vereda"
+  (D-δ.38) -- coincide con lo que M4-D2 asume. No red decision.
+
+### Presión de cálculo -- `resolverPresionDeCalculoDeConexion` (`motor/modulo4/`)
+
+Primitiva pura: `presionCalculo_m = presionSobreAcera_m − desnivelConexion_m`.
+Sólo la resta firmada -- **sin clamp, sin redondeo, sin conocer el rango
+`[4, 35]` m** de Tabla N°1. Inputs no finitos → `throw`. Formalizada como
+**CRIT-A37**.
+
+### Validación -- `validarParametrosDeConexion` (`validacion/parametrosConexion/`)
+
+Integrada en `validarProyecto`. Dos códigos nuevos (`error`):
+
+- `parametrosDiametroNominalConexionNoAdmisible` -- DN presente pero no
+  admisible como conexión (usa `esDiametroAdmisibleComoConexion`: tabulado
+  ∧ ≥ 0,019 m). **DN13 es error** como DN de conexión persistido (aunque
+  sea válido para el resolver genérico de Tabla N°1).
+- `parametrosDesnivelConexionNoFinito` -- desnivel presente pero no finito
+  (cualquier **signo** es válido; no se restringe a ≥ 0).
+
+`presionSobreAcera_m` **no se valida** (su rango es el de la presión de
+cálculo de Tabla N°1, no el de la presión de acera; el demo usa 2 m y
+sigue válido). **Ausencia** de DN / desnivel **no** es problema de
+validación.
+
+### Orquestador -- `resolverEstadoModulo4` (nueva firma)
+
+```ts
+resolverEstadoModulo4({ proyecto, catalogoArtefactos, coeficientesMayoracion })
+  → EstadoModulo4
+```
+
+**`qConexion_lps` eliminado del contrato público.** El Qconexión se
+deriva internamente: `presionSobreAcera_m` + `desnivelConexion_m` →
+`resolverPresionDeCalculoDeConexion` → `resolverGastoTabla01(DN, Pcalc)`.
+`calcularReservaDiaria` **sigue** recibiendo `qConexion_lps` explícito
+(es la primitiva numérica inferior) y `ResultadoReservaDiaria` sigue
+exponiéndolo -- sólo se quitó la **frontera** provisional del orquestador.
+No quedan consumidores del boundary anterior (M4-C nunca tuvo UI).
+
+**`EstadoModulo4`** (`noIniciado | error | incompleto | evaluado`) sin
+cambios de forma. Cambios:
+
+- **`error`** ahora también por `parametros.diametroNominalConexion_m` /
+  `.desnivelConexion_m` estructuralmente inválidos.
+- **Motivos de `incompleto`** actualizados: se quitó
+  `faltaCaudalDeConexion` (era el boundary manual); se agregaron
+  `faltaDiametroConexion`, `faltaDesnivelConexion` y
+  `presionConexionFueraDeTabla` (`{ presionCalculo_m, rango_m }`).
+  Presión de cálculo fuera de `[4, 35]` m → **`incompleto`**, nunca
+  `error` ni extrapolación.
+- **`directa`** sin cambios: `evaluado` + `sinReservaPorTanque` sin
+  necesitar Tc, DN, desnivel ni Tabla N°1. (Un DN inválido persistido sí
+  es `error` -- dato corrupto, independiente del esquema.)
+
+**`ResultadoModulo4.reservaCalculada`** gana un bloque `conexion`
+auditable:
+
+```ts
+conexion: {
+  diametroNominal_m, presionSobreAcera_m, desnivelConexion_m,
+  presionCalculo_m, qConexion_lps, interpolacion   // metadata de Tabla N°1
+}
+```
+
+para que el usuario/profesional siga la cadena `P acera → Δz → P cálculo →
+Tabla N°1 → Qconexión → reserva` sin recomputar.
+
+### Updaters -- `actualizarParametrosDeConexion` (`interfaz/paginas/`)
+
+`conDiametroNominalConexion` y `conDesnivelConexion` -- puros, sin React,
+sin clamp, sin validación de rango, sin default. `undefined` limpia el
+campo (idempotente si ya estaba ausente).
+
+### Auto-derivación desde M2: **explícitamente diferida**
+
+`desnivelConexion_m` es un **dato declarado**. M4-D2 **no** recorre
+`RedHidraulica` para obtenerlo: el punto físico relevante depende del
+esquema (directa → artefacto más alto/alejado surtido excluyendo poco
+frecuentes; tanque elevado → alimentación del tanque; cisterna+bombeo →
+alimentación de la cisterna, bajo acera), el modelo no contiene
+inequívocamente esas cotas, y **el "pelo de agua mínimo" de M2 NO es la
+cota de entrada del tanque** (prohibido reutilizarlo). La UI futura
+mostrará la semántica del desnivel según el esquema. La auto-derivación
+geométrica es deuda futura, sólo con semántica física suficiente.
+
+### Tests (26 nuevos → 1138/1138, 125 archivos)
+
+- `motor/modulo4/resolverPresionDeCalculoDeConexion.test.ts` -- P1..P5:
+  subida (10−3=7), igual (10−0=10), bajada (10−(−3)=13), sin redondeo,
+  sin clamp (puede devolver 2 o −35), no finitos → throw.
+- `validacion/parametrosConexion/index.test.ts` -- V1..V11: ausentes
+  válido, DN19/DN75 admisibles, DN13/DN22/no-finito/negativo no
+  admisibles, desnivel ±/0 válido, desnivel no finito error,
+  `presionSobreAcera_m = 2` no invalida, integración en `validarProyecto`.
+- `motor/modulo4/resolverEstadoModulo4.test.ts` -- E1..E10 reescritos +:
+  `directa` sin datos; `incompleto` por DN / desnivel / Tc / presión
+  fuera de tabla; `evaluado` con traza de conexión; `Qconexión ≥ Qc` →
+  V=0 (no `sinReservaPorTanque`); `tanqueElevado` == `cisternaBombeoElevado`;
+  **descenso** (`desnivelConexion_m < 0` → mayor `presionCalculo_m` →
+  mayor Qconexión → menor reserva, por el signo, sin regla especial);
+  DN13 persistido → `error`; desnivel `NaN` → `error`; `directa` no se
+  bloquea; acumulación de motivos; pureza; **interpolación end-to-end**
+  (P acera 8, Δz 1,5 → Pcalc 6,5 → Tabla N°1 interpola → 0,69, propagado
+  a la reserva sin redondear).
+- `motor/modulo4/resolverEstadoModulo4.golden.test.ts` reescrito -- **G3
+  y G4 end-to-end**: `Proyecto` real → M1 → presión de cálculo → Tabla
+  N°1 → reserva, **sin inyectar `Qconexión`**. G3: DN19 / P acera 5 m /
+  Δz 0 → 0,7712 m³. G4: DN25 / P acera 5 m / Δz 0 → ≈ 2,82 m³ (publicado
+  ≈ 3).
+- `interfaz/paginas/actualizarParametrosDeConexion.test.ts` -- fijar/quitar
+  sin default ni clamp, desnivel firmado, inmutabilidad, idempotencia.
+
+### Verificación
+
+`vitest` 1138/1138 (125 archivos; +26 tests, +3 archivos), `tsc -b`
+verde, `npm run build` verde, `eslint .` 11 baseline / 0 nuevos, working
+tree limpio. Sin consumidores del `qConexion_lps` provisional fuera de las
+primitivas legítimas (`calcularReservaDiaria`, `ResultadoReservaDiaria`).
+
+### Qué NO se hizo (próximos slices)
+
+Auto-derivar `desnivelConexion_m` desde M2 (requiere fijar el punto
+físico por esquema y qué geometría persistir -- cota de entrada del
+tanque, de la cisterna en sótano); UI de M4 (editar los nuevos campos);
+integración M4→M2 (derivar el origen de M2 desde el esquema y retirar el
+selector efímero del Panel de Presión, con auditoría de regresión);
+volumen adoptado vs requerido; reparto tanque de bombeo / de reserva
+(§2.11.3); obligación de reserva de §2.8; selección automática de DN de
+conexión (sin base normativa -- la Operadora la fija); criterio de
+materiales plásticos. El demo (`presionSobreAcera_m: 2`) **no** se tocó.
+
+### Decisiones rojas
+
+Ninguna. `ParametrosProyecto` admite los campos nuevos como optativos sin
+refactor; `presionSobreAcera_m` ya tenía la semántica asumida (D-δ.38); el
+repo no representa el punto de alimentación de conexión (no hay
+duplicación); la norma se satisface con un desnivel firmado declarado; el
+boundary `qConexion_lps` sólo lo consumían los tests de M4.
+
+### Estado
+
+**D-δ.65 -- CERRADA.** DN de conexión y desnivel firmado persistidos
+(optativos, backward-compatible); `resolverPresionDeCalculoDeConexion`
+(CRIT-A37); Tabla N°1 como única fuente de `Qconexión` en
+`resolverEstadoModulo4` (boundary provisional eliminado); `directa`
+independiente; `incompleto` ante datos ausentes o presión fuera de tabla;
+`error` ante DN/desnivel inválidos; goldens G3/G4 end-to-end +
+interpolación + descenso. Baseline verde. Siguiente slice: **UI de M4**
+(M4-D) **o** auto-derivación geométrica del desnivel por esquema.

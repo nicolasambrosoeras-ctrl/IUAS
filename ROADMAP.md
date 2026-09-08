@@ -406,19 +406,30 @@ Primer módulo del bloque de reserva. Detalle en
   `resolverGastoTabla01({ diametroNominal_m, presionCalculo_m })` →
   `resuelto | fueraDeRangoDePresion | diametroNoTabulado`. Interpolación
   lineal **sólo en la presión** (DN es clave discreta), sin extrapolación
-  fuera de `[4, 35]` m, `presionCalculo_m` ≠ presión sobre acera (§2.7
-  la ajusta por desnivel — no se modela aún). `esDiametroAdmisibleComoConexion`
-  (DN tabulado ∧ ≥ 0,019 m). Dataset de Fase 1 auditado (coherente; una
-  celda con formato anómalo, sin cambio). Goldens G5/G6 y cadena
-  Tabla1→reserva. Sin persistir DN de conexión, sin tocar `EstadoModulo4`.
+  fuera de `[4, 35]` m. `esDiametroAdmisibleComoConexion` (DN tabulado ∧
+  ≥ 0,019 m). Dataset de Fase 1 auditado (coherente; una celda con
+  formato anómalo, sin cambio). Goldens G5/G6.
+- **M4-D2** (D-δ.65) — cadena completa `Proyecto → Qconexión → reserva`.
+  `ParametrosProyecto` gana `diametroNominalConexion_m?` y
+  `desnivelConexion_m?` (desnivel **firmado** respecto de la acera;
+  optativos, backward-compatible, sin default).
+  `resolverPresionDeCalculoDeConexion` (`presionCalculo_m =
+  presionSobreAcera_m − desnivelConexion_m`, CRIT-A37).
+  `validarParametrosDeConexion` en `validarProyecto` (DN13 / desnivel no
+  finito → error; ausencia → no es problema). `resolverEstadoModulo4`
+  **elimina el boundary `qConexion_lps`**: deriva el gasto vía §2.7 +
+  Tabla N°1; presión de cálculo fuera de `[4, 35]` m → `incompleto`
+  (`presionConexionFueraDeTabla`), nunca error. `ResultadoModulo4` gana
+  traza `conexion` auditable. Goldens G3/G4 **end-to-end** (sin inyectar
+  `Qconexión`). Auto-derivar el desnivel desde M2 queda diferido (el
+  "pelo de agua mínimo" de M2 ≠ cota de entrada del tanque).
 
-**Pendiente:** M4-D2 — persistir diámetro de conexión + presión y derivar
-`Qconexión` para `EstadoModulo4` (fijando antes qué punto físico y qué
-geometría usa cada esquema de abastecimiento) → M4-D (UI
-Rápido/Profesional) → integración M4→M2 (derivar el origen de M2 desde el
-esquema y retirar el selector efímero del Panel de Presión, con regresión
-propia) → auditoría. También: volumen adoptado vs requerido; reparto
-tanque de bombeo / de reserva (§2.11.3); obligación de reserva por §2.8
+**Pendiente:** M4-D (UI Rápido/Profesional — editar esquema, Tc, DN de
+conexión, desnivel) → auto-derivación geométrica del desnivel por
+esquema → integración M4→M2 (derivar el origen de M2 desde el esquema y
+retirar el selector efímero del Panel de Presión, con regresión propia) →
+auditoría. También: volumen adoptado vs requerido; reparto tanque de
+bombeo / de reserva (§2.11.3); obligación de reserva por §2.8
 independiente del déficit.
 
 **Hallazgos de M4-A:**
