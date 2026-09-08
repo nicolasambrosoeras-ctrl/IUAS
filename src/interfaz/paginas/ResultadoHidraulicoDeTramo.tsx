@@ -48,7 +48,6 @@ import { resolverFilaDeDimensionamiento } from './resolverFilaDeDimensionamiento
 import { TablaDimensionamientoDeModulo2, type EntradaDeTabla } from './TablaDimensionamientoDeModulo2'
 import { AccesoriosDeTramoEditor } from './AccesoriosDeTramoEditor'
 import { LocalYRedCard } from './LocalYRedCard'
-import { PanelDePresionDeModulo2 } from './PanelDePresionDeModulo2'
 
 // Duplicado intencional de la etiqueta homónima en MotorDemandaPantalla.tsx
 // (mismo criterio que aplicarParticipacionCritA8: segundo consumidor
@@ -529,7 +528,11 @@ export function ResultadoHidraulicoDeTramo({
   return (
     <details open>
       <summary>
-        <h2>Módulo 2 — Tuberías</h2>
+        {/* UI-01A (D-δ.72): esta sección queda centrada en el
+            DIMENSIONAMIENTO. La verificación de presión se movió a la
+            etapa final "Verificación hidráulica" (sigue siendo dominio
+            M2). */}
+        <h2>Módulo 2 — Dimensionamiento de tuberías</h2>
       </summary>
 
       <CabeceraDeModulo2 proyecto={proyecto} onCambiar={onCambiar} />
@@ -556,8 +559,6 @@ export function ResultadoHidraulicoDeTramo({
               onCambiar={onCambiar}
             />
           ))}
-
-          <PanelDePresionDeModulo2 proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} onCambiar={onCambiar} />
         </>
       )}
     </details>

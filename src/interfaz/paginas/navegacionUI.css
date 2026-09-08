@@ -1,0 +1,123 @@
+/* UI-01A (D-δ.72) — CSS ESTRUCTURAL únicamente: shell de layout,
+   navegación lateral/índice, anchors de sección y responsive básico.
+   NO define paleta, tipografía, cards, botones ni estética final (eso es
+   UI-01B). El core M1–M4 no depende de nada de este archivo. */
+
+.app-shell {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem 3rem;
+}
+
+.app-header {
+  padding: 1rem 0 0.5rem;
+}
+
+/* Índice + contenido. En desktop el índice es una columna sticky; el
+   contenido nunca se desmonta (one-page). */
+.app-layout {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+.app-nav {
+  position: sticky;
+  top: 1rem;
+  align-self: start;
+}
+
+.app-nav > ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.app-nav a {
+  display: block;
+  padding: 0.35rem 0.6rem;
+  text-decoration: none;
+  color: inherit;
+  border-left: 3px solid transparent;
+  border-radius: 2px;
+}
+
+.app-nav a:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.app-nav a[aria-current='true'] {
+  border-left-color: currentColor;
+  font-weight: 700;
+}
+
+.app-nav-num {
+  display: inline-block;
+  width: 1.5em;
+  opacity: 0.55;
+}
+
+/* `minmax(0, 1fr)` + este min-width evitan que una tabla ancha rompa el
+   grid y genere overflow horizontal global. */
+.app-contenido {
+  min-width: 0;
+}
+
+/* Anchor de cada etapa: deja aire arriba al saltar desde el índice. */
+.seccion-de-trabajo {
+  scroll-margin-top: 1rem;
+}
+
+.seccion-de-trabajo + .seccion-de-trabajo {
+  margin-top: 2.5rem;
+}
+
+/* Viewport reducido: el índice pasa a barra superior desplazable, no una
+   columna lateral que coma el ancho útil. */
+@media (max-width: 720px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .app-nav {
+    top: 0;
+    z-index: 10;
+    margin: 0 -1rem;
+    padding: 0.35rem 1rem;
+    background: #fff;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.2);
+    overflow-x: auto;
+  }
+
+  .app-nav > ol {
+    flex-direction: row;
+    gap: 0.35rem;
+    white-space: nowrap;
+  }
+
+  .app-nav a {
+    border-left: none;
+    border-bottom: 3px solid transparent;
+  }
+
+  .app-nav a[aria-current='true'] {
+    border-left-color: transparent;
+    border-bottom-color: currentColor;
+  }
+
+  .app-nav-num {
+    width: auto;
+    margin-right: 0.2em;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}

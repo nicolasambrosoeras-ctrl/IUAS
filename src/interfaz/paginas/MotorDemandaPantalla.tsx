@@ -38,7 +38,10 @@ import { quitarConectividadFisicaDeUnidadFuncional } from './quitarConectividadF
 import { ResultadoHidraulicoDeTramo } from './ResultadoHidraulicoDeTramo'
 import { PanelDeMedidoresDeModulo3 } from './PanelDeMedidoresDeModulo3'
 import { PanelDeModulo4 } from './PanelDeModulo4'
+import { PanelDePresionDeModulo2 } from './PanelDePresionDeModulo2'
+import { NavegacionDeSecciones, SeccionDeTrabajo } from './NavegacionDeSecciones'
 import { MetodologiaYFuentesTecnicas } from './MetodologiaYFuentesTecnicas'
+import './navegacionUI.css'
 import { parsearCota } from './parsearCota'
 import { calcularCotaHidraulicaDefaultDeNivel, nombreDeNivel } from './nivelUnidadFuncional'
 import { proyectoInicial } from './proyectoDeEjemplo'
@@ -830,12 +833,13 @@ function Pasos({ pasos }: { pasos: readonly Paso[] }) {
   )
 }
 
-function ResultadoDemanda({
+// Salida de Módulo 1 (Demanda). Es la mitad "resultado" de la etapa 1: la
+// mitad "entrada" (ProyectoFormulario) vive en la misma sección #demanda,
+// justo arriba.
+function ResultadoDemandaModulo1({
   proyecto,
-  onCambiar,
 }: {
   proyecto: Proyecto
-  onCambiar: (proyecto: Proyecto) => void
 }) {
   const resultado = calcularSimultaneidad({
     proyecto,
@@ -843,25 +847,17 @@ function ResultadoDemanda({
   })
 
   return (
-    <>
-      <details open>
-        <summary>
-          <h2>Módulo 1 — Demanda</h2>
-        </summary>
-        <Advertencias advertencias={resultado.advertencias} />
-        <Resultados resultado={resultado} />
-        <button type="button" onClick={() => generarDocumentoPdf({ proyecto, resultado })}>
-          Generar memoria PDF
-        </button>
-        <Pasos pasos={resultado.pasos} />
-      </details>
-
-      <ResultadoHidraulicoDeTramo proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} onCambiar={onCambiar} />
-
-      <PanelDeMedidoresDeModulo3 proyecto={proyecto} onCambiar={onCambiar} />
-
-      <PanelDeModulo4 proyecto={proyecto} onCambiar={onCambiar} />
-    </>
+    <details open>
+      <summary>
+        <h2>Módulo 1 — Demanda</h2>
+      </summary>
+      <Advertencias advertencias={resultado.advertencias} />
+      <Resultados resultado={resultado} />
+      <button type="button" onClick={() => generarDocumentoPdf({ proyecto, resultado })}>
+        Generar memoria PDF
+      </button>
+      <Pasos pasos={resultado.pasos} />
+    </details>
   )
 }
 
@@ -875,21 +871,68 @@ export function MotorDemandaPantalla() {
   )
   const validacion = validarProyecto(proyecto, catalogoArtefactos, coeficientesMayoracion, catalogoSistemasDeTuberia)
 
+  // UI-01A (D-δ.72): shell de dos columnas (índice + contenido). El flujo
+  // de trabajo se ordena Demanda → Tuberías → Medidores → Abastecimiento →
+  // Verificación hidráulica; la verificación es la etapa 5 pero sigue
+  // perteneciendo al dominio de Módulo 2 (integra M2 + M3 + M4). Todas las
+  // etapas quedan montadas (one-page); el índice es scroll a anchors, no
+  // un router.
   return (
-    <div>
-      <h1>IUAS — Motor de Demanda</h1>
-      <h2>Proyecto de ejemplo — Vivienda unifamiliar</h2>
-      <p>
-        Se carga una instalación doméstica típica para facilitar la exploración del Motor de
-        Demanda. Todos los datos pueden modificarse.
-      </p>
-      <ProyectoFormulario proyecto={proyecto} onCambiar={setProyecto} />
-      {validacion.valido ? (
-        <ResultadoDemanda proyecto={proyecto} onCambiar={setProyecto} />
-      ) : (
-        <ProblemasValidacion problemas={validacion.problemas} />
-      )}
-      <MetodologiaYFuentesTecnicas />
+    <div className="app-shell">
+      <header className="app-header">
+        <h1>IUAS — Motor de Demanda</h1>
+        <p>Proyecto de ejemplo — vivienda unifamiliar. Todos los datos pueden modificarse.</p>
+      </header>
+
+      <div className="app-layout">
+        <NavegacionDeSecciones />
+
+        <main className="app-contenido">
+          <SeccionDeTrabajo id="demanda" nombreAccesible="Demanda">
+            <ProyectoFormulario proyecto={proyecto} onCambiar={setProyecto} />
+            {validacion.valido ? (
+              <ResultadoDemandaModulo1 proyecto={proyecto} />
+            ) : (
+              <ProblemasValidacion problemas={validacion.problemas} />
+            )}
+          </SeccionDeTrabajo>
+
+          {validacion.valido ? (
+            <>
+              <SeccionDeTrabajo id="tuberias" nombreAccesible="Tuberías">
+                <ResultadoHidraulicoDeTramo
+                  proyecto={proyecto}
+                  catalogoArtefactos={catalogoArtefactos}
+                  onCambiar={setProyecto}
+                />
+              </SeccionDeTrabajo>
+
+              <SeccionDeTrabajo id="medidores" nombreAccesible="Medidores">
+                <PanelDeMedidoresDeModulo3 proyecto={proyecto} onCambiar={setProyecto} />
+              </SeccionDeTrabajo>
+
+              <SeccionDeTrabajo id="abastecimiento" nombreAccesible="Abastecimiento y reserva">
+                <PanelDeModulo4 proyecto={proyecto} onCambiar={setProyecto} />
+              </SeccionDeTrabajo>
+
+              <SeccionDeTrabajo
+                id="verificacion-hidraulica"
+                nombreAccesible="Verificación hidráulica"
+                titulo="Verificación hidráulica"
+                descripcion="Comprobación final de presión y terminal crítico, usando las tuberías dimensionadas, los medidores y el esquema de abastecimiento."
+              >
+                <PanelDePresionDeModulo2
+                  proyecto={proyecto}
+                  catalogoArtefactos={catalogoArtefactos}
+                  onCambiar={setProyecto}
+                />
+              </SeccionDeTrabajo>
+            </>
+          ) : null}
+
+          <MetodologiaYFuentesTecnicas />
+        </main>
+      </div>
     </div>
   )
 }
