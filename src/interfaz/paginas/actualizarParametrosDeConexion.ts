@@ -36,3 +36,14 @@ export function conDiametroNominalConexion(proyecto: Proyecto, diametroNominal_m
 export function conDesnivelConexion(proyecto: Proyecto, desnivel_m: number | undefined): Proyecto {
   return conParametro(proyecto, 'desnivelConexion_m', desnivel_m)
 }
+
+// Presión mínima garantizada sobre el nivel de acera (D-δ.38), en m.c.a.
+// A diferencia de los otros dos, es un campo OBLIGATORio de
+// ParametrosProyecto: siempre toma un número (no se puede limpiar). No
+// aplica clamp ni impone el rango [4, 35] m de la Tabla N°1 -- ese rango
+// pertenece a la PRESIÓN DE CÁLCULO, no a la de acera (CRIT-A37; el demo
+// del repo usa 2 m). Hasta M4-F no existía ninguna superficie de edición
+// para este campo: el Panel de Módulo 4 es su editor.
+export function conPresionSobreAcera(proyecto: Proyecto, presionSobreAcera_m: number): Proyecto {
+  return { ...proyecto, parametros: { ...proyecto.parametros, presionSobreAcera_m } }
+}

@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import type { Proyecto } from '../../modelo/proyecto'
-import { conDesnivelConexion, conDiametroNominalConexion } from './actualizarParametrosDeConexion'
+import {
+  conDesnivelConexion,
+  conDiametroNominalConexion,
+  conPresionSobreAcera,
+} from './actualizarParametrosDeConexion'
 
 function proyectoBase(): Proyecto {
   return {
@@ -82,5 +86,21 @@ describe('actualizarParametrosDeConexion (D-δ.65)', () => {
     const base = proyectoBase()
     expect(conDiametroNominalConexion(base, undefined)).toBe(base)
     expect(conDesnivelConexion(base, undefined)).toBe(base)
+  })
+
+  it('conPresionSobreAcera fija el número sin clamp ni rango, preservando el resto', () => {
+    const base = proyectoBase()
+    const copia = structuredClone(base)
+
+    const con5 = conPresionSobreAcera(base, 5)
+    expect(con5.parametros.presionSobreAcera_m).toBe(5)
+
+    // No impone el rango [4, 35] de Tabla N°1: puede quedar en 2.
+    const con2 = conPresionSobreAcera(con5, 2)
+    expect(con2.parametros.presionSobreAcera_m).toBe(2)
+
+    expect(base).toEqual(copia)
+    expect(con5.metadatos).toBe(base.metadatos)
+    expect(con5.parametros.tipoDeProyecto).toBe(base.parametros.tipoDeProyecto)
   })
 })
