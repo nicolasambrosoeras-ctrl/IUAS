@@ -7385,3 +7385,156 @@ para el alcance actual:
 Las deudas listadas arriba (auto-desnivel, §2.8 automático, secciones
 ≥ 4.000 L, geometría, bombas, catálogo, reporting) **no** bloquean el
 cierre. No se inicia ningún trabajo posterior a M4.
+
+## D-δ.70 -- Auditoría integral M1–M4 pre-rediseño: baseline funcional transversal -- CERRADA
+
+Auditoría transversal de todo el producto (M1 → M2 → M3 → M4) antes de una
+pasada de UX/UI. **No** audita fórmulas por módulo (ya cubierto por
+CRIT-A* y D-δ.59/60/69): audita que **un Proyecto real atraviesa los
+cuatro módulos de forma coherente, reactiva y sin contaminación cruzada**,
+y fija un baseline reproducible + los contratos que el rediseño no puede
+tocar. **Resultado: CORE FUNCIONAL M1–M4 CONGELADO PARA REDISEÑO. Sin
+bugs.**
+
+### Baseline de entrada
+
+`main` @ `0a4c38b`, working tree limpio. `vitest` 1209/1209 (130
+archivos), `tsc -b` / `npm run build` verdes, `eslint` 11 baseline / 0
+warnings, smoke M4-H previo 37/37.
+
+### Entregables
+
+- **`BASELINE-FUNCIONAL-M1-M4.md`** (nuevo, raíz del repo): snapshot
+  numérico del Proyecto canónico, matriz de sensibilidad, matriz de
+  persistencia (persistido vs derivado vs estado local de React),
+  fronteras entre módulos, contratos congelados, superficies rediseñables,
+  deudas y conclusión.
+- **`src/interfaz/paginas/proyectoDeEjemplo.ts`** (nuevo): se extrajo el
+  `proyectoInicial` (la instalación de ejemplo que ve el usuario) desde
+  `MotorDemandaPantalla.tsx` a su propio módulo **sin cambios de
+  contenido** (objeto byte-idéntico verificado por `diff`), para poder
+  compartirlo como fixture con los tests sin arrastrar el árbol de React
+  ni romper `react-refresh/only-export-components`.
+- **`src/auditoriaTransversalM1M4.baseline.test.ts`** (nuevo, 12 casos):
+  evidencia ejecutable del documento. Replica el **mismo cableado que la
+  UI** (`resolverOrigenHidraulicoEfectivo` → Pdisponible /
+  `origenHidraulico`; `resolverPerdidasDeMedidoresParaTerminal` por
+  terminal; `resolverEstadoModulo2/3/4`) sobre el Proyecto canónico y
+  verifica la matriz de sensibilidad y de no contaminación.
+
+### Snapshot del Proyecto canónico (todo DERIVADO, nada persistido)
+
+Fixture `proyectoInicial` + updaters reales: cota de raíz 20 m, override
+de DN comercial `32 mm` en `t-general`, M3 PH + ACS individual, M4
+`tanqueElevado` / Tc 2 h / DN 19 / Pacera 5 m / Δz 0 / adoptado 5 m³.
+
+| Módulo | Magnitud | Valor |
+|---|---|---|
+| M1 | Qc global | 0,7273238618 l/s |
+| M2 | estado / origen / Pdisp | `completo` / `tanqueElevado` / 0 m.c.a. |
+| M2 | margen del crítico | ≈ +3,836 m.c.a. → CUMPLE |
+| M3 | medidor general DN rec/adopt · hf | 25 / 25 mm · ≈ 1,399 m.c.a. |
+| M3 | medidores individuales | 1 |
+| M4 | Pcalc · Qconexión · VRTD · adopción | 5 m · 0,60 l/s · ≈ 0,9167 m³ · `suficiente` |
+
+### Matriz de sensibilidad / no contaminación (verificada)
+
+| Cambio | M1 | M2 | M3 | M4 |
+|---|:-:|:-:|:-:|:-:|
+| cantidad / tipo de artefacto | ✓ | ✓ | ✓ (DN ≥) | ✓ |
+| DN comercial manual de Tramo (M2) | — | ✓ | — | — |
+| DN de conexión (M4) | — | — | — | ✓ |
+| Tc (M4) | — | — | — | ✓ (×Tc exacto) |
+| Pacera | — | ✓ **sólo `directa`** | — | ✓ |
+| desnivel de conexión (M4) | — | — | — | ✓ |
+| volumen adoptado (M4) | — | — | — | ✓ (sólo adopción) |
+| medidor general ↑/↓ (M3) | — | ✓ **sólo `directa`** | ✓ | — |
+| esquema de abastecimiento | — | ✓ (origen) | ✓ (aplicabilidad general→M2) | ✓ |
+
+Anti-contaminación con `toEqual` / `toBeCloseTo(…, 9)`: DN comercial de M2
+no toca Qc/M3/M4; DN de conexión de M4 no toca Qc/M3/margen de M2; Tc
+escala VRTD ×2 exacto sin tocar Qc/M3/M2; subir el medidor general en
+esquema con tanque deja Qc y VRTD byte-idénticos; `cisternaBombeoElevado`
+≡ `tanqueElevado` en balance terminal y origen de M2.
+
+### Fronteras
+
+Ningún `resolverEstadoModuloX` importa a otro (0 imports cruzados entre
+`motor/modulo2|3|4`, `motor/demanda`, `motor/reserva`, `motor/medidores`).
+El cableado M3→M2 y M4→M2 vive en `interfaz/paginas/PanelDePresionDeModulo2.tsx`,
+no en `motor/`. `motor/tuberias/**` y `motor/modulo2/**` no importan
+`motor/modulo4` / `tabla-01` / `motor/reserva`. Producción sin imports de
+`interfaz/` en `motor/` (un único test los tiene, para una constante
+normativa -- deuda menor registrada).
+
+### Estado local de React y factibilidad del rediseño
+
+Toda la aplicación tiene **dos** `useState`: `Proyecto` (fuente única de
+verdad) en `MotorDemandaPantalla` y un modal transitorio de declaración de
+artefacto. Los paneles de M1/M2/M3/M4 y subcomponentes tienen **cero**
+`useState` / `useEffect` / `useRef` / `useMemo`: son funciones puras de
+`(proyecto, catálogos)` + `onCambiar`. **Ningún dato editable vive en
+estado local de un panel** -> una sidebar que oculte/reordene/remonte
+secciones no puede perder decisiones del usuario. Sidebar como
+índice/scroll con todos los módulos montados: viable. Sticky summary
+global (4 `EstadoModuloX` + crítico + RTD): viable sin cálculos nuevos.
+Pdisponible / hfMedidor manuales ya no existen (D-δ.68): se derivan.
+
+### Fuentes únicas de verdad (confirmadas)
+
+Qc (M1) · DN de tubería adoptado (`redHidraulica.tramos[].dnComercialAdoptado`)
+· hfMedidor (derivado de `configuracionMedidores` vía M3) · esquema de
+abastecimiento (`configuracionAbastecimiento.esquema`) · `presionSobreAcera_m`
+(única propiedad; editable en M4 para todos los esquemas desde M4-H) ·
+Qconexión / VRTD / estado de suficiencia / origen de M2 (todos derivados).
+No hay un segundo input local para ninguno.
+
+### Bugs
+
+Ninguno. El único cambio de código es la extracción de `proyectoInicial`
+a su módulo (refactor sin comportamiento, objeto byte-idéntico) para
+poder compartirlo como fixture. No se tocó dominio.
+
+### Deudas nuevas registradas (no bloquean)
+
+- `parametros.alturaArtefactoMasDesfavorable_m`: campo **requerido** en el
+  modelo, **sin consumidor** en `motor/` (residuo previo al modelo de
+  cota por terminal). Candidato a eliminar en el rediseño del modelo.
+- `calcularCotaHidraulicaDefaultDeNivel` (constante normativa) vive en
+  `interfaz/paginas/` y la importa un test de `motor/`. Mover a
+  `normativa/`.
+
+(El resto de deudas -- reporting M2–M4, panel M3 `incompleto`, poda de
+overrides huérfanos, deudas normativas de M4-H -- ya estaban registradas.)
+
+### Decisiones rojas
+
+Ninguna.
+
+### Verificación
+
+`vitest` 1221/1221 (131 archivos; +12 tests, +1 archivo), `tsc -b` verde,
+`npm run build` verde, `eslint .` 11 baseline / 0 nuevos / 0 warnings.
+Smoke de navegador transversal (Playwright transitorio, vite dev real):
+26/26 checks -- escenario A (snapshot coherente), cascada §35 (cambiar
+demanda mueve M1/M2/M3/M4 y restaurar vuelve al valor exacto), escenario B
+(`directa`: Pacera = Pdisponible de M2; round-trip descarta Tc por diseño
+y lo pide de nuevo), escenario C (`cisternaBombeoElevado` = mismo origen y
+margen que `tanqueElevado`), §37 (subir el medidor general no cambia Qc de
+M1 ni VRTD de M4). Consola 0 errores / 0 warnings. `git diff --
+package.json package-lock.json` vacío. Dev server detenido.
+
+### Estado
+
+**D-δ.70 -- CERRADA. CORE FUNCIONAL M1–M4 CONGELADO PARA REDISEÑO.**
+
+M1 CERRADO · M2 CERRADO + VERIFICADO · M3 CERRADO + VERIFICADO · M4
+CERRADO + VERIFICADO. El sistema completo atraviesa M1→M4 de forma
+coherente, reactiva, auditable y sin contradicciones entre módulos, con
+baseline reproducible (`BASELINE-FUNCIONAL-M1-M4.md` +
+`auditoriaTransversalM1M4.baseline.test.ts`). Los contratos del §7 de ese
+documento (tipos de dominio, orquestadores `resolverEstadoModuloX`,
+motores puros, mapeos, updaters puros, CRIT firmes, reglas de "no
+fabricar") quedan congelados: el rediseño de UI puede envolverlos, no
+reescribirlos, salvo bug inequívoco o decisión roja explícita. **No se
+inicia UI-01.**

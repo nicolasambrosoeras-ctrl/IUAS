@@ -479,6 +479,39 @@ adoptada; división en secciones iguales de tanques ≥ 4.000 L (§2.11);
 geometría / cota del tanque / bombas / presurizadores; reporting visual
 M1–M4 en la memoria PDF.
 
+### Fase 3 / Auditoría integral M1–M4 — CERRADA (D-δ.70)
+
+- **D-δ.70** — auditoría transversal pre-rediseño. Verifica que un
+  Proyecto real atraviesa M1→M2→M3→M4 de forma coherente, reactiva y sin
+  contaminación cruzada, replicando el cableado de la UI. Entregables:
+  `BASELINE-FUNCIONAL-M1-M4.md` (snapshot canónico, matriz de
+  sensibilidad, matriz de persistencia, fronteras, contratos congelados,
+  deudas), `src/interfaz/paginas/proyectoDeEjemplo.ts` (fixture extraído
+  sin cambios de contenido) y `src/auditoriaTransversalM1M4.baseline.test.ts`
+  (12 casos: sensibilidad + no contaminación + round-trip + backward
+  compatibility). Hallazgos clave: 0 imports cruzados entre módulos del
+  motor; el cableado M3→M2 / M4→M2 vive en `interfaz/paginas`; toda la
+  app tiene 2 `useState` (Proyecto + un modal) y los paneles M1–M4 tienen
+  **cero** estado local → una sidebar con remontaje condicional no pierde
+  datos. Sin bugs. Suite 1209 → 1221; smoke de navegador transversal
+  26/26, consola limpia.
+- **Deudas nuevas**: `parametros.alturaArtefactoMasDesfavorable_m` es un
+  campo requerido sin consumidor en `motor/` (candidato a eliminar);
+  `calcularCotaHidraulicaDefaultDeNivel` (constante normativa) vive en
+  `interfaz/` y la importa un test de `motor/` (mover a `normativa/`).
+
+**CORE FUNCIONAL M1–M4: CONGELADO PARA REDISEÑO.** Los contratos del §7 de
+`BASELINE-FUNCIONAL-M1-M4.md` (tipos de dominio, orquestadores
+`resolverEstadoModuloX`, motores puros, mapeos, updaters puros, CRIT
+firmes, reglas de "no fabricar") sólo pueden envolverse, no reescribirse,
+salvo bug inequívoco o decisión roja explícita.
+
+**Siguiente fase (NO iniciada): UI-01 — rediseño transversal.** Sidebar /
+índice, jerarquía visual, cards, tablas, responsive, sticky summary
+derivado, progressive disclosure, estética verde. Mantiene: one-page,
+módulos montados, motores intactos, mismo `Proyecto`, mismos
+resultados/view-models.
+
 **Hallazgos de M4-A:**
 
 - **Objeto de cálculo**: el **Volumen de Reserva Diaria requerido**
