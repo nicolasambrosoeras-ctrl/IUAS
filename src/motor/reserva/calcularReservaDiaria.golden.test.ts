@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { Proyecto } from '../../modelo/proyecto'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
+import { resolverGastoTabla01 } from '../../normativa/eras-2023/tabla-01-gastos-conexion'
 import { calcularSimultaneidad } from '../demanda/simultaneidad/calcularSimultaneidad'
 import { calcularReservaDiaria } from './calcularReservaDiaria'
 
@@ -152,5 +153,42 @@ describe('calcularReservaDiaria — Caso Golden G4 (Tabla N°4, CASOS-GOLDEN.md)
     expect(reserva.volumenReservaDiseno_m3).toBeCloseTo(2.8187672951, 7)
     // La planilla presenta la reserva redondeada a ≈ 3 m³.
     expect(Math.round(reserva.volumenReservaDiseno_m3)).toBe(3)
+  })
+})
+
+// Cadena normativa PURA, sin Proyecto ni EstadoModulo4 (D-δ.64 §14):
+//   Tabla N°1 (§2.7) -> Qconexión -> calcularReservaDiaria (§2.10.2)
+// El Qc de M1 se toma de su valor exacto ya validado en los goldens G1/G2
+// del Motor de Demanda (aquí como constante, para que el caso sea de la
+// cadena Tabla1->reserva y no una tercera reejecución de M1).
+describe('cadena Tabla N°1 -> Reserva Total Diaria de Diseño (G5+G3, G6+G4)', () => {
+  it('G5+G3: DN19 / P 5 m -> Qconexión 0,60 -> reserva ≈ 0,7712 m³ (Qc de Tabla N°3, Tc 2 h)', () => {
+    const gasto = resolverGastoTabla01({ diametroNominal_m: 0.019, presionCalculo_m: 5 })
+    if (gasto.estado !== 'resuelto') throw new Error('se esperaba resuelto')
+    expect(gasto.qConexion_lps).toBe(0.6)
+
+    const qcExactoG3 = Math.SQRT2 / 2 // √2/2, Qc de Tabla N°2/N°3 (impreso 0,71)
+    const reserva = calcularReservaDiaria({
+      qc_lps: qcExactoG3,
+      qConexion_lps: gasto.qConexion_lps,
+      tc_h: 2,
+    })
+    expect(reserva.volumenReservaDiseno_m3).toBeCloseTo(0.7711688248, 7)
+    expect(reserva.volumenReservaDiseno_m3).toBeCloseTo(0.77, 2) // valor publicado
+  })
+
+  it('G6+G4: DN25 / P 5 m -> Qconexión 1,18 -> reserva ≈ 2,8188 m³ (Qc de Tabla N°4, Tc 1 h)', () => {
+    const gasto = resolverGastoTabla01({ diametroNominal_m: 0.025, presionCalculo_m: 5 })
+    if (gasto.estado !== 'resuelto') throw new Error('se esperaba resuelto')
+    expect(gasto.qConexion_lps).toBe(1.18)
+
+    const qcExactoG4 = 3.4 / Math.sqrt(3) // Qc de Tabla N°4 (impreso 1,96)
+    const reserva = calcularReservaDiaria({
+      qc_lps: qcExactoG4,
+      qConexion_lps: gasto.qConexion_lps,
+      tc_h: 1,
+    })
+    expect(reserva.volumenReservaDiseno_m3).toBeCloseTo(2.8187672951, 7)
+    expect(Math.round(reserva.volumenReservaDiseno_m3)).toBe(3) // valor publicado
   })
 })

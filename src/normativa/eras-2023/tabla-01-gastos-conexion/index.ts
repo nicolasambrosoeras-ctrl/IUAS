@@ -1,5 +1,34 @@
-// Tabla N°1 — Gasto en l/s por diámetro nominal y presión disponible.
-// Datos puros, sin lógica de ejecución.
+// Tabla N°1 (ERAS-2023 §2.7 "GASTOS") — "Gasto en lts/seg correspondiente a
+// los distintos diámetros nominales de conexiones y cañerías de agua
+// directa". Datos puros + la búsqueda tabular literal de §2.7 (misma
+// política que tabla-06-medidores y tabla-07-perdidas-localizadas: el
+// resolver vive junto a la tabla y no hace más que lo que el texto
+// autoriza).
+//
+// Notas oficiales de §2.7 (verbatim, verificadas contra el texto de la
+// Resolución 641/2023 en argentina.gob.ar):
+//  - "Los valores de gasto son interpolables linealmente entre dos
+//    consecutivos de altura en metros." -> interpolación lineal SÓLO en la
+//    presión; nunca entre diámetros (el DN es una clave discreta).
+//  - "Se adopta como diámetro mínimo de conexión a proveer de 0.019m"
+//    (diametroMinimoConexion_m; aplica a CONEXIONES, no a "cañerías de
+//    agua directa", que es el otro alcance de la misma tabla -> la fila
+//    DN13 sigue siendo válida para el resolver genérico).
+//  - "Los diámetros nominales corresponden a materiales metálicos [...]
+//    Para el caso de empleo de materiales plásticos, los diámetros
+//    nominales adoptados [...] garanticen un diámetro interior real mayor
+//    o igual al diámetro nominal de la tabla" (notaDiametrosMetalicos;
+//    criterio de compatibilidad física, no se resuelve en este módulo).
+//  - Sin autorización textual para EXTRAPOLAR fuera del rango tabulado de
+//    presión -> fuera de [4, 35] m el resolver devuelve
+//    'fueraDeRangoDePresion', nunca un clamp ni una extrapolación.
+//
+// La presión que consume este resolver es la PRESIÓN DE CÁLCULO en el
+// punto relevante (`presionCalculo_m`), que NO es en general la presión
+// sobre el nivel de acera: §2.7 exige ajustarla por el desnivel hasta el
+// punto alimentado (se resta el ascenso, se suma el descenso). Esa
+// transformación NO vive acá (ver D-δ.64 / CRIT-A36); este módulo sólo
+// hace la búsqueda tabular.
 
 export type FilaTablaGastos = {
   presionDisponible_m: number;
@@ -57,3 +86,159 @@ export const tablaGastosConexion: readonly FilaTablaGastos[] = [
   { presionDisponible_m: 34, gasto_0013m_lps: 0.74, gasto_0019m_lps: 1.39, gasto_0025m_lps: 2.77, gasto_0032m_lps: 4.80, gasto_0038m_lps: 7.58, gasto_0050m_lps: 13.54, gasto_0060m_lps: 20.93, gasto_0075m_lps: 27.70 },
   { presionDisponible_m: 35, gasto_0013m_lps: 0.76, gasto_0019m_lps: 1.41, gasto_0025m_lps: 2.81, gasto_0032m_lps: 4.87, gasto_0038m_lps: 7.69, gasto_0050m_lps: 13.73, gasto_0060m_lps: 21.23, gasto_0075m_lps: 28.10 },
 ] as const;
+
+// --- M4-D1 (D-δ.64 / CRIT-A36): resolver puro de gasto de Tabla N°1 ---
+
+// Diámetros nominales (m) tabulados, en orden ascendente, con la clave de
+// columna de FilaTablaGastos correspondiente. El DN es una CLAVE DISCRETA:
+// sólo se aceptan estos valores exactos, nunca se interpola entre ellos.
+export const columnasDeDiametroTabla01: readonly {
+  readonly diametroNominal_m: number;
+  readonly clave: Exclude<keyof FilaTablaGastos, 'presionDisponible_m'>;
+}[] = [
+  { diametroNominal_m: 0.013, clave: 'gasto_0013m_lps' },
+  { diametroNominal_m: 0.019, clave: 'gasto_0019m_lps' },
+  { diametroNominal_m: 0.025, clave: 'gasto_0025m_lps' },
+  { diametroNominal_m: 0.032, clave: 'gasto_0032m_lps' },
+  { diametroNominal_m: 0.038, clave: 'gasto_0038m_lps' },
+  { diametroNominal_m: 0.05, clave: 'gasto_0050m_lps' },
+  { diametroNominal_m: 0.06, clave: 'gasto_0060m_lps' },
+  { diametroNominal_m: 0.075, clave: 'gasto_0075m_lps' },
+] as const;
+
+export const diametrosNominalesTabla01_m: readonly number[] = columnasDeDiametroTabla01.map(
+  (columna) => columna.diametroNominal_m,
+);
+
+// Tolerancia para reconocer un diámetro nominal recibido como una de las
+// columnas discretas de la tabla, absorbiendo ruido IEEE-754 (p. ej. un
+// llamador que calcule 19 / 1000). 1e-6 m = 1 µm: irrelevante frente al
+// menor salto real entre columnas (6 mm).
+const TOLERANCIA_DIAMETRO_m = 1e-6;
+
+export type InterpolacionTabla01 =
+  | { readonly aplicada: false; readonly presionTabulada_m: number }
+  | {
+      readonly aplicada: true;
+      readonly presionInferior_m: number;
+      readonly presionSuperior_m: number;
+      readonly gastoInferior_lps: number;
+      readonly gastoSuperior_lps: number;
+    };
+
+export type ResultadoGastoTabla01 =
+  | {
+      readonly estado: 'resuelto';
+      readonly diametroNominal_m: number;
+      readonly presionCalculo_m: number;
+      readonly qConexion_lps: number;
+      readonly interpolacion: InterpolacionTabla01;
+    }
+  | {
+      readonly estado: 'fueraDeRangoDePresion';
+      readonly diametroNominal_m: number;
+      readonly presionCalculo_m: number;
+      readonly rango_m: typeof rangoPresionValida_m;
+    }
+  | {
+      readonly estado: 'diametroNoTabulado';
+      readonly diametroNominal_m: number;
+      readonly diametrosTabulados_m: readonly number[];
+    };
+
+// Búsqueda tabular literal de §2.7. `presionCalculo_m` es la presión de
+// cálculo en el punto relevante (NO necesariamente la presión sobre acera
+// -- ver el encabezado del archivo). Interpola linealmente sólo en la
+// presión; nunca entre diámetros. Nunca extrapola: fuera de [4, 35] m
+// devuelve 'fueraDeRangoDePresion' (que NO significa "proyecto inválido",
+// sólo "la Tabla N°1 no determina el gasto con ese input"). Un
+// `diametroNominal_m` que no sea una de las 8 columnas devuelve
+// 'diametroNoTabulado'. Los inputs no finitos son un error de
+// programación (throw), no un estado de dominio.
+export function resolverGastoTabla01(entrada: {
+  readonly diametroNominal_m: number;
+  readonly presionCalculo_m: number;
+}): ResultadoGastoTabla01 {
+  const { diametroNominal_m, presionCalculo_m } = entrada;
+
+  if (!Number.isFinite(diametroNominal_m)) {
+    throw new Error(
+      `resolverGastoTabla01: diametroNominal_m debe ser un número finito (recibido: ${diametroNominal_m})`,
+    );
+  }
+  if (!Number.isFinite(presionCalculo_m)) {
+    throw new Error(
+      `resolverGastoTabla01: presionCalculo_m debe ser un número finito (recibido: ${presionCalculo_m})`,
+    );
+  }
+
+  const columna = columnasDeDiametroTabla01.find(
+    (candidata) => Math.abs(candidata.diametroNominal_m - diametroNominal_m) <= TOLERANCIA_DIAMETRO_m,
+  );
+  if (columna === undefined) {
+    return { estado: 'diametroNoTabulado', diametroNominal_m, diametrosTabulados_m: diametrosNominalesTabla01_m };
+  }
+
+  if (presionCalculo_m < rangoPresionValida_m.min || presionCalculo_m > rangoPresionValida_m.max) {
+    return { estado: 'fueraDeRangoDePresion', diametroNominal_m, presionCalculo_m, rango_m: rangoPresionValida_m };
+  }
+
+  const filaExacta = tablaGastosConexion.find((fila) => fila.presionDisponible_m === presionCalculo_m);
+  if (filaExacta !== undefined) {
+    return {
+      estado: 'resuelto',
+      diametroNominal_m,
+      presionCalculo_m,
+      qConexion_lps: filaExacta[columna.clave],
+      interpolacion: { aplicada: false, presionTabulada_m: filaExacta.presionDisponible_m },
+    };
+  }
+
+  // presionCalculo_m está estrictamente entre dos presiones tabuladas
+  // consecutivas (ya se descartó fuera de rango y valor exacto).
+  const inferior = [...tablaGastosConexion]
+    .reverse()
+    .find((fila) => fila.presionDisponible_m < presionCalculo_m);
+  const superior = tablaGastosConexion.find((fila) => fila.presionDisponible_m > presionCalculo_m);
+  if (inferior === undefined || superior === undefined) {
+    throw new Error(
+      `resolverGastoTabla01: inconsistencia interna -- presión ${presionCalculo_m} dentro de rango pero sin fila inferior/superior`,
+    );
+  }
+
+  const gastoInferior_lps = inferior[columna.clave];
+  const gastoSuperior_lps = superior[columna.clave];
+  const fraccion =
+    (presionCalculo_m - inferior.presionDisponible_m) /
+    (superior.presionDisponible_m - inferior.presionDisponible_m);
+  const qConexion_lps = gastoInferior_lps + (gastoSuperior_lps - gastoInferior_lps) * fraccion;
+
+  return {
+    estado: 'resuelto',
+    diametroNominal_m,
+    presionCalculo_m,
+    qConexion_lps,
+    interpolacion: {
+      aplicada: true,
+      presionInferior_m: inferior.presionDisponible_m,
+      presionSuperior_m: superior.presionDisponible_m,
+      gastoInferior_lps,
+      gastoSuperior_lps,
+    },
+  };
+}
+
+// Predicado puro para el futuro orquestador de conexión: un diámetro sirve
+// como CONEXIÓN si está tabulado en Tabla N°1 y es >= al mínimo de §2.7
+// (0,019 m). NO elige un diámetro ni asume uno por defecto: la ausencia de
+// diámetro declarado sigue siendo ausencia (la selección/persistencia del
+// DN de conexión es un slice posterior).
+export function esDiametroAdmisibleComoConexion(diametroNominal_m: number): boolean {
+  if (!Number.isFinite(diametroNominal_m)) {
+    return false;
+  }
+  const estaTabulado = columnasDeDiametroTabla01.some(
+    (columna) => Math.abs(columna.diametroNominal_m - diametroNominal_m) <= TOLERANCIA_DIAMETRO_m,
+  );
+  return estaTabulado && diametroNominal_m >= diametroMinimoConexion_m - TOLERANCIA_DIAMETRO_m;
+}

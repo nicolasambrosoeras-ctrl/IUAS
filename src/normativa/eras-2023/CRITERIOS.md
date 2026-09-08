@@ -2285,3 +2285,87 @@ D-δ.61):**
 **Estado:** Firme como transcripción/fórmula normativa, con ejemplos
 oficiales verificados. Implementado en `motor/reserva/calcularReservaDiaria.ts`.
 Ver D-δ.61 (contrato) y D-δ.62 (motor) en `PENDIENTES-DE-ARQUITECTURA.md`.
+
+## CRIT-A36 — Gasto de conexión según Tabla N°1 (§2.7)
+
+**Artículo:** ERAS-2023 §2.7 "GASTOS", Tabla N°1 ("Gasto en lts/seg
+correspondiente a los distintos diámetros nominales de conexiones y
+cañerías de agua directa").
+
+**Texto oficial confirmado** (verificado contra la Resolución 641/2023,
+argentina.gob.ar; la tabla en sí es una imagen de planilla, no
+transcribible desde la fuente -- el dataset del repo se auditó por
+coherencia interna y contra los goldens, ver abajo):
+
+> "Los valores de gasto son interpolables linealmente entre dos
+> consecutivos de altura en metros."
+> "Se adopta como diámetro mínimo de conexión a proveer de 0.019m"
+> "Los diámetros nominales corresponden a materiales metálicos, por lo
+> que su diámetro real interior resultará siempre superior al nominal.
+> Para el caso de empleo de materiales plásticos, los diámetros nominales
+> adoptados [...] corresponderán a aquellos que garanticen un diámetro
+> interior real mayor o igual al diámetro nominal de la tabla."
+
+**Dataset:** `normativa/eras-2023/tabla-01-gastos-conexion`
+(`tablaGastosConexion`): 32 filas, presión de 4 a 35 m en pasos de 1 m;
+8 columnas de gasto (l/s) por diámetro nominal 0,013 / 0,019 / 0,025 /
+0,032 / 0,038 / 0,050 / 0,060 / 0,075 m. Transcripción de la línea base
+de Fase 1 (`6aff06d`), sin cambios. **Auditoría M4-D1:** presiones
+contiguas sin huecos; gasto monótono creciente con la presión (por
+columna) y estrictamente creciente con el diámetro (por fila); las tres
+notas oficiales de arriba coinciden con `reglaInterpolacion`,
+`diametroMinimoConexion_m` y `notaDiametrosMetalicos`. Única observación:
+la celda presión 5 m / DN 0,032 m vale `2.012` (3 decimales, frente a 2
+decimales en todo el resto); es monótona y no la consume ningún golden
+ni motor; se deja **sin tocar** (no se corrige en silencio una tabla
+normativa) a la espera de poder cotejarla contra la lámina oficial.
+
+**Reglas de aplicación adoptadas:**
+
+- **Interpolación lineal SÓLO en la presión**, entre dos alturas
+  tabuladas consecutivas: `Q(P) = Q1 + (Q2−Q1)·(P−P1)/(P2−P1)`. Una
+  presión exactamente tabulada devuelve la celda sin alterarla.
+- **El diámetro nominal es una clave discreta.** Nunca se interpola entre
+  columnas. Un DN que no es una de las 8 columnas → `diametroNoTabulado`.
+- **Sin extrapolación.** Fuera de `[4, 35]` m (incluye presión ≤ 0) →
+  `fueraDeRangoDePresion`. Nunca clamp, nunca extrapolar, nunca devolver
+  0. Esto **no** significa "proyecto inválido": significa "la Tabla N°1
+  no determina el gasto con ese input".
+- **Diámetro mínimo de conexión = 0,019 m.** La Tabla N°1 tiene doble
+  alcance (conexiones *y* cañerías de agua directa): el resolver genérico
+  `resolverGastoTabla01` acepta cualquier DN tabulado (incluida la fila
+  DN13); el gate específico de conexión lo aplica
+  `esDiametroAdmisibleComoConexion` (tabulado ∧ ≥ 0,019 m). "Mínimo
+  DN19" **no** significa "asumir DN19 si falta el dato" ni "elegir el DN
+  cuyo Q ≥ Qc": la selección/persistencia del DN de conexión es un slice
+  posterior, y la ausencia de DN sigue siendo ausencia.
+- **`presionCalculo_m` ≠ presión sobre acera.** §2.7 exige ajustar la
+  presión garantizada sobre el nivel de acera por el desnivel hasta el
+  punto relevante alimentado: se **resta** el ascenso (alimentación hacia
+  arriba: p. ej. artefacto más alto y alejado en alimentación directa,
+  pelo de agua del tanque), se **suma** el descenso (alimentación hacia
+  abajo: p. ej. tanque de bombeo en sótano, artefactos directos en
+  subsuelos). Esa transformación **no** vive en este módulo: el resolver
+  recibe la presión de cálculo ya ajustada. Qué punto físico usa cada
+  esquema de abastecimiento (directa / tanque elevado /
+  cisterna+bombeo+elevado) y qué geometría hace falta persistir para
+  derivarla automáticamente es el slice siguiente (M4-D2).
+- Inputs no finitos (`NaN`, `±Infinity`) → `throw` (error de
+  programación), nunca un estado de dominio.
+
+**Alcance — qué NO resuelve este criterio:** no persiste ningún diámetro
+de conexión en el modelo; no deriva `presionCalculo_m` desde el Proyecto;
+no selecciona un DN; no integra con `EstadoModulo4` (que sigue recibiendo
+`qConexion_lps` como boundary input explícito); no toca M2; no aplica el
+criterio de compatibilidad de materiales plásticos.
+
+**Enlace con CRIT-A35:** los gastos de conexión que las planillas
+oficiales Tabla N°3 y Tabla N°4 usan como entrada de §2.10.2 se
+reproducen exactamente desde Tabla N°1 (Goldens G5/G6 en
+`CASOS-GOLDEN.md`): DN 0,019 m / 5 m → 0,60 l/s; DN 0,025 m / 5 m → 1,18
+l/s.
+
+**Estado:** Firme como regla de aplicación de Tabla N°1. Implementado en
+`normativa/eras-2023/tabla-01-gastos-conexion/index.ts`
+(`resolverGastoTabla01`, `esDiametroAdmisibleComoConexion`). Ver D-δ.64
+en `PENDIENTES-DE-ARQUITECTURA.md`.

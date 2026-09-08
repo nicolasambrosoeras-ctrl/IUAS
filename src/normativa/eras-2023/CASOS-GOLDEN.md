@@ -172,3 +172,44 @@ La planilla presenta la reserva redondeada a **≈ 3 m³**.
 - Tolerancia de test: el golden verifica `≈ 2,8187672951 m³` (valor
   reconstruido) y `Math.round(...) === 3` (valor presentado por la
   planilla).
+
+## G5 — Tabla N°1: gasto de conexión usado por Tabla N°3
+
+**Origen normativo:** ERAS-2023, §2.7, Tabla N°1. **Clase:** Semi-normativo
+(la tabla es una imagen; el valor de salida está publicado y se reproduce
+exactamente desde el dataset del repo).
+
+**Input → salida:**
+
+| `diametroNominal_m` | `presionCalculo_m` | `qConexion_lps` |
+|---|---|---|
+| 0,019 m (DN19) | 5 m (valor tabulado exacto) | **0,60 l/s** |
+
+Presión exactamente tabulada → sin interpolación. Es el `Qconexión` que la
+planilla Tabla N°3 (G3) usa como aporte de la conexión en el balance de
+§2.10.2.
+
+**Criterios aplicados:** CRIT-A36 (búsqueda tabular de Tabla N°1).
+
+## G6 — Tabla N°1: gasto de conexión usado por Tabla N°4
+
+**Origen normativo:** ERAS-2023, §2.7, Tabla N°1. **Clase:** Semi-normativo.
+
+**Input → salida:**
+
+| `diametroNominal_m` | `presionCalculo_m` | `qConexion_lps` |
+|---|---|---|
+| 0,025 m (DN25) | 5 m (valor tabulado exacto) | **1,18 l/s** |
+
+Es el `Qconexión` que la planilla Tabla N°4 (G4) usa en el balance de
+§2.10.2.
+
+**Criterios aplicados:** CRIT-A36.
+
+**Observación (G5/G6):** la cadena pura `Tabla N°1 → Qconexión →
+calcularReservaDiaria` se prueba en
+`motor/reserva/calcularReservaDiaria.golden.test.ts` (reproduce G3 y G4
+partiendo del gasto resuelto por Tabla N°1). La presión de 5 m es un dato
+de las planillas; su relación con la presión sobre el nivel de acera del
+proyecto (que §2.7 ajusta por desnivel) no se modela todavía — ver
+CRIT-A36 y D-δ.64.
