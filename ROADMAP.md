@@ -369,10 +369,11 @@ recalcula demanda, no toca la topología.
 - **Infra persistente de Playwright** — el navegador se usó vía instalación
   transitoria sin `--save`; `package.json` / `package-lock.json` intactos.
 
-### Fase 3 / Módulo 4 (Reserva / Tanques) — en curso
+### Fase 3 / Módulo 4 (Reserva / Tanques) — CERRADO (M4-H, D-δ.69)
 
 Primer módulo del bloque de reserva. Detalle en
-`PENDIENTES-DE-ARQUITECTURA.md` D-δ.61 (contrato) y D-δ.62 (motor).
+`PENDIENTES-DE-ARQUITECTURA.md` D-δ.61 (contrato) y D-δ.62 (motor);
+auditoría end-to-end y cierre en D-δ.69.
 
 **Completado:**
 
@@ -458,13 +459,25 @@ Primer módulo del bloque de reserva. Detalle en
   al histórico; `cisternaBombeoElevado` ≡ `tanqueElevado`. Primitivas de
   M2 sin tocar; sin imports de `motor/modulo4` en `motor/tuberias`.
 
-**Pendiente:** **M4-H** — auditoría end-to-end y cierre de Módulo 4
-(M1→Qc, conexión, Tabla N°1, interpolación, reserva, esquemas, adopción,
-§2.11.3, UI, integración M4→M2, backward compatibility, navegador) →
-auto-derivación geométrica del desnivel por esquema. También: sugerencia
-comercial de capacidad; obligación de reserva por §2.8 independiente del
-déficit; división en secciones iguales de tanques ≥ 4.000 L;
-geometría/bombas; reporting M1–M4.
+- **M4-H** (D-δ.69) — auditoría end-to-end y **cierre de Módulo 4**. Se
+  auditaron los cuatro contratos de dominio (CRIT-A35..A38) contra los
+  goldens oficiales sin redondeo, `EstadoModulo4` y su precedencia, la
+  integración M1→M4 / M4→M2 (origen, fuente única) / M3→M2 por origen, la
+  ausencia de imports de M4 en las primitivas hidráulicas, la regresión
+  histórica de M2 (65 archivos / 561 tests) y un smoke de navegador de
+  37/37 checks con consola limpia. **1 bug de UX corregido** (commit
+  funcional aparte): `presionSobreAcera_m` no tenía editor en el esquema
+  `directa` — el input sólo se montaba en la rama con tanque, pese a que
+  en `directa` ese valor es la presión disponible de la raíz del balance
+  de M2. Sin cambios de dominio, fórmula ni arquitectura. Suite
+  1208 → 1209.
+
+**Deuda futura post-M4** (no bloquea el cierre): auto-derivación
+geométrica del desnivel de conexión por esquema; obligación de reserva
+por §2.8 independiente del déficit; sugerencia comercial de capacidad
+adoptada; división en secciones iguales de tanques ≥ 4.000 L (§2.11);
+geometría / cota del tanque / bombas / presurizadores; reporting visual
+M1–M4 en la memoria PDF.
 
 **Hallazgos de M4-A:**
 

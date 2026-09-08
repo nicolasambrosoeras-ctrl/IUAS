@@ -7150,3 +7150,238 @@ derivar el origen). Regresión numérica de M2 verde (directa y tanque
 byte-idénticos al histórico; cisterna ≡ tanque). Sin acoplamiento a
 primitivas hidráulicas. Baseline verde, smoke 20/20. Siguiente slice:
 **M4-H** -- auditoría end-to-end y cierre de M4.
+
+## D-δ.69 -- M4-H: auditoría end-to-end de Módulo 4 y cierre funcional -- CERRADA
+
+Auditoría sistemática de todo lo entregado en M4-A → M4-G, sin agregar
+funcionalidad futura. Objetivo: declarar M4 funcionalmente cerrado o
+registrar con precisión qué falta. **Resultado: MÓDULO 4 CERRADO. Un (1)
+bug de UX corregido, sin cambios de dominio.**
+
+### Baseline de entrada (verificado contra el repo real)
+
+`main` @ `956ac7b`, working tree limpio. `npx vitest run`: 1208/1208 en
+130 archivos. `npx tsc -b`, `npm run build`, `npx eslint .`: verdes (11
+problemas de lint baseline preexistentes, 0 warnings nuevos). Playwright
+1.63.0 transitorio en `node_modules` con navegadores en caché.
+
+### Contratos de dominio auditados y evidencia
+
+- **CRIT-A35 -- Reserva Total Diaria de Diseño** (`motor/reserva/calcularReservaDiaria`):
+  `deficit_lps = max(0, qc − qConexion)`, `deficit_m3h = deficit_lps·3,6`,
+  `VRTD = deficit_m3h·Tc` con `1 ≤ Tc ≤ 4 h`. `Tc` es el período de
+  consumo máximo (no tiempo de llenado, no población, no dotación, no
+  `Qc·24 h`). Sin redondeo intermedio: opera con el `Qc` real de M1.
+  `Qconexión ≥ Qc ⇒ VRTD = 0`, resultado determinado (no error, no
+  "tanque no necesario"). `Tc` fuera de `[1, 4]` → `throw` (error de
+  programación). Goldens G3/G4 reconstruyen las Tablas N°3/N°4 oficiales
+  sin redondear `Qc` (0,7712 m³ y 2,8188 m³, no 0,79 / 3).
+- **CRIT-A36 -- Tabla N°1** (`normativa/eras-2023/tabla-01-gastos-conexion`):
+  DN es clave discreta (8 columnas 13..75 mm), nunca se interpola entre
+  diámetros. Presión de cálculo interpolable linealmente sólo entre
+  alturas consecutivas. Fuera de `[4, 35]` m → `fueraDeRangoDePresion`
+  (sin clamp, sin extrapolación, sin 0 artificial). DN13 válido para el
+  resolver genérico, **no** admisible como conexión
+  (`esDiametroAdmisibleComoConexion` exige `≥ 0,019 m`). Goldens G5/G6:
+  DN19 @ 5 m → 0,60 L/s; DN25 @ 5 m → 1,18 L/s. Interpolación no trivial
+  (T4/T4b + E end-to-end): DN19 @ 6,5 m → 0,69 L/s (entre filas 6 y 7).
+- **CRIT-A37 -- Presión de cálculo de conexión** (`motor/modulo4/resolverPresionDeCalculoDeConexion`):
+  `Pcalc = Pacera − ΔzConexión` con `Δz` firmado (`> 0` por encima de
+  acera → resta; `< 0` por debajo → suma). Sin clamp, sin redondeo.
+  `desnivelConexion_m` es dato físico DECLARADO -- **no** se auto-deriva
+  de M2, **no** se sustituye por `peloAguaMinimo`. Test de descenso
+  (`Δz = −2` → `Pcalc` sube → `Qconexión` sube → `VRTD` baja/igual) y de
+  ascenso (interpolación con `Δz = +1,5`) end-to-end.
+- **CRIT-A38 -- Reserva requerida vs adoptada** (`motor/modulo4/resolverAdopcionDeReserva`):
+  tanque elevado único → `Vadoptado ≥ VRTD`. Cisterna+bombeo+elevado →
+  **tres** verificaciones independientes (`VTB ≥ VRTD/3`, `VTR ≥ VRTD/3`,
+  `VTB + VTR ≥ VRTD`); `suficiente ⇔ las tres`. No se exige suma exacta
+  ni reparto fijo 1/3 + 2/3; sobredimensionamiento permitido. Caso F del
+  brief (`VRTD = 3`, `VTB = 1`, `VTR = 3`) → suficiente (protege contra
+  verificar porcentajes del total adoptado). Comparaciones exactas `≥`,
+  sin tolerancia.
+- **`EstadoModulo4`** (`motor/modulo4/resolverEstadoModulo4`): precedencia
+  `noIniciado` (sin `configuracionAbastecimiento`) → `error` (esquema
+  corrupto, `Tc` fuera de rango persistido, DN no admisible persistido,
+  desnivel no finito persistido) → `incompleto` (config válida pero falta
+  `Tc` / `Qc` global / DN / desnivel / presión dentro de Tabla N°1;
+  `directa` nunca cae acá) → `evaluado`. `evaluado` ≠ capacidad
+  suficiente ≠ cumplimiento normativo global; la falta de volumen
+  adoptado **no** degrada `evaluado` (mismo patrón que M3). `directa` →
+  `evaluado` + `sinReservaPorTanque` (no se fabrica `VRTD = 0`).
+  `Qconexión ≥ Qc` con tanque → `reservaCalculada` + `VRTD = 0`,
+  semánticamente distinto de `sinReservaPorTanque` (tipos, UI y tests lo
+  separan).
+- **Datos físicos de conexión** (`validacion/parametrosConexion`): DN y
+  desnivel optativos, sin default; su ausencia no es problema de
+  validación. `presionSobreAcera_m` no se valida por rango -- el `[4, 35]`
+  m es de la presión de cálculo de Tabla N°1, no de la presión de acera
+  (el demo usa 2 m y el Proyecto sigue estructuralmente válido).
+
+### Integración auditada
+
+- **M1 → M4**: `resolverEstadoModulo4` compone `calcularSimultaneidad`
+  (mismo pipeline real que `resolverEstadoModulo3`), toma `Qc` exacto, no
+  copia la fórmula de simultaneidad, no usa `Qc` redondeado ni el `Qunit`
+  individual de M3. Goldens G3/G4 lo verifican con `toBeCloseTo(…, 9)`.
+- **M4 → M2 (origen)**: `resolverOrigenHidraulicoEfectivo` (puro, total,
+  `directa`→`directa`; `tanqueElevado` y `cisternaBombeoElevado`
+  →`tanqueElevado`) es la fuente única. `PanelDePresionDeModulo2` deriva
+  `presionDisponible_mca` (`0` para tanque; `presionSobreAcera_m` **tal
+  cual** para `directa`, sin restarle `desnivelConexion_m`; `undefined`
+  sin esquema) y el origen de M3 del mismo esquema. Test anti-atajo G26:
+  `Pacera = 20`, `Δz = 5` → M2 usa 20, no 15.
+- **M3 por origen**: medidor general entra al camino sólo en `directa`;
+  en `tanqueElevado` / `cisternaBombeoElevado` queda aguas arriba del
+  almacenamiento. G20: cambiar el `hf` del general mueve el margen en
+  `directa`, no en los esquemas con tanque.
+- **M4 incompleto pero origen conocido**: `tanqueElevado` sin DN → M4
+  `incompleto`, pero M2 sigue sabiendo que el origen es tanque (no se
+  acopla `EstadoModulo4 evaluado` con "origen disponible").
+- **Sin acoplamiento indebido**: `grep` de imports desde `motor/modulo4`
+  / `tabla-01` / `reserva` dentro de `motor/tuberias/**` y
+  `motor/modulo2/**`: **ninguno**. Primitivas hidráulicas de M2 sin
+  tocar; sin dependencia circular.
+
+### Regresión histórica ejecutada explícitamente
+
+`vitest run src/motor/tuberias src/motor/modulo2 …`: 65 archivos, 561
+tests verdes -- DN manual, Hazen/Darcy, localizadas, tees, reducciones,
+verticales, cotas, duplicación, CRIT-A15, terminal crítico intactos. No
+se confió sólo en el total global. Subconjunto M4:
+`motor/modulo4` + `motor/reserva` + `tabla-01` + `validacion/configuracionAbastecimiento`
++ `validacion/parametrosConexion` + paneles M4/M2 = 16 archivos, 174
+tests (post-fix: 175).
+
+### Smoke de navegador (Playwright 1.63.0 transitorio, vite dev real)
+
+**37/37 checks OK, consola 0 errores / 0 warnings.** `git diff --
+package.json package-lock.json` **vacío**. Cubre: S1 no iniciado →
+elegir esquema (+ M2 orienta a M4); S2 `directa` → editar `Pacera` en M4
+mueve la presión disponible de M2; S3 tanque completo (DN19 @ 5 m →
+`Qconexión` 0,60 L/s, `Evaluado`, RTD por déficit > 0, adopción amplia
+suficiente / mínima insuficiente); S4 interpolación `Pcalc` 6,50 m
+(Profesional muestra "interpolado entre 6 y 7 m", `Qconexión` 0,69 L/s);
+S5 fuera de tabla (`Pacera = 2` → `Incompleto`, mensaje "4-35 m", no
+"proyecto inválido", corrige → vuelve a `Evaluado`); S6 cisterna
+insuficiente por mínimo del inferior → suficiente al corregirlo, nunca
+"cumple norma"; S7 cisterna y tanque dan el mismo origen M2; S9 `Tc`
+1→4 escala ×4 exacto y una capacidad fija pasa de suficiente a
+insuficiente; S10 round-trip de esquemas sin stale (`directa` descarta
+`Tc` por diseño D-δ.63 §7/§23 → al volver a tanque pide `Tc` de nuevo,
+nunca muestra la RTD vieja; reingresar `Tc` reconstruye el cálculo);
+S11 Rápido/Profesional (misma matemática, Profesional agrega la traza
+`Pacera → Δz → Pcalc → DN → Qconexión`); S12 cero stale compuesto.
+
+### Bug encontrado / corregido
+
+**1 bug de UX** (commit funcional aparte, previo a esta entrada):
+`presionSobreAcera_m` no tenía editor en el esquema `directa`. El input
+sólo se montaba dentro de `ConfiguracionDeConexionYReserva`, que se
+renderiza únicamente para esquemas con tanque. En `directa` -- el
+esquema en el que ese valor **es** la presión disponible de la raíz del
+balance de M2 (D-δ.68) -- quedaba sin editor en toda la aplicación,
+mientras el Panel de Presión de M2 lo mostraba de sólo lectura con el
+texto "se edita en el Módulo 4". El M4-F (D-δ.67) había registrado en el
+ROADMAP que agregaba "el único editor" de ese campo, sin notar que
+faltaba la rama `directa`. Corrección: se extrajo
+`EntradaPresionSobreAcera` y se reutiliza en ambas ramas (con tanque y
+`sinReservaPorTanque`). Sin cambios de dominio, fórmula ni arquitectura.
+Test SSR nuevo. Suite 1208 → 1209.
+
+### Matriz función → contrato → evidencia → estado
+
+| Función | Contrato | Evidencia | Estado |
+|---|---|---|---|
+| `Qc` de M1 | CRIT-A5, exacto, sin redondear | goldens G3/G4 end-to-end (`toBeCloseTo …, 9`) | OK |
+| `Pcalc` de conexión | CRIT-A37 (`Pacera − Δz` firmado, sin clamp) | `resolverPresionDeCalculoDeConexion.test` + descenso/ascenso E2E | OK |
+| Tabla N°1 | CRIT-A36 (DN discreto, `[4,35]` m, sin extrapolar) | `tabla-01` 30 tests + goldens G5/G6 | OK |
+| Interpolación | lineal sólo en presión, con metadata | T4/T4b + "interpolación end-to-end (Pcalc no entero)" + smoke S4 | OK |
+| DN admisible | `≥ 0,019 m`, DN13 fuera, sin default | `esDiametroAdmisibleComoConexion` + E "DN13 persistido → error" | OK |
+| `Qconexión` | Tabla N°1 según DN + `Pcalc` | traza `TrazaDeConexionModulo4` + smoke S3/S4 | OK |
+| `Tc` | `1..4 h`, período de consumo máximo, sin clamp | `calcularReservaDiaria.test` + reactividad E "suficiente↔insuficiente al cambiar Tc" + smoke S9 | OK |
+| RTD | CRIT-A35 (`deficit·3,6·Tc`, sin redondeo) | goldens G3/G4 + `calcularReservaDiaria.golden` | OK |
+| `directa` | `evaluado` + `sinReservaPorTanque`, sin `VRTD=0` | E2 + "directa: sigue sinReservaPorTanque" + smoke S2/S10 | OK |
+| Tanque elevado | adopción única, `Vadoptado ≥ VRTD` | `resolverAdopcionDeReserva` `verificada` + E "suficiente con diferencia" | OK |
+| Cisterna+bombeo | 3 verificaciones §2.11.3 independientes | `verificadaDistribuida` casos A..F + smoke S6 | OK |
+| `VRTD = 0` | `reservaCalculada`, ≠ `sinReservaPorTanque` | E9 "Qconexión ≥ Qc → V=0 (NO sinReservaPorTanque)" | OK |
+| `EstadoModulo4` | `noIniciado`/`error`/`incompleto`/`evaluado`, precedencia | `resolverEstadoModulo4.test` (E1..E10 + 15 casos de estado) | OK |
+| Backward compat | Proyecto pre-M4 válido, M4 `noIniciado`, M2 sigue | `validarProyecto` + `PanelDePresionDeModulo2` "configurá M4" | OK |
+| UI | inputs reales editables, traza, Rápido/Profesional, `directa` prudente | `PanelDeModulo4.test` (15 SSR) + smoke 37/37 | OK (tras fix) |
+| Origen M2 | `resolverOrigenHidraulicoEfectivo` fuente única | `integracionOrigenM2.test` G3..G8/G20/G25/G26 | OK |
+| M3 por origen | general entra sólo en `directa` | G20 + smoke S7 | OK |
+| Reactividad | sin refresh, sin resultados cacheados | reactividad en `resolverEstadoModulo4.test` + smoke S9/S10/S12 | OK |
+
+### Suites históricas de M4 (enumeradas, no sólo el total)
+
+`calcularReservaDiaria.test` (CRIT-A35), `calcularReservaDiaria.golden.test`,
+`resolverGastoTabla01` en `tabla-01-gastos-conexion/index.test` (CRIT-A36
++ G5/G6), `resolverPresionDeCalculoDeConexion.test` (CRIT-A37),
+`resolverAdopcionDeReserva.test` (CRIT-A38), `resolverEstadoModulo4.test`
++ `.golden.test` (G3/G4), `resolverOrigenHidraulico.test`,
+`integracionOrigenM2.test`, `PanelDeModulo4.test`, `humanizarModulo4.test`,
+`actualizarConfiguracionAbastecimiento.test`,
+`actualizarParametrosDeConexion.test`,
+`configuracionAbastecimiento/index.test`, `parametrosConexion/index.test`,
+`PanelDePresionDeModulo2.test`. Todas verdes.
+
+### Impresión / PDF (chequeo no invasivo)
+
+La memoria PDF (`exportadores/pdf/generarDocumentoPdf`, pdfMake) es
+programática y hoy sólo cubre Módulo 1. M4 no la tocó (no lee el DOM). No
+se agrega M4 al PDF ahora. Deuda de reporting transversal M1-M4
+registrada, sin rediseño.
+
+### Deudas registradas (no bloquean el cierre de M4)
+
+- **Auto-derivación geométrica del desnivel de conexión por esquema** --
+  `desnivelConexion_m` sigue siendo un dato declarado; no hay botón ni
+  heurística oculta que lo derive de la cota de M2, el `peloAguaMinimo`
+  ni el nivel de la UF. Mejora futura.
+- **§2.8 -- obligatoriedad de reserva independiente del déficit** -- la
+  UI de `directa` mantiene copy prudente ("la obligatoriedad normativa de
+  disponer reserva se evalúa por separado"); no se implementa la
+  obligatoriedad automática.
+- **División en secciones iguales de tanques ≥ 4.000 L (§2.11)** -- la
+  capacidad agregada sigue siendo el alcance; regla de secciones no
+  implementada.
+- **Geometría / cota del tanque, bombas, potencia, tiempo de llenado,
+  volumen útil geométrico, flotantes, presurizadores** -- fuera de
+  alcance de M4.
+- **Catálogo comercial de tanques / sugerencia de capacidad adoptada** --
+  no se enuncia regla general de redondeo comercial.
+- **Reporting visual M1-M4 en la memoria PDF** -- ver arriba.
+- **Infra persistente de Playwright** -- no se agrega al repo.
+
+### Decisiones rojas
+
+Ninguna. La única corrección tocó UI (montar un input existente en una
+rama donde faltaba); no cambió fórmulas, semántica normativa, el modelo
+de dominio ni fronteras físicas.
+
+### Estado
+
+**D-δ.69 -- CERRADA. M4-H CERRADO. MÓDULO 4 (Reserva / Tanques) CERRADO**
+para el alcance actual:
+
+- **Dominio**: RTD (CRIT-A35), `Tc`, Tabla N°1 + interpolación (CRIT-A36),
+  `Pcalc` (CRIT-A37), DN de conexión, adopción y distribución §2.11.3
+  (CRIT-A38) -- todos verificados con goldens oficiales sin redondeo.
+- **Modelo**: `configuracionAbastecimiento?` y datos físicos de conexión
+  persistidos, sin default oculto, backward-compatible; resultados
+  derivados, nunca persistidos.
+- **Estado**: `noIniciado` / `error` / `incompleto` / `evaluado` con
+  precedencia; `directa` ≠ `VRTD = 0`; `evaluado` ≠ suficiente ≠
+  cumplimiento global.
+- **UI**: todos los inputs reales editables (incluida `presionSobreAcera_m`
+  en `directa`, corregido en M4-H), traza completa en Profesional,
+  `directa` prudente, incompletos claros.
+- **Integración**: M1→M4 (`Qc` real), M4→M2 (origen, fuente única),
+  M3→M2 según origen, sin acoplamiento de M4 en primitivas hidráulicas.
+- **Calidad**: suite 1209/1209 (130 archivos), `tsc -b` / `build` verdes,
+  `eslint` 11 baseline / 0 nuevos, smoke de navegador 37/37 con consola
+  limpia, manifests intactos, working tree limpio.
+
+Las deudas listadas arriba (auto-desnivel, §2.8 automático, secciones
+≥ 4.000 L, geometría, bombas, catálogo, reporting) **no** bloquean el
+cierre. No se inicia ningún trabajo posterior a M4.
