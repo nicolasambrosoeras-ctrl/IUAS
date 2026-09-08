@@ -12,6 +12,7 @@ import type { ResultadoPresionResidualDeCamino } from '../../motor/tuberias/pres
 import type { PerdidasDeMedidoresParaTerminal } from '../../motor/modulo3/resolverPerdidasDeMedidoresParaTerminal'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 import { nombresDeArtefactosAguasAbajo } from './humanizarModulo2'
+import { nombreDeUnidadFuncional } from './nombreDeUnidadFuncional'
 import {
   identificarFilasDistribucionGeneral,
   identificarFilasPrincipalesDeLocales,
@@ -149,9 +150,11 @@ export function CalculoDelCriticoDetalle({
                     <small>
                       {componente.ambito === 'general'
                         ? 'Medidor general'
-                        : `Medidor individual · ${componente.unidadFuncionalId} · ${
-                            componente.servicioMedido === 'aguaFria' ? 'AF' : 'AC'
-                          }`}
+                        : `Medidor individual · ${
+                            componente.unidadFuncionalId !== undefined
+                              ? nombreDeUnidadFuncional(proyecto, componente.unidadFuncionalId)
+                              : 'unidad funcional'
+                          } · ${componente.servicioMedido === 'aguaFria' ? 'AF' : 'AC'}`}
                       {componente.aplicaPorProvisionACSIndividual ? ' (aplica también al ramal AC por ACS individual)' : ''}
                     </small>
                   </th>

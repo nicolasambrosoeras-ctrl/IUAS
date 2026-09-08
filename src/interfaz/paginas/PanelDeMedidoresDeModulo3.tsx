@@ -46,6 +46,7 @@ import {
   formatearMagnitudDeMedidor,
 } from './humanizarModulo3'
 import { EncabezadoDeEtapa } from './EncabezadoDeEtapa'
+import { nombreDeUnidadFuncional } from './nombreDeUnidadFuncional'
 
 const fmt = formatearMagnitudDeMedidor
 
@@ -271,7 +272,7 @@ function FilaMedidorIndividual({
   const { resultado } = medidor
   return (
     <tr>
-      <td>{resultado.unidadFuncionalId}</td>
+      <td>{nombreDeUnidadFuncional(proyecto, resultado.unidadFuncionalId)}</td>
       <td>{ETIQUETA_SERVICIO_MEDIDO[resultado.servicioMedido]}</td>
       <td>
         {fmt(resultado.qcDiseno_m3h, 'caudal')} m³/h
