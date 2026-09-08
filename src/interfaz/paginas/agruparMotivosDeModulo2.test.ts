@@ -93,7 +93,7 @@ describe('agruparMotivosDeModulo2', () => {
     ]
 
     expect(agruparMotivosDeModulo2(motivos, [])).toEqual([
-      'Falta indicar el tipo de alimentación y sus datos.',
+      'Falta configurar el esquema de abastecimiento en el Módulo 4.',
       'Faltan cotas de conexión en 1 punto.',
     ])
   })

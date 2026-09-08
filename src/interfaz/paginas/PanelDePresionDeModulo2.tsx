@@ -12,13 +12,27 @@
 // estado local de este panel: se pierden al recargar la página, igual
 // que el resto del Proyecto (que tampoco persiste hoy).
 //
-// D-δ.43: "Tipo de alimentación" (Tanque elevado / Presión conocida) es
-// una traducción física de presentación sobre ese mismo contrato, NO una
-// entidad nueva -- ver PENDIENTES-DE-ARQUITECTURA.md D-δ.43. Tanque
-// elevado fija Pdisponible=0 y pide la cota del pelo de agua mínimo de
-// cálculo como cota de la raíz (Δz hace el resto, D-δ.38: raíz = pelo de
-// agua mínimo, nunca el máximo). Presión conocida pide cota del punto de
-// alimentación + Pdisponible manual, exactamente el contrato ya vigente.
+// D-δ.43 / D-δ.68: el origen hidráulico ("Tanque elevado" / "Alimentación
+// directa") ya NO se elige en este panel. Se DERIVA del esquema de
+// abastecimiento persistido (Proyecto.configuracionAbastecimiento.esquema)
+// vía resolverOrigenHidraulicoEfectivo (M4-G): `directa` → alimentación
+// directa; `tanqueElevado` y `cisternaBombeoElevado` → tanque elevado (la
+// cisterna y la bomba están aguas arriba del almacenamiento, no son un
+// tercer origen terminal). Una sola fuente física; se editan en el Panel
+// de Módulo 4.
+//
+// - Tanque elevado: Pdisponible = 0 y se pide la cota del pelo de agua
+//   mínimo de cálculo como cota de la raíz (Δz hace el resto, D-δ.38).
+// - Alimentación directa: Pdisponible = Proyecto.parametros.presionSobreAcera_m
+//   (D-δ.38: es exactamente "la presión mínima garantizada sobre el nivel
+//   de vereda"), referida a cota ≈ 0 de la raíz; se pide la cota del punto
+//   de alimentación. `presionSobreAcera_m` se edita en el Panel de Módulo
+//   4 (conPresionSobreAcera). NO se le resta `desnivelConexion_m` -- ese
+//   desnivel es sólo para Tabla N°1 (Qconexión, CRIT-A37); M2 calcula su
+//   propio Δz de camino.
+// - Sin `configuracionAbastecimiento`: no hay origen físico derivable; la
+//   verificación de presión queda 'incompleta' (el resto de M2 sigue
+//   calculándose), con un mensaje que orienta a configurar el Módulo 4.
 //
 // D-δ.46: bajo GranularidadHidraulica='simplificada', cada TarjetaDeTerminal
 // (TarjetaDeTerminal.tsx) deja de pedir su propia "Cota de conexión [m]"
@@ -29,8 +43,9 @@
 // de solo lectura -- se edita en "Datos del proyecto"
 // (MotorDemandaPantalla.tsx), no acá. En 'profesional' el input
 // individual se conserva sin cambios.
-import { useState } from 'react'
 import type { Proyecto } from '../../modelo/proyecto'
+import { ESQUEMAS_DE_ABASTECIMIENTO } from '../../modelo/proyecto'
+import { resolverOrigenHidraulicoEfectivo } from '../../motor/modulo4/resolverOrigenHidraulico'
 import type { Nodo, ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { catalogoMaterialesTuberia } from '../../motor/tuberias/materialTuberia'
@@ -63,31 +78,6 @@ import { resolverResumenDeCumplimiento } from './resolverResumenDeCumplimiento'
 import { resolverFilaDeTerminalParaTabla } from './resolverFilaDeTerminalParaTabla'
 import { TablaDeTerminales } from './TablaDeTerminales'
 import { CalculoDelCriticoDetalle } from './CalculoDelCriticoDetalle'
-
-// Mismo criterio que resolverCambioDeLongitud (resolverResultadoDeTramoParaUi.ts):
-// campo vacío = "no provisto todavía" (undefined, nunca 0); NaN o negativo
-// = no se actualiza el estado -- Pdisponible/hfMedidor nunca admiten un
-// valor negativo con sentido físico.
-//
-// Bug corregido (D-δ.47): los onChange de estos dos inputs llamaban
-// set*Texto con el texto crudo INCONDICIONALMENTE, sin pasar por esta
-// función primero -- un usuario podía teclear "-5" y verlo persistir
-// visualmente en el campo mientras el cálculo, al parsear, lo trataba
-// como 'ignorar' (Pdisponible/hfMedidor no provistos), sin ningún
-// indicio de que ese texto no participaba. Ahora el estado solo se
-// actualiza cuando el resultado NO es 'ignorar' -- mismo principio ya
-// usado por conLongitudDeTramo/conCotaDeNodo (nunca dejar un valor
-// inválido visible y desconectado del cálculo activo).
-function parsearEntradaHidraulica(texto: string): number | undefined | 'ignorar' {
-  if (texto === '') {
-    return undefined
-  }
-  const valor = Number(texto)
-  if (Number.isNaN(valor) || valor < 0) {
-    return 'ignorar'
-  }
-  return valor
-}
 
 function esTerminalDeArtefacto(nodo: Nodo): nodo is Nodo & { referencia: ReferenciaDeArtefacto } {
   return nodo.referencia?.tipo === 'artefacto'
@@ -126,8 +116,6 @@ function textoDeEstadoModulo2(estado: EstadoModulo2): string {
   }
 }
 
-type TipoDeAlimentacion = 'tanqueElevado' | 'presionConocida'
-
 export function PanelDePresionDeModulo2({
   proyecto,
   catalogoArtefactos,
@@ -137,28 +125,53 @@ export function PanelDePresionDeModulo2({
   catalogoArtefactos: readonly ArtefactoNormativo[]
   onCambiar: (proyecto: Proyecto) => void
 }) {
-  const [tipoAlimentacion, setTipoAlimentacion] = useState<TipoDeAlimentacion>('presionConocida')
-  const [presionDisponibleTexto, setPresionDisponibleTexto] = useState('')
+  // M4-G (D-δ.68): el origen hidráulico se DERIVA del esquema de
+  // abastecimiento persistido -- fuente única, sin selector local. Un
+  // esquema ausente o corrupto -> `origenEfectivo` undefined -> la
+  // verificación de presión queda 'incompleta' (nunca throw, nunca un
+  // default).
+  const esquemaAbastecimiento = proyecto.configuracionAbastecimiento?.esquema
+  const esquemaValido =
+    esquemaAbastecimiento !== undefined &&
+    (ESQUEMAS_DE_ABASTECIMIENTO as readonly string[]).includes(esquemaAbastecimiento)
+  const origenEfectivo = esquemaValido ? resolverOrigenHidraulicoEfectivo(esquemaAbastecimiento) : undefined
 
-  const presionDisponibleParseada = parsearEntradaHidraulica(presionDisponibleTexto)
-  const presionDisponibleManual_mca = presionDisponibleParseada === 'ignorar' ? undefined : presionDisponibleParseada
-  // Tanque elevado (D-δ.38): la raíz hidráulica es el pelo de agua mínimo
-  // de cálculo -- Pdisponible se fija en 0 y toda la carga estática queda
-  // expresada por Δz (cotaRaiz = cota del pelo de agua mínimo). Presión
-  // conocida conserva el input manual tal cual ya existía.
-  const presionDisponible_mca = tipoAlimentacion === 'tanqueElevado' ? 0 : presionDisponibleManual_mca
+  // Condición de borde para el balance (D-δ.38):
+  //  - tanque elevado -> Pdisponible = 0; la carga la expresa Δz (raíz =
+  //    pelo de agua mínimo).
+  //  - alimentación directa -> Pdisponible = presión sobre acera
+  //    (`presionSobreAcera_m`, editable en el Panel de Módulo 4). NO se le
+  //    resta `desnivelConexion_m`: ese desnivel es sólo de Tabla N°1.
+  //  - sin origen derivable -> undefined (verificación incompleta).
+  const presionDisponible_mca =
+    origenEfectivo === 'tanqueElevado'
+      ? 0
+      : origenEfectivo === 'directa'
+        ? proyecto.parametros.presionSobreAcera_m
+        : undefined
 
   const nodosTerminales = proyecto.redHidraulica?.nodos.filter(esTerminalDeArtefacto) ?? []
 
   // M3-E (D-δ.58): la pérdida de medidores aplicable a cada terminal la
   // produce M3, según origen hidráulico + UF + red del terminal + tipo de
-  // ACS. Se calcula EstadoModulo3 una sola vez y se reutiliza para todos
-  // los terminales. El Panel no conoce Tabla N°6 ni selección de medidores.
-  const origenHidraulico: OrigenHidraulicoDeMedidores =
-    tipoAlimentacion === 'tanqueElevado' ? 'tanqueElevado' : 'alimentacionDirecta'
+  // ACS. El origen ahora viene del esquema global (D-δ.68): directa -> el
+  // medidor general entra al camino; tanque elevado (y cisterna+bombeo) ->
+  // queda aguas arriba del almacenamiento y NO entra.
+  const origenHidraulico: OrigenHidraulicoDeMedidores | undefined =
+    origenEfectivo === 'tanqueElevado'
+      ? 'tanqueElevado'
+      : origenEfectivo === 'directa'
+        ? 'alimentacionDirecta'
+        : undefined
   const estadoModulo3 = resolverEstadoModulo3(proyecto, catalogoArtefactos, coeficientesMayoracion)
 
   const perdidasDeMedidoresDeTerminal = (nodoTerminalId: string): PerdidasDeMedidoresParaTerminal | undefined => {
+    if (origenHidraulico === undefined) {
+      // Sin esquema de abastecimiento no hay origen del que derivar si el
+      // medidor general pertenece al camino -- coherente con que tampoco
+      // haya balance de presión.
+      return undefined
+    }
     const nodo = nodosTerminales.find((n) => n.id === nodoTerminalId)
     const red = resolverRedDeTerminal(proyecto, nodoTerminalId)
     if (nodo === undefined || red === undefined) {
@@ -246,7 +259,7 @@ export function PanelDePresionDeModulo2({
     resultadoCritico?.tipo === 'balanceCompleto'
       ? proyecto.redHidraulica?.nodos.find((n) => n.id === resultadoCritico.raizId)?.cota_m
       : undefined
-  const origenTexto = tipoAlimentacion === 'tanqueElevado' ? 'Tanque elevado' : 'Presión conocida / alimentación directa'
+  const origenTexto = origenEfectivo === 'tanqueElevado' ? 'Tanque elevado' : 'Alimentación directa'
 
   const motivosAgrupados =
     estadoModulo2.estado === 'incompleto'
@@ -263,82 +276,70 @@ export function PanelDePresionDeModulo2({
       </p>
 
       <h4>Alimentación</h4>
-      <p>
-        <label>
-          <input
-            type="radio"
-            name="tipoDeAlimentacion"
-            checked={tipoAlimentacion === 'tanqueElevado'}
-            onChange={() => setTipoAlimentacion('tanqueElevado')}
-          />{' '}
-          Tanque elevado
-        </label>{' '}
-        <label>
-          <input
-            type="radio"
-            name="tipoDeAlimentacion"
-            checked={tipoAlimentacion === 'presionConocida'}
-            onChange={() => setTipoAlimentacion('presionConocida')}
-          />{' '}
-          Presión conocida / alimentación directa
-        </label>
-      </p>
 
-      {tipoAlimentacion === 'tanqueElevado' ? (
-        <>
-          {nodosRaiz.map((nodo, indice) => (
-            <label key={nodo.id} style={{ marginRight: '1rem' }}>
-              Pelo de agua mínimo{nodosRaiz.length > 1 ? ` (alimentación ${indice + 1})` : ''} [m]:{' '}
-              <input
-                type="number"
-                step="any"
-                value={nodo.cota_m ?? ''}
-                onChange={(evento) => {
-                  const resultado = parsearCota(evento.target.value)
-                  if (resultado !== 'ignorar') {
-                    onCambiar(conCotaDeNodo(proyecto, nodo.id, resultado))
-                  }
-                }}
-                style={{ width: '4.5rem' }}
-              />
-            </label>
-          ))}
-        </>
+      {origenEfectivo === undefined ? (
+        <p>
+          <small>
+            Configurá el esquema de abastecimiento en el <strong>Módulo 4</strong> para verificar la presión.
+          </small>
+        </p>
       ) : (
         <>
-          {nodosRaiz.map((nodo, indice) => (
-            <label key={nodo.id} style={{ marginRight: '1rem' }}>
-              Cota del punto de alimentación{nodosRaiz.length > 1 ? ` (alimentación ${indice + 1})` : ''} [m]:{' '}
-              <input
-                type="number"
-                step="any"
-                value={nodo.cota_m ?? ''}
-                onChange={(evento) => {
-                  const resultado = parsearCota(evento.target.value)
-                  if (resultado !== 'ignorar') {
-                    onCambiar(conCotaDeNodo(proyecto, nodo.id, resultado))
-                  }
-                }}
-                style={{ width: '4.5rem' }}
-              />
-            </label>
-          ))}
-          <label style={{ marginRight: '1rem' }}>
-            Presión disponible (Pdisponible) [m.c.a.]:{' '}
-            <input
-              type="number"
-              min={0}
-              step="any"
-              value={presionDisponibleTexto}
-              onChange={(evento) => {
-                const texto = evento.target.value
-                if (parsearEntradaHidraulica(texto) !== 'ignorar') {
-                  setPresionDisponibleTexto(texto)
-                }
-              }}
-              style={{ width: '6rem' }}
-            />
-          </label>
+          <p>
+            <small>
+              Origen hidráulico: <strong>{origenTexto}</strong> — derivado del esquema de abastecimiento del
+              Módulo 4.
+              {esquemaAbastecimiento === 'cisternaBombeoElevado'
+                ? ' El esquema incluye cisterna y bombeo aguas arriba del tanque elevado.'
+                : ''}
+            </small>
+          </p>
+
+          {origenEfectivo === 'tanqueElevado' ? (
+            nodosRaiz.map((nodo, indice) => (
+              <label key={nodo.id} style={{ marginRight: '1rem' }}>
+                Pelo de agua mínimo{nodosRaiz.length > 1 ? ` (alimentación ${indice + 1})` : ''} [m]:{' '}
+                <input
+                  type="number"
+                  step="any"
+                  value={nodo.cota_m ?? ''}
+                  onChange={(evento) => {
+                    const resultado = parsearCota(evento.target.value)
+                    if (resultado !== 'ignorar') {
+                      onCambiar(conCotaDeNodo(proyecto, nodo.id, resultado))
+                    }
+                  }}
+                  style={{ width: '4.5rem' }}
+                />
+              </label>
+            ))
+          ) : (
+            <>
+              {nodosRaiz.map((nodo, indice) => (
+                <label key={nodo.id} style={{ marginRight: '1rem' }}>
+                  Cota del punto de alimentación{nodosRaiz.length > 1 ? ` (alimentación ${indice + 1})` : ''} [m]:{' '}
+                  <input
+                    type="number"
+                    step="any"
+                    value={nodo.cota_m ?? ''}
+                    onChange={(evento) => {
+                      const resultado = parsearCota(evento.target.value)
+                      if (resultado !== 'ignorar') {
+                        onCambiar(conCotaDeNodo(proyecto, nodo.id, resultado))
+                      }
+                    }}
+                    style={{ width: '4.5rem' }}
+                  />
+                </label>
+              ))}
+              <p>
+                <small>
+                  Presión disponible (sobre acera): {formatearNumero(proyecto.parametros.presionSobreAcera_m, 'm')} m
+                  — se edita en el Módulo 4.
+                </small>
+              </p>
+            </>
+          )}
         </>
       )}
       <details>
@@ -347,11 +348,13 @@ export function PanelDePresionDeModulo2({
         </summary>
         <p>
           <small>
-            <strong>Tanque elevado</strong>: la carga disponible se obtiene de la diferencia de nivel entre el pelo de
-            agua mínimo y la conexión del artefacto. <strong>Presión conocida</strong>: condición de borde hidráulica
-            del origen (red pública, bombeo — sin modelar todavía, D-δ.36), en m.c.a. en el punto de alimentación.
-            La <strong>pérdida de los medidores</strong> ya no se ingresa acá: la calcula el Módulo 3 según el origen
-            hidráulico y el camino de cada terminal (D-δ.58). Completá el Módulo 3 — Medidores para cerrar el balance.
+            El <strong>origen hidráulico</strong> se toma del esquema de abastecimiento del Módulo 4 (D-δ.68).
+            <strong> Tanque elevado</strong> (esquemas con tanque, incluido cisterna + bombeo): la carga disponible se
+            obtiene de la diferencia de nivel entre el pelo de agua mínimo y la conexión del artefacto.
+            <strong> Alimentación directa</strong>: la condición de borde es la presión sobre el nivel de acera
+            (<code>presionSobreAcera_m</code>), que se edita en el Módulo 4. La <strong>pérdida de los medidores</strong>{' '}
+            la calcula el Módulo 3 según ese origen y el camino de cada terminal (D-δ.58). Completá el Módulo 3 —
+            Medidores para cerrar el balance.
           </small>
         </p>
       </details>

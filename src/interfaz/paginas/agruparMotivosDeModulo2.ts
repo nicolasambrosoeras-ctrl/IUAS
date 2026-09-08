@@ -37,7 +37,9 @@ export function agruparMotivosDeModulo2(
   }
 
   if (motivos.some((m) => m.tipo === 'presionDisponibleNoProvista')) {
-    lineas.push('Falta indicar el tipo de alimentación y sus datos.')
+    // M4-G (D-δ.68): el origen hidráulico ya no se elige en este panel --
+    // se deriva del esquema de abastecimiento del Módulo 4.
+    lineas.push('Falta configurar el esquema de abastecimiento en el Módulo 4.')
   }
 
   const desnivelIncompleto = motivos.filter((m) => m.tipo === 'desnivelIncompleto')
