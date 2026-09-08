@@ -58,7 +58,9 @@ describe('MotorDemandaPantalla — estructura de navegación (UI-01A)', () => {
     const seccion = at(html, 'id="demanda"')
     const encabezado01 = at(html, 'Demanda</h2>')
     const datosProyecto = at(html, 'Datos del proyecto')
-    const unidadFuncional = at(html, 'Unidad funcional</h3>')
+    // UX-01 / UI-01D (D-δ.76): la cabecera de la UF pasó a ser un botón de
+    // disclosure (patrón APG) -- ancla estable en la clase del toggle.
+    const unidadFuncional = at(html, 'm1-uf__toggle')
     const artefactos = at(html, 'Artefactos</p>')
     const resultado = at(html, 'Resultado de demanda</summary>')
     const tuberias = at(html, 'id="tuberias"')
@@ -81,6 +83,24 @@ describe('MotorDemandaPantalla — estructura de navegación (UI-01A)', () => {
     expect(artefactos).toBeLessThan(resultado)
     // Todo el perímetro de M1 queda dentro de la etapa, antes de Tuberías.
     expect(resultado).toBeLessThan(tuberias)
+  })
+
+  it('UX-01 / UI-01D: la UF del proyecto inicial monta EXPANDIDA con un toggle accesible', () => {
+    // Estado inicial (secciones 3/16/38): las UF ya presentes al montar
+    // arrancan abiertas -> aria-expanded="true"; su detalle (Nombre
+    // editable, Locales) está en el DOM.
+    expect(html).toContain('class="m1-uf__toggle"')
+    expect(html).toContain('aria-expanded="true"')
+    expect(html).toContain('aria-controls="uf-contenido-uf-1"')
+    expect(html).toContain('id="uf-contenido-uf-1"')
+    // Con la UF abierta hay control inferior de contraer (sección 10) y el
+    // detalle editable es visible.
+    expect(html).toContain('↑ Contraer unidad funcional')
+    expect(html).toContain('Nombre de la unidad funcional')
+    // El contenido NO está oculto (no hay atributo hidden en el wrapper).
+    expect(html).not.toContain('id="uf-contenido-uf-1" hidden')
+    // Duplicar sigue disponible en la cabecera.
+    expect(html).toContain('>Duplicar</button>')
   })
 
   it('la Verificación hidráulica queda DESPUÉS de Abastecimiento (etapa final del flujo)', () => {

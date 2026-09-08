@@ -49,17 +49,113 @@
 }
 
 .m1-uf__titulo {
+  /* El <h3> es sólo el contenedor semántico del botón de disclosure
+     (patrón APG): sin estilo propio, el botón interior lleva todo. */
   margin: 0;
-  font-size: var(--fs-meta);
-  font-weight: var(--peso-semibold);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  flex: 1 1 16rem;
+  min-width: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+/* UX-01 / UI-01D: la cabecera es el control de expandir/contraer. Botón
+   real (foco, teclado, aria-expanded), estilo de fila clicable de ancho
+   completo -- no un <div> disfrazado. */
+.m1-uf__toggle {
+  display: flex;
+  align-items: baseline;
+  gap: var(--esp-sm);
+  width: 100%;
+  padding: var(--esp-xs) 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  color: var(--color-texto);
+  cursor: pointer;
+}
+
+.m1-uf__toggle:hover:not(:disabled) .m1-uf__nombre-cabecera {
+  color: var(--color-primario-fuerte);
+}
+
+.m1-uf__toggle:focus-visible {
+  outline: 2px solid var(--color-foco);
+  outline-offset: 2px;
+  border-radius: var(--radio-control);
+}
+
+.m1-uf__chevron {
+  flex: none;
+  width: 0.9em;
+  font-size: 0.75em;
   color: var(--color-texto-3);
+}
+
+.m1-uf__nombre-cabecera {
+  font-size: var(--fs-titulo-card);
+  font-weight: var(--peso-semibold);
+  overflow-wrap: anywhere;
+}
+
+.m1-uf__meta {
+  color: var(--color-texto-2);
+  font-size: var(--fs-ayuda);
+}
+
+.m1-uf__resumen {
+  color: var(--color-texto-3);
+  font-size: var(--fs-ayuda);
+}
+
+/* UF colapsada: card compacta de una sola franja (secciones 28/37) -- NO
+   es un estado de error, así que sin colores de warning. */
+.m1-uf--colapsada {
+  gap: 0;
+  padding: var(--esp-sm) var(--esp-md);
 }
 
 .m1-uf__acciones {
   display: flex;
   gap: var(--esp-xs);
+  flex: none;
+}
+
+.m1-uf__contenido {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-md);
+}
+
+/* `hidden` debe ganarle al `display:flex` de arriba (regla de especificidad
+   -- no hay reset global de [hidden] en el proyecto). Con la UF colapsada
+   el contenido además no se renderiza; esto es defensa redundante y deja
+   el nodo de aria-controls sin ocupar espacio. */
+.m1-uf__contenido[hidden] {
+  display: none;
+}
+
+/* Control inferior de contraer (sección 10/32): discreto, alineado a la
+   izquierda, separado del contenido por una línea sutil. */
+.m1-uf__pie {
+  margin-top: var(--esp-xs);
+  padding-top: var(--esp-sm);
+  border-top: 1px solid var(--color-borde);
+}
+
+.m1-uf__contraer-pie {
+  align-self: flex-start;
+  padding: 0.2rem 0.55rem;
+  font-size: var(--fs-ayuda);
+  background: transparent;
+  border-color: transparent;
+  color: var(--color-texto-2);
+}
+
+.m1-uf__contraer-pie:hover:not(:disabled) {
+  background: var(--color-superficie-2);
+  border-color: var(--color-borde);
+  color: var(--color-texto);
 }
 
 .m1-uf__campos {
@@ -230,5 +326,26 @@
   .m1-uf__campos {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  /* Cabecera de UF colapsada apilada (sección 36): "▶ Nombre" en la
+     primera línea; "Nivel · N locales · M artefactos" debajo. Sin
+     overflow horizontal. */
+  .m1-uf__toggle {
+    flex-wrap: wrap;
+  }
+
+  .m1-uf__nombre-cabecera {
+    flex: 1 1 auto;
+  }
+
+  .m1-uf__meta,
+  .m1-uf__resumen {
+    flex-basis: 100%;
+    margin-left: calc(0.9em + var(--esp-sm));
+  }
+
+  .m1-uf__cabecera {
+    align-items: flex-start;
   }
 }

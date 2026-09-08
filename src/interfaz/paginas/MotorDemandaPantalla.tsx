@@ -47,6 +47,7 @@ import './navegacionUI.css'
 import './demandaM1.css'
 import { parsearCota } from './parsearCota'
 import { calcularCotaHidraulicaDefaultDeNivel, nombreDeNivel } from './nivelUnidadFuncional'
+import { resumenDeUnidadFuncional } from './resumenDeUnidadFuncional'
 import { proyectoInicial } from './proyectoDeEjemplo'
 
 const TIPOS_DE_LOCAL: readonly TipoDeLocal[] = [
@@ -429,6 +430,8 @@ function UnidadFuncionalFormulario({
   onEliminar,
   onDuplicar,
   mostrarEliminar,
+  colapsada,
+  onAlternarColapso,
 }: {
   uf: UnidadFuncional
   proyecto: Proyecto
@@ -437,6 +440,98 @@ function UnidadFuncionalFormulario({
   onEliminar: () => void
   onDuplicar: () => void
   mostrarEliminar: boolean
+  // UX-01 / UI-01D: estado de colapso -- exclusivamente de presentación,
+  // vive en ProyectoFormulario, nunca en `Proyecto`. Colapsar sólo oculta
+  // el detalle: los datos siguen en `uf` y participan igual de todo el
+  // cálculo (D-δ.76).
+  colapsada: boolean
+  onAlternarColapso: () => void
+}) {
+  const resumen = resumenDeUnidadFuncional(uf)
+  // Id estable del contenido para aria-controls (sección 35): no depende
+  // del orden ni del estado de colapso.
+  const contenidoId = `uf-contenido-${uf.id}`
+
+  return (
+    <section className={colapsada ? 'm1-uf m1-uf--colapsada' : 'm1-uf'}>
+      <div className="m1-uf__cabecera">
+        {/* Patrón APG de disclosure: <button aria-expanded> dentro del
+            heading. La cabecera entera es el control de expandir/contraer
+            (sección 9); Duplicar / Eliminar quedan fuera del botón para
+            seguir accesibles con la UF colapsada (sección 29). */}
+        <h3 className="m1-uf__titulo">
+          <button
+            type="button"
+            className="m1-uf__toggle"
+            aria-expanded={!colapsada}
+            aria-controls={contenidoId}
+            aria-label={
+              colapsada
+                ? `Expandir ${uf.nombre} — ${resumen.nivelTexto}, ${resumen.localesTexto}, ${resumen.artefactosTexto}`
+                : `Contraer ${uf.nombre}`
+            }
+            onClick={onAlternarColapso}
+          >
+            <span className="m1-uf__chevron" aria-hidden="true">
+              {colapsada ? '▶' : '▼'}
+            </span>
+            <span className="m1-uf__nombre-cabecera">{uf.nombre}</span>
+            <span className="m1-uf__meta">· {resumen.nivelTexto}</span>
+            {colapsada ? (
+              <span className="m1-uf__resumen">
+                {resumen.localesTexto} · {resumen.artefactosTexto}
+              </span>
+            ) : null}
+          </button>
+        </h3>
+        <div className="m1-uf__acciones">
+          <button type="button" className="ui-btn--fantasma" onClick={onDuplicar}>
+            Duplicar
+          </button>
+          {mostrarEliminar ? (
+            <button type="button" className="m1-btn-eliminar" onClick={onEliminar}>
+              Eliminar unidad funcional
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Contenido detallado. El wrapper con id estable permanece siempre
+          (aria-controls apunta a un nodo real); sus hijos NO se renderizan
+          con la UF colapsada (sección 26): todos los datos viven en
+          `Proyecto` y ningún control de M1 guarda decisiones de dominio en
+          useState (auditoría D-δ.70), así que ocultarlo no pierde nada. */}
+      <div id={contenidoId} className="m1-uf__contenido" hidden={colapsada}>
+        {colapsada ? null : (
+          <CuerpoDeUnidadFuncional
+            uf={uf}
+            proyecto={proyecto}
+            onCambiar={onCambiar}
+            onCambiarProyecto={onCambiarProyecto}
+            onAlternarColapso={onAlternarColapso}
+          />
+        )}
+      </div>
+    </section>
+  )
+}
+
+// UX-01 / UI-01D: detalle editable de una UF (campos + Locales + acciones).
+// Se monta sólo con la UF expandida; se separó de la cabecera para que el
+// conditional rendering del colapso quede legible y para no repetir la
+// jerarquía JSX previa a este slice.
+function CuerpoDeUnidadFuncional({
+  uf,
+  proyecto,
+  onCambiar,
+  onCambiarProyecto,
+  onAlternarColapso,
+}: {
+  uf: UnidadFuncional
+  proyecto: Proyecto
+  onCambiar: (uf: UnidadFuncional) => void
+  onCambiarProyecto: (proyecto: Proyecto) => void
+  onAlternarColapso: () => void
 }) {
   const locales = uf.locales
 
@@ -456,21 +551,7 @@ function UnidadFuncionalFormulario({
   const etiquetas = etiquetasDeLocales(locales)
 
   return (
-    <section className="m1-uf">
-      <div className="m1-uf__cabecera">
-        <h3 className="m1-uf__titulo">Unidad funcional</h3>
-        <div className="m1-uf__acciones">
-          <button type="button" className="ui-btn--fantasma" onClick={onDuplicar}>
-            Duplicar
-          </button>
-          {mostrarEliminar ? (
-            <button type="button" className="m1-btn-eliminar" onClick={onEliminar}>
-              Eliminar unidad funcional
-            </button>
-          ) : null}
-        </div>
-      </div>
-
+    <>
       <div className="m1-uf__campos">
         <label>
           Nombre:{' '}
@@ -570,7 +651,22 @@ function UnidadFuncionalFormulario({
       <button type="button" className="m1-agregar-contextual" onClick={agregarLocal}>
         + Agregar local
       </button>
-    </section>
+
+      {/* Control inferior (sección 10): tras cargar una UF larga, el usuario
+          la cierra sin volver a subir a la cabecera. Alterna exactamente el
+          mismo estado que el control superior (sección 41), no uno
+          independiente. Sólo existe con la UF abierta (sección 11). */}
+      <div className="m1-uf__pie">
+        <button
+          type="button"
+          className="m1-uf__contraer-pie"
+          aria-label={`Contraer ${uf.nombre}`}
+          onClick={onAlternarColapso}
+        >
+          ↑ Contraer unidad funcional
+        </button>
+      </div>
+    </>
   )
 }
 
@@ -582,6 +678,45 @@ function ProyectoFormulario({
   onCambiar: (proyecto: Proyecto) => void
 }) {
   const unidadesFuncionales = proyecto.unidadesFuncionales
+
+  // UX-01 / UI-01D (D-δ.76): estado de colapso de cada UF, SÓLO de
+  // presentación. Semántica "id ausente del conjunto = UF expandida": las
+  // UF ya presentes al montar arrancan abiertas (conjunto vacío inicial) y
+  // cada UF nueva o duplicada se agrega al conjunto (nace colapsada). Por
+  // id, nunca por índice (sección 15): sobrevive a altas/bajas/duplicados/
+  // reordenamientos. No se persiste (sección 14/51): un reload vuelve al
+  // proyecto de ejemplo con su UF abierta.
+  const [idsColapsadas, setIdsColapsadas] = useState<ReadonlySet<string>>(() => new Set())
+
+  function alternarColapso(unidadFuncionalId: string) {
+    setIdsColapsadas((previo) => {
+      const siguiente = new Set(previo)
+      if (siguiente.has(unidadFuncionalId)) {
+        siguiente.delete(unidadFuncionalId)
+      } else {
+        siguiente.add(unidadFuncionalId)
+      }
+      return siguiente
+    })
+  }
+
+  function marcarColapsadas(ufIds: readonly string[]) {
+    if (ufIds.length === 0) return
+    setIdsColapsadas((previo) => {
+      const siguiente = new Set(previo)
+      for (const id of ufIds) siguiente.add(id)
+      return siguiente
+    })
+  }
+
+  function olvidarColapso(unidadFuncionalId: string) {
+    setIdsColapsadas((previo) => {
+      if (!previo.has(unidadFuncionalId)) return previo
+      const siguiente = new Set(previo)
+      siguiente.delete(unidadFuncionalId)
+      return siguiente
+    })
+  }
 
   function cambiarUnidadesFuncionales(unidadesFuncionales: readonly UnidadFuncional[]) {
     onCambiar({ ...proyecto, unidadesFuncionales })
@@ -600,11 +735,25 @@ function ProyectoFormulario({
       cotaHidraulicaReferencia_m: calcularCotaHidraulicaDefaultDeNivel(nivel),
       locales: [],
     }
+    // Sección 4: la UF nueva nace COLAPSADA; las existentes no cambian de
+    // estado visual. El id se conoce acá directamente, sin depender del
+    // updater.
+    marcarColapsadas([nuevaUf.id])
     cambiarUnidadesFuncionales([...unidadesFuncionales, nuevaUf])
   }
 
   function duplicarUnidadFuncional(unidadFuncionalId: string) {
-    onCambiar(duplicarUnidadFuncionalEnProyecto(proyecto, unidadFuncionalId))
+    // Sección 5/17/18: la copia nace COLAPSADA. El updater de dominio
+    // devuelve sólo `Proyecto` (no el id de la copia) y no se modifica:
+    // la UF nueva se identifica comparando ids antes/después, en la capa
+    // de presentación.
+    const idsPrevios = new Set(unidadesFuncionales.map((u) => u.id))
+    const proyectoConCopia = duplicarUnidadFuncionalEnProyecto(proyecto, unidadFuncionalId)
+    const idsNuevos = proyectoConCopia.unidadesFuncionales
+      .filter((u) => !idsPrevios.has(u.id))
+      .map((u) => u.id)
+    marcarColapsadas(idsNuevos)
+    onCambiar(proyectoConCopia)
   }
 
   return (
@@ -636,6 +785,8 @@ function ProyectoFormulario({
           uf={uf}
           proyecto={proyecto}
           mostrarEliminar={unidadesFuncionales.length > 1}
+          colapsada={idsColapsadas.has(uf.id)}
+          onAlternarColapso={() => alternarColapso(uf.id)}
           onCambiar={(ufActualizada) =>
             cambiarUnidadesFuncionales(
               unidadesFuncionales.map((u) => (u.id === uf.id ? ufActualizada : u)),
@@ -646,6 +797,9 @@ function ProyectoFormulario({
             // M2-D (BAJA de UnidadFuncional completa, D-δ.47): mismo
             // principio que la baja de un Local completo, aplicado a todos
             // los Locales de la UF.
+            // Sección 19: además se olvida su estado de colapso para no
+            // acumular ids muertos en el conjunto de presentación.
+            olvidarColapso(uf.id)
             const proyectoSinConectividad = quitarConectividadFisicaDeUnidadFuncional(proyecto, uf.id)
             onCambiar({
               ...proyectoSinConectividad,
