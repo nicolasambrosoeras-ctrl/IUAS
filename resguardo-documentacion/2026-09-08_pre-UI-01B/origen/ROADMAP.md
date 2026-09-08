@@ -1,0 +1,581 @@
+# Roadmap — IUAS
+
+Visión estructural por hitos/capacidades, no un cronograma temporal. No
+contiene fechas. Organizado por bloques de capacidad, con dependencias
+explícitas cuando existen; el orden entre subbloques de un mismo módulo
+no está fijado salvo que se indique lo contrario.
+
+Para el detalle técnico exacto de cada pieza ya implementada, ver
+`RESUMEN-CONTINUIDAD-M2.md`. Para decisiones de arquitectura pendientes,
+ver `PENDIENTES-DE-ARQUITECTURA.md`.
+
+## Estado actual
+
+### Fase 0 — cerrada
+
+Fundaciones del proyecto:
+
+- arquitectura general (`modelo/` puro, `motor/` determinístico,
+  `normativa/` como fuente de catálogo/criterios, `validacion/` previa al
+  motor, `interfaz/` sin lógica de negocio propia);
+- separación estricta catálogo / criterios interpretativos (`CRITERIOS.md`)
+  / motor;
+- primeras decisiones arquitectónicas registradas.
+
+### Fase 1 / Módulo 1 (Demanda) — estable
+
+- `Qmax`, `Kc`, `K`, `Qc` — pipeline completo de simultaneidad;
+- reglas CRIT-A2, CRIT-A4, CRIT-A5, CRIT-A8, CRIT-A12, CRIT-A14;
+- UX funcional completa: proyecto editable, UF/Locales/Artefactos con
+  alta/baja, PDF real conectado.
+
+No se toca salvo bug real confirmado.
+
+### Fase 1 / Módulo 2 (Tuberías) — pausa técnica actual
+
+**Completado:**
+
+- topología dirigida (`Nodo`/`Tramo`/`RedHidraulica`), ortogonal a la
+  jerarquía funcional;
+- resolución de artefactos aguas abajo, deduplicación por identidad
+  completa;
+- condición AF/AC/producción ACS (CRIT-A15), sin duplicar conteo;
+- cobertura física auditada (S1) y barrera de presentación cuando está
+  incompleta (S2) — M1 autoritativo sobre existencia, `redHidraulica`
+  autoritativa sobre conexión física;
+- trazabilidad `cantidad` → `n` hidráulico efectivo, visible y distinta
+  de "referencias físicas" en la tabla;
+- piso físico de caudal individual (CRIT-A22);
+- predimensionamiento (CRIT-A10/CRIT-A16);
+- catálogo comercial de tuberías (Acqua System Magnum PN20) y catálogo de
+  materiales (6 materiales, C/ε propios);
+- selección de diámetro comercial por velocidad real (CRIT-A23);
+- pérdida distribuida Hazen-Williams (CRIT-A17) y Darcy-Weisbach
+  (CRIT-A18/CRIT-A21);
+- longitud física de Tramo editable desde la UI transitoria de M2 (L1),
+  primer punto de escritura de UI sobre `redHidraulica`;
+- pérdida distribuida `hf` visible en pantalla, con las 4 variantes del
+  pipeline correctamente distinguidas (L2);
+- golden end-to-end del vertical slice completo: demanda → Qc por tramo →
+  diámetro comercial → Di efectivo → velocidad → longitud → `hf` (G1);
+- fallback por velocidad mínima ante `Qc` muy bajo (D-δ.27, CRIT-A24) —
+  `Vmax` sigue dura, `Vmin` deja de bloquear exclusivamente cuando el
+  menor diámetro comercial normativamente evaluable ya la incumple;
+- selector de sistema comercial en la UI (D-δ.28), mismo patrón que el
+  selector de material ya existente;
+- motor puro de balance de presión con barrera de completitud
+  (`resolverBalanceDePresion` + `resolverPresionMinimaDeArtefacto`,
+  D-δ.36) — recibe `Pdisponible` explícito, no conoce el origen
+  hidráulico;
+- primitivas de pérdida de carga del medidor (CRIT-A25) y localizada
+  singular (CRIT-A26), aún sin consumidor topológico;
+- recorrido del camino hidráulico real hasta un terminal
+  (`obtenerCaminoHaciaOrigen`, CRIT-A27 / D-δ.37) — alimentación
+  ramificada como precondición de los motores hidráulicos de M2, sin
+  restringir el modelo `RedHidraulica` (recirculación ACS sigue
+  diferida); estados de topología no resoluble explícitos, nunca
+  elección silenciosa de predecesor;
+- desnivel Δz del camino (`resolverDesnivelDeCamino`, extremos
+  raíz↔terminal) y acumulación de pérdida distribuida a lo largo del
+  camino (`acumularPerdidaDistribuidaDeCamino`) — ambos con estado
+  incompleto explícito, nunca término ausente = 0;
+- orquestador `resolverPresionResidualDeCamino` que compone camino +
+  desnivel + Σhf distribuida + Pmin del terminal + balance;
+- pérdida localizada declarable sobre `Tramo` para el subconjunto
+  inequívoco de Tabla N°7 (curvas, codo 90°, llave de paso, válvula
+  esclusa, uniones, tubo saliente — CRIT-A28, M2-C slice A), integrada
+  como `hfLocalizada` en el balance;
+- barrera de completitud del balance corregida para distinguir cobertura
+  *parcial* (solo el subconjunto CRIT-A28) de *completa* (toda Tabla
+  N°7) — `hfLocalizada` nunca cuenta como término presente mientras la
+  cobertura sea parcial, aunque el valor calculado siga siendo auditable;
+- grifería vs. presión mínima resuelto como criterio IUAS explícito
+  (CRIT-A29): la verificación de presión termina en la boca de conexión
+  del artefacto, la grifería terminal no se suma como pérdida localizada;
+- sincronización automática Proyecto → `redHidraulica` al agregar/quitar
+  un Artefacto de un Local ya conectado (D-δ.39, M2-D) — sin persistir
+  ningún concepto nuevo de "cabecera";
+- modo estándar/estimado de pérdidas localizadas (D-δ.40), completitud
+  real de `EstadoModulo2` (D-δ.41), cierre y rediseño funcional de la UI
+  de M2 (D-δ.42/43) y su corrección de granularidad
+  simplificada/profesional (D-δ.44), plantilla típica de pérdidas
+  localizadas del modo rápido (D-δ.45);
+- cota hidráulica por Unidad Funcional en modo simplificado (D-δ.46),
+  niveles por UF + criterio de terminal crítico por margen (D-δ.48),
+  auditoría funcional y robustez de M2 (D-δ.47);
+- bootstrap de conectividad física para Local+Red nuevos (D-δ.49) — un
+  proyecto se puede construir íntegramente desde la UI, sin ninguna
+  `redHidraulica` prearmada;
+- **cierre UX funcional de M2 (D-δ.50)**: duplicar UF sincroniza la
+  conectividad física de la copia (reutiliza D-δ.49, sin nueva primitiva
+  topológica); longitudes obligatorias visibles en el bloque principal de
+  M2 (no dentro de "Detalle técnico"); longitud vertical típica
+  automática por nivel de UF (`ΔLvertical = 3 m · nivel`) en granularidad
+  `simplificada` — derivada, no persistida, aplicada a la longitud
+  efectiva de la Alimentación general (y, en AC, también de la
+  Alimentación ACS); en `profesional` no aplica (paralelismo con D-δ.46);
+  Panel de Presión reorganizado con veredicto protagonista CUMPLE/NO
+  CUMPLE, terminal más desfavorable por margen, "Ver cálculo del crítico"
+  auditable y "Ver todos los terminales" ordenado por margen;
+- **override manual de DN + resincronización física al cambiar tipo de
+  Artefacto (D-δ.52)**: `Tramo.dnComercialAdoptado` (denominación
+  comercial) sustituye al diámetro automático como diámetro EFECTIVO de
+  cálculo — V/J/hf/presión se resuelven con él, Qc no cambia; control
+  ↓/DN/↑/Auto que se mueve por el catálogo comercial real y se
+  deshabilita en los extremos; cambio de material/sistema descarta
+  overrides inválidos. CRIT-A15 resuelto:
+  `reconciliarConectividadFisicaPorCambioDeArtefacto` reconcilia AF/AC
+  por conjuntos de Redes (conserva la intersección con su relevamiento
+  intacto, elimina solo la diferencia + poda cabeceras vacías, agrega la
+  diferencia vía D-δ.49), idempotente, en un único updater;
+- **modos de producto + predimensionamiento rápido + presentación
+  tabular (D-δ.51)**: dos experiencias sobre el mismo motor — Rápido
+  (`simplificada` + `estimadas` + Hazen + PPR, longitudes iniciales
+  5/10/10 precargadas no destructivas, +3 m/piso) y Profesional
+  (`profesional` + `detalladas`, longitudes iniciales 10/5 donde faltaban,
+  accesorios "sin relevar" con acciones explícitas — nunca `[]` implícito,
+  decisión roja resuelta). "Modo de trabajo" es un concepto derivado de
+  los ejes existentes, sin campo persistido ni migración. La vista
+  principal de M2 pasa a tablas compactas (Longitud · DN · V · Pérdida ·
+  Estado) con detalle expandible por fila; "Configuración avanzada"
+  conserva las 4 combinaciones técnicas de D-δ.47. Cambiar de modo nunca
+  resetea datos;
+- con `hfMedidor` provisto por Módulo 3 por terminal (D-δ.58, ya no un
+  input manual del Panel de Presión), el balance alcanza `balanceCompleto`
+  en la práctica (verificado end-to-end por Playwright); el resto de Tabla
+  N°7 en modo detallado sigue con su barrera de cobertura parcial correcta;
+- **auditoría de regresión de M2 posterior a M3 (D-δ.60)**: verificado
+  contra `92e5412` (cierre de M2) que ningún contrato cerrado de M2 se
+  degradó. Los primitivos hidráulicos de M2 (`resolverBalanceDePresion`,
+  `resolverPresionResidualDeCamino`, `resolverHidraulicaDeTramo`,
+  `resolverDiametroComercialDeTramo`, Hazen/Darcy, localizadas, tees,
+  reducciones, topología, Δz, vertical por nivel, `duplicarUnidadFuncional`,
+  `reconciliarConectividadFisicaPorCambioDeArtefacto`, control de DN) son
+  **byte-idénticos**. Único cambio deliberado: `hfMedidor` manual →
+  fuente M3 por terminal (`resolverEstadoModulo2` acepta además una
+  función por terminal; escalar histórico intacto). Sin acoplamiento
+  indebido ni dependencia circular. Sin regresiones. Sin bugs.
+
+**Pendiente**, organizado en subbloques (dependencias indicadas donde
+existen; sin orden absoluto fijado entre ellos salvo lo señalado):
+
+#### M2-A — Robustecer selección comercial
+
+- selección/verificación de clase comercial (PN20/PN25 u otra),
+  considerando presión de diseño y temperatura de servicio — nunca
+  asumir PN20 suficiente por defecto (D-δ.29, bloqueada por M2-B);
+- margen de seguridad de diseño, como criterio explícito y trazable
+  (D-δ.30, requiere definir fórmula/factor — no decidido);
+- decidir granularidad de `sistemaDeTuberiaId` (global/por red/por
+  tramo) (D-δ.31, diferida hasta que exista un segundo sistema
+  comercial real que lo justifique).
+
+#### M2-B — Presión
+
+Depende de tener resuelta (o al menos delimitada) la clase comercial de
+M2-A antes de cerrar la verificación de presión-temperatura de tubería.
+
+**Ya implementado** (ver lista "Completado" arriba): motor puro de
+balance, recorrido del camino hacia el origen (CRIT-A27), desnivel Δz de
+camino, acumulación de `hf` distribuida por camino, y el orquestador
+`resolverPresionResidualDeCamino` que los compone. El balance resultante
+es hoy siempre incompleto por diseño (barrera de completitud): faltan los
+términos de M2-C.
+
+**Pendiente:**
+
+- investigación normativa/bibliográfica previa obligatoria (presión
+  mínima ERAS, antecedentes, tensión con alimentación por tanque
+  elevado — sin verificar todavía);
+- origen hidráulico (tanque elevado / presión de red / bombeo) y de
+  dónde sale `Pdisponible` — deliberadamente diferido (D-δ.36);
+- camino crítico: selección del terminal más desfavorable entre varios
+  (hoy `resolverPresionResidualDeCamino` resuelve un terminal dado, no
+  elige cuál);
+- integración de las pérdidas de M2-C (localizada + medidor) para que el
+  balance pueda cerrar como completo;
+- redimensionamiento por presión — nunca reduciendo `Qc` para forzar el
+  cumplimiento.
+
+#### M2-C — Pérdidas localizadas
+
+**Ya implementado** (ver lista "Completado" arriba): subconjunto
+inequívoco de Tabla N°7 declarable sobre `Tramo` (CRIT-A28) e integrado
+al balance con barrera de completitud correcta; grifería vs. `Pmin`
+resuelta (CRIT-A29).
+
+**Pendiente** (D-δ.33 sigue abierta para el resto):
+
+- reducciones — qué velocidad usa `Js` cuando cambia el diámetro entre
+  dos Tramos consecutivos (sin convención inequívoca todavía);
+- tees (paso recto / salida lateral / entrada central) — `RedHidraulica`
+  no tiene orientación espacial, no distingue qué `Ks` corresponde sin
+  geometría o declaración manual;
+- nunca mezclar con `longitud_m` (D-δ.22).
+
+#### M2-D — Sincronización / topología productiva
+
+**Ya implementado** (D-δ.39): alta y baja de un Artefacto en un Local ya
+físicamente conectado sincronizan `redHidraulica` automáticamente —
+`sincronizarConectividadFisicaDeArtefacto`/`quitarConectividadFisicaDeArtefacto`
+(`interfaz/paginas/`), apoyados en `hallarNodoDeInsercionDeLocal` y
+`determinarRedesFisicasPorPrecedente` (`motor/tuberias/topologia/`). Sin
+ningún concepto nuevo de "cabecera" persistida — el punto de inserción se
+deriva de la topología existente en cada llamada. Aditivo/no destructivo:
+nunca modifica `longitud_m`/`cota_m`/`accesorios` ya cargados, nunca
+elimina infraestructura compartida del Local.
+
+**Pendiente:**
+
+- primera instancia de un `artefactoId` de catálogo sin ningún precedente
+  en el proyecto (conectividad física no determinable sin inferir desde
+  catálogo, lo que violaría CRIT-A15) — queda funcionalmente creada pero
+  sin conexión física, señalada por S1/S2 como hoy;
+- ~~sincronización al **cambiar el tipo** de un artefacto ya creado~~ —
+  RESUELTO en D-δ.52 (`reconciliarConectividadFisicaPorCambioDeArtefacto`:
+  reconciliación AF/AC por conjuntos de Redes, reutilizando bootstrap/
+  retrofit/hermano de D-δ.49);
+- reconciliación general Proyecto ↔ `redHidraulica` para el resto de
+  mutaciones (más allá de alta/baja/cambio-de-tipo de Artefacto individual).
+
+#### M2-E — UX final
+
+- presentación definitiva de resultados (la tabla actual es
+  explícitamente transitoria);
+- diagnósticos, errores y advertencias con mejor trazabilidad;
+- navegación de instalación (montantes, agrupación por Local/UF).
+
+#### Documentación / exportación
+
+- memoria de cálculo de M2;
+- integración con el PDF existente;
+- trazabilidad normativa completa en el exportable.
+
+### Fase 2 / Módulo 3 (Medidores) — CERRADO (M3-F, D-δ.59)
+
+Ver `PENDIENTES-DE-ARQUITECTURA.md` D-δ.53 para el detalle. M3 está
+**separado de `RedHidraulica`** (decisión roja 1, alternativa 4): consume
+el `Qc` ya resuelto por la capa de caudal aguas arriba y produce
+`hfMedidor` como dato de borde para la capa de presión de M2 — no
+recalcula demanda, no toca la topología.
+
+**Completado:**
+
+- **M3-A** — contrato de dominio: arqueología del repo, inventario
+  normativo verificado contra el texto oficial de la Resolución 641/2023
+  (§2.6, §2.12, §2.12.1, Tabla N°6), frontera M3/M2, y resolución de las
+  tres decisiones rojas por el usuario (1: M3 separado de `RedHidraulica`;
+  2: `K=1` para el medidor individual; 3: Tabla N°6 verificada);
+- **M3-B0** — Tabla N°6 (ERAS §2.12 / ISO 4064) transcripta y verificada
+  (`normativa/eras-2023/tabla-06-medidores`), con `seleccionarFilaTabla06PorCaudal`
+  (regla literal `Qc_tabla >= Qc`, sin interpolación de DN);
+- **M3-B1** — motor puro del **medidor general**
+  (`motor/medidores/seleccionarMedidorGeneral`): `Qc` global → DN + `C` de
+  Tabla N°6 → `hfMedidor` vía `calcularPerdidaCargaMedidor` (CRIT-A25).
+  Resultado auditable; `Qc > 40 m³/h` → `fueraDeTabla06` (sin
+  extrapolar); sin verificación metrológica (ERAS no publica Q1..Q4/Qmin);
+- **M3-B2a** — motor puro del **medidor individual** por unidad funcional,
+  sobre **alcance declarado** (`motor/medidores/seleccionarMedidorIndividual`):
+  `Qunit = Σ (cantidad · qu efectivo)` con **`K=1`** (simultaneidad total,
+  §2.6 / CRIT-A33), sin `Kc`/`K`/`a`; mismo `Qunit` para selección
+  (Tabla N°6) y para el `Qcl` de la pérdida. No autodetecta cantidad ni
+  ubicación de medidores; no impone "1 AF + 1 AC por UF"; no toca
+  `RedHidraulica`. Núcleo tabular compartido con el general
+  (`resolverSeleccionYPerdidaDeMedidor`);
+- **CRIT-A32** — formaliza Tabla N°6, la regla de selección y la
+  inconsistencia oficial del ejemplo de "vivienda tipo" (empareja DN19 con
+  `C=7`; la tabla asigna `C=5` a DN19). La tabla es la fuente de verdad.
+- **CRIT-A33** — caudal de diseño del medidor individual por simultaneidad
+  total (`K=1`): prevalece §2.6 (regla dedicada) sobre §2.12.1.e (remisión
+  genérica). La contradicción interna de la Guía queda documentada.
+- **M3-B2b** — cardinalidad y alcance de los medidores individuales
+  (`motor/medidores/resolverAlcancesDeMedidoresIndividuales`, CRIT-A34):
+  de `{ esPropiedadHorizontal, tipoProvisionACSPorUF }` + la conectividad
+  física real → lista de alcances (input de B2a). ACS **individual** → 1
+  medidor AF por UF con `quTotal` de todo el consumo (conservación de
+  masa); ACS **central** → medidor AF + medidor AC (sólo si hay consumo
+  AC). El tipo de ACS es **configuración declarada por UF**, no inferida
+  de la topología (figuras 2.2–2.7 y 2.14–2.16 reconstruidas, D-δ.54). Sin
+  PH → 0 medidores. No persiste nada.
+- **CRIT-A34** — cardinalidad y alcance de medidores individuales:
+  criterio físico individual/central, identidad `UF + servicio`, universo
+  de consumos (computables + conectados; CRIT-A8 diferido).
+- **M3-C** — `EstadoModulo3` + configuración persistida (D-δ.55):
+  `Proyecto.configuracionMedidores?` (`esPropiedadHorizontal`,
+  `tipoProvisionACS` global + override por UF; optativo, sin migración);
+  `resolverEstadoModulo3` (`motor/modulo3/`) orquesta general + B2b + B2a
+  y clasifica en `noIniciado` / `error` / `incompleto` / `evaluado`.
+  `'evaluado'` = todos los medidores requeridos seleccionados (**sin**
+  `todosCumplen` — no hay verificación metrológica todavía); `Qc > 40
+  m³/h` es `'incompleto'`, nunca `'error'`. `validarConfiguracionMedidores`
+  integrado en `validarProyecto`.
+- **M3-D parte 1** — panel "Módulo 3 — Medidores" en la one-page (D-δ.56):
+  configuración persistida vía UI (propiedad horizontal, provisión de ACS
+  global + override por UF), tablas de medidor general e individuales,
+  `EstadoModulo3` visible, progressive disclosure Rápido/Profesional
+  (derivado del modo de trabajo de M2, sin eje nuevo). Caudal `> 40 m³/h`
+  → `'incompleto'`, nunca DN inventado.
+- **M3-D parte 2** — override manual de medidor recomendado vs. adoptado
+  (D-δ.57): `configuracionMedidores` gana `medidorGeneralAdoptadoDN?` y
+  `medidoresIndividualesAdoptadosDN?` (Record por clave `UF|servicio`);
+  `resolverMedidorAdoptado` (puro) hace el DN adoptado **hidráulicamente
+  efectivo** (C de esa fila, `hf` recalculada, `Q` intacto);
+  `resolverEstadoModulo3` los aplica; `ResultadoModulo3` pasa a
+  `recomendado`+`adoptado` por medidor; control ↓/DN/↑/Auto por Tabla N°6;
+  `criterioSeleccion: 'satisface' | 'inferiorAlRecomendado'` sin
+  `todosCumplen`. Overrides huérfanos ignorados al leer.
+- **M3-E** — integración `hfMedidor` M3→M2 (D-δ.58): input provisional del
+  Panel de Presión eliminado; `resolverPerdidasDeMedidoresParaTerminal`
+  (puro) resuelve qué medidores pertenecen al camino de cada terminal
+  (general solo en alimentación directa; individual de ACS individual
+  aplica a AF **y** AC de la UF; ACS central AF/AC separados; aislamiento
+  por UF); `resolverEstadoModulo2` acepta `hfMedidor` por terminal
+  (`resolverPresionResidualDeCamino` intacto); `EstadoModulo3.incompleto`
+  expone `parcial`; falta de dato → `indeterminado`, nunca 0; cero
+  determinado (tanque + no PH) sí es 0.
+- **M3-F** — auditoría end-to-end de M3 y cierre funcional (D-δ.59):
+  dominio (Tabla N°6, medidor general, individuales `K=1`, cardinalidad,
+  ACS individual/central), configuración persistida y backward
+  compatibility, UI operable (recomendado/adoptado, ↑/↓/Auto), integración
+  M3→M2 (directa/tanque, aislamiento por UF, indeterminado ≠ 0, input
+  provisional eliminado), presión (`Presidual`/margen/crítico) y
+  reactividad. **Verificación de navegador real** (Playwright, dev server):
+  17/17 smoke checks, consola sin errores/warnings. **Sin bugs.** Ajustes
+  menores: 1 comentario obsoleto y 2 tests de matriz añadidos (directa +
+  terminal AC, ACS individual y central). **M3 CERRADO** para el alcance
+  actual.
+
+**Deuda registrada (no bloquea el cierre):**
+
+- **Tabla N°8** (Anexo A de la Guía, ampliación de rango de Qc) — es una
+  lámina no transcripta; `Qc > 40 m³/h` sigue como `fueraDeTabla06` /
+  `incompleto`, sin extrapolar. Se incorpora si aporta umbrales por
+  encima de los 40 m³/h de Tabla N°6;
+- **CRIT-A8 en el universo de consumos de B2b** — no se detectó un caso
+  real donde M3 dimensione un medidor con consumos que M1/M2 considere no
+  computables (mismo filtro `origen === 'normativo'` + conexión física);
+  queda como refinamiento sin impacto en los flujos actuales;
+- **Poda activa de overrides de medidor huérfanos** — un round-trip
+  ACS central→individual→central (o PH off→on) con un override de DN
+  puesto en el medio reactiva ese override al reaparecer el alcance. El
+  valor reaplicado es la decisión previa del propio usuario (no basura) y
+  mientras el alcance no existe el override se ignora sin romper ni
+  contaminar. Podar requeriría pasar topología a los updaters de
+  configuración (hoy transformaciones puras de config);
+- **Reporting visual de M2/M3** — la memoria PDF (`generarDocumentoPdf`,
+  pdfMake) hoy sólo cubre Módulo 1; M2 y M3 no aparecen. El panel M3 en el
+  DOM no rompe la impresión (el PDF no lee el DOM). Rediseño del informe
+  fuera de alcance de M3-F;
+- **Infra persistente de Playwright** — el navegador se usó vía instalación
+  transitoria sin `--save`; `package.json` / `package-lock.json` intactos.
+
+### Fase 3 / Módulo 4 (Reserva / Tanques) — CERRADO (M4-H, D-δ.69)
+
+Primer módulo del bloque de reserva. Detalle en
+`PENDIENTES-DE-ARQUITECTURA.md` D-δ.61 (contrato) y D-δ.62 (motor);
+auditoría end-to-end y cierre en D-δ.69.
+
+**Completado:**
+
+- **M4-A** (D-δ.61) — investigación normativa + contrato de dominio,
+  contra la Guía ERAS 2023 / Resolución 641/2023. Las dos decisiones
+  rojas quedaron **resueltas por el usuario**: (1) fórmula de reserva por
+  déficit de caudal, con Tablas N°3/N°4 oficiales (→ CRIT-A35); (2)
+  configuración de abastecimiento persistida global del proyecto
+  (`configuracionAbastecimiento?: { esquema: 'directa' | 'tanqueElevado' |
+  'cisternaBombeoElevado' }`, optativa, backward-compatible; M2 deriva su
+  origen del esquema; `cisternaBombeoElevado` no es un tercer origen
+  terminal). Esquemas mixtos por sector quedan como alcance futuro.
+- **M4-B** (D-δ.62) — motor puro `calcularReservaDiaria`
+  (`motor/reserva/`): `Dc = max(0, Qc − Qconexión)`,
+  `VReservaDiseño = Dc·3,6·Tc` con `1 ≤ Tc ≤ 4 h` (CRIT-A35). `Qc` real de
+  M1 sin redondear; `qConexion_lps` como input explícito (fuente futura:
+  Tabla N°1 §2.7). Goldens G3 (Tabla N°3, 0,77 m³) y G4 (Tabla N°4,
+  ≈ 2,82 m³) componiendo M1 real.
+- **M4-C** (D-δ.63) — `Proyecto.configuracionAbastecimiento?`
+  (`{ esquema, periodoConsumoMaximo_h? }`, global, optativa,
+  backward-compatible; `Tc` persistido porque es decisión de proyecto) +
+  `validarConfiguracionAbastecimiento` integrada en `validarProyecto` +
+  `resolverEstadoModulo4` puro (`motor/modulo4/`). `EstadoModulo4` =
+  `noIniciado | error | incompleto | evaluado`; `ResultadoModulo4`
+  discriminado (`sinReservaPorTanque` para `directa` vs `reservaCalculada`
+  para esquemas con tanque — un tanque con `déficit 0` sí produce
+  `reservaCalculada` V=0, distinto de `directa`). Compone el `Qc` real de
+  M1; `qConexion_lps` sigue como boundary input explícito (Tabla N°1 no
+  tiene resolver todavía). Sin UI, sin integración M4→M2.
+- **M4-D1** (D-δ.64) — resolver puro de Tabla N°1 (§2.7, CRIT-A36):
+  `resolverGastoTabla01({ diametroNominal_m, presionCalculo_m })` →
+  `resuelto | fueraDeRangoDePresion | diametroNoTabulado`. Interpolación
+  lineal **sólo en la presión** (DN es clave discreta), sin extrapolación
+  fuera de `[4, 35]` m. `esDiametroAdmisibleComoConexion` (DN tabulado ∧
+  ≥ 0,019 m). Dataset de Fase 1 auditado (coherente; una celda con
+  formato anómalo, sin cambio). Goldens G5/G6.
+- **M4-D2** (D-δ.65) — cadena completa `Proyecto → Qconexión → reserva`.
+  `ParametrosProyecto` gana `diametroNominalConexion_m?` y
+  `desnivelConexion_m?` (desnivel **firmado** respecto de la acera;
+  optativos, backward-compatible, sin default).
+  `resolverPresionDeCalculoDeConexion` (`presionCalculo_m =
+  presionSobreAcera_m − desnivelConexion_m`, CRIT-A37).
+  `validarParametrosDeConexion` en `validarProyecto` (DN13 / desnivel no
+  finito → error; ausencia → no es problema). `resolverEstadoModulo4`
+  **elimina el boundary `qConexion_lps`**: deriva el gasto vía §2.7 +
+  Tabla N°1; presión de cálculo fuera de `[4, 35]` m → `incompleto`
+  (`presionConexionFueraDeTabla`), nunca error. `ResultadoModulo4` gana
+  traza `conexion` auditable. Goldens G3/G4 **end-to-end** (sin inyectar
+  `Qconexión`). Auto-derivar el desnivel desde M2 queda diferido (el
+  "pelo de agua mínimo" de M2 ≠ cota de entrada del tanque).
+- **M4-E** (D-δ.66) — reserva **requerida** vs **adoptada** + distribución
+  §2.11.3. `ConfiguracionDeAbastecimiento` gana
+  `volumenTanqueElevadoAdoptado_m3?` y `volumenTanqueBombeoAdoptado_m3?`
+  (m³, optativos, sin default, sin catálogo comercial; validación
+  estructural: no finito / < 0 → error). `resolverAdopcionDeReserva`
+  (puro): `directa` → `noAplica`; `tanqueElevado` → `sinAdopcion` /
+  `verificada` (suficiente/insuficiente, con `diferencia_m3`);
+  `cisternaBombeoElevado` → `adopcionIncompleta` / `verificadaDistribuida`
+  con **tres** criterios independientes (cada tanque ≥ `VRTD/3`, total ≥
+  `VRTD`) — sin reparto fijo, sin suma exacta, sobredimensionamiento OK.
+  `ResultadoModulo4.reservaCalculada.adopcion` **no degrada**
+  `EstadoModulo4` (evaluado ≠ suficiente). Reactivo. CRIT-A38.
+- **M4-F** (D-δ.67) — Panel de Módulo 4 (Abastecimiento y reserva) en la
+  one-page, después de M3. `PanelDeModulo4.tsx` + `humanizarModulo4.ts`,
+  consume `resolverEstadoModulo4` sin recalcular nada; Rápido/Profesional
+  vía `resolverModoDeTrabajo`. Edita esquema, Tc, DN de conexión (select
+  sin DN13), presión sobre acera (nuevo `conPresionSobreAcera` — este
+  campo no tenía editor; una sola fuente), desnivel firmado (etiqueta
+  contextual), capacidades adoptadas. Muestra presión de cálculo,
+  Qconexión (+ interpolación), RTD protagonista, verificación §2.11.3;
+  `directa` = "no aplica" sin V=0 ni §2.8; adopción pendiente/insuficiente
+  **no degrada** "Evaluado". 20 tests SSR/unit + smoke Playwright 24/24,
+  consola limpia, manifests intactos.
+- **M4-G** (D-δ.68) — `configuracionAbastecimiento.esquema` como **fuente
+  única** del origen hidráulico de M2. `resolverOrigenHidraulicoEfectivo`
+  (puro, 3→2: `directa`→directa; `tanqueElevado` y `cisternaBombeoElevado`
+  → tanque elevado). El Panel de Presión de M2 **retira** su selector
+  local `tipoAlimentacion` y el input manual de Pdisponible: deriva
+  `presionDisponible_mca` (0 / `presionSobreAcera_m` — la misma magnitud,
+  D-δ.38 — / undefined) y el origen para M3-E desde el esquema. Esquema
+  ausente/corrupto → verificación de presión `'incompleto'` (resto de M2
+  sigue calculándose). Regresión numérica: directa y tanque byte-idénticos
+  al histórico; `cisternaBombeoElevado` ≡ `tanqueElevado`. Primitivas de
+  M2 sin tocar; sin imports de `motor/modulo4` en `motor/tuberias`.
+
+- **M4-H** (D-δ.69) — auditoría end-to-end y **cierre de Módulo 4**. Se
+  auditaron los cuatro contratos de dominio (CRIT-A35..A38) contra los
+  goldens oficiales sin redondeo, `EstadoModulo4` y su precedencia, la
+  integración M1→M4 / M4→M2 (origen, fuente única) / M3→M2 por origen, la
+  ausencia de imports de M4 en las primitivas hidráulicas, la regresión
+  histórica de M2 (65 archivos / 561 tests) y un smoke de navegador de
+  37/37 checks con consola limpia. **1 bug de UX corregido** (commit
+  funcional aparte): `presionSobreAcera_m` no tenía editor en el esquema
+  `directa` — el input sólo se montaba en la rama con tanque, pese a que
+  en `directa` ese valor es la presión disponible de la raíz del balance
+  de M2. Sin cambios de dominio, fórmula ni arquitectura. Suite
+  1208 → 1209.
+
+**Deuda futura post-M4** (no bloquea el cierre): auto-derivación
+geométrica del desnivel de conexión por esquema; obligación de reserva
+por §2.8 independiente del déficit; sugerencia comercial de capacidad
+adoptada; división en secciones iguales de tanques ≥ 4.000 L (§2.11);
+geometría / cota del tanque / bombas / presurizadores; reporting visual
+M1–M4 en la memoria PDF.
+
+### Fase 3 / Auditoría integral M1–M4 — CERRADA (D-δ.70)
+
+- **D-δ.70** — auditoría transversal pre-rediseño. Verifica que un
+  Proyecto real atraviesa M1→M2→M3→M4 de forma coherente, reactiva y sin
+  contaminación cruzada, replicando el cableado de la UI. Entregables:
+  `BASELINE-FUNCIONAL-M1-M4.md` (snapshot canónico, matriz de
+  sensibilidad, matriz de persistencia, fronteras, contratos congelados,
+  deudas), `src/interfaz/paginas/proyectoDeEjemplo.ts` (fixture extraído
+  sin cambios de contenido) y `src/auditoriaTransversalM1M4.baseline.test.ts`
+  (12 casos: sensibilidad + no contaminación + round-trip + backward
+  compatibility). Hallazgos clave: 0 imports cruzados entre módulos del
+  motor; el cableado M3→M2 / M4→M2 vive en `interfaz/paginas`; toda la
+  app tiene 2 `useState` (Proyecto + un modal) y los paneles M1–M4 tienen
+  **cero** estado local → una sidebar con remontaje condicional no pierde
+  datos. Sin bugs. Suite 1209 → 1221; smoke de navegador transversal
+  26/26, consola limpia.
+- **Deudas nuevas**: `parametros.alturaArtefactoMasDesfavorable_m` es un
+  campo requerido sin consumidor en `motor/` (candidato a eliminar);
+  `calcularCotaHidraulicaDefaultDeNivel` (constante normativa) vive en
+  `interfaz/` y la importa un test de `motor/` (mover a `normativa/`).
+
+**CORE FUNCIONAL M1–M4: CONGELADO PARA REDISEÑO.** Los contratos del §7 de
+`BASELINE-FUNCIONAL-M1-M4.md` (tipos de dominio, orquestadores
+`resolverEstadoModuloX`, motores puros, mapeos, updaters puros, CRIT
+firmes, reglas de "no fabricar") sólo pueden envolverse, no reescribirse,
+salvo bug inequívoco o decisión roja explícita.
+
+### Fase 4 / Rediseño de experiencia — EN CURSO
+
+- **D-δ.71** — ajustes de experiencia sobre el core congelado, sin
+  fórmulas ni dominio nuevos:
+  - **M4 en litros**: la UI de Módulo 4 muestra y edita reserva y
+    capacidades **en litros** (`1 m³ = 1000 L`); el core sigue
+    íntegramente en m³ (`volumenReservaDiseno_m3`,
+    `volumenTanque*Adoptado_m3`, CRIT-A35/A38, goldens, persistencia sin
+    cambios). Conversión en el borde de la UI
+    (`humanizarModulo4.formatearVolumen_L` / `litrosParaInput` /
+    `m3DesdeLitros`), sin doble persistencia y sin redondeo de cálculo.
+    Regresión blindada: core 1 m³ ↔ UI 1000 L. Suite 1221 → 1225; smoke
+    16/16, consola limpia.
+  - **Patrón "Iniciar Módulo 3"**: auditado y **conservado sin cambios**.
+    Codifica una distinción real (`configuracionMedidores` ausente ≠
+    configuración explícita); M3 requiere legítimamente una acción de
+    inicio porque su primera decisión (propiedad horizontal) tiene un
+    valor con aspecto de default, a diferencia de M4 que se inicia al
+    elegir esquema. No forzar la homogeneización con M4.
+
+- **D-δ.72 — UI-01A: arquitectura de navegación.** Flujo visual =
+  1 Demanda → 2 Tuberías → 3 Medidores → 4 Abastecimiento → 5 Verificación
+  hidráulica (criterio **UI-CRIT-01**). `PanelDePresionDeModulo2` se
+  saca de la sección de Tuberías y pasa a etapa final después de M4,
+  montado **una sola vez**; sigue siendo dominio de Módulo 2 (no hay
+  `Modulo5`). La sección 2 queda centrada en dimensionamiento
+  ("Módulo 2 — Dimensionamiento de tuberías"), corrigiendo la UX
+  engañosa de "M2 incompleto" por faltar la verificación. Índice lateral
+  `<nav>` con 5 anchors (`#demanda`, `#tuberias`, `#medidores`,
+  `#abastecimiento`, `#verificacion-hidraulica`): scroll a anchors, **no
+  un router**, one-page, módulos montados. `navegacionUI.css` (primer
+  `.css` del repo) sólo estructural. Baseline transversal 12/12
+  byte-idéntico; suite 1225 → 1232; smoke 25/25, consola limpia.
+
+**Siguiente slice (NO iniciado): UI-01B — sistema visual transversal.**
+Estética verde de referencia, jerarquía, cards, superficie/spacing,
+tipografía, botones, inputs, tablas, estados, sidebar visual definitiva,
+sticky summary derivado, responsive pulido. Mantiene: core M1–M4
+congelado + arquitectura UI-01A.
+
+**Hallazgos de M4-A:**
+
+- **Objeto de cálculo**: el **Volumen de Reserva Diaria requerido**
+  (volumen útil, litros). No dimensiona geometría, cota del tanque,
+  bombas ni presurización.
+- **Método normativo** (§2.10.2, "Alimentación por tanques y
+  determinación del Volumen de Reserva Diaria"): balance de caudales —
+  déficit `Dc = Qc − Qconexión` cubierto sobre un período de consumo pico
+  `T` que el proyectista elige entre 1 h y 4 h. **No** usa población,
+  dotación per cápita, dormitorios ni superficie (la dotación 500/350/150
+  L/hab·día de §2.9.1.1 es para conjuntos urbanos, no para reserva
+  domiciliaria).
+- **Input primario**: el `Qc` global del proyecto de M1 (CRIT-A5),
+  reutilizado sin reimplementar el pipeline de demanda — igual que
+  `resolverEstadoModulo3`.
+- **§2.8**: tanque de reserva **obligatorio** para el uso residencial
+  dominante de IUAS. Alimentación directa sin reserva sólo para subsuelo
+  y planta baja no residencial.
+- **§2.11.3**: si hay tanque inferior (cisterna / bombeo), aloja **mínimo
+  1/3** de la Reserva Total Diaria; el resto en el elevado.
+- **Piezas del repo ya listas**: `tabla-01-gastos-conexion` (§2.7, gasto
+  de conexión por DN y presión — sin consumidor todavía),
+  `presionSobreAcera_m`, el `Qc` global, el patrón `EstadoModulo3`,
+  `resolverModoDeTrabajo` (modo de trabajo transversal, reutilizable).
+
+**Explícitamente fuera de alcance de M4**: geometría/cota del tanque,
+catálogo comercial de tanques, topología de múltiples tanques, selección
+de bombas, presurizadores, `hfEquipoACS`, reporting PDF de M4.
+
+## Deuda técnica conocida (no bloqueante, registrada explícitamente)
+
+- `docs/adr/` y `docs/arquitectura/` existen como carpetas vacías, sin
+  ningún documento real todavía.

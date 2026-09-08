@@ -7778,21 +7778,3 @@ montados, sin router. Core M1–M4 sin cambios (baseline transversal
 byte-idéntico). Siguiente slice **UI-01B** (sistema visual transversal:
 estética, cards, tipografía, sidebar visual definitiva, sticky summary) --
 NO iniciado.
-
-## Regla — `resguardo-documentacion/` es inmutable
-
-Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son
-**fotografías documentales históricas e inmutables**. No se editan, no se
-actualizan, no se corrigen ni se sincronizan con la documentación activa,
-aunque cambie el `ROADMAP`, la arquitectura, los criterios o la UI, o se
-descubra que un documento quedó obsoleto. Cada carpeta preserva las
-rutas relativas originales bajo `origen/` y un `MANIFEST-SHA256.txt` para
-verificar integridad.
-
-Si se necesita una nueva fotografía, se crea **otra** carpeta de snapshot
-(`resguardo-documentacion/<nueva-fecha>_<hito>/`); nunca se sincronizan
-hacia atrás las anteriores.
-
-Primer snapshot: `resguardo-documentacion/2026-09-08_pre-UI-01B/` (estado
-documental del core M1–M4 congelado + auditoría transversal D-δ.70 +
-UI-01A D-δ.72, previo a UI-01B).
