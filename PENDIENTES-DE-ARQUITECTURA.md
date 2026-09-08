@@ -6656,3 +6656,178 @@ independiente; `incompleto` ante datos ausentes o presión fuera de tabla;
 `error` ante DN/desnivel inválidos; goldens G3/G4 end-to-end +
 interpolación + descenso. Baseline verde. Siguiente slice: **UI de M4**
 (M4-D) **o** auto-derivación geométrica del desnivel por esquema.
+
+## D-δ.66 -- M4-E: reserva requerida vs adoptada + distribución entre tanques (§2.11.3) -- CERRADA
+
+Incremento **funcional**. Cierra el dominio de **capacidad adoptada** y,
+para `cisternaBombeoElevado`, su **distribución física** entre tanque de
+bombeo (inferior) y de reserva (elevado). Sin UI, sin integración con M2,
+sin catálogo comercial, sin bombas/geometría.
+
+### Interpretación de §2.11.3 (cerrada)
+
+Texto oficial: *"Los tanques de bombeo y reserva deben poseer un volumen
+mínimo de 1/3 de la Reserva Total Diaria."* Interpretación adoptada
+(CRIT-A38), **no** un reparto único:
+
+- **cada** tanque ≥ `VRTD / 3` (medido contra la Reserva Total Diaria,
+  **no** contra el volumen adoptado total);
+- [FÍSICA] capacidad total adoptada ≥ `VRTD`;
+- **no** se exige suma exacta ni reparto fijo 1/3 + 2/3; el
+  sobredimensionamiento no penaliza.
+
+Sin decisión roja: el texto verbatim es consistente con esta lectura; no
+exige igualdad de la suma ni un reparto fijo; "tanque de reserva"
+corresponde al tanque elevado del esquema; no hay semántica previa de
+capacidad de tanque en el repo; la persistencia no exige una entidad
+topológica nueva.
+
+### Modelo -- `ConfiguracionDeAbastecimiento` (dos campos nuevos)
+
+```ts
+volumenTanqueElevadoAdoptado_m3?: number   // almacenamiento SUPERIOR
+volumenTanqueBombeoAdoptado_m3?: number     // almacenamiento INFERIOR / cisterna
+```
+
+Capacidades **adoptadas** por el proyectista (m³). Decisiones de proyecto
+→ persistidas; **nunca** la RTD calculada, sus tercios, sumas ni estados
+de verificación. Optativas, **sin default, sin catálogo comercial** (el
+usuario declara la capacidad real). `0` es estructuralmente válido;
+ausencia ≠ 0. Un campo que no corresponde al esquema actual se **ignora**
+en el cálculo (no lo invalida) y **no se poda** de forma destructiva al
+cambiar de esquema — una decisión previa del mismo componente físico
+reaparece si se vuelve a ese esquema.
+
+### Validación -- `validarConfiguracionAbastecimiento` (ampliada)
+
+Dos códigos nuevos (`error`):
+`configuracionAbastecimientoVolumenTanqueElevadoInvalido` /
+`...VolumenTanqueBombeoInvalido` -- capacidad presente pero **no finita o
+< 0** (`0` válido). Chequeo **independiente del esquema** (un volumen en
+`directa` o el de bombeo en `tanqueElevado` no invalida el proyecto: no
+aplica, no es corrupción). **`adoptado < requerido` NO es un problema de
+validación** -- es una verificación derivada. Ausencia tampoco.
+
+### Función pura -- `resolverAdopcionDeReserva` (`motor/modulo4/`)
+
+```ts
+resolverAdopcionDeReserva({ esquema, volumenReservaRequerido_m3,
+  volumenTanqueElevadoAdoptado_m3?, volumenTanqueBombeoAdoptado_m3? })
+  → ResultadoAdopcionDeReserva
+```
+
+Discriminado, comparaciones **exactas** `>=` (sin tolerancia ni redondeo
+-- las capacidades son valores declarados):
+
+- `directa` → `{ tipo: 'noAplica' }` (ignora los volúmenes; **no** se
+  fabrica requerido/adoptado = 0).
+- `tanqueElevado`:
+  - sin capacidad → `sinAdopcion` (`volumenRequerido_m3`).
+  - con capacidad → `verificada`: `diferencia_m3 = adoptado − requerido`,
+    `estado = adoptado >= requerido ? 'suficiente' : 'insuficiente'`.
+    **Sin mínimo individual de 1/3** (no hay sistema dividido); el volumen
+    de bombeo se ignora.
+- `cisternaBombeoElevado`:
+  - falta uno o ambos → `adopcionIncompleta` (`faltaTanqueBombeo` /
+    `faltaTanqueElevado`).
+  - ambos → `verificadaDistribuida` con `minimoPorTanque_m3 = VRTD/3`,
+    `totalAdoptado_m3`, y **tres verificaciones independientes**:
+    `tanqueBombeoCumpleMinimo` (`VTB ≥ VRTD/3`),
+    `tanqueElevadoCumpleMinimo` (`VTR ≥ VRTD/3`), `totalCumple`
+    (`VTB+VTR ≥ VRTD`). `estado = 'suficiente'` **⇔ las tres**
+    verdaderas.
+
+Casos discriminantes verificados: total OK pero inferior < 1/3 →
+insuficiente; ambos ≥ 1/3 pero total < VRTD → insuficiente; inferior 25 %
+del total adoptado pero ≥ VRTD/3 → suficiente (protege contra medir
+contra el total en vez de la RTD); sobredimensionado → suficiente;
+`VRTD = 0` → mínimos/total triviales, sin afirmar "tanque no requerido".
+
+### `ResultadoModulo4` + `EstadoModulo4`
+
+`ResultadoModulo4.reservaCalculada` gana `adopcion: ResultadoAdopcionDeReserva`
+(computado desde `configuracion` + `reserva.volumenReservaDiseno_m3`).
+`directa` sigue siendo `sinReservaPorTanque` **sin** bloque `adopcion`.
+
+**`EstadoModulo4` NO se degrada por falta de adopción.** Un esquema con
+tanque y reserva calculada queda `'evaluado'` aunque `adopcion.tipo` sea
+`sinAdopcion` / `adopcionIncompleta`. Separar computabilidad ("la reserva
+requerida es 0,771 m³") de decisión de proyecto ("qué tanque se adopta")
+-- mismo patrón que M3 (evaluado ≠ cumple). `adopcion.estado =
+'suficiente'` sólo dice que la capacidad cubre la RTD calculada (y los
+mínimos de §2.11.3), **no** cumplimiento normativo global (§2.8 aparte;
+sin `cumpleNorma` / `instalacionValida`).
+
+### Reactividad
+
+Todo derivado: cambiar `Qc` / `Pacera` / DN / desnivel / `Tc` recalcula
+`VRTD`, sus tercios y las verificaciones -- la **misma** capacidad
+adoptada puede pasar de `suficiente` a `insuficiente` (test:
+`volumenTanqueElevadoAdoptado_m3 = 1 m³` con `Tc = 1 h` → suficiente,
+`Tc = 4 h` → insuficiente). Nunca se persiste `cumple`.
+
+### Updaters -- `actualizarConfiguracionAbastecimiento` (ampliado)
+
+`conVolumenTanqueElevadoAdoptado` / `conVolumenTanqueBombeoAdoptado`
+(`number | undefined`, sin clamp/validación/default; se puede limpiar un
+valor persistido aunque el esquema actual no contenga ese tanque; `throw`
+si M4 no iniciado). `conEsquemaDeAbastecimiento` conserva ambas
+capacidades entre esquemas con tanque y las descarta al pasar a `directa`
+(§13: identificadas por componente físico, nunca transformadas, nunca
+usadas cuando no aplican; sin poda destructiva).
+
+### Tests (38 nuevos → 1176/1176, 126 archivos)
+
+- `motor/modulo4/resolverAdopcionDeReserva.test.ts` -- `directa`/`noAplica`;
+  tanque elevado T1..T5 (sin adopción, insuficiente, exacto,
+  sobredimensionado, VRTD=0); dos tanques C1..C9 + VRTD=0; el volumen de
+  bombeo se ignora en `tanqueElevado`.
+- `validacion/configuracionAbastecimiento/index.test.ts` -- V1..V8:
+  ausentes / 0 / positivo válidos; negativo / `NaN` / `±Infinity` error;
+  volumen de bombeo en `tanqueElevado` y volúmenes en `directa` no
+  invalidan; `adoptado < requerido` no es problema; integración en
+  `validarProyecto`.
+- `motor/modulo4/resolverEstadoModulo4.test.ts` -- sin adopción →
+  `evaluado` + `sinAdopcion`; adopción suficiente con `diferencia_m3 ≈
+  +0,2288`; cisterna incompleta → distribuida suficiente → distribuida
+  insuficiente (inferior < 1/3 con total OK), todas `evaluado`;
+  reactividad Tc; `directa` con volúmenes → `sinReservaPorTanque` sin
+  `adopcion`.
+- `interfaz/paginas/actualizarConfiguracionAbastecimiento.test.ts` --
+  fijar/quitar sin clamp; `0` válido; `throw` con M4 no iniciado; limpiar
+  aunque el esquema no contenga el tanque; conservación entre esquemas y
+  descarte en `directa`.
+
+### Verificación
+
+`vitest` 1176/1176 (126 archivos; +38 tests, +1 archivo), `tsc -b`
+verde, `npm run build` verde, `eslint .` 11 baseline / 0 nuevos, working
+tree limpio. `CASOS-GOLDEN.md` sin cambios (no aparece un golden
+normativo nuevo; el "1 m³ a ejecutar" de Tabla N°3 no es una regla
+general).
+
+### Qué NO se hizo
+
+Default de reparto 1/3 + 2/3 (la UI podrá sugerirlo); porcentajes
+persistidos (se derivan); geometría del tanque (ancho/alto/nivel
+mínimo/cámara de aire); equipo de bombeo (caudal/potencia/ciclos/
+flotantes -- el tanque inferior es sólo almacenamiento acá); división en
+secciones iguales de tanques ≥ 4.000 L (§2.11, constructivo);
+verificación de obligatoriedad de §2.8; sugerencia comercial de
+capacidad; UI de M4; integración M4→M2; reporting.
+
+### Decisiones rojas
+
+Ninguna. Ver "Interpretación de §2.11.3".
+
+### Estado
+
+**D-δ.66 -- CERRADA.** Capacidades adoptadas persistidas (optativas,
+backward-compatible, validación estructural); `resolverAdopcionDeReserva`
+puro (requerido vs adoptado; un tanque; dos tanques con los tres
+criterios de §2.11.3; sobredimensionamiento permitido; sin igualdad
+artificial; `VRTD = 0` tratado); `ResultadoModulo4.adopcion` sin degradar
+`EstadoModulo4`; reactividad. Baseline verde. **Con esto M4 tiene todos
+los datos para diseñar el Panel M4 (M4-D) sin inputs provisionales.**
+Siguiente slice: **UI de M4** o auto-derivación geométrica del desnivel
+por esquema.

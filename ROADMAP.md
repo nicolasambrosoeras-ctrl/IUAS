@@ -423,14 +423,27 @@ Primer módulo del bloque de reserva. Detalle en
   traza `conexion` auditable. Goldens G3/G4 **end-to-end** (sin inyectar
   `Qconexión`). Auto-derivar el desnivel desde M2 queda diferido (el
   "pelo de agua mínimo" de M2 ≠ cota de entrada del tanque).
+- **M4-E** (D-δ.66) — reserva **requerida** vs **adoptada** + distribución
+  §2.11.3. `ConfiguracionDeAbastecimiento` gana
+  `volumenTanqueElevadoAdoptado_m3?` y `volumenTanqueBombeoAdoptado_m3?`
+  (m³, optativos, sin default, sin catálogo comercial; validación
+  estructural: no finito / < 0 → error). `resolverAdopcionDeReserva`
+  (puro): `directa` → `noAplica`; `tanqueElevado` → `sinAdopcion` /
+  `verificada` (suficiente/insuficiente, con `diferencia_m3`);
+  `cisternaBombeoElevado` → `adopcionIncompleta` / `verificadaDistribuida`
+  con **tres** criterios independientes (cada tanque ≥ `VRTD/3`, total ≥
+  `VRTD`) — sin reparto fijo, sin suma exacta, sobredimensionamiento OK.
+  `ResultadoModulo4.reservaCalculada.adopcion` **no degrada**
+  `EstadoModulo4` (evaluado ≠ suficiente). Reactivo. CRIT-A38.
 
 **Pendiente:** M4-D (UI Rápido/Profesional — editar esquema, Tc, DN de
-conexión, desnivel) → auto-derivación geométrica del desnivel por
-esquema → integración M4→M2 (derivar el origen de M2 desde el esquema y
-retirar el selector efímero del Panel de Presión, con regresión propia) →
-auditoría. También: volumen adoptado vs requerido; reparto tanque de
-bombeo / de reserva (§2.11.3); obligación de reserva por §2.8
-independiente del déficit.
+conexión, desnivel, capacidades adoptadas) → auto-derivación geométrica
+del desnivel por esquema → integración M4→M2 (derivar el origen de M2
+desde el esquema y retirar el selector efímero del Panel de Presión, con
+regresión propia) → auditoría. También: sugerencia comercial de
+capacidad; obligación de reserva por §2.8 independiente del déficit;
+división en secciones iguales de tanques ≥ 4.000 L; geometría/bombas;
+reporting.
 
 **Hallazgos de M4-A:**
 
