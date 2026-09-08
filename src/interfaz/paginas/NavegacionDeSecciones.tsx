@@ -4,6 +4,7 @@
 // anchors (`<a href="#...">`), NO un router: no cambia de ruta ni
 // desmonta módulos; todas las etapas permanecen montadas.
 import { useEffect, useState, type ReactNode } from 'react'
+import { EncabezadoDeEtapa } from './EncabezadoDeEtapa'
 
 // Las cinco etapas del flujo de trabajo del proyectista (UI-CRIT-01):
 // Demanda → Tuberías → Medidores → Abastecimiento → Verificación
@@ -124,28 +125,40 @@ export function NavegacionDeSecciones() {
 
 // Wrapper de una etapa del flujo: sólo aporta el anchor estable (`id`), un
 // nombre accesible y el `scroll-margin-top` (vía la clase CSS). NO impone
-// un encabezado: los paneles de M1–M4 ya traen su propio <h2>. Para la
-// etapa 5 (que envuelve un panel sin <h2> propio) se pasa `titulo`.
+// un encabezado: los paneles de M1–M4 ya traen su propio <h2> (vía
+// EncabezadoDeEtapa dentro de su <summary>). Para la etapa 5 (que envuelve
+// un panel sin <h2> propio) se pasa `numero` + `titulo` y este wrapper
+// renderiza el mismo patrón de cabecera de etapa (sección 13 del brief).
 export function SeccionDeTrabajo({
   id,
   nombreAccesible,
+  numero,
   titulo,
   descripcion,
   children,
 }: {
   id: string
   nombreAccesible: string
+  numero?: number
   titulo?: string
   descripcion?: string
   children: ReactNode
 }) {
   return (
     <section id={id} className="seccion-de-trabajo" aria-label={nombreAccesible}>
-      {titulo !== undefined ? <h2>{titulo}</h2> : null}
-      {descripcion !== undefined ? (
-        <p>
-          <small>{descripcion}</small>
-        </p>
+      {numero !== undefined && titulo !== undefined ? (
+        <div className="etapa-cabecera etapa-cabecera--final">
+          <EncabezadoDeEtapa numero={numero} titulo={titulo} descripcion={descripcion} />
+        </div>
+      ) : titulo !== undefined ? (
+        <>
+          <h2>{titulo}</h2>
+          {descripcion !== undefined ? (
+            <p>
+              <small>{descripcion}</small>
+            </p>
+          ) : null}
+        </>
       ) : null}
       {children}
     </section>

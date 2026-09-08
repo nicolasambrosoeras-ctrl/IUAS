@@ -74,9 +74,11 @@ function render(proyecto: Proyecto): string {
 const CONEXION_G3 = { diametroNominalConexion_m: 0.019, desnivelConexion_m: 0, presionSobreAcera_m: 5 }
 
 describe('PanelDeModulo4 (UI)', () => {
-  it('siempre muestra el encabezado del módulo', () => {
+  it('siempre muestra el encabezado de la etapa', () => {
+    // UI-01B (D-δ.73): patrón visual único de cabecera de etapa
+    // (EncabezadoDeEtapa), sin la redundancia "Módulo 4 — ...".
     const html = render(construir({}))
-    expect(html).toContain('Módulo 4 — Abastecimiento y reserva')
+    expect(html).toContain('Abastecimiento y reserva</h2>')
   })
 
   it('S1: sin configuración -> invita a elegir esquema, con las tres opciones', () => {

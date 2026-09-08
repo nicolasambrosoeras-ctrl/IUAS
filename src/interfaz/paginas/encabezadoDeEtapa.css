@@ -1,0 +1,85 @@
+/* UI-01B (D-δ.73) — encabezado de etapa compartido (sección 13).
+   Se aplica a `<summary className="etapa-cabecera">` en M1–M4 y al
+   contenedor de la etapa 5 (Verificación, no colapsable). */
+
+.etapa-cabecera {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'num titulo estado'
+    'num descripcion estado';
+  align-items: baseline;
+  column-gap: var(--esp-md);
+  row-gap: 0.1rem;
+  padding: var(--esp-sm) 0;
+  list-style: none;
+}
+
+/* En <summary> hay que apagar el marcador nativo para que el grid no
+   herede un ::marker/triángulo desalineado; el estado abierto/cerrado se
+   comunica con el chevron propio de abajo. */
+.etapa-cabecera::-webkit-details-marker {
+  display: none;
+}
+
+.etapa-cabecera__num {
+  grid-area: num;
+  align-self: start;
+  padding-top: 0.15rem;
+  font-size: var(--fs-body);
+  font-weight: var(--peso-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-primario);
+  letter-spacing: 0.02em;
+}
+
+.etapa-cabecera__titulo {
+  grid-area: titulo;
+  margin: 0;
+  font-size: var(--fs-titulo-etapa);
+  font-weight: var(--peso-semibold);
+  color: var(--color-texto);
+}
+
+.etapa-cabecera__descripcion {
+  grid-area: descripcion;
+  font-size: var(--fs-ayuda);
+  font-weight: var(--peso-regular);
+  color: var(--color-texto-2);
+}
+
+.etapa-cabecera__estado {
+  grid-area: estado;
+  align-self: center;
+  justify-self: end;
+}
+
+/* Chevron de disclosure propio, sólo cuando la cabecera es un <summary>
+   dentro de un <details> (M1–M4). La etapa 5 no lo lleva. */
+details > summary.etapa-cabecera {
+  position: relative;
+  padding-right: 1.5rem;
+}
+
+details > summary.etapa-cabecera::after {
+  content: '';
+  position: absolute;
+  right: 0.35rem;
+  top: 1.1rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-right: 2px solid var(--color-texto-3);
+  border-bottom: 2px solid var(--color-texto-3);
+  transform: rotate(-45deg);
+  transition: transform var(--trans-rapida);
+}
+
+details[open] > summary.etapa-cabecera::after {
+  transform: rotate(45deg);
+}
+
+@media (max-width: 560px) {
+  .etapa-cabecera {
+    column-gap: var(--esp-sm);
+  }
+}

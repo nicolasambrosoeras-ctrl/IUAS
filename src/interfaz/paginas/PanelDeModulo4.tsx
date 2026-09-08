@@ -56,6 +56,7 @@ import {
   litrosParaInput,
   m3DesdeLitros,
 } from './humanizarModulo4'
+import { EncabezadoDeEtapa } from './EncabezadoDeEtapa'
 
 type OnCambiar = (proyecto: Proyecto) => void
 
@@ -156,7 +157,8 @@ function ConfiguracionDeConexionYReserva({
   const { diametroNominalConexion_m, desnivelConexion_m } = proyecto.parametros
 
   return (
-    <div>
+    <div className="ui-card ui-card--config">
+      <h3 className="ui-card__titulo">Conexión y reserva</h3>
       <p>
         <label>
           Período de consumo máximo [h]:{' '}
@@ -312,6 +314,16 @@ function VerificacionDeAdopcion({ adopcion }: { adopcion: ResultadoAdopcionDeRes
 
   const marca = (cumple: boolean): string => (cumple ? '✓ ' : '⚠ ')
 
+  // Estado de la adopción como badge (secciones 26/31): "✓ Suficiente" /
+  // "⚠ Insuficiente" -- nunca "✓ Cumple norma" (evaluar capacidad ≠
+  // cumplir la norma).
+  const badgeCapacidad = (suficiente: boolean) => (
+    <span className={suficiente ? 'ui-badge ui-badge--ok' : 'ui-badge ui-badge--warn'}>
+      {marca(suficiente)}
+      {suficiente ? 'Suficiente' : 'Insuficiente'}
+    </span>
+  )
+
   if (adopcion.tipo === 'verificada') {
     return (
       <table>
@@ -333,10 +345,7 @@ function VerificacionDeAdopcion({ adopcion }: { adopcion: ResultadoAdopcionDeRes
           </tr>
           <tr>
             <th>Capacidad adoptada</th>
-            <td>
-              {marca(adopcion.estado === 'suficiente')}
-              {adopcion.estado === 'suficiente' ? 'Suficiente' : 'Insuficiente'}
-            </td>
+            <td>{badgeCapacidad(adopcion.estado === 'suficiente')}</td>
           </tr>
         </tbody>
       </table>
@@ -381,10 +390,7 @@ function VerificacionDeAdopcion({ adopcion }: { adopcion: ResultadoAdopcionDeRes
           </tr>
           <tr>
             <th>Capacidad adoptada</th>
-            <td>
-              {marca(adopcion.estado === 'suficiente')}
-              {adopcion.estado === 'suficiente' ? 'Suficiente' : 'Insuficiente'}
-            </td>
+            <td>{badgeCapacidad(adopcion.estado === 'suficiente')}</td>
           </tr>
         </tbody>
       </table>
@@ -479,73 +485,82 @@ function ResultadoDeReserva({
   const sinDeficit = reserva.deficit_lps === 0
 
   return (
-    <div>
-      <h3>Conexión</h3>
-      <TrazaDeConexion conexion={conexion} esProfesional={esProfesional} />
+    <div className="ui-stack">
+      <div className="ui-card ui-card--config">
+        <h3 className="ui-card__titulo">Conexión</h3>
+        <TrazaDeConexion conexion={conexion} esProfesional={esProfesional} />
+      </div>
 
-      <h3>Reserva Total Diaria de Diseño</h3>
-      {sinDeficit ? (
-        <>
-          <p>
-            <strong>Reserva calculada por déficit: 0 L.</strong> El caudal de la conexión cubre el caudal de
-            cálculo.
-          </p>
-          <p>
-            <small>Este resultado no determina por sí solo la obligatoriedad de disponer tanque.</small>
-          </p>
-        </>
-      ) : (
-        <p>
-          Reserva requerida:{' '}
-          <strong>{formatearVolumen_L(reserva.volumenReservaDiseno_m3)} L</strong>
-          {esProfesional ? (
-            <>
-              {' '}
-              <small>({formatearVolumen_m3(reserva.volumenReservaDiseno_m3)} m³)</small>
-            </>
-          ) : null}
-        </p>
-      )}
+      <div className="ui-card ui-card--resultado ui-stack--sm">
+        <h3 className="ui-card__titulo">Reserva Total Diaria de Diseño</h3>
+        {sinDeficit ? (
+          <>
+            <p>
+              <strong>Reserva calculada por déficit: 0 L.</strong> El caudal de la conexión cubre el caudal de
+              cálculo.
+            </p>
+            <p>
+              <small>Este resultado no determina por sí solo la obligatoriedad de disponer tanque.</small>
+            </p>
+          </>
+        ) : (
+          // Resultado protagonista de M4 (sección 25): la reserva requerida
+          // se lee a simple vista, en litros; m³ como equivalente
+          // secundario sólo en Profesional (UI-CRIT-03 / D-δ.71).
+          <div className="ui-metrica">
+            <span className="ui-metrica__etiqueta">Reserva requerida</span>
+            <span className="ui-metrica__valor">{formatearVolumen_L(reserva.volumenReservaDiseno_m3)} L</span>
+            {esProfesional ? (
+              <span className="ui-metrica__nota">{formatearVolumen_m3(reserva.volumenReservaDiseno_m3)} m³</span>
+            ) : null}
+          </div>
+        )}
 
-      {esProfesional ? (
-        <table>
-          <tbody>
-            <tr>
-              <th>Caudal de cálculo Qc</th>
-              <td>{formatearCaudal_lps(reserva.qc_lps)} L/s</td>
-            </tr>
-            <tr>
-              <th>Caudal de conexión</th>
-              <td>{formatearCaudal_lps(reserva.qConexion_lps)} L/s</td>
-            </tr>
-            <tr>
-              <th>Déficit de caudal</th>
-              <td>
-                {formatearCaudal_lps(reserva.deficit_lps)} L/s{' '}
-                <small>(= máx(0, Qc − caudal de conexión) = {formatearNumeroM4(reserva.deficit_m3h, 2)} m³/h)</small>
-              </td>
-            </tr>
-            <tr>
-              <th>Período de consumo máximo</th>
-              <td>{formatearPresion_m(reserva.tc_h)} h</td>
-            </tr>
-            <tr>
-              <th>Reserva Total Diaria de Diseño</th>
-              <td>
-                {formatearVolumen_L(reserva.volumenReservaDiseno_m3)} L{' '}
-                <small>({formatearVolumen_m3(reserva.volumenReservaDiseno_m3)} m³)</small>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      ) : null}
+        {esProfesional ? (
+          <details>
+            <summary>Trazabilidad del cálculo</summary>
+            <table>
+              <tbody>
+                <tr>
+                  <th>Caudal de cálculo Qc</th>
+                  <td>{formatearCaudal_lps(reserva.qc_lps)} L/s</td>
+                </tr>
+                <tr>
+                  <th>Caudal de conexión</th>
+                  <td>{formatearCaudal_lps(reserva.qConexion_lps)} L/s</td>
+                </tr>
+                <tr>
+                  <th>Déficit de caudal</th>
+                  <td>
+                    {formatearCaudal_lps(reserva.deficit_lps)} L/s{' '}
+                    <small>(= máx(0, Qc − caudal de conexión) = {formatearNumeroM4(reserva.deficit_m3h, 2)} m³/h)</small>
+                  </td>
+                </tr>
+                <tr>
+                  <th>Período de consumo máximo</th>
+                  <td>{formatearPresion_m(reserva.tc_h)} h</td>
+                </tr>
+                <tr>
+                  <th>Reserva Total Diaria de Diseño</th>
+                  <td>
+                    {formatearVolumen_L(reserva.volumenReservaDiseno_m3)} L{' '}
+                    <small>({formatearVolumen_m3(reserva.volumenReservaDiseno_m3)} m³)</small>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </details>
+        ) : null}
+      </div>
 
-      <AdopcionDeCapacidad
-        esquema={resultado.esquema}
-        proyecto={proyecto}
-        onCambiar={onCambiar}
-        adopcion={resultado.adopcion}
-      />
+      <div className="ui-card">
+        <AdopcionDeCapacidad
+          esquema={resultado.esquema}
+          proyecto={proyecto}
+          onCambiar={onCambiar}
+          adopcion={resultado.adopcion}
+        />
+      </div>
     </div>
   )
 }
@@ -564,29 +579,35 @@ function CuerpoDelPanel({
   const configuracion = proyecto.configuracionAbastecimiento
 
   if (estado.estado === 'noIniciado' || configuracion === undefined) {
+    // M4 no lleva botón "Iniciar Módulo 4" (sección 22): se inicia
+    // eligiendo el esquema. Esa es su primera decisión real y la
+    // diferencia intencional con el patrón de M3.
     return (
-      <div>
-        <p>Elegí cómo se abastece el proyecto para calcular la Reserva Total Diaria.</p>
-        <p>
+      <div className="ui-empty">
+        <p className="ui-empty__texto">
+          Elegí cómo se abastece el proyecto para calcular la Reserva Total Diaria.
+        </p>
+        <div className="ui-cluster">
           <button
             type="button"
+            className="ui-btn--primario"
             onClick={() => onCambiar(conEsquemaDeAbastecimiento(proyecto, 'directa'))}
           >
             Alimentación directa
-          </button>{' '}
+          </button>
           <button
             type="button"
             onClick={() => onCambiar(conEsquemaDeAbastecimiento(proyecto, 'tanqueElevado'))}
           >
             Tanque elevado
-          </button>{' '}
+          </button>
           <button
             type="button"
             onClick={() => onCambiar(conEsquemaDeAbastecimiento(proyecto, 'cisternaBombeoElevado'))}
           >
             Cisterna + bombeo + tanque elevado
           </button>
-        </p>
+        </div>
       </div>
     )
   }
@@ -666,8 +687,12 @@ export function PanelDeModulo4({ proyecto, onCambiar }: { proyecto: Proyecto; on
 
   return (
     <details open>
-      <summary>
-        <h2>Módulo 4 — Abastecimiento y reserva</h2>
+      <summary className="etapa-cabecera">
+        <EncabezadoDeEtapa
+          numero={4}
+          titulo="Abastecimiento y reserva"
+          descripcion="Esquema, conexión y reserva total diaria"
+        />
       </summary>
       <CuerpoDelPanel estado={estado} proyecto={proyecto} onCambiar={onCambiar} esProfesional={esProfesional} />
     </details>

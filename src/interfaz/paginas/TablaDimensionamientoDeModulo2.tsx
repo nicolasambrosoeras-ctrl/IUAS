@@ -9,19 +9,13 @@
 // pérdida + estimación localizada; en Profesional, el árbol de Tramos
 // físicos + editores de accesorios/tees. El contenido lo provee quien usa
 // la tabla (`renderDetalle`).
-import type { CSSProperties, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import { ETIQUETA_RED } from './humanizarModulo2'
 import { resolverCambioDeLongitud } from './resolverResultadoDeTramoParaUi'
 import type { FilaDeDimensionamiento } from './resolverFilaDeDimensionamiento'
 import type { ControlDeDnDeTramo } from './resolverControlDeDnDeTramo'
 import { ControlDeDn } from './ControlDeDn'
-
-const th: CSSProperties = { textAlign: 'left', padding: '0.25rem 0.6rem', borderBottom: '1px solid #bbb', fontSize: '0.9em' }
-const thNum: CSSProperties = { ...th, textAlign: 'right' }
-const td: CSSProperties = { padding: '0.2rem 0.6rem', borderBottom: '1px solid #eee', verticalAlign: 'baseline' }
-const tdNum: CSSProperties = { ...td, textAlign: 'right' }
-const tdDn: CSSProperties = { ...tdNum, fontWeight: 700 }
 
 export type EntradaDeTabla = {
   readonly clave: string
@@ -71,17 +65,17 @@ export function TablaDimensionamientoDeModulo2({
     return null
   }
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ borderCollapse: 'collapse', minWidth: '40rem' }}>
+    <div className="tabla-scroll">
+      <table className="tabla-tecnica" style={{ minWidth: '40rem' }}>
         <thead>
           <tr>
-            <th style={th}>{encabezadoTramo}</th>
-            <th style={th}>Red</th>
-            <th style={thNum}>Longitud</th>
-            <th style={thNum}>DN</th>
-            <th style={thNum}>V</th>
-            <th style={thNum}>Pérdida</th>
-            <th style={th}>Estado</th>
+            <th>{encabezadoTramo}</th>
+            <th>Red</th>
+            <th className="col-num">Longitud</th>
+            <th className="col-num">DN</th>
+            <th className="col-num">V</th>
+            <th className="col-num">Pérdida</th>
+            <th className="col-estado">Estado</th>
           </tr>
         </thead>
         <tbody>
@@ -89,12 +83,17 @@ export function TablaDimensionamientoDeModulo2({
             const { fila } = entrada
             return (
               <tr key={entrada.clave}>
-                <td style={td}>
+                <td>
                   {entrada.renderDetalle !== undefined ? (
                     <details>
                       <summary>
                         {entrada.etiqueta}
-                        {fila.nPuntos > 0 ? <small style={{ opacity: 0.6 }}> · {fila.nPuntos} {fila.nPuntos === 1 ? 'punto' : 'puntos'}</small> : null}
+                        {fila.nPuntos > 0 ? (
+                          <small style={{ opacity: 0.6 }}>
+                            {' '}
+                            · {fila.nPuntos} {fila.nPuntos === 1 ? 'punto' : 'puntos'}
+                          </small>
+                        ) : null}
                       </summary>
                       <div style={{ padding: '0.4rem 0 0.2rem', fontWeight: 400 }}>{entrada.renderDetalle()}</div>
                     </details>
@@ -102,24 +101,22 @@ export function TablaDimensionamientoDeModulo2({
                     entrada.etiqueta
                   )}
                 </td>
-                <td style={td}>
-                  <span style={{ fontSize: '0.85em', border: '1px solid #999', borderRadius: '999px', padding: '0.02rem 0.45rem' }}>
-                    {ETIQUETA_RED[entrada.red]}
-                  </span>
+                <td>
+                  <span className="ui-badge ui-badge--muted">{ETIQUETA_RED[entrada.red]}</span>
                 </td>
-                <td style={tdNum}>
+                <td className="col-num">
                   <CeldaLongitud entrada={entrada} />
                 </td>
-                <td style={tdDn}>
+                <td className="col-dn">
                   {entrada.controlDn !== undefined && entrada.onCambiarDnAdoptado !== undefined ? (
                     <ControlDeDn control={entrada.controlDn} onCambiarDnAdoptado={entrada.onCambiarDnAdoptado} />
                   ) : (
                     fila.dnTexto
                   )}
                 </td>
-                <td style={tdNum}>{fila.vTexto} m/s</td>
-                <td style={tdNum}>{fila.perdidaTotalTexto}</td>
-                <td style={td}>{fila.estadoTexto}</td>
+                <td className="col-num">{fila.vTexto} m/s</td>
+                <td className="col-num">{fila.perdidaTotalTexto}</td>
+                <td className="col-estado">{fila.estadoTexto}</td>
               </tr>
             )
           })}

@@ -45,6 +45,7 @@ import {
   describirMotivoIncompletitudModulo3,
   formatearMagnitudDeMedidor,
 } from './humanizarModulo3'
+import { EncabezadoDeEtapa } from './EncabezadoDeEtapa'
 
 const fmt = formatearMagnitudDeMedidor
 
@@ -304,23 +305,43 @@ export function PanelDeMedidoresDeModulo3({
 
   return (
     <details open>
-      <summary>
-        <h2>Módulo 3 — Medidores</h2>
+      <summary className="etapa-cabecera">
+        <EncabezadoDeEtapa numero={3} titulo="Medidores" descripcion="Pérdidas de carga de los medidores" />
       </summary>
 
       {estado.estado === 'noIniciado' ? (
-        <p>
-          El Módulo 3 todavía no fue iniciado.{' '}
-          <button type="button" onClick={() => onCambiar(conModulo3Iniciado(proyecto))}>
+        <div className="ui-empty">
+          <p className="ui-empty__texto">
+            Configurá los medidores del proyecto para determinar sus pérdidas de carga. El Módulo 3 todavía no fue
+            iniciado.
+          </p>
+          <button
+            type="button"
+            className="ui-btn--primario"
+            onClick={() => onCambiar(conModulo3Iniciado(proyecto))}
+          >
             Iniciar Módulo 3
           </button>
-        </p>
+        </div>
       ) : (
-        <>
-          <ConfiguracionDeMedidores proyecto={proyecto} onCambiar={onCambiar} />
+        <div className="ui-stack">
+          <div className="ui-card ui-card--config">
+            <ConfiguracionDeMedidores proyecto={proyecto} onCambiar={onCambiar} />
+          </div>
 
-          <p>
-            <strong>Estado:</strong> {ETIQUETA_ESTADO_MODULO_3[estado.estado]}
+          <p className="ui-cluster">
+            <strong>Estado:</strong>{' '}
+            <span
+              className={
+                estado.estado === 'evaluado'
+                  ? 'ui-badge ui-badge--ok'
+                  : estado.estado === 'error'
+                    ? 'ui-badge ui-badge--error'
+                    : 'ui-badge ui-badge--warn'
+              }
+            >
+              {ETIQUETA_ESTADO_MODULO_3[estado.estado]}
+            </span>
           </p>
 
           {estado.estado === 'error' ? (
@@ -341,39 +362,43 @@ export function PanelDeMedidoresDeModulo3({
 
           {estado.estado === 'evaluado' ? (
             <>
-              <TablaMedidorGeneral
-                resultado={estado.resultado.medidorGeneral}
-                esProfesional={esProfesional}
-                onCambiar={onCambiar}
-                proyecto={proyecto}
-              />
+              <div className="ui-card ui-card--resultado">
+                <TablaMedidorGeneral
+                  resultado={estado.resultado.medidorGeneral}
+                  esProfesional={esProfesional}
+                  onCambiar={onCambiar}
+                  proyecto={proyecto}
+                />
+              </div>
 
               {estado.resultado.medidoresIndividuales.length > 0 ? (
-                <div>
-                  <h3>Medidores individuales</h3>
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Unidad funcional</th>
-                        <th>Servicio</th>
-                        <th>Q utilizado</th>
-                        <th>DN</th>
-                        <th>C</th>
-                        <th>hf</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {estado.resultado.medidoresIndividuales.map((medidor) => (
-                        <FilaMedidorIndividual
-                          key={`${medidor.resultado.unidadFuncionalId}·${medidor.resultado.servicioMedido}`}
-                          medidor={medidor}
-                          esProfesional={esProfesional}
-                          onCambiar={onCambiar}
-                          proyecto={proyecto}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="ui-card">
+                  <h3 className="ui-card__titulo">Medidores individuales</h3>
+                  <div className="tabla-scroll">
+                    <table className="tabla-tecnica">
+                      <thead>
+                        <tr>
+                          <th>Unidad funcional</th>
+                          <th>Servicio</th>
+                          <th>Q utilizado</th>
+                          <th className="col-num">DN</th>
+                          <th className="col-num">C</th>
+                          <th className="col-num">hf</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {estado.resultado.medidoresIndividuales.map((medidor) => (
+                          <FilaMedidorIndividual
+                            key={`${medidor.resultado.unidadFuncionalId}·${medidor.resultado.servicioMedido}`}
+                            medidor={medidor}
+                            esProfesional={esProfesional}
+                            onCambiar={onCambiar}
+                            proyecto={proyecto}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               ) : proyecto.configuracionMedidores?.esPropiedadHorizontal ? (
                 <p>
@@ -385,7 +410,7 @@ export function PanelDeMedidoresDeModulo3({
               ) : null}
             </>
           ) : null}
-        </>
+        </div>
       )}
     </details>
   )

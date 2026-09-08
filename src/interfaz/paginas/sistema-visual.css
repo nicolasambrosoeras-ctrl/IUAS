@@ -637,13 +637,56 @@ summary > h3 {
   text-align: right;
 }
 
-/* --- Diferenciar celda editable de celda calculada (sección 77) --- */
-.ui-td-editable {
-  background: var(--color-superficie);
+/* --- Tabla técnica (M2 dimensionamiento, M3 medidores, terminales):
+   header suave, filas claras, borders horizontales, hover sutil, sin
+   gridlines pesadas ni zebra (sección 28) --- */
+.tabla-tecnica {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
 }
 
-.ui-td-calculado {
-  color: var(--color-texto);
+.tabla-tecnica th {
+  padding: 0.4rem 0.7rem;
+  font-size: var(--fs-meta);
+  font-weight: var(--peso-semibold);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--color-texto-3);
+  background: var(--color-superficie-2);
+  border-bottom: 1px solid var(--color-borde-fuerte);
+}
+
+.tabla-tecnica td {
+  padding: 0.35rem 0.7rem;
+  border-bottom: 1px solid var(--color-borde);
+  vertical-align: baseline;
+}
+
+.tabla-tecnica tbody tr:hover td {
+  background: var(--color-superficie-2);
+}
+
+.tabla-tecnica .col-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* DN es a la vez resultado y control editable (↑/↓): se destaca (sección
+   77). */
+.tabla-tecnica .col-dn {
+  text-align: right;
+  font-weight: var(--peso-semibold);
+}
+
+.tabla-tecnica .col-estado {
+  white-space: nowrap;
+}
+
+/* Envoltorio con scroll horizontal LOCAL: la tabla ancha nunca genera
+   overflow global (secciones 28, 45). */
+.tabla-scroll {
+  overflow-x: auto;
 }
 
 /* ==================================================================

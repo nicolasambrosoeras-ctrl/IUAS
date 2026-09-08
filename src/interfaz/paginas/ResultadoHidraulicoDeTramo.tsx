@@ -9,7 +9,6 @@
 // validarProyecto (gate en MotorDemandaPantalla), así que redHidraulica,
 // si existe, ya es estructuralmente válida y sus referencias a Artefactos
 // ya existen.
-import type { CSSProperties } from 'react'
 import type { GranularidadHidraulica, MaterialTuberiaId, MetodoPerdidaDistribuida, MetodoPerdidaLocalizada, Proyecto, TipoDeLocal } from '../../modelo/proyecto'
 import type { ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
@@ -48,6 +47,7 @@ import { resolverFilaDeDimensionamiento } from './resolverFilaDeDimensionamiento
 import { TablaDimensionamientoDeModulo2, type EntradaDeTabla } from './TablaDimensionamientoDeModulo2'
 import { AccesoriosDeTramoEditor } from './AccesoriosDeTramoEditor'
 import { LocalYRedCard } from './LocalYRedCard'
+import { EncabezadoDeEtapa } from './EncabezadoDeEtapa'
 
 // Duplicado intencional de la etiqueta homónima en MotorDemandaPantalla.tsx
 // (mismo criterio que aplicarParticipacionCritA8: segundo consumidor
@@ -125,37 +125,37 @@ function CabeceraDeModulo2({
   onCambiar: (proyecto: Proyecto) => void
 }) {
   const modo = resolverModoDeTrabajo(proyecto.configuracionHidraulica)
-  const botonModo = (activo: boolean): CSSProperties => ({
-    padding: '0.25rem 0.9rem',
-    fontWeight: activo ? 700 : 400,
-    border: '1px solid #888',
-    borderRadius: '999px',
-    background: activo ? '#e8f0fe' : 'transparent',
-    cursor: 'pointer',
-  })
 
   return (
-    <section>
-      <h3>Módulo 2 · Tuberías</h3>
-      <p>
+    <section className="ui-stack--sm">
+      {/* El selector de modo es un control de vista real, no un par de
+          botones sueltos (sección 36): segmented control con el modo
+          activo claramente identificable. */}
+      <p className="ui-cluster">
         <strong>Modo de trabajo:</strong>{' '}
-        <button
-          type="button"
-          aria-pressed={modo === 'rapido'}
-          style={botonModo(modo === 'rapido')}
-          onClick={() => onCambiar(aplicarModoRapido(proyecto))}
-        >
-          Rápido
-        </button>{' '}
-        <button
-          type="button"
-          aria-pressed={modo === 'profesional'}
-          style={botonModo(modo === 'profesional')}
-          onClick={() => onCambiar(aplicarModoProfesional(proyecto))}
-        >
-          Profesional
-        </button>
-        {modo === 'avanzado' ? <span> · {ETIQUETA_MODO_DE_TRABAJO.avanzado} (combinación técnica personalizada)</span> : null}
+        <span className="ui-segmented" role="group" aria-label="Modo de trabajo">
+          <button
+            type="button"
+            className="ui-segmented__opcion"
+            aria-pressed={modo === 'rapido'}
+            onClick={() => onCambiar(aplicarModoRapido(proyecto))}
+          >
+            Rápido
+          </button>
+          <button
+            type="button"
+            className="ui-segmented__opcion"
+            aria-pressed={modo === 'profesional'}
+            onClick={() => onCambiar(aplicarModoProfesional(proyecto))}
+          >
+            Profesional
+          </button>
+        </span>
+        {modo === 'avanzado' ? (
+          <span className="ui-badge ui-badge--muted">
+            {ETIQUETA_MODO_DE_TRABAJO.avanzado} · combinación técnica personalizada
+          </span>
+        ) : null}
       </p>
       {modo === 'rapido' ? (
         <p>
@@ -527,12 +527,11 @@ export function ResultadoHidraulicoDeTramo({
 
   return (
     <details open>
-      <summary>
-        {/* UI-01A (D-δ.72): esta sección queda centrada en el
-            DIMENSIONAMIENTO. La verificación de presión se movió a la
-            etapa final "Verificación hidráulica" (sigue siendo dominio
-            M2). */}
-        <h2>Módulo 2 — Dimensionamiento de tuberías</h2>
+      {/* UI-01A (D-δ.72): esta sección queda centrada en el
+          DIMENSIONAMIENTO. La verificación de presión se movió a la etapa
+          final "Verificación hidráulica" (sigue siendo dominio M2). */}
+      <summary className="etapa-cabecera">
+        <EncabezadoDeEtapa numero={2} titulo="Tuberías" descripcion="Dimensionamiento hidráulico de la red" />
       </summary>
 
       <CabeceraDeModulo2 proyecto={proyecto} onCambiar={onCambiar} />

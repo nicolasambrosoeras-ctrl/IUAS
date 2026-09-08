@@ -33,12 +33,15 @@ describe('MotorDemandaPantalla — estructura de navegación (UI-01A)', () => {
     expect(abastecimiento).toBeLessThan(verificacion)
   })
 
-  it('los encabezados de módulo siguen el mismo orden que las secciones', () => {
-    const d = at(html, 'Módulo 1 — Demanda')
-    const t = at(html, 'Módulo 2 — Dimensionamiento de tuberías')
-    const m = at(html, 'Módulo 3 — Medidores')
-    const a = at(html, 'Módulo 4 — Abastecimiento y reserva')
-    const v = at(html, '<h2>Verificación hidráulica</h2>')
+  it('los encabezados de etapa siguen el mismo orden que las secciones', () => {
+    // UI-01B (D-δ.73): el encabezado de cada etapa pasó al patrón visual
+    // único "[NN] Título" (EncabezadoDeEtapa), sin la redundancia "Módulo
+    // N — ...". Se verifica el orden por el <h2> de título de etapa.
+    const d = at(html, 'Demanda</h2>')
+    const t = at(html, 'Tuberías</h2>')
+    const m = at(html, 'Medidores</h2>')
+    const a = at(html, 'Abastecimiento y reserva</h2>')
+    const v = at(html, 'Verificación hidráulica</h2>')
     expect(Math.min(d, t, m, a, v)).toBeGreaterThan(-1)
     expect(d).toBeLessThan(t)
     expect(t).toBeLessThan(m)
@@ -63,7 +66,7 @@ describe('MotorDemandaPantalla — estructura de navegación (UI-01A)', () => {
     const medidores = at(html, 'id="medidores"')
     const bloqueTuberias = html.slice(tuberias, medidores)
     expect(bloqueTuberias).not.toContain('Verificación de presión</h3>')
-    expect(bloqueTuberias).toContain('Dimensionamiento de tuberías')
+    expect(bloqueTuberias).toContain('Dimensionamiento hidráulico de la red')
   })
 
   it('hay un índice lateral <nav> con las cinco etapas como anchors', () => {

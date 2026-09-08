@@ -411,10 +411,13 @@ export function PanelDePresionDeModulo2({
           ) : null}
         </div>
       ) : (
-        <>
-          {/* Verdict protagonista (brief secciones 25-27). */}
-          <p style={{ fontSize: '1.15em' }}>
-            <strong>{cumpleGlobal ? '✓ CUMPLE' : '✕ NO CUMPLE'}</strong>
+        <div className="ui-card ui-card--resultado ui-stack--sm">
+          {/* Verdict protagonista y conclusión visual del flujo (secciones
+              25-27, 38, 79): el veredicto global se lee de un vistazo. */}
+          <p className="ui-cluster" style={{ fontSize: '1.15em' }}>
+            <span className={cumpleGlobal ? 'ui-badge ui-badge--ok' : 'ui-badge ui-badge--error'}>
+              <strong>{cumpleGlobal ? '✓ CUMPLE' : '✕ NO CUMPLE'}</strong>
+            </span>
           </p>
           <p>
             {cumpleGlobal
@@ -510,7 +513,7 @@ export function PanelDePresionDeModulo2({
               referenciaPorNodoId={referenciaPorNodoId}
             />
           </details>
-        </>
+        </div>
       )}
     </section>
   )

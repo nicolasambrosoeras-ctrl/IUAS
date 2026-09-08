@@ -40,6 +40,7 @@ import { PanelDeMedidoresDeModulo3 } from './PanelDeMedidoresDeModulo3'
 import { PanelDeModulo4 } from './PanelDeModulo4'
 import { PanelDePresionDeModulo2 } from './PanelDePresionDeModulo2'
 import { NavegacionDeSecciones, SeccionDeTrabajo } from './NavegacionDeSecciones'
+import { EncabezadoDeEtapa } from './EncabezadoDeEtapa'
 import { MetodologiaYFuentesTecnicas } from './MetodologiaYFuentesTecnicas'
 import './sistema-visual.css'
 import './navegacionUI.css'
@@ -733,30 +734,22 @@ function Resultados({ resultado }: { resultado: ResultadoDeCalculo }) {
   }
 
   return (
-    <section>
-      <h2>Resultados</h2>
+    <section className="ui-stack">
+      <h3>Resultado de demanda</h3>
 
-      <h3>Caudal de cálculo (Qc)</h3>
-      <p>
-        <strong>
+      {/* Qc es el resultado protagonista de M1 (sección 35): número grande,
+          legible de un vistazo; n y Qmax como metadatos de apoyo, y el
+          desarrollo completo por progressive disclosure más abajo. */}
+      <div className="ui-card ui-card--resultado ui-metrica">
+        <span className="ui-metrica__etiqueta">Caudal de cálculo · Qc</span>
+        <span className="ui-metrica__valor">
           <ValorCalculadoTexto valor={qc} />
-        </strong>
-      </p>
-
-      <table>
-        <tbody>
-          <tr>
-            <th>n</th>
-            <td>{n !== null ? formatearNumero(n, 'conteo') : '—'}</td>
-          </tr>
-          <tr>
-            <th>Qmax</th>
-            <td>
-              <ValorCalculadoTexto valor={qmax} />
-            </td>
-          </tr>
-        </tbody>
-      </table>
+        </span>
+        <span className="ui-metrica__nota">
+          n = {n !== null ? formatearNumero(n, 'conteo') : '—'} · Qmax ={' '}
+          <ValorCalculadoTexto valor={qmax} />
+        </span>
+      </div>
 
       <details>
         <summary>Parámetros intermedios</summary>
@@ -849,8 +842,8 @@ function ResultadoDemandaModulo1({
 
   return (
     <details open>
-      <summary>
-        <h2>Módulo 1 — Demanda</h2>
+      <summary className="etapa-cabecera">
+        <EncabezadoDeEtapa numero={1} titulo="Demanda" descripcion="Caudal de cálculo del proyecto" />
       </summary>
       <Advertencias advertencias={resultado.advertencias} />
       <Resultados resultado={resultado} />
@@ -919,6 +912,7 @@ export function MotorDemandaPantalla() {
               <SeccionDeTrabajo
                 id="verificacion-hidraulica"
                 nombreAccesible="Verificación hidráulica"
+                numero={5}
                 titulo="Verificación hidráulica"
                 descripcion="Comprobación final de presión y terminal crítico, usando las tuberías dimensionadas, los medidores y el esquema de abastecimiento."
               >
