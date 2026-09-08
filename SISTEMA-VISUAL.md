@@ -284,7 +284,7 @@ Jerarquía visible **UF → Local → Artefacto**:
 | Nivel | Clase | Notas |
 | --- | --- | --- |
 | Datos del proyecto | `.m1-config` (`.ui-card--config`) | Tipología + total UF. |
-| Unidad funcional | `.m1-uf` | Cabecera con acciones (Duplicar / Eliminar UF), campos Nombre/Nivel/Cota agrupados, lista de Locales. |
+| Unidad funcional | `.m1-uf` / `.m1-uf--colapsada` | Cabecera **colapsable** (Duplicar / Eliminar UF), campos Nombre/Nivel/Cota agrupados, lista de Locales. |
 | Local | `.m1-local` | **Card por Local** (no por artefacto). Tipo/Régimen + lista de artefactos. |
 | Artefacto | `.m1-artefacto` | Fila compacta `select · Cantidad · Eliminar`; apila en ≤ 560 px. |
 
@@ -293,6 +293,24 @@ accesible, **sin depender de hover**, jerarquía secundaria (nunca el peso
 de una acción constructiva). "+ Agregar": **UF** es de nivel superior
 (`.ui-btn--primario`); **Local** y **Artefacto** son contextuales
 (`.m1-agregar-contextual`, alineadas a la izquierda).
+
+**Unidad funcional colapsable (UX-01 / UI-01D, D-δ.76).** La cabecera de
+cada `.m1-uf` es un botón de disclosure real (`.m1-uf__toggle`, patrón
+APG: `<button aria-expanded aria-controls>` dentro del `<h3>`), no un
+`<div>` clicable. Colapsar es **sólo presentación**: oculta el detalle,
+nunca saca la UF del cálculo.
+
+| Elemento | Clase | Notas |
+| --- | --- | --- |
+| Toggle de cabecera | `.m1-uf__toggle` | Fila de ancho completo, chevron `▼/▶` (`aria-hidden`) + nombre + `· nivel`; con la UF colapsada añade `N locales · M artefactos`. Foco visible propio. |
+| UF colapsada | `.m1-uf--colapsada` | Card de una sola franja (padding reducido, `gap:0`). **No** es estado de error: sin colores de warning. |
+| Contenido | `.m1-uf__contenido` | Wrapper con `id` estable (destino de `aria-controls`); sus hijos no se renderizan colapsada. `[hidden]` le gana al `display` local. |
+| Control inferior | `.m1-uf__pie` / `.m1-uf__contraer-pie` | "↑ Contraer unidad funcional" tras "+ Agregar local"; sólo con la UF abierta. Alterna el mismo estado que la cabecera. |
+
+Reglas: UF ya presente al montar → **expandida**; UF agregada o duplicada
+→ **colapsada**; estados **independientes** por UF (sin acordeón
+exclusivo); estado por `uf.id`, **no persistido**. En ≤ 560 px la cabecera
+colapsada apila nombre y resumen sin overflow horizontal.
 
 ---
 

@@ -656,20 +656,60 @@ salvo bug inequívoco o decisión roja explícita.
     costo es **render/DOM** en ediciones que revalidan todo el árbol, no
     cálculo hidráulico — optimización frontend futura (p. ej. lazy-load
     de `pdfmake`, memoización de filas), no bloqueante, **sin backend**.
-  - **Estado**: **READY TO DEPLOY.** Publicación pendiente de `git push`
-    a `main` (que dispara el workflow) — ver decisión pendiente en el
-    handoff. El tag `v0.4.0-beta.1` se reserva para el commit realmente
-    desplegado y validado en la URL real; **aún no creado**.
+  - **Estado**: **PUBLICADO.** `push origin main` (`fd425e6..04598a6`,
+    primer push desde 2026-08-12) disparó el workflow (run
+    `34243435732`, success). URL real
+    `https://nicolasambrosoeras-ctrl.github.io/IUAS/` validada: smoke de
+    producción 31/31 + responsive 1280→360, consola 0/0. Tag anotado
+    **`v0.4.0-beta.1`** creado y pusheado sobre `04598a6` (el commit
+    desplegado). GitHub Pages estaba habilitado con fuente Actions (el
+    run de agosto ya había terminado en success).
+
+- **D-δ.76 — UX-01 / UI-01D: unidades funcionales colapsables en M1.**
+  Primer ajuste UX posterior a `v0.4.0-beta.1`. Trabajar con varias UF
+  sin scroll infinito: cada UF se contrae desde la cabecera o desde un
+  control al pie de su contenido. El estado expandida/colapsada es
+  **exclusivamente de presentación** (`useState<Set<string>>` en
+  `ProyectoFormulario`, por `uf.id`) — no toca cálculo, `Proyecto`,
+  updaters ni persistencia; baseline transversal 12/12 byte-idéntico;
+  suite 1247 → 1252.
+  - **UF ya presente al montar → EXPANDIDA** (conjunto inicial vacío,
+    "id ausente = abierta"). **UF agregada o duplicada → COLAPSADA** (su
+    id se agrega al conjunto). La copia se identifica comparando ids
+    antes/después en la capa de presentación —
+    `duplicarUnidadFuncionalEnProyecto` no cambia. Al eliminar una UF se
+    olvida su id.
+  - **Dos controles, un estado**: cabecera = botón de disclosure real
+    (patrón APG, `<button aria-expanded aria-controls>` dentro del
+    `<h3>`); control inferior "↑ Contraer unidad funcional" tras
+    "+ Agregar local", sólo con la UF abierta. Ambos alternan el mismo
+    estado. **Sin acordeón exclusivo**: estados independientes por UF.
+  - **Cabecera colapsada**: nombre + nivel + `N locales · M artefactos`
+    (`resumenDeUnidadFuncional`, helper puro; suma de `cantidad`, no
+    filas). Duplicar/Eliminar siguen accesibles con la UF colapsada. No
+    es estado de error: sin colores de warning.
+  - **Conditional rendering** del detalle al colapsar (`CuerpoDeUnidadFuncional`
+    extraído): la auditoría D-δ.70 confirmó que ningún control de M1
+    guarda decisiones de dominio en `useState`, así que ocultarlo no
+    pierde nada. Con 11 UF, colapsar 10 reduce ~75 % del DOM de la etapa
+    01. Editar el coeficiente con 11 UF (10 colapsadas) ~460 ms —
+    render/DOM, no cálculo; consistente con D-δ.75.
+  - **No persistido** (sección 14/51 del brief): un reload vuelve al
+    proyecto de ejemplo con su UF abierta, coherente con la beta.
+  - **Publicación**: `v0.4.0-beta.2` sobre el mismo GitHub Pages; el tag
+    apunta al commit desplegado y `v0.4.0-beta.1` no se mueve. Ver
+    también `SISTEMA-VISUAL.md` §11b.
 
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal byte-idéntico). Ya no existe deuda visual
 bloqueante antes de reporting.
 
-**Orden de fases tras el cierre visual:** **DEPLOY-01** (piloto web,
-D-δ.75 — preflight cerrado, publicación pendiente) → **UX-TEST-01** (NO
-iniciada: observación de uso real de terceros; su output prioriza bugs /
-UX / contenido / PERSIST-01) → **REPORT-01** (NO iniciada).
+**Orden de fases tras el cierre visual:** **DEPLOY-01** (piloto web
+`v0.4.0-beta.1`, D-δ.75 — publicado) → **UX-01 / UI-01D** (UF colapsables,
+D-δ.76 — `v0.4.0-beta.2`) → **UX-TEST-01** (NO iniciada: observación de
+uso real de terceros; su output prioriza bugs / UX / contenido /
+PERSIST-01) → **REPORT-01** (NO iniciada).
 
 **REPORT-01 — memoria técnica integral (NO iniciada).** Extender el
 generador `pdfMake` actual (hoy esencialmente M1) hacia: Datos del

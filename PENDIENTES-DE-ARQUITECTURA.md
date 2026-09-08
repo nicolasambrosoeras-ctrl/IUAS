@@ -8254,12 +8254,103 @@ monta `dist/` bajo `/IUAS/` (equivalente a Pages), no con Vite dev ni con
 
 ### Estado
 
-**D-δ.75 -- PREFLIGHT CERRADO / READY TO DEPLOY.** Publicación pendiente
-de `git push origin main` (dispara el workflow). Tras URL real verde:
-tag anotado `v0.4.0-beta.1` sobre el commit desplegado + push del tag.
-**No es v1.0.0** (faltan pruebas reales, feedback externo, REPORT-01).
-Siguiente fase **UX-TEST-01** -- **NO iniciar**. **REPORT-01 -- NO
-iniciar.**
+**D-δ.75 -- PUBLICADO.** `push origin main` (`fd425e6..04598a6`) disparó
+el workflow (run `34243435732`, success); URL real
+`https://nicolasambrosoeras-ctrl.github.io/IUAS/` validada (smoke de
+producción 31/31 + responsive 1280→360, consola 0/0); tag anotado
+`v0.4.0-beta.1` creado y pusheado sobre `04598a6`. GitHub Pages estaba
+habilitado con fuente Actions (el run de agosto ya terminaba en success),
+así que la decisión roja del preflight se resolvió con la confirmación
+del usuario. **No es v1.0.0.** Siguiente: **UX-01 / UI-01D** (D-δ.76,
+abajo) → **UX-TEST-01** -- **NO iniciar**. **REPORT-01 -- NO iniciar.**
+
+## D-δ.76 -- UX-01 / UI-01D: unidades funcionales colapsables en M1 -- CERRADA
+
+Primer ajuste UX posterior a `v0.4.0-beta.1`. Objetivo: trabajar con
+varias Unidades Funcionales sin scroll infinito, contrayendo cada UF
+desde arriba o desde abajo. **Sin cambios de cálculo, `Proyecto`,
+updaters ni persistencia**; baseline transversal M1-M4 **12/12
+byte-idéntico**; suite 1247 → 1252.
+
+### El estado de colapso es sólo de presentación
+
+`ProyectoFormulario` guarda `useState<ReadonlySet<string>>` con los ids de
+las UF **colapsadas**. Semántica deliberada: *"id ausente del conjunto =
+UF expandida"*. El conjunto arranca **vacío**, así que toda UF ya presente
+al montar aparece expandida (sección 3/16 del brief) sin tener que
+enumerar `id → true`. No existe ningún campo `UnidadFuncional.colapsada`
+en el dominio y **no se persiste** (sección 14/51): un reload vuelve al
+proyecto de ejemplo con su UF abierta, coherente con la beta.
+
+Asociado por `uf.id`, nunca por índice (sección 15): sobrevive a
+altas/bajas/duplicados/reordenamientos. Al eliminar una UF se quita su id
+del conjunto (sección 19) para no acumular ids muertos.
+
+### Identificar la UF nueva sin tocar los updaters
+
+- **Agregar**: `agregarUnidadFuncional` ya construye `nuevaUf` con su id
+  antes de despachar, así que basta `marcarColapsadas([nuevaUf.id])`.
+- **Duplicar**: `duplicarUnidadFuncionalEnProyecto` devuelve sólo
+  `Proyecto` (no el id de la copia). En vez de cambiar el contrato del
+  updater (sección 17/18) se comparan los ids de UF **antes y después** en
+  la capa de presentación: `proyectoConCopia.unidadesFuncionales.filter(u
+  => !idsPrevios.has(u.id))`. La copia nace colapsada; la UF origen
+  conserva su estado.
+
+### Dos controles, un único estado
+
+La cabecera es un botón de disclosure real (patrón APG:
+`<button aria-expanded aria-controls>` dentro del `<h3>`), no un `<div>`
+clicable. El control inferior ("↑ Contraer unidad funcional", tras
+"+ Agregar local", sólo con la UF abierta) llama al **mismo**
+`onAlternarColapso` — no hay dos estados. **Sin acordeón exclusivo**:
+abrir una UF no cierra las demás (sección 13).
+
+### Conditional rendering del detalle
+
+Con la UF colapsada, `CuerpoDeUnidadFuncional` (el detalle editable,
+extraído para que el colapso quede legible) no se renderiza. Se apoya en
+la **auditoría D-δ.70**: ningún panel/control de M1 guarda decisiones de
+dominio en `useState` — todo se threadea a `Proyecto` en cada `onChange`
+(el único `useState` interno, `declaracionPendiente` de `LocalFormulario`,
+es un prompt transitorio AF/AC, no dato editable). El único wrapper que
+permanece siempre es `<div id={contenidoId} hidden>`, para que
+`aria-controls` apunte siempre a un nodo real. Efecto medido: con 11 UF,
+colapsar 10 reduce ~75 % del DOM de la etapa 01.
+
+### Resumen compacto
+
+`resumenDeUnidadFuncional` (helper puro, `resumenDeUnidadFuncional.ts`):
+nombre + nivel + `N locales · M artefactos`. El conteo de artefactos es la
+**suma de `cantidad`** de todos los locales, no el número de filas
+(sección 23). Se recomputa en cada render desde la UF actual, así que
+reflejar nombre/nivel editados es automático (nunca se cachea). **No**
+introduce ningún helper del motor de demanda ni resultados hidráulicos.
+
+### Decisiones rojas
+
+Ninguna. El estado vive en un `useState` separado que nunca llama a
+`onCambiar`, así que un toggle no puede modificar `Proyecto` (verificado:
+baseline transversal byte-idéntico + Playwright `Qc` idéntico antes/después
+de contraer). Identificar la UF nueva se resolvió por comparación de ids
+en presentación, sin tocar `duplicarUnidadFuncionalEnProyecto`. La
+estructura previa de M1 admitió dos controles sobre un estado sin
+rearquitectura (sólo lifting a `ProyectoFormulario` + extracción de
+`CuerpoDeUnidadFuncional`).
+
+### Deuda residual -- no bloqueante
+
+- Alternar **muchas** UF de una vez (p. ej. 11 seguidas) re-renderiza todo
+  `#demanda` por click (~1 s las 11); un toggle individual es instantáneo.
+  Igual que en D-δ.75, el costo es render/DOM en revalidación de árbol
+  completo, no cálculo. Memoización de UF/filas si molesta en uso real.
+
+### Estado
+
+**D-δ.76 -- CERRADA.** Se publica como `v0.4.0-beta.2` sobre el mismo
+hosting (`https://nicolasambrosoeras-ctrl.github.io/IUAS/`); el tag apunta
+al commit desplegado, `v0.4.0-beta.1` no se mueve. **UX-TEST-01 -- NO
+iniciar. REPORT-01 -- NO iniciar.**
 
 ## Regla — `resguardo-documentacion/` es inmutable
 
