@@ -8,7 +8,9 @@
 // Todo lo que se edita se persiste vía updaters puros existentes; ningún
 // resultado se persiste (se recalcula en cada render). Rápido / Profesional
 // se deriva del modo de trabajo transversal (resolverModoDeTrabajo, D-δ.51),
-// sin eje nuevo. NO integra con M2 (eso es un slice posterior).
+// sin eje nuevo. Este panel no importa código de M2; la única superficie
+// compartida es que el esquema de abastecimiento y la presión sobre acera
+// que se editan acá los consume después el Panel de Presión de M2 (D-δ.68).
 import { useId } from 'react'
 import type {
   ConfiguracionDeAbastecimiento,
@@ -75,6 +77,42 @@ function parsearNoNegativo(texto: string): number | undefined | 'ignorar' {
 
 // --- Configuración ---------------------------------------------------------
 
+// Presión mínima garantizada sobre el nivel de acera (ParametrosProyecto,
+// D-δ.38). Es un dato de la Operadora que interviene en DOS lugares:
+//  - Tabla N°1 (§2.7): presión de cálculo = presión sobre acera − desnivel
+//    -> Qconexión -> Reserva Total Diaria (sólo esquemas con tanque);
+//  - Módulo 2, esquema 'directa': es la presión disponible en la raíz del
+//    balance de presión (D-δ.68), tal cual, sin restarle el desnivel.
+// Por eso se edita también en el esquema 'directa', aunque ahí no haya
+// cálculo de reserva: el Panel de Presión de Módulo 2 la muestra de sólo
+// lectura ("se edita en el Módulo 4").
+function EntradaPresionSobreAcera({
+  proyecto,
+  onCambiar,
+}: {
+  proyecto: Proyecto
+  onCambiar: OnCambiar
+}) {
+  return (
+    <label>
+      Presión sobre acera [m]:{' '}
+      <input
+        type="number"
+        min={0}
+        step="any"
+        value={proyecto.parametros.presionSobreAcera_m}
+        onChange={(evento) => {
+          const valor = parsearNoNegativo(evento.target.value)
+          if (valor !== 'ignorar' && valor !== undefined) {
+            onCambiar(conPresionSobreAcera(proyecto, valor))
+          }
+        }}
+        style={{ width: '6rem' }}
+      />
+    </label>
+  )
+}
+
 function SelectorDeEsquema({
   configuracion,
   proyecto,
@@ -113,7 +151,7 @@ function ConfiguracionDeConexionYReserva({
   onCambiar: OnCambiar
 }) {
   const { esquema } = configuracion
-  const { diametroNominalConexion_m, desnivelConexion_m, presionSobreAcera_m } = proyecto.parametros
+  const { diametroNominalConexion_m, desnivelConexion_m } = proyecto.parametros
 
   return (
     <div>
@@ -160,22 +198,7 @@ function ConfiguracionDeConexionYReserva({
       </p>
 
       <p>
-        <label>
-          Presión sobre acera [m]:{' '}
-          <input
-            type="number"
-            min={0}
-            step="any"
-            value={presionSobreAcera_m}
-            onChange={(evento) => {
-              const valor = parsearNoNegativo(evento.target.value)
-              if (valor !== 'ignorar' && valor !== undefined) {
-                onCambiar(conPresionSobreAcera(proyecto, valor))
-              }
-            }}
-            style={{ width: '6rem' }}
-          />
-        </label>
+        <EntradaPresionSobreAcera proyecto={proyecto} onCambiar={onCambiar} />
       </p>
 
       <p>
@@ -592,6 +615,13 @@ function CuerpoDelPanel({
         <div>
           <p>Esquema: {ETIQUETA_ESQUEMA_ABASTECIMIENTO.directa}.</p>
           <p>El cálculo de Reserva Total Diaria por tanque no aplica a este esquema.</p>
+          <p>
+            <EntradaPresionSobreAcera proyecto={proyecto} onCambiar={onCambiar} />{' '}
+            <small>
+              Módulo 2 la usa como presión disponible en la raíz del balance de presión (alimentación
+              directa).
+            </small>
+          </p>
           <p>
             <small>La obligatoriedad normativa de disponer reserva (§2.8) se evalúa por separado.</small>
           </p>

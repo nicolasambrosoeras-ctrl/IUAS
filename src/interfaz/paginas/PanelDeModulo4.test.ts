@@ -102,6 +102,24 @@ describe('PanelDeModulo4 (UI)', () => {
     expect(html).not.toContain('DN de conexión')
   })
 
+  it('directa -> la presión sobre acera SÍ es editable (M2 la consume como Pdisponible)', () => {
+    // En 'directa', presionSobreAcera_m es la presión disponible de la raíz
+    // del balance de M2 (D-δ.68). Debe poder editarse desde este panel: el
+    // Panel de Presión de M2 la muestra de sólo lectura ("se edita en el
+    // Módulo 4"). Sin este input, ese número quedaría sin editor en la app.
+    const html = render(
+      construir({
+        configuracionAbastecimiento: { esquema: 'directa' },
+        parametros: { presionSobreAcera_m: 7 },
+      }),
+    )
+    expect(html).toContain('Presión sobre acera [m]:')
+    expect(html).toContain('value="7"')
+    expect(html).toContain('presión disponible en la raíz del balance de presión')
+    // Sigue sin ser un esquema con tanque: nada de Tc / DN / desnivel.
+    expect(html).not.toContain('Período de consumo máximo')
+  })
+
   it('tanque sin Tc/DN/desnivel -> Incompleto, con los tres motivos humanizados y sin enums crudos', () => {
     const html = render(
       construir({ configuracionAbastecimiento: { esquema: 'tanqueElevado' } }),
