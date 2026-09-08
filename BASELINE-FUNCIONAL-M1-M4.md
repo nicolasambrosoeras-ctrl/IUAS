@@ -28,7 +28,7 @@ un caso rico y determinado:
 
 | Paso | Updater | Valor |
 |---|---|---|
-| Cota de la raíz de la red | `conCotaDeNodo('n-general', …)` | 20 m (pelo de agua mínimo) |
+| Cota de la raíz de la red | `conCotaDeNodo('n-general', …)` | 20 m (pelo de agua mínimo **manual** — ver nota CRIT-A39) |
 | Override de DN comercial | `conDnComercialAdoptadoDeTramo('t-general', …)` | `32 mm` |
 | M3 propiedad horizontal | `conPropiedadHorizontal(true)` | — |
 | M3 provisión de ACS | `conTipoProvisionACS('individual')` | — |
@@ -48,8 +48,19 @@ persiste):**
 | **M2** | Estado | `completo` |
 | M2 | Origen hidráulico efectivo | `tanqueElevado` (derivado del esquema M4) |
 | M2 | Pdisponible en la raíz | 0 m.c.a. (tanque: la carga la expresa Δz) |
-| M2 | Presión residual del terminal crítico | ≈ **9,836 m.c.a.** |
-| M2 | Margen del crítico | ≈ **+3,836 m.c.a.** → CUMPLE |
+| M2 | Pelo de agua mínimo efectivo | **−0,50 m** (CRIT-A39: modo Rápido → `desnivelConexion_m − 0,50 = 0 − 0,50`; el 20 m manual queda como valor Profesional latente) |
+| M2 | Margen del crítico | ≈ **−16,664 m.c.a.** → NO CUMPLE |
+
+> **Nota CRIT-A39 (D-δ.79).** El fixture es modo Rápido (`simplificada`) +
+> tanque elevado simple. Antes de CRIT-A39 el pelo de agua mínimo del
+> balance era el valor manual de la raíz (20 m) y el margen del crítico era
+> **+3,836 m.c.a. → CUMPLE**. CRIT-A39 hace que en ese modo el pelo de agua
+> mínimo efectivo se **estime** como `desnivelConexion_m − 0,50 m`. El par
+> histórico (pelo manual 20 m / `desnivelConexion_m` 0 m) eran knobs
+> independientes y quedó semánticamente inconsistente bajo el nuevo modelo;
+> el nuevo margen es **−16,664 m.c.a. → NO CUMPLE**. Es el **único** cambio
+> numérico del baseline: M1, M3, M4 y Tabla N°1 quedan byte-idénticos. En
+> modo Profesional el balance sigue usando el valor manual.
 | **M3** | Estado | `evaluado` |
 | M3 | Medidor general — DN recomendado / adoptado | **25 / 25 mm** |
 | M3 | Medidor general — hf adoptada | ≈ **1,399 m.c.a.** |
@@ -95,9 +106,13 @@ navegador transversal (26/26). `✓` = cambia; `—` = **NO** cambia
 - Subir el medidor general (M3, ↑) en esquema con tanque → Qc de M1 y
   VRTD de M4 **byte-idénticos**; el margen de M2 tampoco se mueve porque
   el general está aguas arriba del tanque.
-- `cisternaBombeoElevado` produce **el mismo** balance terminal de M2 y
-  **el mismo** origen que `tanqueElevado` (la cisterna y la bomba están
-  aguas arriba del almacenamiento; no son un tercer origen terminal).
+- `cisternaBombeoElevado` produce **el mismo** origen que `tanqueElevado`
+  (la cisterna y la bomba están aguas arriba del almacenamiento; no son un
+  tercer origen terminal). El balance terminal coincide con `tanqueElevado`
+  **cuando el pelo de agua mínimo efectivo es el mismo**; con el fixture
+  canónico (modo Rápido, `desnivelConexion_m = 0`) divergen porque CRIT-A39
+  estima el de `tanqueElevado` (−0,50 m) y `cisternaBombeoElevado` conserva
+  el manual (20 m).
 
 ---
 
@@ -123,7 +138,11 @@ Lo que **NO** cruza ninguna frontera:
 - M3 no conoce el balance de presión profundo ni la selección del
   terminal crítico.
 - M4 no aporta `Pcalc`, Qconexión, VRTD ni presión de bomba al balance
-  terminal de M2. `desnivelConexion_m` es sólo de Tabla N°1.
+  terminal de M2. `desnivelConexion_m` alimenta Tabla N°1 (Pcalc) y, en
+  modo Rápido + tanque elevado simple, la estimación del pelo de agua
+  mínimo efectivo del balance de M2 (CRIT-A39, vía
+  `resolverEntradasDeVerificacion`); `motor/modulo2/**` sigue sin importar
+  nada de `motor/modulo4`.
 - `motor/tuberias/**` y `motor/modulo2/**` no importan nada de
   `motor/modulo4` / `tabla-01-gastos-conexion` / `motor/reserva`
   (verificado por `grep`; también en D-δ.68).
@@ -155,7 +174,7 @@ callback `onCambiar`.
 | **Esquema de abastecimiento** | `configuracionAbastecimiento.esquema` | Panel M4 | M4 + origen de M2 + aplicabilidad del general en M3→M2 |
 | Presión sobre acera | `parametros.presionSobreAcera_m` | Panel M4 (en `directa` **y** en esquemas con tanque) | M4 (Tabla N°1) + M2 (Pdisponible, sólo en `directa`) |
 | DN de conexión | `parametros.diametroNominalConexion_m?` | Panel M4 | M4 (Tabla N°1) |
-| Desnivel de conexión (firmado) | `parametros.desnivelConexion_m?` | Panel M4 | M4 (Pcalc). **NO** lo usa M2. |
+| Desnivel de conexión (firmado) | `parametros.desnivelConexion_m?` | Panel M4 | M4 (Pcalc) + M2 en modo Rápido + tanque elevado simple (pelo de agua mínimo efectivo, CRIT-A39). |
 | Tc (período de consumo máximo) | `configuracionAbastecimiento.periodoConsumoMaximo_h?` | Panel M4 | M4. `directa` lo descarta a propósito (D-δ.63 §7/§23). |
 | Capacidades adoptadas | `configuracionAbastecimiento.volumenTanque{Elevado,Bombeo}Adoptado_m3?` | Panel M4 | M4 (sólo la verificación de adopción) |
 | Pdisponible / hfMedidor manuales | **ya no existen** (D-δ.68 retiró el input local; se derivan) | — | — |

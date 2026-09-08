@@ -86,13 +86,13 @@ export function resolverResumenDeProyecto(
   // --- Margen crítico (verificación de Módulo 2) ---
   let margenCritico: CampoResumen = PENDIENTE
   let margenCumple: boolean | undefined
-  const { presionDisponible_mca, hfMedidorDeTerminal } = resolverEntradasDeVerificacion(
+  const { presionDisponible_mca, hfMedidorDeTerminal, proyectoParaVerificacion } = resolverEntradasDeVerificacion(
     proyecto,
     catalogoArtefactos,
     coeficientesMayoracion,
   )
   const estadoM2 = resolverEstadoModulo2(
-    proyecto,
+    proyectoParaVerificacion,
     presionDisponible_mca,
     hfMedidorDeTerminal,
     catalogoArtefactos,

@@ -17,6 +17,14 @@
 // Si algo de esto cambia hay que actualizar `BASELINE-FUNCIONAL-M1-M4.md`
 // en el mismo commit: este archivo es la evidencia ejecutable de ese
 // documento.
+//
+// D-δ.79 (CRIT-A39): `balanceM2` ahora pasa por la MISMA frontera de pelo
+// de agua mínimo efectivo que la UI (resolverEntradasDeVerificacion). El
+// fixture canónico es modo Rápido + tanque elevado simple, así que el
+// pelo de agua mínimo del balance dejó de ser el valor manual (20 m) y
+// pasa a estimarse como `desnivelConexion_m − 0,50 = −0,50 m`. Único
+// cambio del baseline: el margen del crítico de M2 pasa de +3,836 m.c.a.
+// (CUMPLE) a −16,664 m.c.a. (NO CUMPLE). M1/M3/M4 y Tabla N°1 sin cambios.
 import { describe, it, expect } from 'vitest'
 import { proyectoInicial } from './interfaz/paginas/proyectoDeEjemplo'
 import type { Proyecto } from './modelo/proyecto'
@@ -29,6 +37,8 @@ import { resolverEstadoModulo2 } from './motor/modulo2/resolverEstadoModulo2'
 import { resolverEstadoModulo3 } from './motor/modulo3/resolverEstadoModulo3'
 import { resolverEstadoModulo4 } from './motor/modulo4/resolverEstadoModulo4'
 import { resolverOrigenHidraulicoEfectivo } from './motor/modulo4/resolverOrigenHidraulico'
+import { resolverPeloDeAguaMinimoEfectivo } from './motor/modulo4/resolverPeloDeAguaMinimoDeTanque'
+import { aplicarPeloDeAguaMinimoEfectivo } from './interfaz/paginas/resolverEntradasDeVerificacion'
 import {
   resolverPerdidasDeMedidoresParaTerminal,
   type OrigenHidraulicoDeMedidores,
@@ -78,6 +88,18 @@ function balanceM2(p: Proyecto) {
   const nodosTerminales =
     p.redHidraulica?.nodos.filter((n) => n.referencia?.tipo === 'artefacto') ?? []
 
+  // CRIT-A39 (D-δ.79): misma frontera de pelo de agua mínimo efectivo que
+  // usa la UI (resolverEntradasDeVerificacion). En modo Rápido + tanque
+  // elevado simple el balance consume la cota estimada
+  // (desnivelConexion_m − 0,50), no el valor manual; así la baseline
+  // refleja exactamente lo que ve el usuario.
+  const peloDeAguaMinimoEfectivo = resolverPeloDeAguaMinimoEfectivo({
+    esquema,
+    granularidad: p.configuracionHidraulica.granularidadHidraulica,
+    desnivelConexion_m: p.parametros.desnivelConexion_m,
+  })
+  const proyectoParaBalance = aplicarPeloDeAguaMinimoEfectivo(p, peloDeAguaMinimoEfectivo)
+
   const hfMedidorDeTerminal = (nodoTerminalId: string): number | undefined => {
     if (origenHidraulico === undefined) return undefined
     const nodo = nodosTerminales.find((n) => n.id === nodoTerminalId)
@@ -94,7 +116,7 @@ function balanceM2(p: Proyecto) {
   }
 
   const estado = resolverEstadoModulo2(
-    p,
+    proyectoParaBalance,
     presionDisponible_mca,
     hfMedidorDeTerminal,
     catalogoArtefactos,
@@ -224,6 +246,17 @@ describe('D-δ.70 · Baseline funcional transversal M1–M4', () => {
     expect(m3.estado).toBe('evaluado')
     expect(m4.estado).toBe('evaluado')
     expect(m4.tipo).toBe('reservaCalculada')
+
+    // D-δ.79 (CRIT-A39): el fixture es modo Rápido + tanque elevado simple,
+    // así que el balance consume el pelo de agua mínimo ESTIMADO
+    // (desnivelConexion_m − 0,50 = −0,50 m), no el valor manual (20 m). El
+    // margen del crítico histórico era +3,836 m.c.a. → CUMPLE; con el
+    // origen estimado pasa a −16,664 m.c.a. → NO CUMPLE. Único cambio
+    // numérico del baseline por CRIT-A39 (M1/M3/M4/Tabla N°1 intactos).
+    if (m2.estado.estado === 'completo') {
+      expect(m2.estado.terminalMasDesfavorable.margen_mca).toBeCloseTo(-16.664, 3)
+      expect(m2.estado.terminalMasDesfavorable.cumpleMinimo).toBe(false)
+    }
   })
 
   // --- MATRIZ DE SENSIBILIDAD Y NO CONTAMINACIÓN -----------------------
@@ -340,8 +373,21 @@ describe('D-δ.70 · Baseline funcional transversal M1–M4', () => {
   it('medidor general: sólo entra al camino de M2 en directa (no en tanque/cisterna)', () => {
     const directa = conEsquemaDeAbastecimiento(base, 'directa')
     const cisterna = conEsquemaDeAbastecimiento(base, 'cisternaBombeoElevado')
-    // Mismo balance terminal en tanque y cisterna (general aguas arriba en ambos).
-    expect(margenCritico(cisterna)).toBeCloseTo(margenCritico(base)!, 9)
+
+    // CRIT-A39 (D-δ.79): en modo Rápido el pelo de agua mínimo del esquema
+    // 'tanqueElevado' se ESTIMA (desnivelConexion_m − 0,50), mientras que
+    // 'cisternaBombeoElevado' conserva el dato manual. Con el mismo pelo de
+    // agua efectivo el balance terminal de tanque y cisterna coincide
+    // (general aguas arriba en ambos): se alinea el desnivel para que la
+    // cota estimada (20,5 − 0,50) iguale la cota manual de la raíz (20).
+    const baseAlineado = conDesnivelConexion(base, 20.5)
+    const cisternaAlineada = conEsquemaDeAbastecimiento(baseAlineado, 'cisternaBombeoElevado')
+    expect(margenCritico(cisternaAlineada)).toBeCloseTo(margenCritico(baseAlineado)!, 9)
+
+    // Con el fixture canónico (desnivelConexion_m = 0) tanque y cisterna SÍ
+    // divergen: es el efecto legítimo de CRIT-A39, no una regresión.
+    expect(Math.abs(margenCritico(cisterna)! - margenCritico(base)!)).toBeGreaterThan(1e-6)
+
     // En directa el general entra: el margen difiere del de tanque.
     const mDirecta = margenCritico(directa)
     expect(mDirecta).toBeDefined()

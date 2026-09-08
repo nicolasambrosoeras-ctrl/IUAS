@@ -50,16 +50,25 @@ describe('resolverResumenDeProyecto (UI-01C)', () => {
     expect(r.margenCumple).toBeUndefined()
   })
 
-  it('proyecto canónico completo: los tres campos resuelven, con el margen del baseline', () => {
+  it('proyecto canónico completo: los tres campos resuelven, con el margen del baseline (CRIT-A39)', () => {
     const r = resumen(canonico())
     expect(r.qc.tipo).toBe('valor')
     expect(r.reserva.tipo).toBe('valor')
     if (r.reserva.tipo === 'valor') expect(r.reserva.texto).toMatch(/^\d[\d.,]* L$/)
     expect(r.margenCritico.tipo).toBe('valor')
-    // Baseline transversal D-δ.70/D-δ.72: margen del crítico ≈ +3,836 m.c.a.
-    // (mismo formateo de presión que el bloque del terminal crítico).
-    if (r.margenCritico.tipo === 'valor') expect(r.margenCritico.texto).toBe('+3,836 m.c.a.')
-    expect(r.margenCumple).toBe(true)
+    // Baseline transversal D-δ.70/D-δ.72: margen del crítico +3,836 m.c.a.
+    // → CUMPLE, con el pelo de agua mínimo manual (20 m).
+    //
+    // D-δ.79 (CRIT-A39): el fixture canónico es modo Rápido + tanque
+    // elevado simple, así que el pelo de agua mínimo EFECTIVO deja de ser
+    // el valor manual y pasa a estimarse como
+    // `desnivelConexion_m − 0,50 = 0 − 0,50 = −0,50 m`. El par histórico
+    // (pelo manual 20 m / desnivelConexion_m 0 m) eran knobs independientes
+    // antes de CRIT-A39 y quedó semánticamente inconsistente; el nuevo
+    // margen del crítico es −16,664 m.c.a. → NO CUMPLE. Es el único cambio
+    // numérico esperable por CRIT-A39 (M1/M3/M4 y Tabla N°1 sin tocar).
+    if (r.margenCritico.tipo === 'valor') expect(r.margenCritico.texto).toBe('-16,664 m.c.a.')
+    expect(r.margenCumple).toBe(false)
   })
 
   it('esquema "directa": la Reserva es "No aplica", no 0 (contrato de M4, §25)', () => {

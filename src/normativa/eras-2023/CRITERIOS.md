@@ -2528,3 +2528,78 @@ iguales los tanques ≥ 4.000 L.
 `motor/modulo4/resolverAdopcionDeReserva.ts`, integrado en
 `motor/modulo4/resolverEstadoModulo4.ts`. Ver D-δ.66 en
 `PENDIENTES-DE-ARQUITECTURA.md`.
+
+## CRIT-A39 — Pelo de agua mínimo estimado en modo Rápido (tanque elevado simple)
+
+**Naturaleza:** hipótesis de producto / cálculo simplificado de IUAS,
+**no** una regla ERAS ni una verdad física universal. Decisión explícita
+del usuario (D-δ.79).
+
+**Criterio adoptado.** Para el balance de presión de Módulo 2, cuando el
+esquema de abastecimiento es **`tanqueElevado`** (tanque alimentado
+directamente de la red, **sin** cisterna + bombeo) y el modo de trabajo es
+**Rápido** (`granularidadHidraulica = 'simplificada'`), IUAS **estima** la
+cota del pelo de agua mínimo del tanque como:
+
+```
+z_pelo_agua_min = desnivelConexion_m − 0,50 m
+```
+
+Ambas magnitudes referidas al nivel de acera (datum común del Proyecto,
+cota 0 = vereda; ver `Nodo.cota_m` y `ParametrosProyecto.desnivelConexion_m`).
+Para el esquema `tanqueElevado`, `desnivelConexion_m` ya significa "desnivel
+de la acera al **punto de alimentación del tanque**" (CRIT-A37 /
+`etiquetaDesnivelConexion`), así que el pelo de agua mínimo estimado queda
+0,50 m por debajo de ese punto de alimentación.
+
+**Fundamento.** El pelo de agua mínimo (superficie de agua con el flotante
+cerrado) y el punto de alimentación del tanque son puntos físicos
+distintos (CRIT-A37 ya lo señalaba); la holgura de 0,50 m modela esa
+diferencia de forma aproximada para no exigir en modo Rápido una segunda
+cota geométrica relacionada con la que el usuario ya declara en
+Abastecimiento y reserva. No se modela la geometría real del tanque
+(altura total, fondo, salida, volumen por altura, histéresis del
+flotante): la holgura fija ES la simplificación.
+
+**Modo Profesional.** Sin cambios: el pelo de agua mínimo sigue siendo un
+**dato declarado** (cota de la raíz del camino, `Nodo.cota_m`), medido y
+cargado por el proyectista. El valor manual se preserva intacto al pasar a
+Rápido y se recupera al volver a Profesional (no hay doble fuente de
+verdad: el modo decide cuál se usa, el dato manual vive siempre en
+`Nodo.cota_m`).
+
+**Alcance — qué NO cubre:**
+
+- **No aplica a `cisternaBombeoElevado`.** La conexión de red y el tanque
+  elevado no comparten necesariamente esa relación geométrica; ese esquema
+  mantiene el comportamiento actual (dato manual). 
+- **No aplica a `directa`.** No hay pelo de agua de tanque:
+  `Pdisponible = Pacera` (contrato histórico, sin cambios).
+- **Sin clamp ni redondeo interno.** `desnivelConexion_m − 0,50` se aplica
+  tal cual (puede dar negativo si el punto de alimentación está bajo la
+  acera); el formateo visual es separado.
+- **Dato faltante ≠ cero.** Sin `desnivelConexion_m` la verificación queda
+  **incompleta** (mensaje "Completá el punto de alimentación del tanque en
+  Abastecimiento y reserva"), nunca se fabrica 0 ni se cae al valor manual
+  oculto.
+
+**No cambia CRIT-A37.** `desnivelConexion_m` conserva su semántica y su uso
+en Tabla N°1 (`presionCalculo_m = presionSobreAcera_m − desnivelConexion_m`).
+CRIT-A39 sólo agrega un segundo consumidor de ese dato en modo Rápido.
+
+**Frontera arquitectónica.** La composición M4→M2 vive en
+`interfaz/paginas/resolverEntradasDeVerificacion.ts` (helper puro
+`motor/modulo4/resolverPeloDeAguaMinimoDeTanque.ts`). `motor/tuberias/**`
+y `motor/modulo2/**` **no** importan Módulo 4 (sin ciclo).
+
+**Impacto en el baseline transversal (D-δ.79).** El fixture canónico
+D-δ.70 es modo Rápido + `tanqueElevado` con pelo de agua manual 20 m y
+`desnivelConexion_m = 0` — dos knobs independientes antes de CRIT-A39, hoy
+acoplados. El margen del crítico pasa de +3,836 m.c.a. (CUMPLE) a
+−16,664 m.c.a. (NO CUMPLE): único cambio numérico del baseline, con M1 /
+M3 / M4 / Tabla N°1 intactos. Ver `BASELINE-FUNCIONAL-M1-M4.md`.
+
+**Estado:** Firme. Implementado en
+`motor/modulo4/resolverPeloDeAguaMinimoDeTanque.ts`, compuesto en
+`interfaz/paginas/resolverEntradasDeVerificacion.ts`, consumido por
+`PanelDePresionDeModulo2.tsx` y `resolverResumenDeProyecto.ts`. Ver D-δ.79.

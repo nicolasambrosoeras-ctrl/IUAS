@@ -130,8 +130,22 @@ export function PanelDePresionDeModulo2({
   // sidebar. Un esquema ausente o corrupto -> `origenEfectivo` undefined
   // -> la verificación de presión queda 'incompleta' (nunca throw).
   const esquemaAbastecimiento = proyecto.configuracionAbastecimiento?.esquema
-  const { origenEfectivo, origenTexto, presionDisponible_mca, perdidasDeMedidoresDeTerminal, hfMedidorDeTerminal } =
-    resolverEntradasDeVerificacion(proyecto, catalogoArtefactos, coeficientesMayoracion)
+  const {
+    origenEfectivo,
+    origenTexto,
+    presionDisponible_mca,
+    peloDeAguaMinimoEfectivo,
+    proyectoParaVerificacion,
+    perdidasDeMedidoresDeTerminal,
+    hfMedidorDeTerminal,
+  } = resolverEntradasDeVerificacion(proyecto, catalogoArtefactos, coeficientesMayoracion)
+
+  // CRIT-A39 (D-δ.79): en modo Rápido + tanque elevado simple el balance
+  // consume el pelo de agua mínimo ESTIMADO (cota de raíz sustituida), sin
+  // tocar el dato manual del modo Profesional. En el resto de los casos
+  // `proyectoParaVerificacion === proyecto`. `proyecto` se sigue usando
+  // para editar (inputs, callbacks) y para las etiquetas.
+  const proyectoVerif = proyectoParaVerificacion
 
   const nodosTerminales = proyecto.redHidraulica?.nodos.filter(esTerminalDeArtefacto) ?? []
 
@@ -144,7 +158,7 @@ export function PanelDePresionDeModulo2({
     ) ?? []
 
   const estadoModulo2 = resolverEstadoModulo2(
-    proyecto,
+    proyectoVerif,
     presionDisponible_mca,
     hfMedidorDeTerminal,
     catalogoArtefactos,
@@ -158,7 +172,7 @@ export function PanelDePresionDeModulo2({
       : nodosTerminales.map((nodo) => ({
           nodoId: nodo.id,
           resultado: resolverPresionResidualDeCamino(
-            proyecto,
+            proyectoVerif,
             nodo.id,
             presionDisponible_mca,
             hfMedidorDeTerminal(nodo.id),
@@ -203,7 +217,7 @@ export function PanelDePresionDeModulo2({
       : undefined
   const cotaRaizCritico =
     resultadoCritico?.tipo === 'balanceCompleto'
-      ? proyecto.redHidraulica?.nodos.find((n) => n.id === resultadoCritico.raizId)?.cota_m
+      ? proyectoVerif.redHidraulica?.nodos.find((n) => n.id === resultadoCritico.raizId)?.cota_m
       : undefined
 
   const motivosAgrupados =
@@ -245,6 +259,28 @@ export function PanelDePresionDeModulo2({
             </p>
 
             {origenEfectivo === 'tanqueElevado' ? (
+            peloDeAguaMinimoEfectivo.tipo === 'derivadoRapido' ? (
+              // Modo Rápido + tanque elevado simple (CRIT-A39): el pelo de
+              // agua mínimo se ESTIMA a partir del punto de alimentación del
+              // tanque, no se pide como dato independiente. Read-only.
+              <p>
+                <small>
+                  Pelo de agua mínimo estimado:{' '}
+                  <strong>{formatearNumero(peloDeAguaMinimoEfectivo.cota_m, 'm')} m</strong>
+                  <br />
+                  Hipótesis IUAS del modo Rápido: 0,50 m por debajo del punto de alimentación del tanque
+                  ({formatearNumero(peloDeAguaMinimoEfectivo.desnivelAlimentacionTanque_m, 'm')} m), editable en
+                  Abastecimiento y reserva. No es un valor medido.
+                </small>
+              </p>
+            ) : peloDeAguaMinimoEfectivo.tipo === 'incompletoRapido' ? (
+              <p className="ui-callout ui-callout--warn" role="alert">
+                <small>
+                  Completá el punto de alimentación del tanque en <strong>Abastecimiento y reserva</strong> para
+                  estimar el pelo de agua mínimo.
+                </small>
+              </p>
+            ) : (
             nodosRaiz.map((nodo, indice) => (
               <label key={nodo.id} style={{ marginRight: '1rem' }}>
                 Pelo de agua mínimo{nodosRaiz.length > 1 ? ` (alimentación ${indice + 1})` : ''} [m]:{' '}
@@ -262,6 +298,7 @@ export function PanelDePresionDeModulo2({
                 />
               </label>
             ))
+            )
           ) : (
             <>
               {nodosRaiz.map((nodo, indice) => (
@@ -446,7 +483,7 @@ export function PanelDePresionDeModulo2({
                 <details>
                   <summary>Ver cálculo del crítico</summary>
                   <CalculoDelCriticoDetalle
-                    proyecto={proyecto}
+                    proyecto={proyectoVerif}
                     catalogoArtefactos={catalogoArtefactos}
                     resultado={resultadoCritico}
                     presionDisponible_mca={presionDisponible_mca}
@@ -469,7 +506,7 @@ export function PanelDePresionDeModulo2({
           <details>
             <summary>Ver todos los terminales ({candidatos.length})</summary>
             <TablaDeTerminales
-              proyecto={proyecto}
+              proyecto={proyectoVerif}
               catalogoArtefactos={catalogoArtefactos}
               candidatos={candidatos}
               referenciaPorNodoId={referenciaPorNodoId}
