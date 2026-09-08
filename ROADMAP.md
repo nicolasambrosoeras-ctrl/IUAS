@@ -506,11 +506,32 @@ M1–M4 en la memoria PDF.
 firmes, reglas de "no fabricar") sólo pueden envolverse, no reescribirse,
 salvo bug inequívoco o decisión roja explícita.
 
-**Siguiente fase (NO iniciada): UI-01 — rediseño transversal.** Sidebar /
-índice, jerarquía visual, cards, tablas, responsive, sticky summary
-derivado, progressive disclosure, estética verde. Mantiene: one-page,
-módulos montados, motores intactos, mismo `Proyecto`, mismos
-resultados/view-models.
+### Fase 4 / Rediseño de experiencia — EN CURSO
+
+- **D-δ.71** — ajustes de experiencia sobre el core congelado, sin
+  fórmulas ni dominio nuevos:
+  - **M4 en litros**: la UI de Módulo 4 muestra y edita reserva y
+    capacidades **en litros** (`1 m³ = 1000 L`); el core sigue
+    íntegramente en m³ (`volumenReservaDiseno_m3`,
+    `volumenTanque*Adoptado_m3`, CRIT-A35/A38, goldens, persistencia sin
+    cambios). Conversión en el borde de la UI
+    (`humanizarModulo4.formatearVolumen_L` / `litrosParaInput` /
+    `m3DesdeLitros`), sin doble persistencia y sin redondeo de cálculo.
+    Regresión blindada: core 1 m³ ↔ UI 1000 L. Suite 1221 → 1225; smoke
+    16/16, consola limpia.
+  - **Patrón "Iniciar Módulo 3"**: auditado y **conservado sin cambios**.
+    Codifica una distinción real (`configuracionMedidores` ausente ≠
+    configuración explícita); M3 requiere legítimamente una acción de
+    inicio porque su primera decisión (propiedad horizontal) tiene un
+    valor con aspecto de default, a diferencia de M4 que se inicia al
+    elegir esquema. No forzar la homogeneización con M4.
+
+**Siguiente slice (NO iniciado): UI-01A — arquitectura de navegación.**
+Separar visualmente M2 Dimensionamiento de la Verificación hidráulica
+(que pasa a etapa final, sin dejar de pertenecer al dominio M2), sidebar/
+índice de la one-page, anchors, responsive básico. Sin skin visual
+completo (eso es UI-01B). Mantiene: one-page, módulos montados, no
+router, motores/`Proyecto`/contratos intactos.
 
 **Hallazgos de M4-A:**
 

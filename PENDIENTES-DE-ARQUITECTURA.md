@@ -7538,3 +7538,105 @@ motores puros, mapeos, updaters puros, CRIT firmes, reglas de "no
 fabricar") quedan congelados: el rediseño de UI puede envolverlos, no
 reescribirlos, salvo bug inequívoco o decisión roja explícita. **No se
 inicia UI-01.**
+
+## D-δ.71 -- Litros como unidad principal de la UI de Módulo 4 + auditoría del patrón "Iniciar Módulo 3" -- CERRADA
+
+Dos ajustes de EXPERIENCIA sobre el core M1–M4 congelado (D-δ.70). Sin
+fórmulas nuevas, sin cambios de dominio, sin tocar `Proyecto`, CRIT ni
+goldens.
+
+### A. Módulo 4 en litros (cambio funcional de UI)
+
+**Motivación**: el proyectista trabaja las reservas y capacidades de
+tanque en litros; m³ con 3 decimales ("0,771 m³") es incómodo para el
+uso real.
+
+**Regla**: el core sigue enteramente en m³. `1 m³ = 1000 L`. La
+conversión vive en el borde de la UI (`humanizarModulo4.ts` +
+`PanelDeModulo4.tsx`) y **no** se persiste en litros. No se introduce
+redondeo de cálculo -- el formateo de litros es sólo visual.
+
+- `humanizarModulo4.ts`: `LITROS_POR_M3`, `litrosDesde_m3`,
+  `m3DesdeLitros` (conversión pura); `formatearVolumen_L(m3)` (es-AR,
+  hasta 3 decimales de litro, sin ceros de relleno -> "1493 L" para un
+  entero, "771,169 L" cuando el cálculo tiene decimales; sin separador de
+  miles porque "1.000 L" se confunde con "1 L" y los volúmenes
+  domésticos no lo necesitan); `litrosParaInput(m3)` limpia el ruido
+  IEEE-754 del `value` del `<input>`. Se elimina `volumenEnLitros`
+  (redondeaba a litros enteros), reemplazado por `formatearVolumen_L`.
+- `PanelDeModulo4.tsx`: "Reserva requerida", RTD, "por déficit: 0 L", y
+  la tabla de adopción (`verificada` y `verificadaDistribuida`:
+  requerida, volumen adoptado, diferencia, mínimo por tanque 1/3, total
+  adoptado) pasan a litros. En modo Profesional se agrega el equivalente
+  en m³ entre paréntesis junto a la reserva requerida. Los inputs de
+  capacidad adoptada quedan rotulados `[L]`, con `value` en litros y un
+  `onChange` que parsea litros y persiste `litros / 1000` mediante el
+  updater existente en m³ (`conVolumenTanque{Elevado,Bombeo}Adoptado`);
+  `''` -> `undefined` (limpia el valor), `0` L -> `0` m³.
+
+**Regresión obligatoria** (test SSR en `PanelDeModulo4.test.ts` +
+unit en `humanizarModulo4.test.ts`): un core con
+`volumenTanqueElevadoAdoptado_m3 = 1` se muestra y edita como `1000 L`
+(el `<input>` trae `value="1000"`, nunca `"1"`); `1000` L ingresados por
+el usuario persisten `1` m³; nunca se interpreta `1000 L` como
+`1000 m³`. Verificado también en navegador (smoke 16/16, consola limpia):
+la diferencia contra una reserva requerida de ~917 L da +83 L, no
++999083 L.
+
+Suite 1221 -> 1225. `auditoriaTransversalM1M4.baseline.test.ts` 12/12 sin
+cambios (no toca la capa de presentación de M4). `tsc` / `build` /
+`eslint` sin regresión.
+
+### B. Patrón "Iniciar Módulo 3" -- auditado y CONSERVADO sin cambios
+
+**Qué persiste al pulsar "Iniciar Módulo 3"**: exactamente
+`CONFIGURACION_MEDIDORES_INICIAL = { esPropiedadHorizontal: false,
+tipoProvisionACS: 'individual' }` -- nada derivado. `conModulo3Iniciado`
+es idempotente (no pisa una configuración existente).
+
+**¿Se introduce un default?**: sí, dos valores, pero materializados por
+una acción explícita del usuario, no en silencio: antes de pulsar el
+botón `configuracionMedidores` es genuinamente `undefined` y
+`EstadoModulo3` es `noIniciado`. `esPropiedadHorizontal: false` es una
+decisión válida y explícita (D-δ.55: "NO es 'no iniciado'"), lleva a
+`evaluado` con sólo el medidor general. `tipoProvisionACS: 'individual'`
+es inerte mientras PH esté en `false` (no hay medidores individuales);
+sólo pasa a ser consecuente si el usuario activa PH. No es un bug, es
+consistente con el `?? CONFIGURACION_MEDIDORES_INICIAL` que usan los
+demás updaters como base.
+
+**¿El usuario entra en decisiones reales de M3 de inmediato?**: sí. Tras
+"Iniciar" se computa y muestra el medidor general (Tabla N°6 desde el Qc
+real) y aparece el checkbox de propiedad horizontal -- la primera
+decisión real -- más, si se activa, el selector de provisión de ACS y
+los overrides por UF. No es una pantalla vacía.
+
+**¿Hay una razón de UX concreta para cambiarlo?**: no, y hay una razón
+positiva para **conservarlo**. La primera decisión de M3 (PH sí/no) tiene
+un valor con aspecto de default ("no") que sería visualmente
+indistinguible de "no iniciado" si el panel saltara directo a mostrar un
+checkbox de PH sin marcar. El modelo de M4 es distinto: su primera
+decisión (esquema) tiene tres opciones pares y ningún valor "nulo" con
+aspecto válido, así que elegir una inicia M4 de forma natural. Forzar a
+M3 a imitar a M4 exigiría inventar un tri-estado falso para PH o
+confundir `noIniciado` con `esPropiedadHorizontal: false` -- ambas cosas
+peores.
+
+**Decisión**: conservar el patrón "acción explícita de inicio" de M3 sin
+cambios. La semántica de `noIniciado` no se toca. La nueva navegación
+(UI-01A y siguientes) debe seguir exponiendo con claridad el estado
+"Módulo 3 todavía no iniciado" y su botón, sin disolverlo.
+
+### Deuda menor observada (no bloquea)
+
+`CONFIGURACION_MEDIDORES_INICIAL` persiste `tipoProvisionACS: 'individual'`
+aunque es inerte con PH en `false`. Se puede dejar así (consistencia con
+el resto de updaters) o, en un futuro, persistir sólo
+`{ esPropiedadHorizontal: false }` al iniciar. No cambia ningún resultado.
+
+### Estado
+
+**D-δ.71 -- CERRADA.** M4 presenta y edita volúmenes en litros con el core
+intacto en m³ y la regresión de conversión blindada. El patrón "Iniciar
+Módulo 3" queda auditado y conservado con justificación. Sin decisiones
+rojas. Sin bugs.
