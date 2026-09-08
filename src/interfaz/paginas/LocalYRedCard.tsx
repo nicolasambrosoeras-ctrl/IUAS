@@ -143,6 +143,10 @@ function NodoDeArbol({
   // representativo (L/DN/V/Pérdida). Se omite ese bloque acá para no
   // duplicarlo -- el resto del árbol (accesorios, tees, ramales) sigue.
   mostrarDimensionamientoDelRepresentativo = true,
+  // D-δ.79 (adenda): cuando este NodoDeArbol es una tarjeta dentro de la
+  // grilla de ramales hermanos, se suprime el sangrado izquierdo (la
+  // tarjeta ya agrupa visualmente).
+  enGrillaDeRamales = false,
   onCambiar,
 }: {
   proyecto: Proyecto
@@ -153,6 +157,7 @@ function NodoDeArbol({
   granularidadHidraulica: GranularidadHidraulica
   modoDetallado: boolean
   mostrarDimensionamientoDelRepresentativo?: boolean
+  enGrillaDeRamales?: boolean
   onCambiar: (proyecto: Proyecto) => void
 }) {
   const resultado = resolverResultadoDeTramoParaUi(proyecto, nodo.tramoId, catalogoArtefactos)
@@ -170,7 +175,7 @@ function NodoDeArbol({
   const omitirDimensionamiento = esRaiz && !mostrarDimensionamientoDelRepresentativo
 
   return (
-    <div style={{ marginLeft: esRaiz ? 0 : '1rem', marginTop: '0.5rem' }}>
+    <div style={{ marginLeft: esRaiz || enGrillaDeRamales ? 0 : '1rem', marginTop: enGrillaDeRamales ? 0 : '0.5rem' }}>
       {omitirDimensionamiento ? null : (
         <DimensionamientoDeTramo
           etiqueta={etiqueta}
@@ -191,30 +196,84 @@ function NodoDeArbol({
       {modoDetallado ? (
         <SeccionDeTeeInline proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} nodo={nodo} onCambiar={onCambiar} />
       ) : null}
-      {granularidadHidraulica === 'simplificada'
-        ? nodo.hijos.map((hijo) => (
-            <RamalesSimplificados
-              key={hijo.tramoId}
-              proyecto={proyecto}
-              catalogoArtefactos={catalogoArtefactos}
-              nodo={hijo}
-              modoDetallado={modoDetallado}
-              onCambiar={onCambiar}
-            />
-          ))
-        : nodo.hijos.map((hijo) => (
-            <NodoDeArbol
-              key={hijo.tramoId}
-              proyecto={proyecto}
-              catalogoArtefactos={catalogoArtefactos}
-              red={red}
-              nodo={hijo}
-              esRaiz={false}
-              granularidadHidraulica={granularidadHidraulica}
-              modoDetallado={modoDetallado}
-              onCambiar={onCambiar}
-            />
-          ))}
+      {granularidadHidraulica === 'simplificada' ? (
+        nodo.hijos.map((hijo) => (
+          <RamalesSimplificados
+            key={hijo.tramoId}
+            proyecto={proyecto}
+            catalogoArtefactos={catalogoArtefactos}
+            nodo={hijo}
+            modoDetallado={modoDetallado}
+            onCambiar={onCambiar}
+          />
+        ))
+      ) : (
+        <RamalesProfesional
+          proyecto={proyecto}
+          catalogoArtefactos={catalogoArtefactos}
+          red={red}
+          hijos={nodo.hijos}
+          granularidadHidraulica={granularidadHidraulica}
+          modoDetallado={modoDetallado}
+          onCambiar={onCambiar}
+        />
+      )}
+    </div>
+  )
+}
+
+// D-δ.79 (adenda) — presentación de los hijos de un nodo en modo
+// Profesional. Cuando son varios ramales TERMINALES hermanos, se disponen
+// en una grilla de hasta 2 columnas (CSS puro, orden DOM = orden
+// hidráulico, sin masonry). El tramo de alimentación común queda fuera de
+// esta grilla porque se renderiza antes, en el flujo del NodoDeArbol
+// padre. Si algún hijo NO es terminal (tiene su propio sub-árbol) se
+// mantiene el apilado vertical para no aplanar la jerarquía física.
+function RamalesProfesional({
+  proyecto,
+  catalogoArtefactos,
+  red,
+  hijos,
+  granularidadHidraulica,
+  modoDetallado,
+  onCambiar,
+}: {
+  proyecto: Proyecto
+  catalogoArtefactos: readonly ArtefactoNormativo[]
+  red: RedDeTramo
+  hijos: readonly NodoDelArbolDeLocal[]
+  granularidadHidraulica: GranularidadHidraulica
+  modoDetallado: boolean
+  onCambiar: (proyecto: Proyecto) => void
+}) {
+  const enGrilla = hijos.length > 1 && hijos.every((hijo) => hijo.esTerminal)
+
+  const nodos = hijos.map((hijo) => (
+    <NodoDeArbol
+      key={hijo.tramoId}
+      proyecto={proyecto}
+      catalogoArtefactos={catalogoArtefactos}
+      red={red}
+      nodo={hijo}
+      esRaiz={false}
+      granularidadHidraulica={granularidadHidraulica}
+      modoDetallado={modoDetallado}
+      enGrillaDeRamales={enGrilla}
+      onCambiar={onCambiar}
+    />
+  ))
+
+  if (!enGrilla) {
+    return <>{nodos}</>
+  }
+
+  return (
+    <div className="m2-ramales-grid" role="group" aria-label="Ramales terminales">
+      {hijos.map((hijo, indice) => (
+        <div className="m2-ramal-subcard" key={hijo.tramoId}>
+          {nodos[indice]}
+        </div>
+      ))}
     </div>
   )
 }

@@ -196,6 +196,36 @@ describe('ResultadoHidraulicoDeTramo (UI) — D-δ.43', () => {
     // este fixture).
     expect(html.match(/Confirmar que este tramo no tiene accesorios/g)?.length).toBe(4)
   })
+
+  it("D-δ.79 (adenda): en Profesional los ramales terminales hermanos van en una grilla (contenedor propio); el tramo común queda fuera", () => {
+    const proyecto = proyectoConToilette()
+
+    const html = renderToStaticMarkup(
+      createElement(ResultadoHidraulicoDeTramo, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
+    )
+
+    // Contenedor semántico propio de los ramales terminales.
+    expect(html).toContain('class="m2-ramales-grid"')
+    expect(html).toContain('aria-label="Ramales terminales"')
+    expect(html).toContain('class="m2-ramal-subcard"')
+
+    // El tramo de alimentación común NO está dentro de la grilla: aparece
+    // en el marcado antes de que abra "m2-ramales-grid".
+    const iAlimentacion = html.indexOf('Tramo de alimentación')
+    const iGrilla = html.indexOf('m2-ramales-grid')
+    expect(iAlimentacion).toBeGreaterThanOrEqual(0)
+    expect(iGrilla).toBeGreaterThan(iAlimentacion)
+
+    // Orden hidráulico preservado en el DOM: Lavatorio antes que Inodoro.
+    expect(html.indexOf('Ramal Lavatorio')).toBeGreaterThan(iGrilla)
+    expect(html.indexOf('Ramal Lavatorio')).toBeLessThan(html.indexOf('Ramal Inodoro a depósito'))
+
+    // No desaparece información hidráulica de cada ramal (input de longitud
+    // por ramal) ni sus controles de accesorios.
+    expect(html).toContain('aria-label="Longitud [m] de Ramal Lavatorio"')
+    expect(html).toContain('aria-label="Longitud [m] de Ramal Inodoro a depósito"')
+    expect(html.match(/m2-ramal-subcard/g)?.length).toBe(2)
+  })
 })
 
 describe("ResultadoHidraulicoDeTramo (UI) — granularidadHidraulica 'simplificada' (D-δ.44, corrección de granularidad de D-δ.43)", () => {

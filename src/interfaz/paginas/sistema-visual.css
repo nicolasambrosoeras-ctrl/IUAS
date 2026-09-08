@@ -838,6 +838,36 @@ summary > h3 {
 }
 
 /* ==================================================================
+   M2 Profesional — ramales terminales en grilla de hasta 2 columnas
+   (D-δ.79, adenda). El tramo de alimentación común queda fuera de esta
+   grilla, a ancho completo (se renderiza antes, en el flujo normal). El
+   orden DOM = el orden hidráulico: no hay masonry ni reordenamiento.
+   ================================================================== */
+
+.m2-ramales-grid {
+  display: grid;
+  gap: 0.6rem 1rem;
+  /* 1 columna por defecto (mobile / tablet estrecho / panel angosto). */
+  grid-template-columns: 1fr;
+}
+
+/* A partir de ~56rem de ancho de la grilla hay lugar cómodo para 2
+   columnas; nunca más de 2 (sin auto-fit que pudiera generar 3+). */
+@media (min-width: 56rem) {
+  .m2-ramales-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.m2-ramal-subcard {
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio-control);
+  background: var(--color-superficie-2);
+  padding: 0.5rem 0.75rem;
+  min-width: 0; /* deja que el contenido se comprima en vez de desbordar */
+}
+
+/* ==================================================================
    4. MOTION — muy discreto, respeta prefers-reduced-motion (sección 51)
    ================================================================== */
 
