@@ -79,6 +79,29 @@ export type ParametrosProyecto = {
   tipoDeProyecto: TipoDeProyecto;
   presionSobreAcera_m: number;
   alturaArtefactoMasDesfavorable_m: number;
+  // Datos físicos de la conexión de agua (M4-D2, D-δ.65). Optativos y
+  // backward-compatible: un Proyecto sin ellos sigue siendo válido; Módulo
+  // 4 con un esquema de tanque queda 'incompleto' hasta que se declaren.
+  // NO tienen default -- ausencia ≠ 0, ausencia ≠ DN mínimo.
+  //
+  // Diámetro nominal de la conexión, en metros. Debe ser uno de los
+  // diámetros de la Tabla N°1 (§2.7) y >= 0,019 m (mínimo de conexión,
+  // CRIT-A36). No se elige automáticamente: lo fija la Operadora / el
+  // proyectista.
+  diametroNominalConexion_m?: number;
+  // Desnivel FIRMADO del punto de alimentación de cálculo respecto del
+  // nivel de acera, en metros (no es una longitud):
+  //   > 0  -> el punto está POR ENCIMA de la acera (alimentación hacia
+  //           arriba: se resta de la presión de acera);
+  //   = 0  -> misma cota;
+  //   < 0  -> el punto está POR DEBAJO de la acera (p. ej. cisterna en
+  //           sótano: sumar el descenso -> restar un negativo).
+  // presionCalculo_m = presionSobreAcera_m - desnivelConexion_m
+  // (ver resolverPresionDeCalculoDeConexion / CRIT-A37). Es un dato
+  // DECLARADO: M4-D2 no lo deriva de la topología de M2 (el "pelo de agua
+  // mínimo" de M2 NO es la cota de entrada del tanque -- conceptos
+  // distintos).
+  desnivelConexion_m?: number;
 };
 
 export type MetadatosProyecto = {

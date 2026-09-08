@@ -12,6 +12,7 @@ import { validarRedHidraulica } from './redHidraulica';
 import { validarConfiguracionHidraulica } from './configuracionHidraulica';
 import { validarConfiguracionMedidores } from './configuracionMedidores';
 import { validarConfiguracionAbastecimiento } from './configuracionAbastecimiento';
+import { validarParametrosDeConexion } from './parametrosConexion';
 
 export function validarProyecto(
   proyecto: Proyecto,
@@ -26,6 +27,7 @@ export function validarProyecto(
     ...validarConfiguracionHidraulica(proyecto, catalogoSistemasDeTuberia),
     ...validarConfiguracionMedidores(proyecto),
     ...validarConfiguracionAbastecimiento(proyecto),
+    ...validarParametrosDeConexion(proyecto),
   ];
 
   return {

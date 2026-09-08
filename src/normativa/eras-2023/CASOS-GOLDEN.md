@@ -208,8 +208,15 @@ Es el `Qconexión` que la planilla Tabla N°4 (G4) usa en el balance de
 
 **Observación (G5/G6):** la cadena pura `Tabla N°1 → Qconexión →
 calcularReservaDiaria` se prueba en
-`motor/reserva/calcularReservaDiaria.golden.test.ts` (reproduce G3 y G4
-partiendo del gasto resuelto por Tabla N°1). La presión de 5 m es un dato
-de las planillas; su relación con la presión sobre el nivel de acera del
-proyecto (que §2.7 ajusta por desnivel) no se modela todavía — ver
-CRIT-A36 y D-δ.64.
+`motor/reserva/calcularReservaDiaria.golden.test.ts`. Desde M4-D2 (D-δ.65)
+la cadena **completa** `Proyecto → M1 → presión de cálculo (§2.7) → Tabla
+N°1 → Qconexión → reserva` se prueba end-to-end en
+`motor/modulo4/resolverEstadoModulo4.golden.test.ts`: G3 y G4 se
+reconstruyen desde un `Proyecto` real con
+`parametros.diametroNominalConexion_m` = 0,019 / 0,025 m,
+`presionSobreAcera_m` = 5 m y `desnivelConexion_m` = 0 (→ presión de
+cálculo 5 m, tabulada exacta), **sin inyectar** ningún `Qconexión`. La
+relación entre la presión sobre acera y el punto físico de cálculo de
+cada esquema (§2.7 la ajusta por desnivel firmado) se declara vía
+`desnivelConexion_m`; la auto-derivación geométrica es deuda futura — ver
+CRIT-A37 y D-δ.65.

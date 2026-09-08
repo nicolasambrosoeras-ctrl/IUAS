@@ -1,56 +1,78 @@
-// Estado y resultado de Módulo 4 (Reserva), D-δ.63. Primitiva de dominio
-// pura, independiente de UI, que orquesta el cálculo de reserva del
-// Proyecto componiendo piezas ya cerradas:
+// Estado y resultado de Módulo 4 (Reserva), D-δ.63 / D-δ.65. Primitiva de
+// dominio pura, independiente de UI, que orquesta el cálculo de reserva
+// del Proyecto componiendo piezas ya cerradas:
 //
-//   calcularSimultaneidad        -> Qc global del proyecto (M1, CRIT-A5)
-//   calcularReservaDiaria        -> Reserva Total Diaria de Diseño (M4-B, CRIT-A35)
+//   calcularSimultaneidad              -> Qc global del proyecto (M1, CRIT-A5)
+//   resolverPresionDeCalculoDeConexion -> presión de cálculo (§2.7, CRIT-A37)
+//   resolverGastoTabla01              -> Qconexión (Tabla N°1 §2.7, CRIT-A36)
+//   calcularReservaDiaria             -> Reserva Total Diaria de Diseño (§2.10.2, CRIT-A35)
 //
 // No reimplementa ninguna fórmula ni regla: compone y clasifica. NO conoce
-// React, NO toca RedHidraulica ni M2/M3, NO persiste nada (todo lo que
-// devuelve se recalcula en cada llamada -> nunca hay resultado stale).
+// React, NO toca RedHidraulica ni M2/M3, NO persiste nada.
+//
+// M4-D2 (D-δ.65): el Qconexión ya NO entra como boundary externo. Se
+// deriva del Proyecto -> presión sobre acera + desnivel firmado de la
+// conexión + diámetro nominal de la conexión -> Tabla N°1. La única
+// primitiva inferior que sigue recibiendo `qConexion_lps` explícito es
+// `calcularReservaDiaria` (por diseño: es una función numérica pura).
 //
 // Semántica de los cuatro estados:
 //
-//  - 'noIniciado': no existe `proyecto.configuracionAbastecimiento`. Estado
-//    explícito (igual que redHidraulica ausente para M2 / configuracionMedidores
-//    ausente para M3), NO un default. La ausencia NO se interpreta como
-//    'directa'.
+//  - 'noIniciado': no existe `proyecto.configuracionAbastecimiento`.
 //
-//  - 'error': `configuracionAbastecimiento` persistida estructuralmente
-//    inválida (esquema desconocido, `periodoConsumoMaximo_h` fuera de la
-//    ventana [1, 4] h). Nunca se usa 'error' para un input todavía no
-//    disponible -- eso es 'incompleto'.
+//  - 'error': dato persistido estructuralmente inválido
+//    (`configuracionAbastecimiento` con esquema desconocido o Tc fuera de
+//    [1, 4] h; `parametros.diametroNominalConexion_m` no admisible como
+//    conexión; `parametros.desnivelConexion_m` no finito). Nunca 'error'
+//    para un dato AUSENTE.
 //
 //  - 'incompleto': la configuración es válida pero falta un insumo para
-//    evaluar la reserva de un esquema con tanque: `periodoConsumoMaximo_h`
-//    (Tc), el caudal de conexión, o el Qc global de M1 (sin artefactos
-//    computables / indeterminado). El esquema 'directa' NUNCA cae en
-//    'incompleto': no necesita ninguno de esos insumos.
+//    evaluar la reserva de un esquema CON TANQUE: Tc, el Qc global de M1,
+//    el diámetro de conexión, el desnivel de conexión, o una presión de
+//    cálculo dentro del rango de la Tabla N°1. El esquema 'directa' NUNCA
+//    cae en 'incompleto'.
 //
-//  - 'evaluado': el estado de cálculo de M4 está determinado. Para 'directa'
-//    el resultado es `sinReservaPorTanque` (el cálculo de reserva por tanque
-//    no aplica). Para un esquema con tanque es `reservaCalculada` con la
-//    Reserva Total Diaria de Diseño (incluido el caso `déficit = 0` cuando
-//    Qconexión >= Qc: es una reserva calculada de volumen 0, NO
-//    `sinReservaPorTanque`).
+//  - 'evaluado': el estado de cálculo de M4 está determinado. 'directa'
+//    -> `sinReservaPorTanque`. Esquema con tanque -> `reservaCalculada`
+//    con la Reserva Total Diaria de Diseño y la traza de conexión
+//    (presión de acera -> desnivel -> presión de cálculo -> Tabla N°1 ->
+//    Qconexión). Incluye el caso `déficit = 0` (Qconexión >= Qc): es una
+//    reserva calculada de volumen 0, NO `sinReservaPorTanque`.
 //
-//    'evaluado' NO significa "cumple normativa": no verifica la
-//    obligatoriedad de reserva de §2.8 (faltan datos de destino / planta;
-//    queda para un slice posterior) ni compara contra un volumen adoptado
-//    (todavía no existe). Sólo dice que el cálculo de M4 quedó resuelto.
+//    'evaluado' NO significa "cumple normativa" (no verifica §2.8 ni
+//    compara contra un volumen adoptado).
 import type { Proyecto } from '../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import type { TipoProyectoNormativo } from '../../normativa/eras-2023/coeficientes-mayoracion'
+import {
+  rangoPresionValida_m,
+  resolverGastoTabla01,
+  type InterpolacionTabla01,
+} from '../../normativa/eras-2023/tabla-01-gastos-conexion'
 import type { ProblemaValidacion } from '../../validacion/codigos'
 import { validarConfiguracionAbastecimiento } from '../../validacion/configuracionAbastecimiento'
+import { validarParametrosDeConexion } from '../../validacion/parametrosConexion'
 import { calcularSimultaneidad } from '../demanda/simultaneidad/calcularSimultaneidad'
 import { calcularReservaDiaria, type ResultadoReservaDiaria } from '../reserva/calcularReservaDiaria'
+import { resolverPresionDeCalculoDeConexion } from './resolverPresionDeCalculoDeConexion'
+
+// Traza auditable de cómo se obtuvo el Qconexión: presión sobre acera ->
+// desnivel firmado -> presión de cálculo -> Tabla N°1 -> gasto.
+export type TrazaDeConexionModulo4 = {
+  readonly diametroNominal_m: number
+  readonly presionSobreAcera_m: number
+  readonly desnivelConexion_m: number
+  readonly presionCalculo_m: number
+  readonly qConexion_lps: number
+  readonly interpolacion: InterpolacionTabla01
+}
 
 export type ResultadoModulo4 =
   | { readonly tipo: 'sinReservaPorTanque'; readonly esquema: 'directa' }
   | {
       readonly tipo: 'reservaCalculada'
       readonly esquema: 'tanqueElevado' | 'cisternaBombeoElevado'
+      readonly conexion: TrazaDeConexionModulo4
       readonly reserva: ResultadoReservaDiaria
     }
 
@@ -61,9 +83,15 @@ export type DiagnosticoErrorModulo4 = {
 
 export type DiagnosticoIncompletitudModulo4 =
   | { readonly tipo: 'faltaPeriodoConsumoMaximo' }
-  | { readonly tipo: 'faltaCaudalDeConexion' }
+  | { readonly tipo: 'faltaDiametroConexion' }
+  | { readonly tipo: 'faltaDesnivelConexion' }
   | { readonly tipo: 'sinArtefactosComputables' }
   | { readonly tipo: 'qcGlobalIndeterminado'; readonly motivo: string }
+  | {
+      readonly tipo: 'presionConexionFueraDeTabla'
+      readonly presionCalculo_m: number
+      readonly rango_m: typeof rangoPresionValida_m
+    }
 
 export type EstadoModulo4 =
   | { readonly estado: 'noIniciado' }
@@ -75,24 +103,21 @@ export type EntradaEstadoModulo4 = {
   readonly proyecto: Proyecto
   readonly catalogoArtefactos: readonly ArtefactoNormativo[]
   readonly coeficientesMayoracion: readonly TipoProyectoNormativo[]
-  // Caudal que la operadora otorga en la conexión, en l/s. Condición de
-  // borde EXPLÍCITA del orquestador (mismo estatus que `presionDisponible`
-  // para M2): este motor no la deriva de Tabla N°1 (§2.7) ni de ningún
-  // dato del Proyecto todavía -- ver D-δ.63, "mini-arqueología Tabla N°1".
-  // `undefined` (o ausente) en un esquema con tanque -> 'incompleto'.
-  readonly qConexion_lps?: number | undefined
 }
 
 export function resolverEstadoModulo4(entrada: EntradaEstadoModulo4): EstadoModulo4 {
-  const { proyecto, catalogoArtefactos, coeficientesMayoracion, qConexion_lps } = entrada
+  const { proyecto, catalogoArtefactos, coeficientesMayoracion } = entrada
   const configuracion = proyecto.configuracionAbastecimiento
 
   if (configuracion === undefined) {
     return { estado: 'noIniciado' }
   }
 
-  // --- 'error': integridad estructural del dato persistido primero ---
-  const problemasEstructurales = validarConfiguracionAbastecimiento(proyecto)
+  // --- 'error': integridad estructural de los datos persistidos primero ---
+  const problemasEstructurales = [
+    ...validarConfiguracionAbastecimiento(proyecto),
+    ...validarParametrosDeConexion(proyecto),
+  ]
   if (problemasEstructurales.length > 0) {
     return {
       estado: 'error',
@@ -108,7 +133,7 @@ export function resolverEstadoModulo4(entrada: EntradaEstadoModulo4): EstadoModu
     return { estado: 'evaluado', resultado: { tipo: 'sinReservaPorTanque', esquema: 'directa' } }
   }
 
-  // --- esquemas con tanque: requieren Tc + Qc global + Qconexión ---
+  // --- esquemas con tanque: requieren Tc + Qc global + datos de conexión ---
   const motivos: DiagnosticoIncompletitudModulo4[] = []
 
   const tc_h = configuracion.periodoConsumoMaximo_h
@@ -146,26 +171,66 @@ export function resolverEstadoModulo4(entrada: EntradaEstadoModulo4): EstadoModu
     }
   }
 
-  if (qConexion_lps === undefined) {
-    motivos.push({ tipo: 'faltaCaudalDeConexion' })
+  // Qconexión derivado del Proyecto: presión sobre acera + desnivel firmado
+  // -> presión de cálculo (§2.7) -> Tabla N°1.
+  const { diametroNominalConexion_m, desnivelConexion_m, presionSobreAcera_m } = proyecto.parametros
+  if (diametroNominalConexion_m === undefined) {
+    motivos.push({ tipo: 'faltaDiametroConexion' })
+  }
+  if (desnivelConexion_m === undefined) {
+    motivos.push({ tipo: 'faltaDesnivelConexion' })
+  }
+
+  let trazaDeConexion: TrazaDeConexionModulo4 | undefined
+  if (diametroNominalConexion_m !== undefined && desnivelConexion_m !== undefined) {
+    const presionCalculo_m = resolverPresionDeCalculoDeConexion({ presionSobreAcera_m, desnivelConexion_m })
+    const gasto = resolverGastoTabla01({ diametroNominal_m: diametroNominalConexion_m, presionCalculo_m })
+
+    if (gasto.estado === 'fueraDeRangoDePresion') {
+      motivos.push({ tipo: 'presionConexionFueraDeTabla', presionCalculo_m, rango_m: gasto.rango_m })
+    } else if (gasto.estado === 'diametroNoTabulado') {
+      // validarParametrosDeConexion ya garantiza un DN admisible (tabulado
+      // y >= 0,019 m). Llegar acá sería una inconsistencia interna.
+      throw new Error(
+        `resolverEstadoModulo4: inconsistencia interna -- diámetro de conexión ${diametroNominalConexion_m} pasó la validación pero no está tabulado en Tabla N°1`,
+      )
+    } else {
+      trazaDeConexion = {
+        diametroNominal_m: diametroNominalConexion_m,
+        presionSobreAcera_m,
+        desnivelConexion_m,
+        presionCalculo_m,
+        qConexion_lps: gasto.qConexion_lps,
+        interpolacion: gasto.interpolacion,
+      }
+    }
   }
 
   if (motivos.length > 0) {
     return { estado: 'incompleto', motivos }
   }
 
-  // motivos vacío ⇒ tc_h, qc_lps y qConexion_lps están definidos por
+  // motivos vacío ⇒ tc_h, qc_lps y trazaDeConexion están definidos por
   // construcción. El guard explícito narra los tipos y captura cualquier
   // inconsistencia interna futura (mismo patrón que resolverEstadoModulo3).
-  if (tc_h === undefined || qc_lps === undefined || qConexion_lps === undefined) {
+  if (tc_h === undefined || qc_lps === undefined || trazaDeConexion === undefined) {
     throw new Error(
       'resolverEstadoModulo4: inconsistencia interna -- sin motivos de incompletitud pero falta un input de la reserva',
     )
   }
 
-  const reserva = calcularReservaDiaria({ qc_lps, qConexion_lps, tc_h })
+  const reserva = calcularReservaDiaria({
+    qc_lps,
+    qConexion_lps: trazaDeConexion.qConexion_lps,
+    tc_h,
+  })
   return {
     estado: 'evaluado',
-    resultado: { tipo: 'reservaCalculada', esquema: configuracion.esquema, reserva },
+    resultado: {
+      tipo: 'reservaCalculada',
+      esquema: configuracion.esquema,
+      conexion: trazaDeConexion,
+      reserva,
+    },
   }
 }

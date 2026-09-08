@@ -2369,3 +2369,70 @@ l/s.
 `normativa/eras-2023/tabla-01-gastos-conexion/index.ts`
 (`resolverGastoTabla01`, `esDiametroAdmisibleComoConexion`). Ver D-δ.64
 en `PENDIENTES-DE-ARQUITECTURA.md`.
+
+## CRIT-A37 — Presión de cálculo de la conexión (ajuste por desnivel, §2.7)
+
+**Artículo:** ERAS-2023 §2.7 "GASTOS". La Guía indica que la presión que
+entra a la Tabla N°1 es la disponible **en el punto de alimentación de
+cálculo**, y que la presión garantizada sobre el nivel de acera debe
+ajustarse por el desnivel hasta ese punto (ejemplos citados: artefacto
+más alto y alejado surtido en alimentación directa —exceptuando
+artefactos poco frecuentes—; tanque de bombeo / artefactos directos en
+subsuelos).
+
+**Regla adoptada:**
+
+```
+presionCalculo_m = presionSobreAcera_m − desnivelConexion_m
+```
+
+con `desnivelConexion_m` un **desnivel firmado** (no una longitud):
+
+- `> 0` → el punto está **por encima** de la acera (alimentación hacia
+  arriba) → se **resta** el ascenso;
+- `= 0` → misma cota;
+- `< 0` → el punto está **por debajo** de la acera (p. ej. cisterna /
+  tanque de bombeo en sótano) → restar un negativo = **sumar** el
+  descenso.
+
+El signo resuelve la física: **no** hay una regla especial "cisterna
+suma" — es la misma fórmula con `desnivelConexion_m < 0`.
+
+**Dato declarado, no derivado.** `desnivelConexion_m` y
+`diametroNominalConexion_m` se **persisten** en
+`ParametrosProyecto` (junto a `presionSobreAcera_m`), optativos y
+backward-compatible. M4-D2 **no** los deriva de la topología de M2:
+
+- la interpretación del "punto de cálculo" depende del esquema de
+  abastecimiento (directa → artefacto más desfavorable surtido; tanque
+  elevado → alimentación del tanque; cisterna+bombeo → alimentación de la
+  cisterna) y el modelo actual no contiene inequívocamente todas esas
+  cotas;
+- el **"pelo de agua mínimo" de M2 NO es la cota de entrada del tanque**
+  (condición de borde de la presión terminal vs. dato de dimensionamiento
+  de la entrada) — no se reutiliza por comodidad.
+
+La auto-derivación geométrica queda como deuda futura, sólo con semántica
+física suficiente.
+
+**`presionSobreAcera_m` puede estar fuera de `[4, 35]` m.** Ese rango es
+de la Tabla N°1 (CRIT-A36), no de la presión de acera. El demo del repo
+usa `presionSobreAcera_m = 2`. `resolverPresionDeCalculoDeConexion` **no**
+aplica clamp ni conoce ese rango: sólo hace la resta firmada. Si la
+presión de cálculo resultante cae fuera de `[4, 35]` m,
+`resolverGastoTabla01` devuelve `fueraDeRangoDePresion` y
+`resolverEstadoModulo4` clasifica el módulo como **'incompleto'**
+(`presionConexionFueraDeTabla`), **nunca** como proyecto inválido ni con
+extrapolación.
+
+**Validación de los datos persistidos** (`validarParametrosDeConexion`,
+integrada en `validarProyecto`): un `diametroNominalConexion_m` presente
+debe ser admisible como conexión (tabulado ∧ ≥ 0,019 m — DN13 es error);
+un `desnivelConexion_m` presente debe ser finito (cualquier signo).
+Ausencia de cualquiera → no es problema de validación (Módulo 4 quedará
+'incompleto').
+
+**Estado:** Firme. Implementado en
+`motor/modulo4/resolverPresionDeCalculoDeConexion.ts` y consumido por
+`motor/modulo4/resolverEstadoModulo4.ts`. Ver D-δ.65 en
+`PENDIENTES-DE-ARQUITECTURA.md`.

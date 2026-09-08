@@ -25,7 +25,9 @@ export type CodigoValidacion =
   | 'configuracionHidraulicaSistemaMaterialIncompatible'
   | 'configuracionMedidoresUnidadFuncionalInexistente'
   | 'configuracionAbastecimientoEsquemaInvalido'
-  | 'configuracionAbastecimientoPeriodoConsumoMaximoInvalido';
+  | 'configuracionAbastecimientoPeriodoConsumoMaximoInvalido'
+  | 'parametrosDiametroNominalConexionNoAdmisible'
+  | 'parametrosDesnivelConexionNoFinito';
 
 export type Severidad = 'error' | 'advertencia';
 
@@ -137,6 +139,16 @@ export const codigosValidacion: Readonly<Record<CodigoValidacion, DescripcionCod
     severidad: 'error',
     descripcion:
       'configuracionAbastecimiento.periodoConsumoMaximo_h, cuando está presente, debe ser un número finito entre 1 y 4 horas (ERAS §2.10.2 / CRIT-A35). Nunca se corrige silenciosamente ni se aplica clamp.',
+  },
+  parametrosDiametroNominalConexionNoAdmisible: {
+    severidad: 'error',
+    descripcion:
+      'parametros.diametroNominalConexion_m, cuando está presente, debe ser uno de los diámetros de la Tabla N°1 (§2.7) y >= 0,019 m (mínimo de conexión, CRIT-A36). La fila DN13 de Tabla N°1 no es admisible como conexión.',
+  },
+  parametrosDesnivelConexionNoFinito: {
+    severidad: 'error',
+    descripcion:
+      'parametros.desnivelConexion_m, cuando está presente, debe ser un número finito (puede ser negativo, cero o positivo: es un desnivel firmado, no una longitud).',
   },
 } as const;
 

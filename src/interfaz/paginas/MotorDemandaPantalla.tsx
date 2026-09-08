@@ -935,6 +935,10 @@ const MENSAJES_DE_VALIDACION: Readonly<Record<CodigoValidacion, string>> = {
     'El esquema de abastecimiento persistido no es uno de los soportados (directa / tanque elevado / cisterna + bombeo + tanque elevado).',
   configuracionAbastecimientoPeriodoConsumoMaximoInvalido:
     'El período de consumo máximo del abastecimiento debe estar entre 1 y 4 horas.',
+  parametrosDiametroNominalConexionNoAdmisible:
+    'El diámetro nominal de la conexión debe ser uno de los diámetros de la Tabla N°1 y mayor o igual a 19 mm.',
+  parametrosDesnivelConexionNoFinito:
+    'El desnivel de la conexión respecto de la acera debe ser un número (puede ser negativo, cero o positivo).',
 }
 
 function ProblemasValidacion({ problemas }: { problemas: readonly ProblemaValidacion[] }) {
