@@ -402,9 +402,19 @@ Primer módulo del bloque de reserva. Detalle en
   `reservaCalculada` V=0, distinto de `directa`). Compone el `Qc` real de
   M1; `qConexion_lps` sigue como boundary input explícito (Tabla N°1 no
   tiene resolver todavía). Sin UI, sin integración M4→M2.
+- **M4-D1** (D-δ.64) — resolver puro de Tabla N°1 (§2.7, CRIT-A36):
+  `resolverGastoTabla01({ diametroNominal_m, presionCalculo_m })` →
+  `resuelto | fueraDeRangoDePresion | diametroNoTabulado`. Interpolación
+  lineal **sólo en la presión** (DN es clave discreta), sin extrapolación
+  fuera de `[4, 35]` m, `presionCalculo_m` ≠ presión sobre acera (§2.7
+  la ajusta por desnivel — no se modela aún). `esDiametroAdmisibleComoConexion`
+  (DN tabulado ∧ ≥ 0,019 m). Dataset de Fase 1 auditado (coherente; una
+  celda con formato anómalo, sin cambio). Goldens G5/G6 y cadena
+  Tabla1→reserva. Sin persistir DN de conexión, sin tocar `EstadoModulo4`.
 
-**Pendiente:** derivar `Qconexión` de Tabla N°1 (persistiendo diámetro de
-conexión + presión, con un resolver interpolador nuevo) → M4-D (UI
+**Pendiente:** M4-D2 — persistir diámetro de conexión + presión y derivar
+`Qconexión` para `EstadoModulo4` (fijando antes qué punto físico y qué
+geometría usa cada esquema de abastecimiento) → M4-D (UI
 Rápido/Profesional) → integración M4→M2 (derivar el origen de M2 desde el
 esquema y retirar el selector efímero del Panel de Presión, con regresión
 propia) → auditoría. También: volumen adoptado vs requerido; reparto

@@ -6317,3 +6317,157 @@ sí produce `reservaCalculada` V=0), `Qc` real de M1 reutilizado,
 `qConexión` como boundary explícito, composición M1→M4 probada. Baseline
 verde. Siguiente slice recomendado: derivar `Qconexión` de Tabla N°1
 (persistiendo diámetro de conexión + presión) **o** UI de M4 (M4-D).
+
+## D-δ.64 -- M4-D1: resolver puro de gasto de conexión según Tabla N°1 (§2.7) -- CERRADA
+
+Incremento **funcional**. Slice normativo/puro: `Tabla N°1 + DN + presión
+de cálculo → Qconexión`. Sin UI, sin persistencia, sin integración
+`Proyecto → Qconexión`, sin tocar M2 ni `EstadoModulo4`.
+
+### Auditoría del dataset existente (`tabla-01-gastos-conexion`)
+
+El dataset (`tablaGastosConexion`, `reglaInterpolacion`,
+`diametroMinimoConexion_m`, `rangoPresionValida_m`, `notaDiametrosMetalicos`)
+viene de la línea base de Fase 1 (`6aff06d`), nunca tocado. Verificado:
+
+- 32 filas, presión **4 a 35 m en pasos de 1 m**, contiguas sin huecos;
+  `rangoPresionValida_m = { min: 4, max: 35 }` coincide con la primera y
+  última fila.
+- 8 columnas de diámetro nominal: 0,013 / 0,019 / 0,025 / 0,032 / 0,038 /
+  0,050 / 0,060 / 0,075 m.
+- Gasto **monótono creciente con la presión** (por columna) y
+  **estrictamente creciente con el diámetro** (por fila) -- test de
+  integridad del dataset incluido.
+- Las tres notas oficiales de §2.7 (interpolación lineal en altura; DN
+  mínimo de conexión 0,019 m; DN metálicos / criterio para plásticos) se
+  obtuvieron **verbatim** de la fuente (argentina.gob.ar) y coinciden con
+  el dataset.
+- Los dos gastos que las planillas Tabla N°3/N°4 usan (DN19/5 m → 0,60;
+  DN25/5 m → 1,18) están en el dataset **exactamente**.
+- **Única observación:** la celda presión 5 m / DN 0,032 m vale `2.012`
+  (3 decimales, frente a 2 en todo el resto). Es monótona, no la consume
+  ningún golden ni motor. **Se deja sin tocar** ("no corregir en silencio
+  una tabla normativa") -- la lámina oficial es una imagen y no se pudo
+  cotejar la celda en esta corrida. No es decisión roja: no bloquea nada
+  y no hay discrepancia confirmada, sólo un formato anómalo en una
+  transcripción preexistente.
+
+**Sin decisión roja:** el dataset coincide con las notas verbatim y con
+los goldens; la fuente autoriza interpolar sólo en altura (no en DN); el
+rango declarado coincide con el dataset.
+
+### Resolver -- `resolverGastoTabla01` (en `tabla-01-gastos-conexion/index.ts`)
+
+Función pura (misma política que `seleccionarFilaTabla06PorCaudal` de
+Tabla N°6 / `obtenerKsDeAccesorio` de Tabla N°7: el resolver vive junto a
+los datos).
+
+```ts
+resolverGastoTabla01({ diametroNominal_m, presionCalculo_m }) → ResultadoGastoTabla01
+```
+
+`ResultadoGastoTabla01` discriminado:
+
+- `{ estado: 'resuelto', diametroNominal_m, presionCalculo_m, qConexion_lps,
+  interpolacion }` -- `interpolacion` es
+  `{ aplicada: false, presionTabulada_m }` (presión exactamente tabulada,
+  celda sin alterar) o `{ aplicada: true, presionInferior_m,
+  presionSuperior_m, gastoInferior_lps, gastoSuperior_lps }`
+  (interpolación lineal **sólo en la presión**).
+- `{ estado: 'fueraDeRangoDePresion', ..., rango_m }` -- presión fuera de
+  `[4, 35]` m (incluye ≤ 0). **Nunca clamp, nunca extrapolación, nunca 0.**
+  No significa "proyecto inválido": significa "Tabla N°1 no determina el
+  gasto con ese input".
+- `{ estado: 'diametroNoTabulado', ..., diametrosTabulados_m }` -- el DN no
+  es una de las 8 columnas. **Nunca se interpola entre diámetros** (clave
+  discreta).
+
+Inputs no finitos (`NaN`, `±Infinity`) → `throw` (error de programación,
+no estado de dominio). Sin redondeo intermedio (la UI redondeará).
+Tolerancia de reconocimiento de columna 1e-6 m (absorbe ruido IEEE-754 de
+un llamador que calcule `19/1000`; << 6 mm de separación entre columnas).
+
+### `esDiametroAdmisibleComoConexion(diametroNominal_m): boolean`
+
+Predicado puro: DN tabulado **∧** ≥ 0,019 m (§2.7). DN13 → `false`; DN19..
+DN75 → `true`. **No** elige un DN ni asume uno por defecto: "mínimo DN19"
+≠ "si falta el dato, asumir DN19". La ausencia de DN sigue siendo
+ausencia; la selección/persistencia del DN de conexión es M4-D2.
+Separación deliberada: `resolverGastoTabla01` es genérico (Tabla N°1 tiene
+doble alcance: conexiones *y* cañerías de agua directa, por eso la fila
+DN13 sigue siendo válida para el resolver); el gate de conexión lo aplica
+este predicado.
+
+### `presionCalculo_m` ≠ presión sobre acera
+
+El resolver recibe la **presión de cálculo en el punto relevante**, ya
+ajustada. §2.7 exige corregir la presión garantizada sobre el nivel de
+acera por el desnivel hasta el punto alimentado: se **resta** el ascenso
+(hacia arriba: artefacto más alto y alejado en alimentación directa; pelo
+de agua del tanque), se **suma** el descenso (hacia abajo: tanque de
+bombeo en sótano; artefactos directos en subsuelos). Esa transformación
+**no vive en este módulo** (queda registrada en CRIT-A36). Qué punto
+físico usa cada esquema y qué geometría persistir para derivarla
+automáticamente es M4-D2. En particular: el "pelo de agua mínimo" que
+maneja M2 **no** es necesariamente la cota de entrada del tanque -- no se
+reutiliza por comodidad.
+
+### Criterio y goldens
+
+- **CRIT-A36** (`CRITERIOS.md`) -- Gasto de conexión según Tabla N°1:
+  tabla, DN discreto, interpolación lineal sólo en presión, dominio sin
+  extrapolación, DN mínimo de conexión 0,019 m, `presionCalculo_m` ≠
+  presión sobre acera.
+- **Goldens G5/G6** (`CASOS-GOLDEN.md`): DN19/5 m → 0,60 l/s (usado por
+  Tabla N°3); DN25/5 m → 1,18 l/s (usado por Tabla N°4). Ambos con presión
+  tabulada exacta (sin interpolación).
+- **Cadena pura Tabla N°1 → reserva** (`motor/reserva/calcularReservaDiaria.golden.test.ts`):
+  `resolverGastoTabla01` → `Qconexión` → `calcularReservaDiaria` reproduce
+  G3 (0,7712 m³) y G4 (≈ 2,82 m³), sin pasar por `EstadoModulo4`.
+
+### Tests (25 nuevos → 1112/1112, 122 archivos)
+
+`tabla-01-gastos-conexion/index.test.ts`: integridad del dataset
+(contigüidad, monotonía en ambos ejes, los 8 DN), resolver (cada DN en
+presión exacta; extremos 4/35 m; interpolación no trivial P=5,25 m
+fracción 0,25 y P=7,6 m fracción 0,6; punto tabulado inalterado; DN no
+tabulado; sin interpolación entre DN; presión apenas fuera de rango y
+casos 2 m / 36 m; presión ≤ 0; `NaN`/`±Infinity` → throw; DN13 válido en
+el genérico; ruido `19/1000`), `esDiametroAdmisibleComoConexion` (DN13
+no, DN19 mínimo, todos los ≥19 mm tabulados, DN no tabulado, `NaN`),
+goldens G5/G6. Más 2 casos en el golden de reserva (cadena Tabla1→reserva).
+
+### Verificación
+
+`vitest` 1112/1112 (122 archivos; +25 tests, +1 archivo), `tsc -b` verde,
+`npm run build` verde, `eslint .` 11 baseline / 0 nuevos, working tree
+limpio.
+
+### Qué NO se hizo (M4-D2 y posteriores)
+
+Persistir el diámetro de conexión en el modelo (`Proyecto` /
+`ParametrosProyecto` / `configuracionAbastecimiento`); derivar
+`presionCalculo_m` desde el Proyecto (requiere fijar el punto físico por
+esquema y qué geometría persistir -- cota de entrada del tanque, de la
+cisterna en sótano, etc.); reemplazar el boundary `qConexion_lps?` de
+`resolverEstadoModulo4`; seleccionar automáticamente un DN (buscar el
+mínimo con Q ≥ Qc -- sin base normativa, la Operadora fija la conexión);
+criterio de compatibilidad de materiales plásticos; UI; integración M2;
+cambiar el demo (`presionSobreAcera_m: 2`, por debajo del rango de Tabla
+N°1 -- en la futura integración un input incompatible dará
+`fueraDeRangoDePresion`, que es el comportamiento correcto).
+
+### Decisiones rojas
+
+Ninguna. Ver "Auditoría del dataset".
+
+### Estado
+
+**D-δ.64 -- CERRADA.** `resolverGastoTabla01` +
+`esDiametroAdmisibleComoConexion` puros y exhaustivamente testeados;
+CRIT-A36 registrado; goldens G5/G6 y cadena Tabla1→reserva. Dataset
+auditado (una observación menor, sin cambio). `EstadoModulo4` intacto
+(sigue con `qConexion_lps?` boundary). Baseline verde. Siguiente slice:
+**M4-D2** -- persistir diámetro de conexión + presión y derivar
+`Qconexión` para `EstadoModulo4` (fijando antes qué punto físico y qué
+geometría usa cada esquema de abastecimiento).
