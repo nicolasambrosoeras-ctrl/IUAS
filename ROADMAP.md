@@ -783,16 +783,69 @@ salvo bug inequívoco o decisión roja explícita.
     apunta al commit desplegado, `beta.1` / `beta.2` / `beta.3` no se
     mueven. Ver `SISTEMA-VISUAL.md` §6, §11b y §15.
 
+- **D-δ.79 — UX-03 / HYD-UX-01: corrección M2 con conectividad explícita +
+  origen hidráulico rápido para tanque elevado + trazabilidad Profesional.**
+  Publicada como **`v0.4.0-beta.5`**. Suite 1270 → 1311.
+  - **P0 — dimensionamiento con conectividad explícita de artefactos
+    (bug).** El "Lavavajillas industrial" (y los demás no domiciliarios de
+    §2.9.1.3: pileta de cocina / lavarropas industrial, lavachatas, válvula
+    de mingitorio) dejaba tramos con DN/V/hf indeterminados en M2 al
+    conectarlos, incluso con todos los datos disponibles. Causa raíz:
+    `resolverQuEfectivoParaTramo` consultaba el `qu` desagregado
+    (`quFria_lps`/`quCaliente_lps`, `null` en el catálogo para estos
+    artefactos) **antes** del override de CRIT-A15 por conectividad física
+    exclusiva, así que lanzaba sobre el `null` y el override quedaba
+    inalcanzable. Corrección: la conectividad se resuelve primero — solo AF
+    / solo AC → `quTotal_lps`; AF + AC con catálogo sin desagregar →
+    ampliación de CRIT-A15 (decisión del usuario, no norma ERAS): cada rama
+    transporta `quTotal_lps` y el tramo común lo atribuye una sola vez
+    (nunca la suma). Se preserva CRIT-A7. Baseline transversal 12/12
+    byte-idéntico.
+  - **P1 — pelo de agua mínimo estimado en modo Rápido (CRIT-A39).** Para
+    esquema `tanqueElevado` simple + modo Rápido, IUAS deja de pedir el
+    pelo de agua mínimo y lo estima como `desnivelConexion_m − 0,50 m`
+    (hipótesis de producto, no regla ERAS; no toca CRIT-A37). Read-only con
+    nota de hipótesis; sin el desnivel, verificación incompleta (no se
+    fabrica 0). No aplica a `cisternaBombeoElevado` ni a `directa`. El dato
+    manual del modo Profesional se preserva y se recupera al volver.
+    **Decisión roja F** (resuelta por el usuario): el fixture canónico del
+    baseline transversal D-δ.70 era modo Rápido + tanque elevado con pelo
+    manual 20 m y `desnivelConexion_m` 0 m — knobs independientes ahora
+    acoplados por CRIT-A39. Se re-baselina con evidencia: margen del crítico
+    +3,836 m.c.a. (CUMPLE) → −16,664 m.c.a. (NO CUMPLE); único cambio
+    numérico, M1/M3/M4/Tabla N°1 intactos. Ver `BASELINE-FUNCIONAL-M1-M4.md`
+    y CRIT-A39.
+  - **P2 — coherencia de cotas en Profesional.** Las etiquetas del pelo de
+    agua mínimo y del desnivel del punto de alimentación nombran el datum
+    ("respecto de la acera") y el signo. Advertencia no bloqueante si el
+    pelo de agua mínimo declarado queda por encima del punto de
+    alimentación del tanque (solo tanque elevado simple + Profesional; no
+    modifica valores, no bloquea).
+  - **P3 — pérdida localizada jerarquizada.** En el detalle de accesorios
+    de un tramo (Profesional) la pérdida localizada pasa de `<small>`
+    secundario a métrica (`ui-metrica`) con la misma familia visual que la
+    pérdida del tramo; se mantiene "sin tee". Sin cálculo nuevo en React.
+  - **Adenda — ramales terminales en grilla.** En Profesional los ramales
+    terminales hermanos se disponen en grilla CSS de hasta 2 columnas
+    (1 al angostar), en subcards; el tramo de alimentación común queda a
+    ancho completo. Orden DOM = orden hidráulico. Layout únicamente.
+  - **Sigue pendiente** (no se toca): nomenclatura "N puntos" de M2,
+    UX-TEST-01, PERSIST-01, REPORT-01, performance frontend.
+  - **Publicación**: `v0.4.0-beta.5` sobre el mismo GitHub Pages; el tag
+    apunta al commit desplegado, `beta.1`–`beta.4` no se mueven.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
-(baseline transversal byte-idéntico). Ya no existe deuda visual
-bloqueante antes de reporting.
+(baseline transversal: único cambio numérico documentado en D-δ.79 /
+CRIT-A39). Ya no existe deuda visual bloqueante antes de reporting.
 
 **Orden de fases tras el cierre visual:** **DEPLOY-01** (piloto web
 `v0.4.0-beta.1`, D-δ.75 — publicado) → **UX-01 / UI-01D** (UF colapsables,
 D-δ.76 — `v0.4.0-beta.2`) → **UX-02 / UI-01E** (defaults contextuales +
 redes AF/AC, D-δ.77 — `v0.4.0-beta.3`; consolidación FIX P0 +
-optimizaciones, D-δ.78 — `v0.4.0-beta.4`) → **UX-TEST-01** (NO iniciada:
+optimizaciones, D-δ.78 — `v0.4.0-beta.4`) → **UX-03 / HYD-UX-01**
+(conectividad explícita + origen rápido de tanque elevado + trazabilidad
+Profesional, D-δ.79 — `v0.4.0-beta.5`) → **UX-TEST-01** (NO iniciada:
 observación de uso real de terceros; su output prioriza bugs / UX /
 contenido / nomenclatura "puntos" de M2 / PERSIST-01) → **REPORT-01** (NO
 iniciada).

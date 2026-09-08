@@ -118,6 +118,16 @@ Las cards agrupan **conceptos**, no inputs sueltos. Ritmo interno con
 `.ui-stack` / `.ui-stack--sm` (margen entre hijos) y `.ui-cluster` (fila
 flexible con gap).
 
+**Ramales terminales de M2 Profesional (D-δ.79 adenda).** En el detalle
+expandido de un Local, los ramales terminales hermanos se disponen en
+`.m2-ramales-grid` (grid CSS de **1 columna** por defecto, **2** a partir
+de ~56 rem — nunca más), cada uno en una `.m2-ramal-subcard` (borde suave,
+superficie neutra, spacing compacto). El **tramo de alimentación común**
+del Local queda a ancho completo, fuera de la grilla (se renderiza antes,
+en el flujo normal). Orden DOM = orden hidráulico (sin masonry, sin
+reordenar). Contenedor `role="group"` / `aria-label="Ramales terminales"`.
+Sólo modo Profesional; en Rápido el árbol de ramales no se renderiza.
+
 ---
 
 ## 5. Métrica (número protagonista)
@@ -129,8 +139,11 @@ flexible con gap).
 - `.ui-metrica__unidad` / `.ui-metrica__nota` — unidad y apoyo.
 
 Usos: Qc en M1, Reserva requerida en M4, margen / terminal crítico en la
-verificación. El resultado principal se lee **a simple vista**, nunca
-perdido dentro de una frase larga.
+verificación, y la **pérdida localizada** de un tramo en el editor de
+accesorios de M2 Profesional (D-δ.79 P3 — antes era un `<small>`
+secundario; ahora comparte familia visual con la pérdida del tramo). El
+resultado principal se lee **a simple vista**, nunca perdido dentro de una
+frase larga.
 
 ---
 

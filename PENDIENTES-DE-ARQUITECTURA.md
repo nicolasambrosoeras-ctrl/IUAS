@@ -8576,6 +8576,121 @@ hosting; el tag apunta al commit desplegado, `beta.1` / `beta.2` /
 `beta.3` no se mueven. **UX-TEST-01 -- NO iniciar. REPORT-01 -- NO
 iniciar.**
 
+## D-δ.79 -- UX-03 / HYD-UX-01: conectividad explícita en M2 + origen hidráulico rápido de tanque elevado + trazabilidad Profesional -- CERRADA
+
+Publicada como **`v0.4.0-beta.5`**. Suite 1270 → 1311. Baseline
+transversal M1–M4: **un único cambio numérico documentado** (P1 / CRIT-A39,
+ver abajo); el resto byte-idéntico.
+
+### P0 -- dimensionamiento con conectividad explícita de artefactos (bug)
+
+**Evidencia.** En `v0.4.0-beta.4`, agregar "Lavavajillas industrial"
+(catálogo: `quTotal_lps = 0,40`, `quFria_lps`/`quCaliente_lps` = `null`;
+§2.9.1.3) a un Local y resolver su conectividad (AF, AC o AF+AC) dejaba
+tramos de M2 con `DN —` / `V —` / `hf —` (Alimentación general, ramales),
+aun con todos los datos disponibles. Igual para los demás no domiciliarios
+sin desagregar: pileta de cocina industrial, lavarropas industrial,
+lavachatas, válvula de mingitorio.
+
+**Causa raíz.** `resolverQuEfectivoParaTramo` llamaba a `resolverQuEfectivo`
+(selección del `qu` desagregado por condición topológica) **antes** del
+override de CRIT-A15 por conectividad física exclusiva. Para un artefacto
+cuyo catálogo no desagrega, cualquier tramo en condición `aguaFria` /
+`aguaCaliente` lanzaba sobre el `null` y el override — que existía
+justamente para "una sola cañería transporta el total" — quedaba como
+código muerto. El throw lo captura `resolverResultadoDeTramoParaUi` y
+degrada la fila a indeterminada.
+
+**Corrección.** La conectividad física se resuelve primero:
+- **solo AF / solo AC** (CRIT-A15, fila "una sola alimentación"):
+  `qu_lps = quTotal_lps`, con o sin desagregación de catálogo.
+- **AF + AC con catálogo que NO desagrega** (ampliación de CRIT-A15,
+  decisión del usuario — no norma ERAS; ERAS §2.9.1.3 no publica columnas
+  qu(A.Fría)/qu(A.Cal.), no hay base para partir `quTotal_lps`): cada
+  conexión física se dimensiona para el caudal total declarado; el tramo
+  común aguas arriba queda en condición `total` y atribuye `quTotal_lps` al
+  artefacto **una sola vez** — nunca la suma de ambas ramas (sin doble
+  conteo, D-δ.8).
+- **AF + AC con catálogo que sí desagrega** ("twin"): sin cambios, cada
+  rama conserva su fracción de mezcla.
+
+Se preserva CRIT-A7 (un `0` explícito de catálogo para la condición sigue
+siendo el total correcto, no una fracción a reconstruir). Tres tests
+hermanos que codificaban el throw viejo para conexión exclusiva se
+actualizaron a la conducta corregida, con cobertura nueva de
+AF/AC/AF+AC del lavavajillas industrial. Baseline transversal 12/12
+byte-idéntico.
+
+### P1 -- pelo de agua mínimo estimado en modo Rápido (CRIT-A39)
+
+Ver **CRIT-A39** en `src/normativa/eras-2023/CRITERIOS.md` para el criterio
+completo. Resumen: modo Rápido + esquema `tanqueElevado` simple →
+`z_pelo_agua_min = desnivelConexion_m − 0,50 m` (ambas cotas respecto de
+la acera). Hipótesis de producto de IUAS, no regla ERAS; no toca CRIT-A37.
+Read-only con nota de hipótesis; sin el desnivel, verificación incompleta
+(no se fabrica 0, no cae al valor manual oculto). No aplica a
+`cisternaBombeoElevado` ni a `directa`. El valor manual del modo
+Profesional se preserva intacto en `Nodo.cota_m` y se recupera al volver.
+
+**Frontera.** Helper puro `motor/modulo4/resolverPeloDeAguaMinimoDeTanque.ts`;
+composición M4→M2 en `interfaz/paginas/resolverEntradasDeVerificacion.ts`
+(`peloDeAguaMinimoEfectivo` + `proyectoParaVerificacion`). `motor/tuberias/**`
+y `motor/modulo2/**` siguen sin importar Módulo 4 (sin ciclo).
+
+**Decisión roja F -- resuelta por el usuario (re-baselinar con evidencia).**
+El fixture canónico del baseline transversal D-δ.70 es modo Rápido +
+`tanqueElevado` con pelo de agua manual 20 m y `desnivelConexion_m` 0 m
+— dos knobs independientes antes de CRIT-A39, hoy acoplados. `balanceM2`
+del test pasa ahora por la misma frontera que la UI. Único cambio del
+baseline: margen del crítico de M2 **+3,836 m.c.a. (CUMPLE) → −16,664
+m.c.a. (NO CUMPLE)**. M1 / M3 / M4 / Tabla N°1 byte-idénticos. Documentado
+en `BASELINE-FUNCIONAL-M1-M4.md` y CRIT-A39. No se falseó el modo ni se
+inventó geometría para preservar el margen histórico.
+
+### P2 -- coherencia de cotas en Profesional
+
+Las etiquetas del pelo de agua mínimo (verificación) y del desnivel del
+punto de alimentación del tanque (Abastecimiento y reserva) nombran el
+datum ("respecto de la acera") y el signo (positivo = por encima). Nuevo
+helper puro `motor/modulo4/resolverCoherenciaDeCotasDeTanque.ts`:
+advertencia **no bloqueante** si el pelo de agua mínimo declarado queda
+por encima del punto de alimentación del tanque (solo `tanqueElevado`
+simple + Profesional; en `cisternaBombeoElevado` las cotas no son
+comparables; en Rápido se cumple por construcción). No modifica valores,
+no bloquea el cálculo, no es error duro.
+
+### P3 -- pérdida localizada jerarquizada
+
+En el editor de accesorios de un tramo (Profesional), la pérdida
+localizada pasa de `<small>` secundario a métrica `ui-metrica` (misma
+familia visual que la pérdida del tramo: etiqueta técnica corta, números
+tabulares, unidad "m.c.a."), con nota "no incluye las pérdidas nodales por
+tee". Usa el `hf_m` que `resolverPerdidaLocalizadaDeTramo` ya devolvía —
+sin cálculo nuevo en React. Se mantiene la distinción "sin tee".
+
+### Adenda -- ramales terminales en grilla
+
+En Profesional, los ramales terminales hermanos se disponen en grilla CSS
+de hasta 2 columnas (1 al angostar / mobile), cada uno en una subcard
+discreta; el tramo de alimentación común queda a ancho completo fuera de
+la grilla. Si algún hijo no es terminal se mantiene el apilado (jerarquía
+física). CSS puro (`.m2-ramales-grid`, `.m2-ramal-subcard`), sin cálculo
+de anchos en JS, sin masonry: orden DOM = orden hidráulico. Contenedor
+`role="group"` / `aria-label="Ramales terminales"`. Layout únicamente.
+
+### Deuda residual -- no bloqueante
+
+- Nomenclatura del contador "N puntos" de M2 (ver D-δ.77 subpunto F) —
+  sin cambios; reevaluar "conexiones" / "bocas" durante UX-TEST-01.
+- UX-TEST-01, PERSIST-01, REPORT-01, performance frontend
+  (lazy-load pdfmake, memoización, virtualización): sin abrir.
+
+### Estado
+
+**D-δ.79 -- CERRADA.** Publicada como `v0.4.0-beta.5` sobre el mismo
+hosting; el tag apunta al commit desplegado, `beta.1`–`beta.4` no se
+mueven. **UX-TEST-01 -- NO iniciar. REPORT-01 -- NO iniciar.**
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son
