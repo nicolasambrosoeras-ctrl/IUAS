@@ -1,19 +1,25 @@
-# Sistema visual (UI-01B, D-δ.73)
+# Sistema visual (UI-01B D-δ.73 · UI-01C D-δ.74)
 
 Referencia del sistema visual transversal de IUAS. Es **presentación**:
 no cambia cálculo, dominio, `Proyecto`, motores ni semántica. Se construye
 sobre la arquitectura de navegación de UI-01A (`navegacionUI.css`,
-`NavegacionDeSecciones`).
+`NavegacionDeSecciones`). UI-01C cerró la interfaz web: perímetro de la
+etapa 01, cabecera global, M1 reestructurado, semántica visual de la
+verificación, resumen del proyecto en la sidebar y pulido de M2/M4.
 
 Archivos:
 
 | Archivo | Rol |
 | --- | --- |
-| `src/interfaz/paginas/sistema-visual.css` | Tokens + estilos base de elementos + utilidades `.ui-*` / `.tabla-tecnica`. |
+| `src/interfaz/paginas/sistema-visual.css` | Tokens + estilos base de elementos + utilidades `.ui-*` / `.tabla-tecnica` / `.control-dn` / `.config-hidraulica`. |
 | `src/interfaz/paginas/navegacionUI.css` | Estructura del shell y la sidebar (grid, sticky, breakpoints), sobre los tokens. |
 | `src/interfaz/paginas/EncabezadoDeEtapa.tsx` + `encabezadoDeEtapa.css` | Patrón único de cabecera de etapa. |
+| `src/interfaz/paginas/demandaM1.css` | Estructura visual de la etapa 01 (M1): UF → Local → Artefacto. |
+| `src/interfaz/paginas/ResumenDeProyecto.tsx` + `resumenDeProyecto.css` | Resumen compacto del proyecto bajo la sidebar. |
+| `src/interfaz/paginas/resolverResumenDeProyecto.ts` · `resolverEntradasDeVerificacion.ts` | View-models de presentación del resumen (no calculan hidráulica). |
 
-`sistema-visual.css` se importa una vez desde `MotorDemandaPantalla`.
+`sistema-visual.css` se importa una vez desde `MotorDemandaPantalla`;
+`navegacionUI.css`, `demandaM1.css` y (transitivamente) el resto también.
 
 ---
 
@@ -100,6 +106,13 @@ explicación, nunca reemplazar el término.
 | --- | --- |
 | `.ui-card--config` | Configuración / decisión del proyectista (superficie secundaria, sin sombra). |
 | `.ui-card--resultado` | Resultado derivado por IUAS (borde verde). |
+| `.ui-card--ok` | Resultado **positivo** (CUMPLE): verde suave + acento izquierdo. |
+| `.ui-card--error` | Resultado **negativo** (NO CUMPLE): rojo suave + acento izquierdo. |
+
+`.ui-card--ok` / `.ui-card--error` (UI-01C §17-18) se combinan con
+`.ui-card--resultado` y su variante **se deriva del resultado ya
+calculado**, nunca de recalcular cumplimiento. El color refuerza; el
+badge dentro de la card sigue con símbolo + texto.
 
 Las cards agrupan **conceptos**, no inputs sueltos. Ritmo interno con
 `.ui-stack` / `.ui-stack--sm` (margen entre hijos) y `.ui-cluster` (fila
@@ -171,6 +184,19 @@ Jerarquías de botón (sección 19 del brief) — **no** todo verde:
 selectores de vista/modo (Rápido / Profesional en M2). El modo activo es
 `aria-pressed="true"` y se distingue con superficie + peso + sombra.
 
+`.control-dn*` (UI-01C §31-32) — control de DN adoptado de un Tramo:
+`[↓] DN [↑]` en fila + "Auto" / "Manual · Auto" debajo. Conserva el
+comportamiento exacto (`Tramo.dnComercialAdoptado`), el `disabled` en los
+extremos del catálogo comercial, y añade `aria-label` explícitos en cada
+botón ("Adoptar el DN comercial inmediato inferior/superior", "Volver al
+DN recomendado automáticamente"). Sin `CSSProperties` inline.
+
+`.config-hidraulica` / `.config-hidraulica__grupo` (UI-01C §34) — la
+configuración avanzada de M2 se agrupa por conceptos **ya existentes**
+(Método de cálculo · Geometría de relevamiento · Tubería) con
+`fieldset`/`legend`, en vez de una sucesión plana de `<select>`. No se
+inventan categorías de dominio.
+
 No se agrega validación, parser ni máscara sólo por estética: los helpers
 existentes mandan. El styling no debe romper la edición natural de
 números, el signo negativo de desnivel, el input vacío, los `↑`/`↓`, los
@@ -234,6 +260,39 @@ lleva fondo (`tbody th` es transparente).
     lateral + peso. No depende sólo del color.
   - Sigue siendo `IntersectionObserver` + anchors nativos, **no un
     router**.
+- `.resumen-proyecto` (UI-01C §23) — resumen compacto bajo la navegación:
+  **Qc · Reserva · Margen crítico**. Lo alimenta `resolverResumenDeProyecto`,
+  un view-model de presentación que compone `calcularSimultaneidad` +
+  `resolverEstadoModulo2` + `resolverEstadoModulo4`; **no** hay
+  `EstadoGlobalProyecto`, no persiste nada, no recalcula hidráulica.
+  Reglas: "Pendiente" / "No aplica" **nunca** se muestran como 0 (§24);
+  esquema `directa` → Reserva "No aplica" (contrato de M4, §25); el
+  margen se colorea `--positivo` / `--negativo` según `cumpleMinimo`. Se
+  oculta en la barra horizontal (≤ 900 px). Sólo se arma con un
+  `Proyecto` válido.
+
+---
+
+## 11b. Etapa 01 — estructura de M1 (`demandaM1.css`)
+
+El encabezado "01 Demanda" abre la etapa, **antes** de "Datos del
+proyecto" (UI-01C §6-7): toda la configuración que determina la Demanda y
+su Resultado viven dentro de la sección `#demanda`.
+
+Jerarquía visible **UF → Local → Artefacto**:
+
+| Nivel | Clase | Notas |
+| --- | --- | --- |
+| Datos del proyecto | `.m1-config` (`.ui-card--config`) | Tipología + total UF. |
+| Unidad funcional | `.m1-uf` | Cabecera con acciones (Duplicar / Eliminar UF), campos Nombre/Nivel/Cota agrupados, lista de Locales. |
+| Local | `.m1-local` | **Card por Local** (no por artefacto). Tipo/Régimen + lista de artefactos. |
+| Artefacto | `.m1-artefacto` | Fila compacta `select · Cantidad · Eliminar`; apila en ≤ 560 px. |
+
+Acciones destructivas (`.m1-btn-eliminar`): visibles, con nombre
+accesible, **sin depender de hover**, jerarquía secundaria (nunca el peso
+de una acción constructiva). "+ Agregar": **UF** es de nivel superior
+(`.ui-btn--primario`); **Local** y **Artefacto** son contextuales
+(`.m1-agregar-contextual`, alineadas a la izquierda).
 
 ---
 
@@ -262,15 +321,58 @@ Prioridad **desktop** (se ve especialmente bien en 1280–1600 px).
 
 ---
 
+## 13b. Precisión de presentación (UI-CRIT-06)
+
+El core conserva la precisión completa (m³, `m.c.a.` con sus decimales);
+la UI **humaniza** los resultados según unidad y contexto:
+
+- **Reserva (litros).** Modo Rápido: `formatearVolumen_L_rapido` redondea
+  al litro entero **sólo para mostrar** (reserva requerida, tabla de
+  adopción, resumen de la sidebar). Modo Profesional:
+  `formatearVolumen_L` (hasta 3 decimales) + m³ equivalente. El valor de
+  cálculo y de **persistencia sigue siendo el m³ exacto**; los `<input>`
+  de capacidad adoptada aceptan decimales (`litrosParaInput` no cambia).
+- **Presión (`m.c.a.`).** NO se le aplica la simplificación de litros
+  (§42): se mantiene el formateo de `formatearNumero(_, 'm')` (3
+  decimales). El resumen de la sidebar usa ese mismo formateo para el
+  margen crítico.
+
+**UI-CRIT-05 — Estado del cálculo ≠ resultado de cumplimiento.**
+"Completo" / "Evaluado" describen la disponibilidad del cálculo; "CUMPLE
+/ NO CUMPLE" el resultado técnico. La línea de estado de la verificación
+se llama "Estado del cálculo: cálculo disponible" (no "Estado de Módulo
+2: Completo") para no leerse como un veredicto. `resolverEstadoModulo2`
+(estado `completo`) no cambia.
+
+---
+
 ## 14. Reglas de uso
 
 - Preferir clases semánticas de presentación (`.ui-*`, `.tabla-tecnica`),
   **no** clases acopladas a nombres internos del motor.
-- No inline styles masivos; construir sobre este CSS.
+- No inline styles masivos; construir sobre este CSS. Quedan
+  `CSSProperties` triviales y estables en componentes de detalle
+  Profesional (`AccesoriosDeTramoEditor`, `TarjetaDeTerminal`,
+  `CalculoDelCriticoDetalle`, `TablaDeTerminales`, `TeeDeNodoEditor`,
+  parte de `DimensionamientoDeTramo`): deuda cosmética no bloqueante.
 - No introducir framework CSS nuevo (Tailwind, styled-components, etc.)
   ni librería de iconos pesada.
 - Crear componentes de presentación reutilizables sólo ante repetición
   real; no montar un design system abstracto de 40 componentes.
+- El resumen de proyecto y cualquier vista transversal **componen**
+  primitivas de dominio ya productivas en el punto de composición; nunca
+  se crea un `EstadoGlobalProyecto` ni se persiste un resultado.
 - El test más importante sigue siendo
   `src/auditoriaTransversalM1M4.baseline.test.ts` (12/12, snapshot
   numérico idéntico). Si el rediseño cambia un resultado hidráulico: bug.
+
+## Criterios de UI registrados (en `PENDIENTES-DE-ARQUITECTURA.md`)
+
+| Criterio | Resumen |
+| --- | --- |
+| **UI-CRIT-01** | Flujo: Demanda → Tuberías → Medidores → Abastecimiento → Verificación. |
+| **UI-CRIT-02** | Decisión persistida ≠ resultado derivado (superficies distintas). |
+| **UI-CRIT-03** | Litros como unidad comercial principal de reserva en la UI; m³ interno. |
+| **UI-CRIT-04** | El mecanismo de inicio de `noIniciado` puede variar por módulo. |
+| **UI-CRIT-05** | Estado del cálculo ≠ resultado de cumplimiento. |
+| **UI-CRIT-06** | Precisión de presentación ≠ precisión de cálculo. |

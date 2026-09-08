@@ -569,13 +569,44 @@ salvo bug inequívoco o decisión roja explícita.
   reemplazo de los `CSSProperties` inline restantes se difieren a
   **UI-01C** (brief §73/§91).
 
-**Siguiente slice (NO iniciado): UI-01C — pulido visual y UX sobre casos
-reales.** Resumen sticky del proyecto + estado de etapa en la sidebar
-(consumiendo resultados existentes, sin nuevo motor de estado global),
-M1/M2 en cards por concepto, limpieza del `CSSProperties` inline
-restante. Alternativa: **REPORT-01** (memoria técnica PDF M1–M4). No
-decidir automáticamente: primero inspeccionar UI-01B terminada. Mantiene:
-core M1–M4 congelado + arquitectura UI-01A + sistema visual UI-01B.
+- **D-δ.74 — UI-01C: pulido estructural y cierre visual de la app web.**
+  Pasada quirúrgica de cierre, no otro rediseño. **Perímetro de M1**: el
+  encabezado "01 Demanda" abre la etapa, antes de "Datos del proyecto";
+  toda la configuración de Demanda + su Resultado viven dentro de la
+  etapa 01. **Cabecera global**: "IUAS — Instalaciones internas" (ya no
+  "Motor de Demanda"). **M1 reestructurado** (`demandaM1.css`): jerarquía
+  UF → Local → Artefacto, card por Local, filas de artefacto compactas,
+  acciones destructivas secundarias, "+ Agregar" por jerarquía
+  contextual. **Verificación**: card del veredicto con variante
+  `.ui-card--ok` / `.ui-card--error` derivada de `cumpleGlobal`; datos de
+  alimentación en card de configuración; copy "Estado del cálculo:
+  cálculo disponible" (**UI-CRIT-05**). **Resumen del proyecto en la
+  sidebar** (`ResumenDeProyecto` + `resolverResumenDeProyecto` +
+  `resolverEntradasDeVerificacion`): Qc · Reserva · Margen crítico,
+  componiendo resultados existentes, sin `EstadoGlobalProyecto`;
+  "Pendiente"/"No aplica" nunca 0; oculto ≤ 900 px. **M2**: control de DN
+  compacto sin inline styles + `aria-label`; estado de fila como badge
+  ("DN mínimo" neutro); configuración avanzada agrupada por conceptos.
+  **M4**: litros redondeados al entero en Rápido (`formatearVolumen_L_rapido`,
+  **UI-CRIT-06**), precisión completa + m³ en Profesional; persistencia
+  m³ intacta. Limpieza selectiva de `CSSProperties` inline. Criterios
+  registrados: **UI-CRIT-05** (estado del cálculo ≠ resultado de
+  cumplimiento), **UI-CRIT-06** (precisión de presentación ≠ precisión de
+  cálculo). Baseline transversal 12/12 byte-idéntico; suite 1237/1237;
+  consola 0/0; sin overflow 1280/820/480; manifests intactos. Ver
+  `SISTEMA-VISUAL.md`. **CERRADA. UI-01C CERRADO.**
+
+**INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
++ UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
+(baseline transversal byte-idéntico). Ya no existe deuda visual
+bloqueante antes de reporting.
+
+**Siguiente fase (NO iniciada): REPORT-01 — memoria técnica integral.**
+Extender el generador `pdfMake` actual (hoy esencialmente M1) hacia:
+Datos del proyecto · Demanda · Tuberías · Medidores · Abastecimiento y
+reserva · Verificación hidráulica · Metodología y fuentes. Mismo dominio,
+mismos resultados, **no** impresión del DOM. Mantiene: core M1–M4
+congelado + arquitectura UI-01A + sistema visual UI-01B/UI-01C.
 
 **Hallazgos de M4-A:**
 

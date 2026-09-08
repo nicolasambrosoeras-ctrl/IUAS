@@ -7946,6 +7946,193 @@ el reemplazo de los `CSSProperties` inline restantes. Core M1–M4 sin
 cambios (baseline transversal byte-idéntico). **No iniciar UI-01C ni
 REPORT-01.**
 
+## D-δ.74 -- UI-01C: pulido estructural y cierre visual de la app web -- CERRADA
+
+Tercera y última capa del rediseño de experiencia (Fase 4). Pasada
+**quirúrgica** para cerrar la interfaz web antes de REPORT-01: no es otro
+rediseño general. Corrige las inconsistencias detectadas al inspeccionar
+la aplicación real tras UI-01B y completa la jerarquía visual. Sin
+cambios de cálculo, dominio, `Proyecto`, motores ni semántica; baseline
+transversal **byte-idéntico**.
+
+### Criterios de UI registrados
+
+- **UI-CRIT-05 -- Estado del cálculo ≠ resultado de cumplimiento.**
+  "Completo" / "Evaluado" describen la *disponibilidad* del cálculo;
+  "CUMPLE / NO CUMPLE" describe el *resultado* técnico. La UI no los
+  presenta de forma que parezcan contradictorios: la línea de estado de
+  la verificación se llama "Estado del cálculo: cálculo disponible" (no
+  "Estado de Módulo 2: Completo") junto al veredicto. El discriminante
+  interno (`resolverEstadoModulo2`, estado `completo`) no cambia.
+- **UI-CRIT-06 -- Precisión de presentación ≠ precisión de cálculo.** El
+  core conserva la precisión completa (m³); la UI humaniza los resultados
+  según unidad y contexto. En particular, en modo Rápido los litros de
+  reserva se muestran redondeados al entero (`formatearVolumen_L_rapido`);
+  el modo Profesional mantiene la precisión completa + m³ equivalente. No
+  es una regla de redondeo normativa: el valor de cálculo y de
+  persistencia sigue siendo el m³ exacto, y los inputs de capacidad
+  adoptada siguen aceptando decimales.
+
+### Cambios
+
+- **Perímetro de la etapa 01 (Demanda).** El encabezado "01 Demanda" abre
+  la etapa, **antes** de "Datos del proyecto". La sección `#demanda` pasa
+  a usar `SeccionDeTrabajo` con `numero={1}` (mismo patrón que la etapa
+  5); toda la configuración que determina la Demanda (tipología, UFs,
+  Locales, Artefactos) y su Resultado viven dentro de la etapa, en ese
+  orden. `ResultadoDemandaModulo1` deja de traer su propio
+  `EncabezadoDeEtapa`. Test nuevo (`MotorDemandaPantalla.estructura.test.ts`):
+  encabezado antes de la configuración, orden interno datos → UF →
+  artefactos → resultado, todo antes de Tuberías.
+- **Cabecera global del producto.** `<h1>` pasa de "IUAS — Motor de
+  Demanda" a **"IUAS — Instalaciones internas"** (el producto ya no es
+  sólo el motor de demanda) + subtítulo unificado.
+- **M1 reestructurado (`demandaM1.css`, nuevo).** "Datos del proyecto"
+  como card de configuración (tipología + total UF). Unidad Funcional con
+  jerarquía **UF → Local → Artefacto** visible: cabecera con acciones
+  (Duplicar / Eliminar UF), campos Nombre/Nivel/Cota agrupados, lista de
+  Locales. **Card por Local** (no por artefacto): Tipo/Régimen + lista de
+  artefactos como filas compactas `select · Cantidad · Eliminar`. Las
+  acciones destructivas (Eliminar local / Eliminar artefacto) tienen
+  jerarquía secundaria -- visibles, con nombre accesible, sin depender de
+  hover. "+ Agregar" diferenciado por jerarquía: **UF** es acción de
+  nivel superior (primaria); **Local** y **Artefacto** son contextuales
+  dentro de su contenedor. La declaración de red pendiente pasa a
+  `.ui-callout--warn`. Responsive: la fila de artefacto apila
+  `select` + (`Cantidad` / `Eliminar`) en ≤ 560 px. La card de Qc de
+  UI-01B no se rediseña, sólo se integra en el nuevo perímetro.
+- **Verificación -- semántica visual.** La card del veredicto deriva su
+  variante **exclusivamente** de `cumpleGlobal`: `.ui-card--ok` (verde)
+  si CUMPLE, `.ui-card--error` (rojo) si NO CUMPLE; el color refuerza, el
+  badge sigue con símbolo + texto. El estado incompleto usa una
+  superficie neutra (no una caja roja). Origen hidráulico + pelo de agua
+  mínimo se agrupan en una card de configuración "Datos para la
+  verificación" (**UI-CRIT-02**). Copy "Estado del cálculo: cálculo
+  disponible" (**UI-CRIT-05**).
+- **Resumen del proyecto en la sidebar (`ResumenDeProyecto` +
+  `resumenDeProyecto.css` + `resolverResumenDeProyecto` +
+  `resolverEntradasDeVerificacion`, nuevos).** Bajo la navegación, tres
+  métricas: **Qc · Reserva · Margen crítico**. Es un view-model de
+  PRESENTACIÓN que compone `calcularSimultaneidad` +
+  `resolverEstadoModulo2` + `resolverEstadoModulo4` y traduce sus
+  resultados a valores listos para mostrar; **no** hay
+  `EstadoGlobalProyecto`, no se persiste nada, no se recalcula
+  hidráulica. "Pendiente" / "No aplica" nunca se muestran como 0
+  (§24); esquema `directa` → Reserva "No aplica" (contrato de M4, §25).
+  El margen se colorea según `cumpleMinimo`. Se oculta en la barra
+  horizontal (≤ 900 px, §58). `resolverEntradasDeVerificacion` extrae de
+  `PanelDePresionDeModulo2` la derivación de origen hidráulico + presión
+  disponible + hf de medidores por terminal, ahora que tiene un segundo
+  consumidor real; el panel pasa a consumirlo (misma composición, un
+  solo lugar -- brief §27).
+- **M2 -- pulido.** Control de DN reescrito sin `CSSProperties` inline
+  (`.control-dn*`): presentación compacta `[↓] DN [↑]` + Auto/Manual, con
+  `aria-label` explícitos en cada botón. El estado de la fila de
+  dimensionamiento pasa a badge: ✓ (ok) / **"DN mínimo"** neutro (CRIT-A24,
+  estado admisible terminal, con `title` explicativo) / "⚠ Incompleto".
+  La configuración avanzada se agrupa por conceptos ya existentes
+  (Método de cálculo · Geometría de relevamiento · Tubería) vía
+  `fieldset`/`legend`. La tabla técnica y las columnas **no** cambian.
+- **M4 -- precisión visual de litros** (**UI-CRIT-06**): en Rápido la
+  reserva requerida y la tabla de adopción se muestran redondeadas al
+  litro; en Profesional, precisión completa + m³. El `<input>` de
+  capacidad adoptada y la persistencia (m³) no cambian.
+- **Limpieza de inline CSS (§35).** `LocalYRedCard` → `.ui-card`;
+  `DimensionamientoDeTramo` badge → `.ui-badge`;
+  `MetodologiaYFuentesTecnicas` tabla → `.tabla-tecnica` / `.tabla-scroll`.
+  Los `CSSProperties` triviales y estables restantes
+  (`width`/`marginLeft`/`overflowX` en `AccesoriosDeTramoEditor`,
+  `TarjetaDeTerminal`, `CalculoDelCriticoDetalle`, `TablaDeTerminales`,
+  `TeeDeNodoEditor`, el resto de `DimensionamientoDeTramo`) se dejan como
+  deuda residual **no bloqueante**: heredan la estética base por
+  selectores de elemento y el brief pide priorizar consistencia visual
+  sobre porcentaje de CSS eliminado.
+
+### Ownership y composición de resolvers -- sin cambios de motor
+
+Ningún `resolverEstadoModuloX`, motor, updater ni tipo de dominio cambió.
+Composición final tras UI-01C:
+
+| Resultado | Se calcula en | Consumidores presentacionales |
+| --- | --- | --- |
+| `calcularSimultaneidad` (Qc) | `ResultadoDemandaModulo1` | + `resolverResumenDeProyecto` (resumen sidebar) |
+| `resolverEstadoModulo2` (+ terminal crítico) | `PanelDePresionDeModulo2` | + `resolverResumenDeProyecto` |
+| `resolverEstadoModulo3` | `PanelDeMedidoresDeModulo3` | + `resolverEntradasDeVerificacion` (usado por el panel de presión y por el resumen) |
+| `resolverEstadoModulo4` | `PanelDeModulo4` | + `resolverResumenDeProyecto` |
+
+Cada uno se ejecuta como máximo **dos veces por render** (su panel + el
+resumen), nunca tres (panel + sidebar + summary). La derivación de
+entradas de verificación vive en **un solo módulo**
+(`resolverEntradasDeVerificacion`), consumido por el panel y por el
+resumen. No se elevó estado al shell ni se creó un motor de estado
+global: el resumen sólo compone primitivas ya productivas en el punto de
+composición (`MotorDemandaPantalla`), y sólo con un `Proyecto` válido.
+
+### Verificación
+
+- `vitest` **1237/1237** (133 archivos; +5 respecto de UI-01B:
+  `resolverResumenDeProyecto.test.ts` con 3 casos -- Qc disponible /
+  Reserva y Margen "Pendiente" nunca 0, proyecto canónico con el margen
+  del baseline "+3,836 m.c.a.", `directa` → Reserva "No aplica" --,
+  `formatearVolumen_L_rapido`, y el test de perímetro de la etapa 01).
+  `PanelDePresionDeModulo2.test.ts` actualizado al copy "Estado del
+  cálculo".
+- `src/auditoriaTransversalM1M4.baseline.test.ts` **12/12** con el
+  snapshot numérico **byte-idéntico** (Qc 0,7273238618387272; margen del
+  crítico 3,8358249136345712; medidor general DN25; VRTD
+  0,9167318052388361). `BASELINE-FUNCIONAL-M1-M4.md` no requiere cambios.
+- `tsc -b` / `npm run build` verdes (chunk CSS ~20 kB). `eslint .`
+  **11 baseline / 0 nuevos / 0 warnings**.
+- Navegador (Playwright transitorio, vite dev real): M1 perímetro y
+  cards a 1440/1280/480; sidebar con resumen (Qc / Reserva 917 L /
+  Margen crítico coloreado); verificación **CUMPLE → `.ui-card--ok`**,
+  **NO CUMPLE → `.ui-card--error`** (comprobado leyendo `className` del
+  DOM); M2 tabla con control de DN compacto y badges de estado;
+  configuración avanzada agrupada; M4 litros redondeados en Rápido.
+  Consola **0 errores / 0 warnings**; **sin overflow horizontal** en
+  1280/820/480; el resumen se oculta ≤ 900 px. `git diff --
+  package.json package-lock.json` vacío. Dev server detenido.
+
+### Decisiones rojas
+
+Ninguna. Corregir el perímetro de M1 fue composición JSX (mover el
+encabezado al principio de la sección), sin tocar dominio ni updaters. El
+resumen sólo exigió lifting/composición React y un view-model
+presentacional, no un `EstadoGlobalProyecto` ni persistencia nueva.
+Humanizar los litros de Rápido es sólo formateo de salida -- el valor de
+cálculo y de persistencia (m³) no cambia. La variante visual de la card
+de verificación se deriva del `cumpleGlobal` ya calculado, no de
+recalcular cumplimiento en React. La contradicción aparente
+"Completo / NO CUMPLE" se resolvió sólo por copy (UI-CRIT-05), sin tocar
+`EstadoModulo2` ni sus discriminantes. El snapshot numérico transversal
+quedó idéntico.
+
+### Deuda residual -- no bloqueante
+
+- `CSSProperties` inline triviales y estables en varios componentes de
+  detalle Profesional (ver "Limpieza de inline CSS" arriba). Heredan la
+  estética base; migrarlos es cosmético.
+- El resumen de proyecto se calcula sólo con `Proyecto` válido; con un
+  Proyecto inválido no aparece (en vez de mostrar "Pendiente" en todo).
+  Es coherente con "no fabricar resultados"; si se quisiera mostrarlo
+  siempre habría que separar la parte de Qc que puede fallar.
+- Estados de etapa en la sidebar (✓/—/!/○): **no** se implementaron
+  (§29). El riesgo de que "M3 evaluado" o "M4 evaluado" se lean como
+  cumplimiento normativo total superaba el valor del indicador; el
+  resumen de tres métricas cubre la necesidad de "cómo está el proyecto
+  de un vistazo".
+
+### Estado
+
+**D-δ.74 -- CERRADA. UI-01C CERRADO. INTERFAZ WEB IUAS VISUALMENTE
+CERRADA PARA EL ALCANCE ACTUAL.** No significa que no pueda mejorarse:
+significa que ya no existe deuda visual bloqueante antes de abordar
+reporting. UI-01A + UI-01B (núcleo) + UI-01C cerrados; core M1–M4
+congelado / intacto (baseline transversal byte-idéntico). Siguiente fase
+**REPORT-01** (memoria técnica integral M1–M4 extendiendo el generador
+`pdfMake` desde M1; mismo dominio, mismos resultados, sin DOM print) --
+**NO iniciar**.
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son
