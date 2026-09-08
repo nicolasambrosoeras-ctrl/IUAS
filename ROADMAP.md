@@ -369,13 +369,38 @@ recalcula demanda, no toca la topología.
 - **Infra persistente de Playwright** — el navegador se usó vía instalación
   transitoria sin `--save`; `package.json` / `package-lock.json` intactos.
 
-### Fase 3 / Módulo 4 (Reserva / Tanques) — investigación abierta (M4-A, D-δ.61)
+### Fase 3 / Módulo 4 (Reserva / Tanques) — en curso
 
-Primer módulo del bloque de reserva. **M4-A** (incremento documental)
-reconstruyó el dominio contra la Guía ERAS 2023 / Resolución 641/2023.
-Detalle completo en `PENDIENTES-DE-ARQUITECTURA.md` D-δ.61.
+Primer módulo del bloque de reserva. Detalle en
+`PENDIENTES-DE-ARQUITECTURA.md` D-δ.61 (contrato) y D-δ.62 (motor).
 
-**Hallazgos:**
+**Completado:**
+
+- **M4-A** (D-δ.61) — investigación normativa + contrato de dominio,
+  contra la Guía ERAS 2023 / Resolución 641/2023. Las dos decisiones
+  rojas quedaron **resueltas por el usuario**: (1) fórmula de reserva por
+  déficit de caudal, con Tablas N°3/N°4 oficiales (→ CRIT-A35); (2)
+  configuración de abastecimiento persistida global del proyecto
+  (`configuracionAbastecimiento?: { esquema: 'directa' | 'tanqueElevado' |
+  'cisternaBombeoElevado' }`, optativa, backward-compatible; M2 deriva su
+  origen del esquema; `cisternaBombeoElevado` no es un tercer origen
+  terminal). Esquemas mixtos por sector quedan como alcance futuro.
+- **M4-B** (D-δ.62) — motor puro `calcularReservaDiaria`
+  (`motor/reserva/`): `Dc = max(0, Qc − Qconexión)`,
+  `VReservaDiseño = Dc·3,6·Tc` con `1 ≤ Tc ≤ 4 h` (CRIT-A35). `Qc` real de
+  M1 sin redondear; `qConexion_lps` como input explícito (fuente futura:
+  Tabla N°1 §2.7). Goldens G3 (Tabla N°3, 0,77 m³) y G4 (Tabla N°4,
+  ≈ 2,82 m³) componiendo M1 real. Sin `EstadoModulo4`, sin config
+  persistida, sin UI.
+
+**Pendiente:** M4-C (`configuracionAbastecimiento` persistida +
+`EstadoModulo4`) → M4-D (UI Rápido/Profesional) → M4-E (integración M4→M2
+sólo si aparece un dato físico real necesario — hoy no) → M4-F
+(auditoría). También: derivar `Qconexión` de Tabla N°1; volumen adoptado
+vs requerido; reparto tanque de bombeo / de reserva (§2.11.3); obligación
+de reserva por §2.8 independiente del déficit.
+
+**Hallazgos de M4-A:**
 
 - **Objeto de cálculo**: el **Volumen de Reserva Diaria requerido**
   (volumen útil, litros). No dimensiona geometría, cota del tanque,
@@ -399,30 +424,6 @@ Detalle completo en `PENDIENTES-DE-ARQUITECTURA.md` D-δ.61.
   de conexión por DN y presión — sin consumidor todavía),
   `presionSobreAcera_m`, el `Qc` global, el patrón `EstadoModulo3`,
   `resolverModoDeTrabajo` (modo de trabajo transversal, reutilizable).
-
-**Decisiones rojas bloqueantes (elevadas al usuario):**
-
-1. **Fórmula exacta del Volumen de Reserva Diaria y semántica de `T`**:
-   las Tablas N°2/N°3/N°4 de §2.10.2 (secuencias de cálculo de ejemplo,
-   de donde ya salen los goldens G1/G2 de M1) se publican como imágenes
-   de planilla, no transcribibles desde las fuentes accesibles. Falta la
-   expresión algebraica, las unidades, el eventual mínimo absoluto y la
-   lectura de `T` (período de consumo pico vs tiempo de llenado). Se
-   necesita que el usuario aporte la fuente, como en M3-A con la Tabla
-   N°6.
-2. **Persistir `origenHidraulico`**: M4 sólo tiene sentido conociendo la
-   configuración de abastecimiento (directa / sólo tanque elevado /
-   cisterna+bombeo+elevado), que hoy es un selector de presentación
-   efímero de M2 (D-δ.38/D-δ.43). M4 es el primer consumidor real que
-   obliga a decidir la persistencia del origen (decisión roja de
-   D-δ.36/D-δ.38).
-
-**Roadmap tentativo** (revisar tras resolver las rojas): M4-A
-(investigación, hecha) → M4-B (motor puro `Qc + Qconexión + T →
-Vreserva` + goldens) → M4-C (`configuracionModulo4` + `EstadoModulo4`) →
-M4-D (UI Rápido/Profesional) → M4-E (integración M4→M2 sólo si aparece un
-dato físico real necesario — hoy no) → M4-F (auditoría). Puede colapsar a
-A → B → D → auditoría si las rojas se resuelven de forma inequívoca.
 
 **Explícitamente fuera de alcance de M4**: geometría/cota del tanque,
 catálogo comercial de tanques, topología de múltiples tanques, selección

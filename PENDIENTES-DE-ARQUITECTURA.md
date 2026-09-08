@@ -5977,6 +5977,141 @@ cisterna+bombeo en M4 o se difiere junto con las bombas.
 
 ### Estado
 
-**D-δ.61 -- ABIERTA (documental).** Contrato de dominio de M4 propuesto;
-dos decisiones rojas bloqueantes elevadas al usuario. Sin código. Baseline
-intacto. No se inicia M4-B.
+**D-δ.61 -- ABIERTA → RESUELTA por el usuario.** Contrato de dominio de M4
+propuesto; las dos decisiones rojas quedaron resueltas (ver más abajo) y
+habilitaron M4-B (D-δ.62).
+
+#### Resolución de las decisiones rojas (aportada por el usuario)
+
+**Roja 1 -- Fórmula de reserva.** RESUELTA. El usuario verificó la fuente
+oficial y aportó las Tablas N°3 y N°4:
+
+- Tabla N°3: `Qc = 0,71 l/s`, `Qconexión = 0,60 l/s`, `Dc ≈ 0,39 m³/h`,
+  `Tc = 2 h`, Reserva de Diseño `= Dc·Tc = 0,77 m³`, a Ejecutar `1,00 m³`.
+- Tabla N°4: `Qc ≈ 1,96 l/s`, `Qconexión ≈ 1,18 l/s`, `Dc ≈ 2,82 m³/h`,
+  `Tc = 1 h`, Reserva de Diseño `≈ 3 m³`.
+
+Contrato cerrado (formalizado como **CRIT-A35**):
+`Dc = max(0, Qc − Qconexión)`; `Dc_m3h = Dc · 3,6`;
+`VReservaDiseño_m3 = Dc_m3h · Tc`, con `1 h ≤ Tc ≤ 4 h`. `Tc` es el
+**período de consumo máximo** (no un tiempo de llenado). No usar
+población/dotación; no multiplicar `Qc` por 24 h; no introducir una regla
+de "24 h completas de consumo". No redondear `Qc`/`Dc` antes del volumen
+(el redondeo es sólo de UI). Distinguir volumen **de diseño/requerido**
+(lo que calcula M4-B) del volumen **adoptado/a ejecutar** (slice
+posterior; sin catálogo comercial inventado). `Qconexión ≥ Qc` ⇒
+`Dc = 0` ⇒ volumen 0: resultado determinado, **no** un error, y **no**
+equivale por sí solo a "tanque no requerido" (la obligación de reserva
+puede venir de §2.8). No inventar un mínimo absoluto que la fuente no
+define.
+
+**Roja 2 -- Configuración de abastecimiento.** RESUELTA. Se persiste
+**ahora** una configuración física **global** del proyecto, optativa y
+backward-compatible, con la forma conceptual:
+
+```
+Proyecto.configuracionAbastecimiento?: {
+  esquema: 'directa' | 'tanqueElevado' | 'cisternaBombeoElevado'
+}
+```
+
+(naming real según convenciones del repo, a fijar en el slice que la
+implemente). Sin configuración: el proyecto viejo sigue válido.
+**No** llamarla `origenHidraulico` si mezcla configuración física con
+frontera del balance. Relación con M2: el origen hidráulico efectivo de
+M2 se **deriva** del esquema -- `directa` → presión conocida /
+alimentación directa; `tanqueElevado` y `cisternaBombeoElevado` → raíz en
+el pelo de agua mínimo del tanque elevado (**`cisternaBombeoElevado` no
+es un tercer origen terminal**: la cisterna y la bomba están aguas arriba
+del almacenamiento, para M2 sigue siendo "tanque elevado"). El selector
+efímero duplicado del Panel de Presión de M2 se elimina cuando la
+integración correspondiente quede implementada -- no tener dos fuentes de
+verdad. **Alcance actual: un único esquema global por Proyecto.** No
+modelar todavía esquemas mixtos por sector (p. ej. subsuelo directo +
+viviendas por tanque), que la Guía sí permite -- queda registrado como
+"abastecimiento mixto por sectores" para un slice futuro. Si en algún
+momento el modelo llega a representar inequívocamente múltiples sectores
+hidráulicos con distinto origen, reducirlos a un esquema global es una
+**decisión roja** previa.
+
+Esta configuración persistida es de M4-C (junto con `EstadoModulo4`); M4-B
+no la necesita.
+
+### Estado
+
+**D-δ.61 -- CERRADA.** Contrato de dominio de M4 y ambas decisiones rojas
+resueltas. Documental (D-δ.62 implementa el motor).
+
+## D-δ.62 -- M4-B: motor puro de la Reserva Total Diaria de Diseño (§2.10.2) -- CERRADA
+
+Incremento **funcional**. Primer código de Módulo 4. Motor puro, sin
+`EstadoModulo4`, sin configuración persistida, sin UI, sin integración
+M4→M2.
+
+### Qué se implementó
+
+`motor/reserva/calcularReservaDiaria.ts` -- primitiva pura (mismo patrón
+que `calcularPerdidaCargaMedidor` / CRIT-A25):
+
+```
+calcularReservaDiaria({ qc_lps, qConexion_lps, tc_h }) → {
+  qc_lps, qConexion_lps, deficit_lps, deficit_m3h, tc_h,
+  volumenReservaDiseno_m3
+}
+```
+
+`deficit_lps = max(0, qc_lps − qConexion_lps)`;
+`deficit_m3h = deficit_lps · 3,6`;
+`volumenReservaDiseno_m3 = deficit_m3h · tc_h`.
+Validaciones: `qc_lps ≥ 0` finito, `qConexion_lps ≥ 0` finito,
+`1 ≤ tc_h ≤ 4`. `qConexión ≥ qc` no lanza: devuelve déficit y volumen 0.
+Sin redondeo intermedio. No conoce `Proyecto`, `RedHidraulica` ni ningún
+catálogo. Regla formalizada como **CRIT-A35** en `CRITERIOS.md`.
+
+`qConexion_lps` es hoy un **input explícito**. Fuente futura documentada
+(CRIT-A35 y D-δ.61): Tabla N°1 (§2.7, `tabla-01-gastos-conexion`, ya en
+el repo sin consumidor) por diámetro de conexión + presión disponible con
+interpolación lineal. El modelo no persiste diámetro de conexión todavía
+→ la derivación es de un slice posterior.
+
+### Tests
+
+`motor/reserva/calcularReservaDiaria.test.ts` (10 casos): déficit
+positivo, passthrough, `qConexión ≥ qc` → 0 sin error, ausencia de
+redondeo interno (Qc exacto de G2 → 0,771 m³, distinto de 0,792 m³ con Qc
+redondeado), `Tc` en los extremos 1 h/4 h, `Tc` fuera de rango / `NaN` →
+throw, `qc`/`qConexión` negativos o no finitos → throw, `qc = 0` válido,
+monotonía en `Tc`.
+
+`motor/reserva/calcularReservaDiaria.golden.test.ts` (2 casos, **G3 y G4**
+en `CASOS-GOLDEN.md`): componen M1 real (`calcularSimultaneidad`) → `Qc`
+sin redondear → `calcularReservaDiaria`. G3 (Tabla N°3): `Qc` de G2 +
+`Qconexión` 0,60 l/s + `Tc` 2 h → 0,7712 m³ (publicado 0,77). G4 (Tabla
+N°4): `Qc` de G1 + `Qconexión` 1,18 l/s + `Tc` 1 h → 2,8188 m³ (publicado
+≈ 3 m³). Tolerancias y valores publicados documentados en `CASOS-GOLDEN.md`.
+
+### Verificación
+
+`vitest` 1053/1053 (117 archivos; +12 de M4-B), `tsc -b` verde,
+`npm run build` verde, `eslint .` sin regresión (11 baseline, 0
+warnings), working tree limpio.
+
+### Qué NO se hizo (deliberado, siguiente slice)
+
+`EstadoModulo4`; `Proyecto.configuracionAbastecimiento` persistida;
+`Qconexión` derivado de Tabla N°1; volumen adoptado / a ejecutar;
+catálogo comercial de tanques; reparto tanque de bombeo / de reserva
+(§2.11.3); geometría; bombas; presurizador; integración M4→M2; UI; PDF;
+población/dotación. Ninguno bloquea este cierre.
+
+### Decisiones rojas
+
+Ninguna nueva. Las dos de D-δ.61 quedaron resueltas por el usuario antes
+de esta corrida.
+
+### Estado
+
+**D-δ.62 -- CERRADA.** Motor puro de reserva diaria implementado y
+verificado contra los ejemplos oficiales (Tablas N°3 y N°4). Baseline
+verde. Siguiente slice: M4-C (`configuracionAbastecimiento` persistida +
+`EstadoModulo4`).
