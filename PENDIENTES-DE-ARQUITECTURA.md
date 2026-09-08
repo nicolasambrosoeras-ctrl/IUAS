@@ -7640,3 +7640,141 @@ el resto de updaters) o, en un futuro, persistir sólo
 intacto en m³ y la regresión de conversión blindada. El patrón "Iniciar
 Módulo 3" queda auditado y conservado con justificación. Sin decisiones
 rojas. Sin bugs.
+
+## D-δ.72 -- UI-01A: arquitectura de navegación + separación Dimensionamiento / Verificación hidráulica -- CERRADA
+
+Primera capa estructural del rediseño de experiencia (Fase 4). Reorganiza
+la EXPERIENCIA alrededor del flujo real del proyectista sin tocar
+motores, `Proyecto` ni contratos funcionales. Sin fórmulas nuevas, sin
+dominio nuevo, sin reporting, sin skin visual completo (eso es UI-01B).
+
+### UI-CRIT-01 -- Flujo de trabajo del proyecto (criterio de UI, no hidráulico)
+
+La experiencia se ordena en cinco etapas:
+
+**1 Demanda → 2 Tuberías → 3 Medidores → 4 Abastecimiento y reserva →
+5 Verificación hidráulica.**
+
+La **Verificación hidráulica** es la etapa 5 del flujo porque integra
+resultados de M2 + M3 + M4, pero **sigue perteneciendo funcionalmente al
+dominio de Módulo 2**. En código y documentación NO existe `Modulo5` /
+`EstadoModulo5` / `motor/modulo5` / `configuracionModulo5`: la
+verificación es `PanelDePresionDeModulo2` y su lógica es
+`resolverEstadoModulo2` / `resolverPresionResidualDeCamino` /
+`resolverTerminalMasDesfavorable`, sin cambios.
+
+Este es el primer criterio explícito de UI del proyecto. No se crea una
+taxonomía nueva: se registra acá, junto a los CRIT-A* hidráulicos que
+viven en `src/normativa/eras-2023/CRITERIOS.md` (esos son normativos;
+UI-CRIT-* son de producto).
+
+### Cambios
+
+- **`PanelDePresionDeModulo2` cambia de posición.** Se saca de dentro de
+  `ResultadoHidraulicoDeTramo` (donde se renderizaba tras las tablas de
+  dimensionamiento y sólo en la rama `auditoria.completa`) y pasa a ser
+  la 5.ª sección de `MotorDemandaPantalla`, después de Módulo 4. Se monta
+  **una sola vez**; sus props (`proyecto`, `catalogoArtefactos`,
+  `onCambiar`) ya estaban disponibles en ese nivel -- no hizo falta
+  ningún view-model nuevo ni trasladar cálculos al shell. Al no estar ya
+  gateado por `auditoria.completa`, en cobertura incompleta muestra su
+  propio estado `incompleto` (mismo panel, sin ocultarse ni bloquear la
+  navegación -- brief §27).
+- **Sección 2 centrada en dimensionamiento.** El `<h2>` de
+  `ResultadoHidraulicoDeTramo` pasa de "Módulo 2 — Tuberías" a
+  **"Módulo 2 — Dimensionamiento de tuberías"**. El estado de presión ya
+  no aparece en esa sección (la línea "Estado de Módulo 2: …" viaja con
+  el panel movido), lo que corrige la UX engañosa de "M2 incompleto" por
+  faltar la verificación final. NO se creó un `EstadoModulo2` de
+  dimensionamiento ni lógica nueva: sólo cambió la composición visual y
+  una etiqueta.
+- **`NavegacionDeSecciones.tsx` (nuevo).** Índice lateral
+  `<nav aria-label="Secciones del proyecto">` con cinco `<a href="#…">` a
+  anclas estables: `#demanda`, `#tuberias`, `#medidores`,
+  `#abastecimiento`, `#verificacion-hidraulica`. Es **índice + scroll a
+  anchors, NO un router**: no cambia de ruta, no carga páginas, no
+  desmonta módulos. La sección activa se resalta con `IntersectionObserver`
+  (estado de PRESENTACIÓN con `useState`, degrada a `null` en SSR/tests).
+  Un efecto de montaje (doble `requestAnimationFrame`, para esperar que
+  el layout de M3/M4/verificación se asiente) re-honra un `#hash` de
+  carga inicial que el salto nativo del navegador pierde.
+- **`SeccionDeTrabajo` (nuevo, mismo archivo).** Wrapper mínimo:
+  `<section id className="seccion-de-trabajo" aria-label>` con
+  `scroll-margin-top` vía CSS. NO impone encabezado -- los paneles de
+  M1–M4 ya traen su `<h2>`; sólo la etapa 5 (que envuelve un panel sin
+  `<h2>` propio) recibe `titulo` + `descripcion`.
+- **`navegacionUI.css` (nuevo -- primer `.css` del repo).** SÓLO
+  estructura: grid del shell (`minmax(0,1fr)` para que una tabla ancha no
+  rompa el layout), `nav` sticky en desktop / barra superior desplazable
+  en `≤ 720px`, `scroll-margin-top` de las anclas, `scroll-behavior:
+  smooth` bajo `prefers-reduced-motion: no-preference`. Sin paleta,
+  tipografía, cards, botones ni estética.
+- **Shell.** `MotorDemandaPantalla` pasa a `header` + `app-layout`
+  (`nav` + `main`). El subtítulo de página redundante (`<h2>Proyecto de
+  ejemplo…`) se colapsa en un `<p>` del header. `ResultadoDemanda` (que
+  componía M1+M2+M3+M4) se reduce a `ResultadoDemandaModulo1` (sólo la
+  salida de M1); la composición de las cinco secciones vive ahora en
+  `MotorDemandaPantalla`.
+
+### Ownership -- sin cambios
+
+`resolverEstadoModulo2`, `resolverPresionResidualDeCamino`,
+`resolverTerminalMasDesfavorable`, tipos y tests hidráulicos: intactos y
+en Módulo 2. Sólo cambió la composición visual (dónde se monta el panel).
+
+### Estado local agregado
+
+`useSeccionActiva` (sección visible, `useState` + `IntersectionObserver`)
+y `useSaltoInicialAlAncla` (efecto de montaje), ambos en
+`NavegacionDeSecciones`. Estado de PRESENTACIÓN: no se persiste en
+`Proyecto`, no alimenta ningún cálculo. Fuera de eso, la app sigue con
+los dos `useState` de D-δ.70 (`Proyecto` + modal de declaración de
+artefacto). Ningún módulo se desmonta (§33): el índice no son tabs.
+
+### Verificación
+
+- `vitest` **1232/1232** (132 archivos; +7 tests, +1 archivo:
+  `MotorDemandaPantalla.estructura.test.ts` -- orden DOM de las cinco
+  etapas, encabezados en el mismo orden, verificación después de
+  abastecimiento, panel de presión montado una sola vez, tuberías sin el
+  panel, índice con cinco anchors correctos y antes del contenido).
+- `src/auditoriaTransversalM1M4.baseline.test.ts` **12/12** con el
+  snapshot numérico **byte-idéntico** al de D-δ.70 (Qc
+  0,7273238618387272; margen del crítico 3,8358249136345712; medidor
+  general DN25; VRTD 0,9167318052388361). `BASELINE-FUNCIONAL-M1-M4.md`
+  no requiere cambios: UI-01A no altera ningún valor.
+- `tsc -b` / `npm run build` verdes (el build emite ahora un chunk CSS de
+  ~1,3 kB). `eslint .` 11 baseline / 0 nuevos / 0 warnings.
+- Smoke de navegador (Playwright transitorio, vite dev real): **25/25**,
+  estable en 3 corridas, consola **0 errores / 0 warnings**. Cubre:
+  sidebar visible en desktop con 5 anchors y `aria-label`; orden DOM
+  demanda < tuberías < medidores < abastecimiento < verificación; navegar
+  con el índice deja cada sección arriba (o la página en su scroll
+  máximo); el panel de presión aparece una sola vez; tuberías ya no lo
+  contiene; el `Proyecto` persiste al navegar (sin reload); los números
+  del flujo (Qc, medidor DN25, RTD ~917 L) coinciden con el baseline; la
+  verificación refleja `directa`/`tanque` sin reload; `/#verificacion-hidraulica`
+  monta toda la app y posiciona la sección; viewport de 480 px sin
+  overflow horizontal y con el índice usable. `git diff --
+  package.json package-lock.json` vacío. Dev server detenido.
+
+### Decisiones rojas
+
+Ninguna. Mover el panel no exigió tocar el contrato hidráulico; la
+separación dimensionamiento/presión no exigió duplicar cálculo ni estado
+de dominio (la línea de estado de presión simplemente viajó con el
+panel); la navegación no desmonta módulos; ningún dato editable se pierde
+al mover el panel (no vivía en estado local); el nuevo orden DOM no
+afecta ningún cálculo y el snapshot numérico quedó idéntico.
+
+### Estado
+
+**D-δ.72 -- CERRADA. UI-01A CERRADO.** El flujo visual es
+Demanda → Tuberías → Medidores → Abastecimiento → Verificación hidráulica;
+la verificación se monta una sola vez, al final, y sigue siendo dominio
+M2; la sección de Tuberías queda centrada en dimensionamiento; el índice
+lateral funciona como scroll a anchors con la one-page y los módulos
+montados, sin router. Core M1–M4 sin cambios (baseline transversal
+byte-idéntico). Siguiente slice **UI-01B** (sistema visual transversal:
+estética, cards, tipografía, sidebar visual definitiva, sticky summary) --
+NO iniciado.

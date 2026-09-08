@@ -526,12 +526,25 @@ salvo bug inequívoco o decisión roja explícita.
     valor con aspecto de default, a diferencia de M4 que se inicia al
     elegir esquema. No forzar la homogeneización con M4.
 
-**Siguiente slice (NO iniciado): UI-01A — arquitectura de navegación.**
-Separar visualmente M2 Dimensionamiento de la Verificación hidráulica
-(que pasa a etapa final, sin dejar de pertenecer al dominio M2), sidebar/
-índice de la one-page, anchors, responsive básico. Sin skin visual
-completo (eso es UI-01B). Mantiene: one-page, módulos montados, no
-router, motores/`Proyecto`/contratos intactos.
+- **D-δ.72 — UI-01A: arquitectura de navegación.** Flujo visual =
+  1 Demanda → 2 Tuberías → 3 Medidores → 4 Abastecimiento → 5 Verificación
+  hidráulica (criterio **UI-CRIT-01**). `PanelDePresionDeModulo2` se
+  saca de la sección de Tuberías y pasa a etapa final después de M4,
+  montado **una sola vez**; sigue siendo dominio de Módulo 2 (no hay
+  `Modulo5`). La sección 2 queda centrada en dimensionamiento
+  ("Módulo 2 — Dimensionamiento de tuberías"), corrigiendo la UX
+  engañosa de "M2 incompleto" por faltar la verificación. Índice lateral
+  `<nav>` con 5 anchors (`#demanda`, `#tuberias`, `#medidores`,
+  `#abastecimiento`, `#verificacion-hidraulica`): scroll a anchors, **no
+  un router**, one-page, módulos montados. `navegacionUI.css` (primer
+  `.css` del repo) sólo estructural. Baseline transversal 12/12
+  byte-idéntico; suite 1225 → 1232; smoke 25/25, consola limpia.
+
+**Siguiente slice (NO iniciado): UI-01B — sistema visual transversal.**
+Estética verde de referencia, jerarquía, cards, superficie/spacing,
+tipografía, botones, inputs, tablas, estados, sidebar visual definitiva,
+sticky summary derivado, responsive pulido. Mantiene: core M1–M4
+congelado + arquitectura UI-01A.
 
 **Hallazgos de M4-A:**
 
