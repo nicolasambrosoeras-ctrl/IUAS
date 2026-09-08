@@ -7779,6 +7779,173 @@ byte-idéntico). Siguiente slice **UI-01B** (sistema visual transversal:
 estética, cards, tipografía, sidebar visual definitiva, sticky summary) --
 NO iniciado.
 
+## D-δ.73 -- UI-01B: sistema visual transversal -- CERRADA (parcial documentado)
+
+Segunda capa del rediseño de experiencia (Fase 4). Da a la interfaz una
+**estética de aplicación técnica moderna** sobre la arquitectura cerrada
+en UI-01A, sin tocar cálculo, dominio, `Proyecto`, motores ni semántica.
+Baseline numérico **byte-idéntico**. Ver `SISTEMA-VISUAL.md` para el
+detalle de tokens, superficies, controles, tablas, estados y responsive.
+
+### Criterios de UI registrados
+
+- **UI-CRIT-02 -- Decisión persistida ≠ resultado derivado.** La interfaz
+  distingue visualmente lo que el proyectista controla (inputs /
+  configuración: superficies secundarias, `.ui-card--config`) de lo que
+  IUAS calcula (resultado derivado: `.ui-card--resultado`, `.ui-metrica`,
+  badges de estado). No es una regla nueva de dominio: formaliza en la
+  presentación la separación que el modelo ya tiene entre
+  `Proyecto`/updaters y `resolverEstadoModuloX`.
+- **UI-CRIT-03 -- Litros como unidad comercial principal de reserva en la
+  UI; m³ permanece unidad interna.** Consolida D-δ.71: Módulo 4 presenta
+  y edita reserva y capacidades en litros; el core y la persistencia
+  siguen íntegramente en m³, con conversión sólo en el borde
+  (`humanizarModulo4`). En Profesional se muestra el equivalente en m³
+  como dato secundario.
+- **UI-CRIT-04 -- `noIniciado` puede tener un mecanismo de inicio
+  distinto por módulo, según su primera decisión real.** Módulo 3 se
+  inicia con un botón explícito ("Iniciar Módulo 3" →
+  `conModulo3Iniciado` → `CONFIGURACION_MEDIDORES_INICIAL`) porque su
+  primera decisión (propiedad horizontal) tiene un valor con aspecto de
+  default; Módulo 4 se inicia eligiendo el esquema de abastecimiento. La
+  estética común de los empty states (`.ui-empty`) NO homogeneiza ese
+  mecanismo. Codifica la auditoría cerrada en D-δ.71.
+
+### Cambios
+
+- **`sistema-visual.css` (nuevo).** Hoja única de: tokens (`:root` custom
+  properties) de color, espaciado, radius, tipografía y sombras; estilos
+  base de elementos (tipografía sobria sin serif, controles unificados
+  con foco visible, tablas con header suave y `tabular-nums`,
+  `details`/`summary`); utilidades de presentación `.ui-*` (`ui-card` y
+  variantes, `ui-stack`, `ui-cluster`, `ui-metrica`, `ui-badge` y
+  variantes, `ui-callout`, `ui-empty`, `ui-btn--primario/--peligro/--fantasma`,
+  `ui-segmented`, `tabla-tecnica`). Se importa desde
+  `MotorDemandaPantalla`. Clases semánticas de presentación, no acopladas
+  a nombres del motor.
+- **`navegacionUI.css` reescrito sobre los tokens.** Sigue siendo el
+  dueño de la ESTRUCTURA del shell y la sidebar; ahora con la estética
+  final. La sidebar es una superficie tipo card, sticky en desktop /
+  barra superior desplazable en `≤ 900px`. Sección activa: fondo verde
+  suave + acento lateral + peso (no sólo color). Se agregan los rótulos
+  de grupo **PROYECTO** (etapas 1–4) y **VERIFICACIÓN** (etapa 5) y el
+  número de etapa como `01`..`05`. Mismos cinco anchors, mismo orden,
+  mismos textos visibles del índice.
+- **`EncabezadoDeEtapa` + `encabezadoDeEtapa.css` (nuevos).** Patrón
+  visual único de cabecera de etapa `[NN] Título / descripción`, aplicado
+  a las cinco etapas. Elimina la redundancia `Módulo N — …` /
+  `Módulo N · …` de los `<summary>` (secciones 13–14 del brief). El
+  `<h2>` real se conserva (accesibilidad + tests de estructura del flujo
+  1→5); la traza técnica "Módulo N" sigue disponible en las ayudas de
+  cada panel, sin cambiar el ownership técnico. Los tests de estructura
+  (`MotorDemandaPantalla.estructura.test.ts`, `PanelDeModulo4.test.ts`) se
+  actualizaron al nuevo copy conservando **todas** las garantías de orden,
+  anclas y montaje único del panel de presión.
+- **M1.** `Qc` como resultado protagonista en `.ui-card--resultado` con
+  `.ui-metrica` (número grande, `n`/`Qmax` como metadatos de apoyo);
+  parámetros intermedios y desarrollo del cálculo por progressive
+  disclosure.
+- **M2.** Se quita el `<h3>` "Módulo 2 · Tuberías". El selector
+  Rápido/Profesional pasa a segmented control real (`.ui-segmented`,
+  `aria-pressed`). La tabla de dimensionamiento adopta `.tabla-tecnica`
+  (header suave en mayúsculas, `tabular-nums`, Red como badge discreto,
+  columnas numéricas alineadas a la derecha, DN destacado como celda
+  editable, `Estado` al final, scroll horizontal **local**). Se eliminó
+  todo el `CSSProperties` inline de esa tabla.
+- **M3.** Empty state `noIniciado` en `.ui-empty` conservando el botón
+  "Iniciar Módulo 3" y `conModulo3Iniciado` (UI-CRIT-04). Configuración /
+  medidor general / medidores individuales separados en cards; estado
+  como badge; tabla de individuales en `.tabla-tecnica`.
+- **M4.** Reserva requerida como `.ui-metrica` protagonista (litros
+  principal; m³ secundario sólo en Profesional -- UI-CRIT-03). Conexión y
+  adopción en cards; trazabilidad del cálculo tras un `<details>` en
+  Profesional; estado de adopción como badge "Suficiente" / "Insuficiente"
+  (nunca "Cumple norma": evaluar capacidad ≠ cumplir la norma). El inicio
+  sigue siendo elegir esquema, sin botón "Iniciar Módulo 4" (UI-CRIT-04).
+- **Verificación hidráulica.** El veredicto global CUMPLE / NO CUMPLE se
+  presenta como badge dentro de `.ui-card--resultado`; la etapa 5 usa el
+  mismo `EncabezadoDeEtapa` (sin chevron: no es colapsable) como
+  conclusión visual del flujo.
+
+### Ownership -- sin cambios
+
+Ningún `resolverEstadoModuloX`, motor, updater, tipo de dominio ni test
+hidráulico cambió. UI-01B es CSS + composición de presentación + copy de
+cabeceras. Los resolvers se siguen llamando donde ya se llamaban (cada
+panel el suyo); no se levantó estado al shell.
+
+### Estado local agregado
+
+Ninguno. La app sigue con los `useState` de UI-01A (`Proyecto` + modal de
+declaración de artefacto + navegación de presentación). El sistema visual
+es CSS y componentes sin estado.
+
+### Diferido explícitamente (no bloquea el cierre de UI-01B)
+
+Registrado como candidato a **UI-01C**, coherente con "no rearquitecturar
+para el resumen" (brief §73) y con la disciplina de cierre (§91):
+
+- **Resumen sticky del proyecto** (`ResumenDeProyecto`) y **estado de
+  etapa en la sidebar** (✓/—/!/○). Requieren consumir `resolverEstadoModulo2/3/4`
+  y `calcularSimultaneidad` desde el shell; hoy cada panel llama a su
+  resolver internamente. Hacerlo bien implica, o bien levantar esos
+  resultados a `MotorDemandaPantalla` y pasarlos hacia abajo (para no
+  duplicar cálculo, §74), o aceptar una segunda llamada por render. Es
+  una decisión de composición transversal que merece su propio slice; no
+  se fuerza dentro de UI-01B.
+- **Locales / artefactos de M1 como cards** (secciones 33–34) y
+  **`ConfiguracionHidraulicaFormulario` de M2** como grid de cards. El
+  sistema de tokens ya mejora esas zonas (tipografía, controles,
+  espaciado); la reagrupación fina en cards por concepto queda para
+  UI-01C.
+- **Reemplazo de los `CSSProperties` inline restantes** en
+  `ControlDeDn`, `DimensionamientoDeTramo`, `AccesoriosDeTramoEditor`,
+  `TarjetaDeTerminal`, `CalculoDelCriticoDetalle`, `LocalYRedCard`,
+  `TablaDeTerminales`, `MetodologiaYFuentesTecnicas`. Heredan la estética
+  base por selectores de elemento; el pulido de detalle (los ↑/↓ de DN,
+  sobre todo) es de UI-01C.
+
+### Verificación
+
+- `vitest` **1232/1232** (132 archivos; sin cambio de recuento: los
+  tests de estructura se actualizaron, no se agregaron ni se quitaron).
+- `src/auditoriaTransversalM1M4.baseline.test.ts` **12/12** con el
+  snapshot numérico **byte-idéntico** al de D-δ.70 / D-δ.72 (Qc
+  0,7273238618387272; margen del crítico 3,8358249136345712; medidor
+  general DN25; VRTD 0,9167318052388361). `BASELINE-FUNCIONAL-M1-M4.md`
+  no requiere cambios.
+- `tsc -b` / `npm run build` verdes (chunk CSS ~14,7 kB). `eslint .`
+  **11 baseline / 0 nuevos / 0 warnings**.
+- Inspección de navegador (Playwright transitorio, vite dev real, 1440 y
+  480): shell, sidebar con grupos y sección activa, `EncabezadoDeEtapa`
+  en las cinco etapas, tabla técnica de M2 (Rápido y Profesional), M3
+  `noIniciado` → `Iniciar Módulo 3` sin reload ni layout roto, empty
+  state de M4 por elección de esquema, verificación. Consola **0
+  errores / 0 warnings**. `git diff -- package.json package-lock.json`
+  vacío. Dev server detenido.
+
+### Decisiones rojas
+
+Ninguna. El sistema visual no exigió tocar ningún contrato congelado; el
+patrón de cabecera de etapa no obligó a recalcular nada en React (el
+`<h2>` se conserva y sólo cambió el copy); "Iniciar Módulo 3" sigue
+materializando `CONFIGURACION_MEDIDORES_INICIAL` sin volverse checkbox de
+PH; los litros de M4 no tocaron la persistencia en m³; el snapshot
+numérico transversal quedó idéntico. El resumen sticky se difirió a
+UI-01C por composición, no por una decisión roja.
+
+### Estado
+
+**D-δ.73 -- CERRADA (parcial documentado). UI-01B CERRADO en su núcleo.**
+Están el sistema de tokens, el shell y la sidebar definitivos, el patrón
+de cabecera de etapa, y la estética aplicada a M1–M4 y a la verificación
+(cards, botones, inputs, tablas técnicas, badges de estado, empty states,
+responsive). Queda para **UI-01C** el resumen sticky del proyecto + el
+estado de etapa en la sidebar, la reagrupación fina de M1/M2 en cards y
+el reemplazo de los `CSSProperties` inline restantes. Core M1–M4 sin
+cambios (baseline transversal byte-idéntico). **No iniciar UI-01C ni
+REPORT-01.**
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son

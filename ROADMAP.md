@@ -540,11 +540,42 @@ salvo bug inequívoco o decisión roja explícita.
   `.css` del repo) sólo estructural. Baseline transversal 12/12
   byte-idéntico; suite 1225 → 1232; smoke 25/25, consola limpia.
 
-**Siguiente slice (NO iniciado): UI-01B — sistema visual transversal.**
-Estética verde de referencia, jerarquía, cards, superficie/spacing,
-tipografía, botones, inputs, tablas, estados, sidebar visual definitiva,
-sticky summary derivado, responsive pulido. Mantiene: core M1–M4
-congelado + arquitectura UI-01A.
+- **D-δ.73 — UI-01B: sistema visual transversal.** Estética de aplicación
+  técnica moderna sobre UI-01A, sin tocar cálculo, dominio, `Proyecto`,
+  motores ni semántica. `sistema-visual.css` (nuevo): tokens (`:root`
+  custom properties) de color/espaciado/radius/tipografía/sombras +
+  estilos base de elementos + utilidades `.ui-*` (card, stack, métrica,
+  badge, callout, empty, jerarquías de botón, segmented control, tabla
+  técnica). `navegacionUI.css` reescrito sobre los tokens; sidebar como
+  superficie tipo card con grupos **PROYECTO** / **VERIFICACIÓN** y
+  número `01`..`05`, sección activa por fondo + acento + peso.
+  `EncabezadoDeEtapa` (nuevo): patrón único `[NN] Título / descripción`
+  en las cinco etapas, sin la redundancia "Módulo N — …" (el `<h2>` real
+  y la traza "Módulo N" en ayudas se conservan). M1: Qc protagonista en
+  card + métrica. M2: sin el `<h3>` "Módulo 2 · Tuberías", modo
+  Rápido/Profesional como segmented control, tabla de dimensionamiento
+  `.tabla-tecnica`. M3: empty state `noIniciado` con "Iniciar Módulo 3"
+  conservado (**UI-CRIT-04**), resultados en cards. M4: reserva
+  requerida como métrica en litros (m³ secundario en Profesional,
+  **UI-CRIT-03**), adopción como badge "Suficiente/Insuficiente" (nunca
+  "Cumple norma"); inicio por elección de esquema. Verificación:
+  veredicto CUMPLE/NO CUMPLE como badge en card de resultado. Criterios
+  registrados: **UI-CRIT-02** (decisión persistida ≠ resultado
+  derivado), **UI-CRIT-03**, **UI-CRIT-04**. Baseline transversal 12/12
+  byte-idéntico; suite 1232/1232 (sin cambio de recuento); consola
+  limpia; manifests intactos. Ver `SISTEMA-VISUAL.md`. **CERRADA
+  (parcial documentado):** el resumen sticky del proyecto + estado de
+  etapa en la sidebar, la reagrupación fina de M1/M2 en cards y el
+  reemplazo de los `CSSProperties` inline restantes se difieren a
+  **UI-01C** (brief §73/§91).
+
+**Siguiente slice (NO iniciado): UI-01C — pulido visual y UX sobre casos
+reales.** Resumen sticky del proyecto + estado de etapa en la sidebar
+(consumiendo resultados existentes, sin nuevo motor de estado global),
+M1/M2 en cards por concepto, limpieza del `CSSProperties` inline
+restante. Alternativa: **REPORT-01** (memoria técnica PDF M1–M4). No
+decidir automáticamente: primero inspeccionar UI-01B terminada. Mantiene:
+core M1–M4 congelado + arquitectura UI-01A + sistema visual UI-01B.
 
 **Hallazgos de M4-A:**
 
