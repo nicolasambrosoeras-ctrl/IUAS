@@ -149,6 +149,14 @@ icono + título + texto para advertencias humanizadas. No cajas rojas
 grandes para información no crítica (p. ej. presión fuera de Tabla N°1 es
 `warn`/incompleto, no error de `Proyecto`).
 
+**Validación humanizada y por alcance (D-δ.78, UI-CRIT-10).** Los
+problemas de validación NUNCA se muestran con su código interno ni con
+`[error]`. Un error que impide calcular la Demanda se ve donde se
+corrige, con copy plano ("No se puede calcular la demanda todavía" + la
+lista de qué falta). Los errores de módulos posteriores
+(`RevisionesPendientes`, `ui-callout--warn`) se agrupan por su etapa, con
+enlace al ancla correspondiente, y **no** apagan M1.
+
 **Badges de velocidad de M2 (DEPLOY-01 / D-δ.75).** `.ui-badge--warn`
 (Elevada, ámbar), `.ui-badge--alto` (Muy alta, naranja — token
 `--color-naranja`), `.ui-badge--error` (No admisible, rojo). Umbrales de
@@ -338,6 +346,25 @@ artefacto…" **puramente de UI** — no está en `Proyecto` hasta que hay un
 tipo real. El banner `.m1-declaracion` (pregunta AF/AC) sigue al artefacto
 **efectivo** por id de fila; nunca queda stale (UI-CRIT-08).
 
+**M1 compacto + `qu` secundario (D-δ.78).** `.m1-uf__locales` es un grid
+(`repeat(auto-fill, minmax(min(100%, 26rem), 1fr))`): 2 Locales por fila
+en desktop ancho, 1 al angostar, sin breakpoint manual; cada Local sigue
+siendo una card. El `<select>` de artefacto ya no lleva "(qu=…)" en cada
+opción — `qu` va a `.m1-artefacto__qu` (segunda línea, `--fs-meta`,
+`--color-texto-3`), siempre visible, leído del catálogo.
+
+**Modo de trabajo global (D-δ.78, UI-CRIT-11).** El segmented control
+"Rápido / Profesional" (`SelectorDeModoDeTrabajo`, `.app-modo` en
+`.app-header`) es el ÚNICO control del modo, en la cabecera de la app —
+ya no está en la etapa 02. Desktop: a la derecha del título; móvil:
+apilado (la cabecera envuelve). No introduce estado: el modo se deriva de
+`configuracionHidraulica`.
+
+**Ids internos nunca visibles (D-δ.78).** Ninguna superficie de usuario
+muestra `uf-<uuid>` / ids de nodo / códigos de validación:
+`nombreDeUnidadFuncional(proyecto, ufId)` resuelve al nombre humano
+(+ nivel) en M3 y en el detalle del terminal crítico de M2.
+
 ---
 
 ## 12. Responsive
@@ -423,3 +450,5 @@ se llama "Estado del cálculo: cálculo disponible" (no "Estado de Módulo
 | **UI-CRIT-07** | Los defaults de creación son contextuales y nunca reinterpretan datos existentes. |
 | **UI-CRIT-08** | La conectividad se decide sobre el artefacto efectivo, nunca sobre un tipo provisional/stale. |
 | **UI-CRIT-09** | AF/AC tienen identidad cromática de categoría física, independiente de advertencia/error. |
+| **UI-CRIT-10** | Un estado inválido de un módulo downstream no invalida cálculos upstream independientes. |
+| **UI-CRIT-11** | "Rápido / Profesional" es configuración global del Proyecto (un control, una fuente de verdad). |

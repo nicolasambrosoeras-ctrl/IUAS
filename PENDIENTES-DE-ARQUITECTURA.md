@@ -8460,7 +8460,121 @@ la paleta existente. Snapshot numérico transversal idéntico.
 **D-δ.77 -- CERRADA** (subpunto F elevado como decisión de nomenclatura,
 no bloqueante). Publicada como `v0.4.0-beta.3` sobre el mismo hosting; el
 tag apunta al commit desplegado, `beta.1` y `beta.2` no se mueven.
-**UX-TEST-01 -- NO iniciar. REPORT-01 -- NO iniciar.**
+Continúa en **D-δ.78** (abajo). **UX-TEST-01 -- NO iniciar. REPORT-01 --
+NO iniciar.**
+
+## D-δ.78 -- UX-02 / UI-01E (continuación): FIX validación transversal + optimizaciones de carga y lectura -- CERRADA
+
+Consolidación de hallazgos del piloto sobre `v0.4.0-beta.3`. Corrige un
+bug de *gating* de validación (P0) y pule la carga y la lectura de M1/M2/
+M3. **Sin fórmulas hidráulicas ni criterios normativos nuevos**; puede
+tocar validación/orquestación porque ahí está el bug. Baseline
+transversal M1-M4 **12/12 byte-idéntico**; suite 1263 → 1270.
+
+Nota de versión: el brief apuntaba a `v0.4.0-beta.3`, pero D-δ.77 ya la
+había creado y publicado (con P1 "defaults contextuales" y las pills
+AF/AC). Los tags publicados no se mueven; esta continuación se publica
+como **`v0.4.0-beta.4`**. P1 y las pills AF/AC del brief no se rehacen:
+ya estaban en producción.
+
+### Criterios de UI registrados
+
+- **UI-CRIT-10 -- Un estado inválido de un módulo *downstream* no
+  invalida cálculos *upstream* independientes.** La dependencia del
+  pipeline es Demanda → Tuberías → Medidores → Abastecimiento →
+  Verificación, y `calcularSimultaneidad` (M1) consume sólo la estructura
+  del `Proyecto` y las referencias de catálogo. Por eso un error de M2/
+  M3/M4 (p. ej. `periodoConsumoMaximo_h` fuera de [1,4] h) **no puede**
+  impedir que M1 calcule Qc, ni desmontar las etapas donde se corrige el
+  dato. La validación se clasifica por `AlcanceValidacion` (`demanda` |
+  `tuberias` | `medidores` | `abastecimiento`, `validacion/codigos`);
+  sólo un error de alcance `demanda` bloquea el cálculo de Demanda. Los
+  demás se muestran en su sección (`RevisionesPendientes`), agrupados,
+  con enlace, **sin códigos internos ni `[error]`**. La validación
+  exhaustiva NO se debilita: cambia el *gating* del cálculo y la
+  *presentación*, no la detección.
+- **UI-CRIT-11 -- "Rápido / Profesional" es configuración global del
+  Proyecto.** Un único control (`SelectorDeModoDeTrabajo`, en la cabecera
+  de la app), una única fuente de verdad. NO se persiste ningún campo de
+  "modo": se sigue **derivando** de `configuracionHidraulica`
+  (`resolverModoDeTrabajo`: granularidad + método de pérdida localizada)
+  y aplicando `aplicarModoRapido` / `aplicarModoProfesional` — los mismos
+  updaters que ya usaba M2. M1 / M2 / M4 lo consumen igual que antes; el
+  futuro REPORT-01 también deberá consumirlo de ahí.
+
+### P0 -- causa raíz y forma de la corrección
+
+**Evidencia.** `MotorDemandaPantalla` calculaba
+`validacion = validarProyecto(...)` (7 validadores: invariantes de
+Proyecto, catálogo, redHidraulica, configuracionHidraulica,
+configuracionMedidores, configuracionAbastecimiento, parametrosConexion)
+y usaba el único booleano `validacion.valido` para (a) mostrar Qc vs.
+"El Motor de Demanda no se ejecuta" y (b) montar Tuberías / Medidores /
+**Abastecimiento** / Verificación. Un `periodoConsumoMaximo_h = 10`
+(valor real tipeado en el primer campo de la card de M4) →
+`configuracionAbastecimientoPeriodoConsumoMaximoInvalido` →
+`valido === false` → M1 apagado y **la sección de M4 desmontada**: no hay
+forma de corregir el dato sin recargar (y perder todo, sin persistencia).
+
+**No era** un handler cruzado ni un parser: cada campo de M4 llama a su
+propio updater (`conPeriodoConsumoMaximo`, `conPresionSobreAcera`,
+`conDesnivelConexion`, `conVolumenTanque*`), y `parsearNoNegativo` mapea
+`'' → undefined` correctamente. El único problema era el *gating* global.
+
+**Corrección.** `AlcanceValidacion` + `ALCANCE_POR_CODIGO` (un `Record`
+completo, en un solo lugar de `validacion/codigos`); `crearProblema`
+adjunta `alcance` a cada `ProblemaValidacion`. Helpers
+`erroresQueBloqueanLaDemanda` / `erroresDeModulosPosteriores`.
+`MotorDemandaPantalla`: M1 muestra Qc salvo que haya un error de alcance
+`demanda`; los posteriores van a `RevisionesPendientes` y **no** apagan
+M1 ni desmontan secciones. Tests: `src/validacion/alcance.test.ts`
+(Tc=6 / Tc ausente → M4 *flagged* y Qc byte-idéntico; error real de
+Demanda sí bloquea).
+
+### P3 -- grid de Locales sin breakpoint manual
+
+`.m1-uf__locales` pasa de `flex column` a
+`grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr))`:
+tantas columnas como quepan a ≥ 26rem cada una, cayendo a 1 sola cuando
+el contenedor (con la sidebar de 232px descontada) no alcanza — sin un
+`@media` de ancho fijo. Cada `.m1-local` sigue siendo una card
+independiente; el prompt AF/AC y el borrador de artefacto quedan dentro
+de su card (no invaden la vecina). `qu` sale del label del `<select>` y
+pasa a `.m1-artefacto__qu` (segunda línea, discreta), leído del catálogo.
+
+### P4 -- mover el control sin duplicar la fuente
+
+El selector segmentado se extrajo de `CabeceraDeModulo2`
+(`ResultadoHidraulicoDeTramo`) a `SelectorDeModoDeTrabajo`, montado una
+sola vez en `<header class="app-header">`. En M2 queda la explicación del
+modo activo + "Configuración avanzada" (material / método / geometría,
+sección 50 del brief). No se creó `modoHeader` ni `modoM2`: el valor
+sigue siendo `configuracionHidraulica`.
+
+### Decisiones rojas
+
+Ninguna. P0 se resolvió clasificando la validación existente, sin
+debilitar ninguna invariancia (UI-CRIT-10). El resto fue presentación:
+`nombreDeUnidadFuncional` es un helper puro; el grid es CSS; mover el
+selector fue lifting a la cabecera reutilizando los updaters de D-δ.51.
+Snapshot numérico transversal idéntico. La nomenclatura "N puntos" de M2
+(D-δ.77 subpunto F) sigue siendo la única decisión pendiente y no
+bloquea.
+
+### Deuda residual -- no bloqueante
+
+- Nomenclatura del contador "N puntos" de M2 (ver D-δ.77 subpunto F).
+- Edición numérica: un valor transitorio válido→inválido (p. ej. tipear
+  "6" en Tc) ya sólo produce un mensaje LOCAL en Abastecimiento, no un
+  fallo de app; no se agregó *debounce* (sería infraestructura
+  preventiva). Reconsiderar sólo si el feedback real lo pide.
+
+### Estado
+
+**D-δ.78 -- CERRADA.** Publicada como `v0.4.0-beta.4` sobre el mismo
+hosting; el tag apunta al commit desplegado, `beta.1` / `beta.2` /
+`beta.3` no se mueven. **UX-TEST-01 -- NO iniciar. REPORT-01 -- NO
+iniciar.**
 
 ## Regla — `resguardo-documentacion/` es inmutable
 

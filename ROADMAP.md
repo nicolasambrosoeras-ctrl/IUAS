@@ -740,6 +740,49 @@ salvo bug inequívoco o decisión roja explícita.
     apunta al commit desplegado, `beta.1` y `beta.2` no se mueven. Ver
     `SISTEMA-VISUAL.md` §6 y §11b.
 
+- **D-δ.78 — UX-02 / UI-01E (continuación): FIX validación transversal +
+  optimizaciones de carga y lectura.** Consolidación de hallazgos del
+  piloto. Corrige un bug de gating y pule M1/M2/M3. Sin fórmulas
+  hidráulicas ni criterios normativos nuevos; baseline transversal 12/12
+  byte-idéntico; suite 1263 → 1270. (El brief apuntaba a `beta.3`, pero
+  D-δ.77 ya la había publicado; se publica como **`v0.4.0-beta.4`**.)
+  - **P0 — validación por alcance (UI-CRIT-10).** Bug reproducido en
+    `beta.3`: elegir "Tanque elevado" y escribir un `periodoConsumoMaximo_h`
+    fuera de [1,4] h (o *cualquier* error de M2/M3/M4) apagaba M1 ("El
+    Motor de Demanda no se ejecuta") y **desmontaba todas las etapas
+    posteriores**, incluida la propia M4 donde había que corregir el
+    dato. Causa: `MotorDemandaPantalla` usaba un único `validacion.valido`
+    (que agrega los 7 validadores) para gatear M1 y montar el resto.
+    Corrección: cada `ProblemaValidacion` lleva un `alcance` (`demanda` /
+    `tuberias` / `medidores` / `abastecimiento`); sólo un error de alcance
+    `demanda` bloquea el cálculo de Qc. Los errores de módulos posteriores
+    se listan en `RevisionesPendientes` (agrupados por sección, con enlace
+    a donde se corrigen, **sin códigos internos ni "[error]"**) y no
+    apagan nada. La validación exhaustiva no se debilita: se corrige el
+    *gating* y la *presentación* por alcance.
+  - **P2 — humanización de ids (UI-CRIT-07 amplía cobertura).** M3
+    ("Medidores individuales") y el detalle del terminal crítico de M2
+    mostraban el id interno `uf-<uuid>` como Unidad funcional.
+    `nombreDeUnidadFuncional(proyecto, ufId)` → nombre humano (+ nivel).
+    El id sigue siendo la clave interna.
+  - **P3 — M1 compacto.** Los Locales de una UF se disponen en grid (2
+    por fila en desktop ancho, 1 al angostar; sin breakpoint manual).
+    `qu` sale del label del `<select>` de artefacto y pasa a metadata
+    secundaria (`qu 0,20 L/s`), siempre visible.
+  - **P4 — modo de trabajo global (UI-CRIT-11).** "Rápido / Profesional"
+    es configuración global del Proyecto: un único `SelectorDeModoDeTrabajo`
+    en la cabecera de la app; se elimina el selector duplicado de la
+    etapa 02. Fuente única: se sigue derivando de `configuracionHidraulica`
+    y aplicando `aplicarModoRapido` / `aplicarModoProfesional`.
+  - **Ya cubierto en D-δ.77** (no se rehace): régimen Domiciliario del
+    Local nuevo, sugerencia contextual de artefacto, borrador de UI,
+    conectividad sobre el artefacto efectivo, pills AF/AC.
+  - **Sigue pendiente**: la nomenclatura del contador "N puntos" de M2
+    (D-δ.77 subpunto F) — decisión de nomenclatura, no bloqueante.
+  - **Publicación**: `v0.4.0-beta.4` sobre el mismo GitHub Pages; el tag
+    apunta al commit desplegado, `beta.1` / `beta.2` / `beta.3` no se
+    mueven. Ver `SISTEMA-VISUAL.md` §6, §11b y §15.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal byte-idéntico). Ya no existe deuda visual
@@ -748,7 +791,8 @@ bloqueante antes de reporting.
 **Orden de fases tras el cierre visual:** **DEPLOY-01** (piloto web
 `v0.4.0-beta.1`, D-δ.75 — publicado) → **UX-01 / UI-01D** (UF colapsables,
 D-δ.76 — `v0.4.0-beta.2`) → **UX-02 / UI-01E** (defaults contextuales +
-redes AF/AC, D-δ.77 — `v0.4.0-beta.3`) → **UX-TEST-01** (NO iniciada:
+redes AF/AC, D-δ.77 — `v0.4.0-beta.3`; consolidación FIX P0 +
+optimizaciones, D-δ.78 — `v0.4.0-beta.4`) → **UX-TEST-01** (NO iniciada:
 observación de uso real de terceros; su output prioriza bugs / UX /
 contenido / nomenclatura "puntos" de M2 / PERSIST-01) → **REPORT-01** (NO
 iniciada).
