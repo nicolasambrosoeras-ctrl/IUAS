@@ -148,7 +148,7 @@ describe('PanelDeModulo4 (UI)', () => {
     expect(html).not.toContain('inválido')
   })
 
-  it('S2: tanque elevado + G3 completo -> Evaluado, con Qconexión 0,60 y reserva ≈ 0,771 m³', () => {
+  it('S2: tanque elevado + G3 completo -> Evaluado, con Qconexión 0,60 y reserva ≈ 771 L (0,771 m³)', () => {
     const html = render(
       construir({
         configuracionAbastecimiento: { esquema: 'tanqueElevado', periodoConsumoMaximo_h: 2 },
@@ -157,8 +157,9 @@ describe('PanelDeModulo4 (UI)', () => {
     )
     expect(html).toContain('<strong>Evaluado</strong>')
     expect(html).toContain('0,60 L/s')
+    // litros como unidad principal (D-δ.71); m³ como equivalente en Profesional
+    expect(html).toContain('771,169 L')
     expect(html).toContain('0,771 m³')
-    expect(html).toContain('771 L')
     // sin capacidad adoptada: cálculo completo, adopción pendiente
     expect(html).toContain('adopción pendiente')
     expect(html).toContain('Falta adoptar el volumen del tanque elevado')
@@ -177,8 +178,14 @@ describe('PanelDeModulo4 (UI)', () => {
     )
     expect(html).toContain('<strong>Evaluado</strong>')
     expect(html).toContain('✓ Suficiente')
-    expect(html).toContain('+0,229 m³') // 1 − 0,771 ≈ 0,229 (3 decimales -> 0,229)
+    // diferencia en litros: 1 m³ − 0,7711688 m³ = 228,831 L
+    expect(html).toContain('+228,831 L')
     expect(html).not.toContain('Cumple norma')
+    // REGRESIÓN D-δ.71: el core persiste 1 m³ y la UI lo muestra/edita como
+    // 1000 L -- el input trae value="1000", nunca "1"; se ve "1000 L".
+    expect(html).toContain('value="1000"')
+    expect(html).toContain('1000 L')
+    expect(html).not.toMatch(/>1 L</)
   })
 
   it('adopción de tanque elevado insuficiente -> ⚠ Insuficiente, pero el estado del cálculo sigue Evaluado', () => {
@@ -215,8 +222,9 @@ describe('PanelDeModulo4 (UI)', () => {
     expect(html).toContain('§2.11.3')
     expect(html).toContain('no alcanza el mínimo') // el inferior
     expect(html).toContain('⚠ Insuficiente')
-    // input del tanque de bombeo presente
-    expect(html).toContain('Tanque de bombeo / cisterna [m³]')
+    // input del tanque de bombeo presente, en litros (D-δ.71)
+    expect(html).toContain('Tanque de bombeo / cisterna [L]')
+    expect(html).not.toContain('[m³]')
   })
 
   it('cisterna con capacidades ausentes -> adopción incompleta, estado Evaluado', () => {
@@ -243,14 +251,14 @@ describe('PanelDeModulo4 (UI)', () => {
     expect(html).toContain('Tabla N°1')
   })
 
-  it('Qconexión >= Qc -> "Reserva calculada por déficit: 0 m³", NO "no hace falta tanque"', () => {
+  it('Qconexión >= Qc -> "Reserva calculada por déficit: 0 L", NO "no hace falta tanque"', () => {
     const html = render(
       construir({
         configuracionAbastecimiento: { esquema: 'tanqueElevado', periodoConsumoMaximo_h: 2 },
         parametros: { presionSobreAcera_m: 35, diametroNominalConexion_m: 0.075, desnivelConexion_m: 0 },
       }),
     )
-    expect(html).toContain('Reserva calculada por déficit: 0 m³')
+    expect(html).toContain('Reserva calculada por déficit: 0 L')
     expect(html).toContain('no determina por sí solo la obligatoriedad')
     expect(html).not.toContain('No hace falta tanque')
   })

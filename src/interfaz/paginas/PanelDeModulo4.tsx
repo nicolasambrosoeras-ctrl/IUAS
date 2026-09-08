@@ -52,7 +52,9 @@ import {
   formatearNumeroM4,
   formatearPresion_m,
   formatearVolumen_m3,
-  volumenEnLitros,
+  formatearVolumen_L,
+  litrosParaInput,
+  m3DesdeLitros,
 } from './humanizarModulo4'
 
 type OnCambiar = (proyecto: Proyecto) => void
@@ -316,17 +318,17 @@ function VerificacionDeAdopcion({ adopcion }: { adopcion: ResultadoAdopcionDeRes
         <tbody>
           <tr>
             <th>Reserva requerida</th>
-            <td>{formatearVolumen_m3(adopcion.volumenRequerido_m3)} m³</td>
+            <td>{formatearVolumen_L(adopcion.volumenRequerido_m3)} L</td>
           </tr>
           <tr>
             <th>Volumen adoptado</th>
-            <td>{formatearVolumen_m3(adopcion.volumenAdoptado_m3)} m³</td>
+            <td>{formatearVolumen_L(adopcion.volumenAdoptado_m3)} L</td>
           </tr>
           <tr>
             <th>Diferencia</th>
             <td>
               {adopcion.diferencia_m3 >= 0 ? '+' : ''}
-              {formatearVolumen_m3(adopcion.diferencia_m3)} m³
+              {formatearVolumen_L(adopcion.diferencia_m3)} L
             </td>
           </tr>
           <tr>
@@ -348,16 +350,16 @@ function VerificacionDeAdopcion({ adopcion }: { adopcion: ResultadoAdopcionDeRes
         <tbody>
           <tr>
             <th>Reserva Total Diaria requerida</th>
-            <td>{formatearVolumen_m3(adopcion.volumenRequerido_m3)} m³</td>
+            <td>{formatearVolumen_L(adopcion.volumenRequerido_m3)} L</td>
           </tr>
           <tr>
             <th>Mínimo por tanque (1/3)</th>
-            <td>{formatearVolumen_m3(adopcion.minimoPorTanque_m3)} m³</td>
+            <td>{formatearVolumen_L(adopcion.minimoPorTanque_m3)} L</td>
           </tr>
           <tr>
             <th>Tanque de bombeo / cisterna</th>
             <td>
-              {formatearVolumen_m3(adopcion.volumenTanqueBombeoAdoptado_m3)} m³ ·{' '}
+              {formatearVolumen_L(adopcion.volumenTanqueBombeoAdoptado_m3)} L ·{' '}
               {marca(adopcion.tanqueBombeoCumpleMinimo)}
               {adopcion.tanqueBombeoCumpleMinimo ? 'cumple el mínimo' : 'no alcanza el mínimo'}
             </td>
@@ -365,7 +367,7 @@ function VerificacionDeAdopcion({ adopcion }: { adopcion: ResultadoAdopcionDeRes
           <tr>
             <th>Tanque elevado / reserva</th>
             <td>
-              {formatearVolumen_m3(adopcion.volumenTanqueElevadoAdoptado_m3)} m³ ·{' '}
+              {formatearVolumen_L(adopcion.volumenTanqueElevadoAdoptado_m3)} L ·{' '}
               {marca(adopcion.tanqueElevadoCumpleMinimo)}
               {adopcion.tanqueElevadoCumpleMinimo ? 'cumple el mínimo' : 'no alcanza el mínimo'}
             </td>
@@ -373,7 +375,7 @@ function VerificacionDeAdopcion({ adopcion }: { adopcion: ResultadoAdopcionDeRes
           <tr>
             <th>Total adoptado</th>
             <td>
-              {formatearVolumen_m3(adopcion.totalAdoptado_m3)} m³ · {marca(adopcion.totalCumple)}
+              {formatearVolumen_L(adopcion.totalAdoptado_m3)} L · {marca(adopcion.totalCumple)}
               {adopcion.totalCumple ? 'cubre la reserva' : 'no cubre la reserva'}
             </td>
           </tr>
@@ -412,38 +414,48 @@ function AdopcionDeCapacidad({
       {esquema === 'cisternaBombeoElevado' ? (
         <p>
           <label>
-            Tanque de bombeo / cisterna [m³]:{' '}
+            Tanque de bombeo / cisterna [L]:{' '}
             <input
               type="number"
               min={0}
               step="any"
-              value={config?.volumenTanqueBombeoAdoptado_m3 ?? ''}
+              value={
+                config?.volumenTanqueBombeoAdoptado_m3 !== undefined
+                  ? litrosParaInput(config.volumenTanqueBombeoAdoptado_m3)
+                  : ''
+              }
               onChange={(evento) => {
-                const valor = parsearNoNegativo(evento.target.value)
-                if (valor !== 'ignorar') {
-                  onCambiar(conVolumenTanqueBombeoAdoptado(proyecto, valor))
-                }
+                const litros = parsearNoNegativo(evento.target.value)
+                if (litros === 'ignorar') return
+                onCambiar(
+                  conVolumenTanqueBombeoAdoptado(proyecto, litros === undefined ? undefined : m3DesdeLitros(litros)),
+                )
               }}
-              style={{ width: '6rem' }}
+              style={{ width: '7rem' }}
             />
           </label>
         </p>
       ) : null}
       <p>
         <label>
-          Tanque elevado / reserva [m³]:{' '}
+          Tanque elevado / reserva [L]:{' '}
           <input
             type="number"
             min={0}
             step="any"
-            value={config?.volumenTanqueElevadoAdoptado_m3 ?? ''}
+            value={
+              config?.volumenTanqueElevadoAdoptado_m3 !== undefined
+                ? litrosParaInput(config.volumenTanqueElevadoAdoptado_m3)
+                : ''
+            }
             onChange={(evento) => {
-              const valor = parsearNoNegativo(evento.target.value)
-              if (valor !== 'ignorar') {
-                onCambiar(conVolumenTanqueElevadoAdoptado(proyecto, valor))
-              }
+              const litros = parsearNoNegativo(evento.target.value)
+              if (litros === 'ignorar') return
+              onCambiar(
+                conVolumenTanqueElevadoAdoptado(proyecto, litros === undefined ? undefined : m3DesdeLitros(litros)),
+              )
             }}
-            style={{ width: '6rem' }}
+            style={{ width: '7rem' }}
           />
         </label>
       </p>
@@ -475,7 +487,7 @@ function ResultadoDeReserva({
       {sinDeficit ? (
         <>
           <p>
-            <strong>Reserva calculada por déficit: 0 m³.</strong> El caudal de la conexión cubre el caudal de
+            <strong>Reserva calculada por déficit: 0 L.</strong> El caudal de la conexión cubre el caudal de
             cálculo.
           </p>
           <p>
@@ -485,8 +497,13 @@ function ResultadoDeReserva({
       ) : (
         <p>
           Reserva requerida:{' '}
-          <strong>{formatearVolumen_m3(reserva.volumenReservaDiseno_m3)} m³</strong>{' '}
-          <small>(≈ {volumenEnLitros(reserva.volumenReservaDiseno_m3)} L)</small>
+          <strong>{formatearVolumen_L(reserva.volumenReservaDiseno_m3)} L</strong>
+          {esProfesional ? (
+            <>
+              {' '}
+              <small>({formatearVolumen_m3(reserva.volumenReservaDiseno_m3)} m³)</small>
+            </>
+          ) : null}
         </p>
       )}
 
@@ -514,7 +531,10 @@ function ResultadoDeReserva({
             </tr>
             <tr>
               <th>Reserva Total Diaria de Diseño</th>
-              <td>{formatearVolumen_m3(reserva.volumenReservaDiseno_m3)} m³</td>
+              <td>
+                {formatearVolumen_L(reserva.volumenReservaDiseno_m3)} L{' '}
+                <small>({formatearVolumen_m3(reserva.volumenReservaDiseno_m3)} m³)</small>
+              </td>
             </tr>
           </tbody>
         </table>
