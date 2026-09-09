@@ -8,7 +8,7 @@
 // validarProyecto y calcularSimultaneidad y muestra lo que devuelven.
 import { useState } from 'react'
 import type { Proyecto, UnidadFuncional, Local, TipoDeLocal, RegimenLocal, Artefacto } from '../../modelo/proyecto'
-import type { RedDeTramo } from '../../modelo/redHidraulica'
+import type { ConectividadFisica, RedDeTramo } from '../../modelo/redHidraulica'
 import type { ResultadoDeCalculo, Paso, ValorCalculado } from '../../modelo/resultado'
 import type { ProblemaValidacion, CodigoValidacion, AlcanceValidacion } from '../../validacion'
 import { validarProyecto, erroresQueBloqueanLaDemanda, erroresDeModulosPosteriores } from '../../validacion'
@@ -26,11 +26,13 @@ import {
 import { duplicarUnidadFuncionalEnProyecto } from './duplicarUnidadFuncional'
 import { generarId } from './generarId'
 import { backfillLongitudesDePredimensionamiento } from './backfillLongitudesDePredimensionamiento'
+import { sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas } from './sincronizarConectividadFisicaDeArtefacto'
 import {
-  sincronizarConectividadFisicaDeArtefacto,
-  sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas,
-} from './sincronizarConectividadFisicaDeArtefacto'
-import { determinarRedesFisicasPorPrecedente } from '../../motor/tuberias/topologia/determinarRedesFisicasPorPrecedente'
+  resolverConectividadInicialDeArtefacto,
+  conectividadFisicaDeRedes,
+  redesDeConectividadFisica,
+} from '../../motor/tuberias/topologia/resolverConectividadInicialDeArtefacto'
+import { obtenerPoliticaDeConectividad } from '../../normativa/eras-2023/catalogo-artefactos/politicaConectividad'
 import { quitarConectividadFisicaDeArtefacto } from './quitarConectividadFisicaDeArtefacto'
 import { reconciliarConectividadFisicaPorCambioDeArtefacto } from './reconciliarConectividadFisicaPorCambioDeArtefacto'
 import { quitarConectividadFisicaDeLocal } from './quitarConectividadFisicaDeLocal'
@@ -119,29 +121,101 @@ function conTipoDeProyecto(proyecto: Proyecto, tipoDeProyecto: TipoDeProyecto): 
 }
 
 
+// Etiqueta corta de una ConectividadFisica para el editor discreto de M1
+// (CAT-CONN-01). El color/semántica de Red vive en BadgeDeRed / tokens
+// --color-af/--color-ac; acá alcanza el texto.
+const ETIQUETA_CONECTIVIDAD: Readonly<Record<ConectividadFisica, string>> = {
+  soloAF: 'AF',
+  soloAC: 'AC',
+  ambas: 'AF+AC',
+}
+
+// Etiqueta larga para el selector obligatorio de los tipos
+// `requiereSeleccion` (banner de declaración de alimentación).
+const ETIQUETA_CONECTIVIDAD_LARGA: Readonly<Record<ConectividadFisica, string>> = {
+  soloAF: 'Agua fría (AF)',
+  soloAC: 'Agua caliente (AC)',
+  ambas: 'Agua fría y caliente (AF + AC)',
+}
+
+// Editor compacto de alimentación para artefactos con política
+// `defaultConfigurable` (CAT-CONN-01, D-δ.84): sólo se monta para esos
+// tipos, y las opciones vienen de la política -- nunca un `if` por
+// artefactoId en el JSX. No usa color de error (AC/AF+AC no son
+// advertencias); el estado activo se marca con aria-pressed + clase.
+function EditorDeConectividad({
+  opciones,
+  valor,
+  onCambiar,
+}: {
+  opciones: readonly ConectividadFisica[]
+  valor: ConectividadFisica
+  onCambiar: (conectividad: ConectividadFisica) => void
+}) {
+  return (
+    <div className="m1-artefacto__conectividad" role="group" aria-label="Alimentación del artefacto">
+      <span className="m1-artefacto__conectividad-titulo">Alimentación</span>
+      <div className="ui-segmented">
+        {opciones.map((opcion) => (
+          <button
+            key={opcion}
+            type="button"
+            className="ui-segmented__opcion"
+            aria-pressed={opcion === valor}
+            onClick={() => {
+              if (opcion !== valor) {
+                onCambiar(opcion)
+              }
+            }}
+          >
+            {ETIQUETA_CONECTIVIDAD[opcion]}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ArtefactoFormulario({
   artefacto,
+  tipoMostrado,
+  editorConectividad,
   onCambiar,
   onCambiarTipo,
   onEliminar,
 }: {
   artefacto: Artefacto
+  // Valor a mostrar en el <select> de tipo. Normalmente
+  // `artefacto.artefactoId`; durante una transacción de cambio de tipo
+  // hacia un tipo `requiereSeleccion` (CAT-CONN-01) el nuevo tipo todavía
+  // NO está aplicado en Proyecto y se muestra desde acá.
+  tipoMostrado?: string | undefined
+  // Presente sólo para artefactos con política `defaultConfigurable`.
+  editorConectividad?:
+    | {
+        opciones: readonly ConectividadFisica[]
+        valor: ConectividadFisica
+        onCambiar: (conectividad: ConectividadFisica) => void
+      }
+    | undefined
   onCambiar: (artefacto: Artefacto) => void
-  // D-δ.52 (CRIT-A15): cambiar el tipo de catálogo es un cambio de nivel
-  // Proyecto -- reconcilia además la conectividad física AF/AC. Distinto
-  // de onCambiar (cantidad), que es puramente funcional.
+  // D-δ.52 (CRIT-A15) / CAT-CONN-01: cambiar el tipo de catálogo es un
+  // cambio de nivel Proyecto -- reconcilia además la conectividad física
+  // AF/AC según la política del tipo nuevo. Distinto de onCambiar
+  // (cantidad), que es puramente funcional.
   onCambiarTipo: (nuevoArtefactoId: string) => void
   onEliminar: () => void
 }) {
+  const tipoEnSelect = tipoMostrado ?? artefacto.artefactoId
   // UX-02 / UI-01E (brief §41-42): `qu` sale del label del <select> (lo
   // alargaba y ensuciaba la lectura) y pasa a metadata secundaria. Sigue
   // visible y consultable; se lee del catálogo real, no se recalcula.
-  const quTotal_lps = catalogoArtefactos.find((c) => c.id === artefacto.artefactoId)?.quTotal_lps
+  const quTotal_lps = catalogoArtefactos.find((c) => c.id === tipoEnSelect)?.quTotal_lps
   return (
     <div className="m1-artefacto">
       <select
         aria-label="Artefacto"
-        value={artefacto.artefactoId}
+        value={tipoEnSelect}
         onChange={(evento) => onCambiarTipo(evento.target.value)}
       >
         {catalogoArtefactos.map((catalogoItem) => (
@@ -171,6 +245,13 @@ function ArtefactoFormulario({
       {quTotal_lps !== undefined ? (
         <span className="m1-artefacto__qu">qu {formatearNumero(quTotal_lps, 'l/s')} L/s</span>
       ) : null}
+      {editorConectividad ? (
+        <EditorDeConectividad
+          opciones={editorConectividad.opciones}
+          valor={editorConectividad.valor}
+          onCambiar={editorConectividad.onCambiar}
+        />
+      ) : null}
     </div>
   )
 }
@@ -192,20 +273,47 @@ function LocalFormulario({
   onCambiarProyecto: (proyecto: Proyecto) => void
   onEliminar: () => void
 }) {
-  // UX-02 / UI-01E: la pregunta AF/AC se refiere SIEMPRE a un Artefacto
-  // que YA existe en el Local (por id de fila, no por tipo de catálogo).
-  // Así, si el usuario cambia el `<select>` de tipo antes de responder, el
-  // banner se re-deriva solo (UI-CRIT-08) y nunca queda stale.
-  const [declaracionPendiente, setDeclaracionPendiente] = useState<{ artefactoRowId: string } | null>(null)
+  // CAT-CONN-01: el selector de alimentación se refiere SIEMPRE a un
+  // Artefacto que YA existe en el Local (por id de fila). Aparece sólo
+  // para los tipos `requiereSeleccion` (lavavajillas / lavarropas
+  // industrial). `cambioDeTipo` presente = transacción de cambio de tipo
+  // hacia un `requiereSeleccion` sobre un artefacto ya conectado: el tipo
+  // nuevo todavía NO se aplicó en Proyecto -- se aplica junto con la
+  // conectividad al confirmar (protege longitud/accesorios/DN previos si
+  // se cancela).
+  type DeclaracionPendiente = {
+    artefactoRowId: string
+    cambioDeTipo?: { tipoNuevo: string }
+  }
+  const [declaracionPendiente, setDeclaracionPendiente] = useState<DeclaracionPendiente | null>(null)
   // Borrador puramente de UI (brief §11/§12): fila "Seleccionar
   // artefacto…" sin tipo real todavía. NO se persiste en `Proyecto`, no
   // dispara conectividad y no afecta Qc mientras no haya un tipo elegido.
   const [borradorAbierto, setBorradorAbierto] = useState(false)
 
   const artefactoPendiente =
-    declaracionPendiente === undefined || declaracionPendiente === null
+    declaracionPendiente == null
       ? undefined
       : local.artefactos.find((a) => a.id === declaracionPendiente.artefactoRowId)
+
+  // Tipo de catálogo al que se refiere la declaración pendiente: el nuevo
+  // si es una transacción de cambio de tipo, o el ya aplicado si es un ALTA.
+  const tipoDeArtefactoPendiente =
+    declaracionPendiente?.cambioDeTipo?.tipoNuevo ?? artefactoPendiente?.artefactoId
+
+  // Opciones del selector obligatorio de alimentación: las que declara la
+  // política `requiereSeleccion` del tipo pendiente (los industriales
+  // admiten las tres). Nunca un `if` por artefactoId.
+  const opcionesDeDeclaracion: readonly ConectividadFisica[] = (() => {
+    const politica =
+      tipoDeArtefactoPendiente !== undefined
+        ? obtenerPoliticaDeConectividad(tipoDeArtefactoPendiente)
+        : undefined
+    if (politica !== undefined && politica.politica !== 'automatica') {
+      return politica.opcionesPermitidas
+    }
+    return ['soloAF', 'soloAC', 'ambas']
+  })()
 
   function proyectoConArtefactos(artefactos: readonly Artefacto[]): Proyecto {
     return {
@@ -218,13 +326,90 @@ function LocalFormulario({
     }
   }
 
-  // M2-D (sincronización funcional -> hidráulica, ALTA): el orden es
-  // AGREGAR (tipo real ya determinado) -> crear la fila -> resolver
-  // conectividad (brief §14). Si `sincronizarConectividadFisicaDeArtefacto`
-  // puede deducir la Red por precedente, conecta y listo; si no
-  // (`redesNoDeterminables`), la fila queda creada sin conexión y se pide
-  // declarar la Red para ESA fila -- nunca se inventa una conexión ni se
-  // oculta la señal de la barrera de cobertura (S1/S2).
+  // ¿La instancia tiene al menos un terminal físico hoy en redHidraulica?
+  // Un cambio de tipo sobre un artefacto YA conectado debe proteger sus
+  // datos de tramo (longitud/accesorios/DN): si el tipo nuevo exige
+  // selección, no se aplica hasta confirmar. Un ALTA todavía sin conectar
+  // no tiene nada que proteger.
+  function artefactoTieneTerminal(rowId: string): boolean {
+    return (
+      proyecto.redHidraulica?.nodos.some(
+        (nodo) =>
+          nodo.referencia?.tipo === 'artefacto' &&
+          nodo.referencia.unidadFuncionalId === unidadFuncionalId &&
+          nodo.referencia.localId === local.id &&
+          nodo.referencia.artefactoId === rowId,
+      ) ?? false
+    )
+  }
+
+  // Fija `conectividadElegida` en una fila, normalizando: para políticas
+  // `defaultConfigurable`, volver exactamente a la referencia default
+  // deja el override en "ausente" (`conectividadElegida` sólo marca una
+  // elección NO estándar). Para `requiereSeleccion` siempre se persiste la
+  // elección (ausencia = todavía sin declarar).
+  function conConectividadElegida(
+    artefactos: readonly Artefacto[],
+    rowId: string,
+    nueva: ConectividadFisica,
+  ): readonly Artefacto[] {
+    return artefactos.map((a) => {
+      if (a.id !== rowId) return a
+      const politica = obtenerPoliticaDeConectividad(a.artefactoId)
+      if (politica?.politica === 'defaultConfigurable' && nueva === politica.referencia) {
+        const copia = { ...a }
+        delete copia.conectividadElegida
+        return copia
+      }
+      return { ...a, conectividadElegida: nueva }
+    })
+  }
+
+  // Editor discreto de alimentación de la fila de M1: sólo para tipos con
+  // política `defaultConfigurable` (CAT-CONN-01). Las opciones salen de la
+  // política -- nunca de un `if` por artefactoId. Cambiar la opción fija
+  // `conectividadElegida` y reconcilia la topología a la nueva
+  // conectividad (agrega/quita SÓLO la Red que cambia, preservando la otra
+  // rama con su longitud/accesorios/DN).
+  function editorConectividadDeArtefacto(artefacto: Artefacto):
+    | {
+        opciones: readonly ConectividadFisica[]
+        valor: ConectividadFisica
+        onCambiar: (conectividad: ConectividadFisica) => void
+      }
+    | undefined {
+    const politica = obtenerPoliticaDeConectividad(artefacto.artefactoId)
+    if (politica === undefined || politica.politica !== 'defaultConfigurable') {
+      return undefined
+    }
+    if (declaracionPendiente?.artefactoRowId === artefacto.id) {
+      return undefined
+    }
+    return {
+      opciones: politica.opcionesPermitidas,
+      valor: artefacto.conectividadElegida ?? politica.referencia,
+      onCambiar: (nueva) => {
+        const proyectoConEleccion = proyectoConArtefactos(
+          conConectividadElegida(local.artefactos, artefacto.id, nueva),
+        )
+        const reconciliado = reconciliarConectividadFisicaPorCambioDeArtefacto(
+          proyectoConEleccion,
+          unidadFuncionalId,
+          local.id,
+          artefacto.id,
+        )
+        onCambiarProyecto(backfillLongitudesDePredimensionamiento(reconciliado))
+      },
+    }
+  }
+
+  // CAT-CONN-01 (D-δ.84): AGREGAR una fila -> resolver la política de
+  // conectividad del tipo. `automatica` / `defaultConfigurable`: se conecta
+  // de inmediato con la referencia de la política, sin preguntar.
+  // `requiereSeleccion`: la fila queda creada sin conexión y se pide
+  // declarar la alimentación para ESA fila -- nunca se infiere una
+  // conexión (ni de `qu`, ni de precedentes) ni se oculta la señal de la
+  // barrera de cobertura (S1/S2).
   function altaDeArtefacto(artefactoIdCatalogo: string) {
     const nuevoArtefactoId = generarId('artefacto')
     const nuevoArtefacto: Artefacto = {
@@ -234,20 +419,30 @@ function LocalFormulario({
       origen: 'normativo',
     }
     const proyectoConArtefacto = proyectoConArtefactos([...local.artefactos, nuevoArtefacto])
-    const sincronizacion = sincronizarConectividadFisicaDeArtefacto(
-      proyectoConArtefacto,
-      unidadFuncionalId,
-      local.id,
-      nuevoArtefactoId,
-    )
-    // D-δ.51: precargar longitud inicial del Tramo representativo recién creado.
-    const proyectoResultante =
-      sincronizacion.tipo === 'sincronizado' ? sincronizacion.proyecto : proyectoConArtefacto
-    onCambiarProyecto(backfillLongitudesDePredimensionamiento(proyectoResultante))
+    const resol = resolverConectividadInicialDeArtefacto(artefactoIdCatalogo)
+
+    if (resol.tipo === 'resuelta') {
+      const sincronizacion = sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(
+        proyectoConArtefacto,
+        unidadFuncionalId,
+        local.id,
+        nuevoArtefactoId,
+        resol.redes,
+      )
+      // D-δ.51: precargar longitud inicial del Tramo representativo recién creado.
+      const proyectoResultante =
+        sincronizacion.tipo === 'sincronizado' ? sincronizacion.proyecto : proyectoConArtefacto
+      onCambiarProyecto(backfillLongitudesDePredimensionamiento(proyectoResultante))
+      setBorradorAbierto(false)
+      setDeclaracionPendiente(null)
+      return
+    }
+
+    // requiereSeleccion (o el caso imposible `tipoDesconocido`, que deja la
+    // fila sin terminales -- S1 la marcará, nunca un default silencioso).
+    onCambiarProyecto(backfillLongitudesDePredimensionamiento(proyectoConArtefacto))
     setBorradorAbierto(false)
-    setDeclaracionPendiente(
-      sincronizacion.tipo === 'redesNoDeterminables' ? { artefactoRowId: nuevoArtefactoId } : null,
-    )
+    setDeclaracionPendiente(resol.tipo === 'requiereSeleccion' ? { artefactoRowId: nuevoArtefactoId } : null)
   }
 
   function agregarArtefacto() {
@@ -262,34 +457,68 @@ function LocalFormulario({
     altaDeArtefacto(sugerido)
   }
 
-  // Respuesta del usuario a "¿A qué red se conecta?" -- conecta la fila
-  // pendiente (que ya existe) a las Redes declaradas.
+  // Respuesta del usuario al selector de alimentación de un tipo
+  // `requiereSeleccion`: fija `conectividadElegida` y crea los terminales.
   function declararRedes(redesDeclaradas: readonly RedDeTramo[]) {
-    if (declaracionPendiente === null) {
+    if (declaracionPendiente == null) {
       return
     }
+    const conectividad = conectividadFisicaDeRedes(redesDeclaradas)
+    const rowId = declaracionPendiente.artefactoRowId
+    const cambioDeTipo = declaracionPendiente.cambioDeTipo
+
+    if (cambioDeTipo !== undefined) {
+      // Transacción de cambio de tipo: recién ahora se aplica el nuevo
+      // artefactoId + la conectividad elegida, y se reconcilia la topología
+      // (quita los terminales del tipo anterior, crea los del nuevo,
+      // conserva la intersección con sus datos).
+      const proyectoConTipoYEleccion = proyectoConArtefactos(
+        local.artefactos.map((a) =>
+          a.id === rowId
+            ? { ...a, artefactoId: cambioDeTipo.tipoNuevo, conectividadElegida: conectividad }
+            : a,
+        ),
+      )
+      const reconciliado = reconciliarConectividadFisicaPorCambioDeArtefacto(
+        proyectoConTipoYEleccion,
+        unidadFuncionalId,
+        local.id,
+        rowId,
+      )
+      onCambiarProyecto(backfillLongitudesDePredimensionamiento(reconciliado))
+      setDeclaracionPendiente(null)
+      return
+    }
+
+    const proyectoConEleccion = proyectoConArtefactos(
+      conConectividadElegida(local.artefactos, rowId, conectividad),
+    )
     const sincronizacion = sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(
-      proyecto,
+      proyectoConEleccion,
       unidadFuncionalId,
       local.id,
-      declaracionPendiente.artefactoRowId,
+      rowId,
       redesDeclaradas,
     )
-    const proyectoResultante = sincronizacion.tipo === 'sincronizado' ? sincronizacion.proyecto : proyecto
+    const proyectoResultante =
+      sincronizacion.tipo === 'sincronizado' ? sincronizacion.proyecto : proyectoConEleccion
     onCambiarProyecto(backfillLongitudesDePredimensionamiento(proyectoResultante))
     setDeclaracionPendiente(null)
   }
 
-  // Cancelar (brief §17): mismo efecto neto que antes de este incremento
-  // ("no lo agregué después de todo"). La fila recién creada todavía no
-  // tiene conexión, así que se elimina; no se deja un artefacto huérfano
-  // sin forma de conectarlo.
   function cancelarDeclaracion() {
-    if (declaracionPendiente !== null) {
-      onCambiarProyecto(
-        proyectoConArtefactos(local.artefactos.filter((a) => a.id !== declaracionPendiente.artefactoRowId)),
-      )
+    if (declaracionPendiente == null) {
+      return
     }
+    if (declaracionPendiente.cambioDeTipo === undefined) {
+      // ALTA cancelada (brief §17): la fila recién creada todavía no tiene
+      // conexión -> se elimina, no se deja un artefacto huérfano.
+      const rowId = declaracionPendiente.artefactoRowId
+      onCambiarProyecto(proyectoConArtefactos(local.artefactos.filter((a) => a.id !== rowId)))
+    }
+    // Cambio de tipo cancelado: el nuevo tipo nunca se aplicó y la
+    // topología no se tocó -> sólo se cierra la declaración; la fila
+    // conserva su tipo y su conectividad anteriores intactos.
     setDeclaracionPendiente(null)
   }
 
@@ -349,6 +578,12 @@ function LocalFormulario({
           <ArtefactoFormulario
             key={artefacto.id}
             artefacto={artefacto}
+            tipoMostrado={
+              declaracionPendiente?.cambioDeTipo && declaracionPendiente.artefactoRowId === artefacto.id
+                ? declaracionPendiente.cambioDeTipo.tipoNuevo
+                : undefined
+            }
+            editorConectividad={editorConectividadDeArtefacto(artefacto)}
             onCambiar={(artefactoActualizado) =>
               onCambiar({
                 ...local,
@@ -356,9 +591,34 @@ function LocalFormulario({
               })
             }
             onCambiarTipo={(nuevoArtefactoId) => {
-            // D-δ.52 (CRIT-A15): cambio funcional + reconciliación física
-            // AF/AC + backfill de longitudes rápidas, en un único updater
-            // (sin render intermedio inconsistente).
+            // D-δ.52 (CRIT-A15) / CAT-CONN-01 (D-δ.84): al cambiar el tipo
+            // se resuelve la política de conectividad del tipo NUEVO --
+            // nunca se hereda la conectividad del anterior ni se consulta
+            // un precedente del proyecto.
+            const tieneTerminal = artefactoTieneTerminal(artefacto.id)
+            const resolNuevo = resolverConectividadInicialDeArtefacto(nuevoArtefactoId)
+
+            if (resolNuevo.tipo === 'requiereSeleccion' && tieneTerminal) {
+              // El artefacto ya está conectado (tiene datos de tramo que
+              // proteger) y el tipo nuevo exige declarar la alimentación:
+              // NO se aplica el cambio todavía. Transacción pendiente -- el
+              // <select> muestra el tipo nuevo, pero Proyecto conserva tipo
+              // y topología anteriores hasta que el usuario confirme (o
+              // cancele) en el selector.
+              setDeclaracionPendiente({
+                artefactoRowId: artefacto.id,
+                cambioDeTipo: { tipoNuevo: nuevoArtefactoId },
+              })
+              return
+            }
+
+            // Se aplica el nuevo artefactoId de inmediato, limpiando
+            // cualquier `conectividadElegida` que perteneciera al tipo
+            // anterior (CAT-CONN-01 §9), y se reconcilia la topología a la
+            // política del tipo nuevo (automatica / defaultConfigurable ->
+            // referencia; requiereSeleccion sobre un ALTA sin conectar ->
+            // queda pendiente). Un único updater, sin render intermedio
+            // inconsistente.
             const proyectoConTipoNuevo: Proyecto = {
               ...proyecto,
               unidadesFuncionales: proyecto.unidadesFuncionales.map((uf) =>
@@ -371,9 +631,12 @@ function LocalFormulario({
                           ? l
                           : {
                               ...l,
-                              artefactos: l.artefactos.map((a) =>
-                                a.id === artefacto.id ? { ...a, artefactoId: nuevoArtefactoId } : a,
-                              ),
+                              artefactos: l.artefactos.map((a) => {
+                                if (a.id !== artefacto.id) return a
+                                const copia = { ...a, artefactoId: nuevoArtefactoId }
+                                delete copia.conectividadElegida
+                                return copia
+                              }),
                             },
                       ),
                     },
@@ -386,17 +649,12 @@ function LocalFormulario({
               artefacto.id,
             )
             onCambiarProyecto(backfillLongitudesDePredimensionamiento(reconciliado))
-            // UI-CRIT-08: si había una declaración AF/AC pendiente para
-            // ESTA fila y el usuario le cambió el tipo, la pregunta no
-            // puede seguir refiriéndose al tipo anterior. Se re-evalúa el
-            // tipo nuevo: si ahora tiene precedente inequívoco, la
-            // reconciliación ya lo conectó y la pregunta se cierra; si no,
-            // la pregunta sigue abierta pero apuntando al tipo nuevo (el
-            // banner lee la fila en vivo).
-            if (declaracionPendiente?.artefactoRowId === artefacto.id) {
-              const precedenteNuevo = determinarRedesFisicasPorPrecedente(proyectoConTipoNuevo, nuevoArtefactoId)
+
+            // La declaración pendiente sólo cambia si es la de ESTA fila, o
+            // si el tipo nuevo (sobre un ALTA sin conectar) exige selección.
+            if (declaracionPendiente?.artefactoRowId === artefacto.id || resolNuevo.tipo === 'requiereSeleccion') {
               setDeclaracionPendiente(
-                precedenteNuevo.tipo === 'determinado' ? null : { artefactoRowId: artefacto.id },
+                resolNuevo.tipo === 'requiereSeleccion' ? { artefactoRowId: artefacto.id } : null,
               )
             }
           }}
@@ -472,21 +730,20 @@ function LocalFormulario({
       {declaracionPendiente && artefactoPendiente && (
         <div className="ui-callout ui-callout--warn m1-declaracion" role="alert">
           <p>
-            Es la primera instancia de "
-            {catalogoArtefactos.find((c) => c.id === artefactoPendiente.artefactoId)?.nombre ??
-              artefactoPendiente.artefactoId}
-            " en el proyecto: no hay otra conexión física de la que deducir la Red. ¿A qué red se conecta?
+            {catalogoArtefactos.find((c) => c.id === tipoDeArtefactoPendiente)?.nombre ??
+              tipoDeArtefactoPendiente}{' '}
+            requiere que declares su alimentación. ¿A qué red se conecta?
           </p>
           <div className="m1-declaracion__opciones">
-            <button type="button" onClick={() => declararRedes(['AF'])}>
-              Agua fría (AF)
-            </button>
-            <button type="button" onClick={() => declararRedes(['AC'])}>
-              Agua caliente (AC)
-            </button>
-            <button type="button" onClick={() => declararRedes(['AF', 'AC'])}>
-              Agua fría y caliente (AF + AC)
-            </button>
+            {opcionesDeDeclaracion.map((opcion) => (
+              <button
+                key={opcion}
+                type="button"
+                onClick={() => declararRedes(redesDeConectividadFisica(opcion))}
+              >
+                {ETIQUETA_CONECTIVIDAD_LARGA[opcion]}
+              </button>
+            ))}
             <button type="button" className="ui-btn--fantasma" onClick={cancelarDeclaracion}>
               Cancelar
             </button>

@@ -105,15 +105,18 @@ describe('MotorDemandaPantalla — estructura de navegación (UI-01A)', () => {
 
   it('UX-02 / UI-01E: el selector "Modo de trabajo" es único y vive en la cabecera global', () => {
     expect(html).toContain('class="app-modo"')
-    // exactamente un segmented control en toda la pantalla
-    expect(html.split('class="ui-segmented"').length - 1).toBe(1)
+    // exactamente un selector de Modo de trabajo en toda la pantalla
+    // (CAT-CONN-01 agregó otros `ui-segmented` -- el editor de alimentación
+    // de los electrodomésticos configurables --, así que el marcador único
+    // del control de modo es `app-modo`, no `ui-segmented`).
+    expect(html.split('class="app-modo"').length - 1).toBe(1)
     // en la cabecera, antes del contenido / de la etapa 01
     expect(at(html, 'class="app-modo"')).toBeLessThan(at(html, 'class="app-contenido"'))
     expect(at(html, 'class="app-modo"')).toBeLessThan(at(html, 'id="demanda"'))
     // NO dentro de la sección de Tuberías
     const tuberias = at(html, 'id="tuberias"')
     const medidores = at(html, 'id="medidores"')
-    expect(html.slice(tuberias, medidores)).not.toContain('ui-segmented')
+    expect(html.slice(tuberias, medidores)).not.toContain('app-modo')
     expect(html.slice(tuberias, medidores)).not.toContain('Modo de trabajo:')
   })
 

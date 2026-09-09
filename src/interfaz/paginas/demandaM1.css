@@ -248,6 +248,27 @@
   color: var(--color-texto-3);
 }
 
+/* CAT-CONN-01: editor discreto de alimentación para tipos
+   `defaultConfigurable` (lavavajillas / lavarropas domésticos). Segunda
+   línea de la fila, compacto; el segmented control reusa .ui-segmented. */
+.m1-artefacto__conectividad {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-xs) var(--esp-sm);
+}
+
+.m1-artefacto__conectividad-titulo {
+  font-size: var(--fs-meta);
+  color: var(--color-texto-3);
+}
+
+.m1-artefacto__conectividad .ui-segmented__opcion {
+  padding: 0.1rem 0.7rem;
+  font-size: var(--fs-ayuda);
+}
+
 .m1-artefacto__cantidad {
   display: inline-flex;
   align-items: baseline;
