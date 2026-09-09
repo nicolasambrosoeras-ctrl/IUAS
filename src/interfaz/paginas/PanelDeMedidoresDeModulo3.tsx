@@ -47,6 +47,7 @@ import {
 } from './humanizarModulo3'
 import { EncabezadoDeEtapa } from './EncabezadoDeEtapa'
 import { nombreDeUnidadFuncional } from './nombreDeUnidadFuncional'
+import { describirProblemaDeValidacion } from './mensajesDeValidacion'
 
 const fmt = formatearMagnitudDeMedidor
 
@@ -348,7 +349,10 @@ export function PanelDeMedidoresDeModulo3({
           {estado.estado === 'error' ? (
             <ul>
               {estado.problemas.map((problema, indice) => (
-                <li key={indice}>{problema.problema.codigo}</li>
+                // FIX-LEAK-01: mensaje humano, nunca el código interno de
+                // validación. `describirProblemaDeValidacion` cubre además
+                // cualquier código inesperado con copy genérica.
+                <li key={indice}>{describirProblemaDeValidacion(problema.problema.codigo)}</li>
               ))}
             </ul>
           ) : null}

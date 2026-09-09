@@ -1,28 +1,31 @@
-// QA-FUZZ-01 · hallazgos de app reproducibles (brief §39, §48, §61).
+// QA-FUZZ-01 · regresiones de hallazgos del fuzz.
 //
-// Estos tests DOCUMENTAN bugs de la app que el fuzzer encontró. NO se
-// corrigen en esta corrida. Usan `test.fail()`: hoy fallan a propósito
-// (evidencia viva del bug); el día que el bug se arregle, `test.fail()`
-// hará que el test falle "por pasar", recordando que hay que quitar la
-// anotación y cerrar la deuda.
+// Cada bug que el fuzzer encontró tiene aquí un caso mínimo determinista.
+// Mientras el bug está ABIERTO el caso se marca `test.fail()` (evidencia
+// viva); al corregirlo se quita la anotación y el caso pasa a ser una
+// regresión normal.
 //
-// FIX-LEAK-01 — El Panel de Módulo 3, en su rama de estado "error", pinta
-// el CÓDIGO INTERNO de validación (`problema.problema.codigo`) como texto
-// de usuario, en lugar de un mensaje humano. Se dispara, por ejemplo, con
-// un tramo de longitud 0 (redHidraulicaTramoLongitudNoPositiva).
-// Repro por fuzz:  IUAS_FUZZ_SEED=424242 IUAS_FUZZ_RUNS=1 IUAS_FUZZ_STEPS=12
-// Archivo:  src/interfaz/paginas/PanelDeMedidoresDeModulo3.tsx (línea ~351)
+// FIX-LEAK-01 — RESUELTO (D-δ.85). El Panel de Módulo 3, en su rama de
+// estado "error", pintaba el CÓDIGO INTERNO de validación
+// (`problema.problema.codigo`, p. ej. `redHidraulicaTramoLongitudNoPositiva`)
+// como texto de usuario. Ahora M1 y M3 comparten `describirProblemaDeValidacion`
+// (`src/interfaz/paginas/mensajesDeValidacion.ts`): código conocido →
+// mensaje humano; código inesperado → copy genérica; nunca el identificador.
 import { test, expect } from './qa/fixtures'
 import { cargarAppLimpia, estabilizar } from './qa/estado'
+import { verificarInvariantes, primerFallo } from './qa/invariantes'
 import { buscarCodigosDeValidacion } from './qa/tokensProhibidos'
 
-test.describe('QA-FUZZ-01 · hallazgos (captura, NO corrige)', () => {
-  test('FIX-LEAK-01 · M3 filtra el código interno de validación al UI', async ({ page, baseURLEfectiva }) => {
-    test.fail(true, 'Bug de app conocido — se corrige en FIX-LEAK-01, no en QA-FUZZ-01')
+test.describe('QA-FUZZ-01 · regresiones de hallazgos', () => {
+  test('FIX-LEAK-01 · M3 muestra un mensaje humano, no el código interno de validación', async ({
+    page,
+    errores,
+    baseURLEfectiva,
+  }) => {
     await cargarAppLimpia(page, baseURLEfectiva)
 
-    // 1. Iniciar Módulo 3 (y activar propiedad horizontal + ACS central,
-    //    la combinación bajo la que el fuzzer lo encontró).
+    // 1. Iniciar Módulo 3 + Propiedad horizontal + ACS central (la
+    //    combinación bajo la que el fuzzer lo encontró).
     await page.getByRole('link', { name: /Medidores/ }).first().click()
     await estabilizar(page)
     const iniciar = page.getByRole('button', { name: 'Iniciar Módulo 3' })
@@ -41,8 +44,8 @@ test.describe('QA-FUZZ-01 · hallazgos (captura, NO corrige)', () => {
       await estabilizar(page)
     }
 
-    // 2. Poner en 0 la longitud de un tramo (validación:
-    //    redHidraulicaTramoLongitudNoPositiva).
+    // 2. Poner en 0 la longitud de un tramo -> validación
+    //    redHidraulicaTramoLongitudNoPositiva -> M3 entra en estado "error".
     await page.getByRole('link', { name: /Tuber[ií]as/ }).first().click()
     await estabilizar(page)
     const longitud = page.getByRole('spinbutton', { name: /^Longitud \[m\] de / }).first()
@@ -50,12 +53,21 @@ test.describe('QA-FUZZ-01 · hallazgos (captura, NO corrige)', () => {
     await longitud.blur()
     await estabilizar(page)
 
-    // 3. Volver a Medidores: el panel muestra el código interno crudo.
+    // 3. Volver a Medidores: M3 está en error.
     await page.getByRole('link', { name: /Medidores/ }).first().click()
     await estabilizar(page)
 
     const texto = await page.locator('#root').innerText()
-    const codigos = buscarCodigosDeValidacion(texto)
-    expect(codigos, 'M3 no debería mostrar códigos internos de validación').toHaveLength(0)
+
+    // El código interno NO aparece; el mensaje humano SÍ.
+    expect(buscarCodigosDeValidacion(texto), 'M3 no debe mostrar códigos internos de validación').toHaveLength(0)
+    expect(texto).not.toContain('redHidraulicaTramoLongitudNoPositiva')
+    expect(texto).toContain('La longitud de un tramo debe ser mayor que cero.')
+
+    // La app sigue viva, sin pageerror ni console.error nuevos, y las
+    // invariantes del harness (incluida `sin-codigos-de-validacion-visibles`,
+    // ya sin excepción para FIX-LEAK-01) pasan.
+    const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
   })
 })

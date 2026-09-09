@@ -10,8 +10,9 @@ import { useState } from 'react'
 import type { Proyecto, UnidadFuncional, Local, TipoDeLocal, RegimenLocal, Artefacto } from '../../modelo/proyecto'
 import type { ConectividadFisica, RedDeTramo } from '../../modelo/redHidraulica'
 import type { ResultadoDeCalculo, Paso, ValorCalculado } from '../../modelo/resultado'
-import type { ProblemaValidacion, CodigoValidacion, AlcanceValidacion } from '../../validacion'
+import type { ProblemaValidacion, AlcanceValidacion } from '../../validacion'
 import { validarProyecto, erroresQueBloqueanLaDemanda, erroresDeModulosPosteriores } from '../../validacion'
+import { describirProblemaDeValidacion } from './mensajesDeValidacion'
 import { calcularSimultaneidad } from '../../motor/demanda/simultaneidad/calcularSimultaneidad'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion, type TipoDeProyecto } from '../../normativa/eras-2023/coeficientes-mayoracion'
@@ -1166,51 +1167,10 @@ function ValorCalculadoTexto({ valor }: { valor: ValorCalculado }) {
   return <span>{textoValorCalculado(valor)}</span>
 }
 
-const MENSAJES_DE_VALIDACION: Readonly<Record<CodigoValidacion, string>> = {
-  proyectoRegimenLocalAusente: 'Debe seleccionar el régimen del local.',
-  proyectoCantidadNoPositiva: 'La cantidad de artefactos debe ser mayor que cero.',
-  proyectoUnidadFuncionalSinLocales: 'La unidad funcional no contiene locales.',
-  proyectoLocalSinArtefactos: 'El local no contiene artefactos y no participa del cálculo.',
-  proyectoSinArtefactosComputables: 'El proyecto debe contener al menos un artefacto para poder calcular.',
-  catalogoArtefactoIdInexistente: 'El artefacto seleccionado no existe en el catálogo normativo vigente.',
-  catalogoTipoDeProyectoInexistente:
-    'La tipología de proyecto seleccionada no existe en el catálogo normativo vigente.',
-  redHidraulicaNodoIdDuplicado: 'Nodo de red hidráulica con identificador duplicado.',
-  redHidraulicaTramoIdDuplicado: 'Tramo de red hidráulica con identificador duplicado.',
-  redHidraulicaTramoNodoInexistente: 'Un tramo de red hidráulica referencia un nodo inexistente.',
-  redHidraulicaTramoOrigenIgualDestino:
-    'Un tramo de red hidráulica no puede tener el mismo nodo como origen y destino.',
-  redHidraulicaReferenciaArtefactoInvalida:
-    'Una referencia de red hidráulica apunta a un artefacto inexistente o fuera de la ubicación indicada.',
-  redHidraulicaTramoLongitudNoPositiva: 'Un tramo de red hidráulica tiene una longitud menor o igual a cero.',
-  redHidraulicaTramoLongitudIncompatibleConCota:
-    'Un tramo de red hidráulica tiene una longitud menor a la diferencia de cota entre sus nodos.',
-  redHidraulicaTramoAccesorioTipoNoSoportado:
-    'Un accesorio de tramo tiene un tipo todavía no soportado para el cálculo de pérdida localizada.',
-  redHidraulicaTramoAccesorioCantidadNoPositiva: 'La cantidad de un accesorio de tramo debe ser mayor que cero.',
-  redHidraulicaNodoTeeEstructuraNoSoportada:
-    'Un nodo con configuración de tee no tiene exactamente 1 tramo entrante y 2 tramos salientes.',
-  redHidraulicaNodoTeeTramoSalidaRectaInvalido:
-    'La salida recta declarada de una tee no es ninguno de los dos tramos salientes reales del nodo.',
-  configuracionHidraulicaSistemaDeTuberiaIdInexistente:
-    'El sistema de tubería seleccionado no existe en el catálogo de sistemas comerciales vigente.',
-  configuracionHidraulicaSistemaMaterialIncompatible:
-    'El sistema de tubería seleccionado pertenece a un material distinto del material configurado en el proyecto.',
-  configuracionMedidoresUnidadFuncionalInexistente:
-    'La configuración de medidores tiene un override de ACS para una unidad funcional que ya no existe.',
-  configuracionAbastecimientoEsquemaInvalido:
-    'El esquema de abastecimiento persistido no es uno de los soportados (directa / tanque elevado / cisterna + bombeo + tanque elevado).',
-  configuracionAbastecimientoPeriodoConsumoMaximoInvalido:
-    'El período de consumo máximo del abastecimiento debe estar entre 1 y 4 horas.',
-  parametrosDiametroNominalConexionNoAdmisible:
-    'El diámetro nominal de la conexión debe ser uno de los diámetros de la Tabla N°1 y mayor o igual a 19 mm.',
-  parametrosDesnivelConexionNoFinito:
-    'El desnivel de la conexión respecto de la acera debe ser un número (puede ser negativo, cero o positivo).',
-  configuracionAbastecimientoVolumenTanqueElevadoInvalido:
-    'El volumen adoptado del tanque elevado debe ser un número mayor o igual a cero.',
-  configuracionAbastecimientoVolumenTanqueBombeoInvalido:
-    'El volumen adoptado del tanque de bombeo debe ser un número mayor o igual a cero.',
-}
+// La tabla de mensajes humanos (antes `const` local acá) vive ahora en
+// `mensajesDeValidacion.ts`, compartida con el Panel de Módulo 3
+// (FIX-LEAK-01). `describirProblemaDeValidacion` aplica además una política
+// segura: un código inesperado nunca se muestra crudo.
 
 // FIX P0: sólo se muestra cuando hay un error de ALCANCE 'demanda' -- lo
 // único que impide de verdad ejecutar el Motor de Demanda. Los errores de
@@ -1224,7 +1184,7 @@ function ProblemasValidacion({ problemas }: { problemas: readonly ProblemaValida
       </h4>
       <ul>
         {problemas.map((problema, indice) => (
-          <li key={indice}>{MENSAJES_DE_VALIDACION[problema.codigo]}</li>
+          <li key={indice}>{describirProblemaDeValidacion(problema.codigo)}</li>
         ))}
       </ul>
       <p>
@@ -1252,7 +1212,7 @@ function RevisionesPendientes({ problemas }: { problemas: readonly ProblemaValid
   const grupos = (Object.keys(REVISION_POR_ALCANCE) as Array<keyof typeof REVISION_POR_ALCANCE>)
     .map((alcance) => ({
       alcance,
-      mensajes: problemas.filter((p) => p.alcance === alcance).map((p) => MENSAJES_DE_VALIDACION[p.codigo]),
+      mensajes: problemas.filter((p) => p.alcance === alcance).map((p) => describirProblemaDeValidacion(p.codigo)),
     }))
     .filter((grupo) => grupo.mensajes.length > 0)
 

@@ -65,15 +65,12 @@ export type OpcionesInvariantes = {
 // las invariantes SÓLO para que el fuzzer siga avanzando y encuentre bugs
 // NUEVOS en vez de detenerse siempre en el mismo. Cada hallazgo nuevo (que
 // no matchee estos patrones) sigue rompiendo el run.
-export const HALLAZGOS_CONOCIDOS: readonly { patron: RegExp; deuda: string; nota: string }[] = [
-  {
-    patron: /redHidraulicaTramoLongitudNoPositiva/,
-    deuda: 'FIX-LEAK-01',
-    nota:
-      'PanelDeMedidoresDeModulo3, rama estado "error": pinta problema.problema.codigo crudo ' +
-      'en vez de un mensaje humano. Repro: iniciar M3 + PH + ACS central + tramo con longitud 0.',
-  },
-]
+//
+// Vacío: FIX-LEAK-01 (código interno de validación visible en M3) quedó
+// corregido en D-δ.85, así que la invariante `sin-codigos-de-validacion-visibles`
+// vuelve a ser estricta. La maquinaria (`esHallazgoConocido`,
+// `evaluarTokens`) se conserva para el próximo hallazgo abierto.
+export const HALLAZGOS_CONOCIDOS: readonly { patron: RegExp; deuda: string; nota: string }[] = []
 
 function esHallazgoConocido(texto: string): { deuda: string; nota: string } | null {
   for (const h of HALLAZGOS_CONOCIDOS) {
