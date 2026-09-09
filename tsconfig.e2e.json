@@ -1,0 +1,23 @@
+{
+  "//": "Type-check del harness QA-FUZZ-01. NO forma parte de `tsc -b` (el",
+  "//2": "baseline de build sigue siendo src + vite.config). Se corre aparte:",
+  "//3": "npm run e2e:typecheck",
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "skipLibCheck": true
+  },
+  "include": ["tests/e2e", "playwright.config.ts"]
+}

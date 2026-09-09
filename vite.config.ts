@@ -11,5 +11,10 @@ export default defineConfig(({ command }) => ({
   test: {
     globals: false,
     environment: 'node',
+    // El core y la interfaz viven en `src/`; QA-FUZZ-01 (D-δ.80) agrega
+    // unit tests de su harness bajo `tests/e2e/qa/`. Los specs de
+    // Playwright (`tests/e2e/*.spec.ts`) NO son de Vitest: se excluyen
+    // acotando el include a estos dos árboles.
+    include: ['src/**/*.{test,spec}.{ts,tsx}', 'tests/e2e/qa/**/*.test.ts'],
   },
 }))

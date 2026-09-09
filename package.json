@@ -9,7 +9,13 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest"
+    "test": "vitest",
+    "e2e": "playwright test",
+    "e2e:smoke": "playwright test tests/e2e/smoke.spec.ts",
+    "e2e:catalogo": "playwright test tests/e2e/catalogo-conectividad.spec.ts",
+    "e2e:fuzz": "playwright test tests/e2e/sequence-fuzz.spec.ts",
+    "e2e:crash": "playwright test tests/e2e/crash-observado.spec.ts",
+    "e2e:typecheck": "tsc -p tsconfig.e2e.json"
   },
   "repository": {
     "type": "git",
@@ -29,6 +35,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^24.13.3",
     "@types/pdfmake": "^0.3.3",
     "@types/react": "^19.2.17",

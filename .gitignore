@@ -144,3 +144,10 @@ vite.config.ts.timestamp-*
 
 # Editor
 *.code-workspace
+
+# QA-FUZZ-01 · Playwright E2E (D-δ.80). No se commitean resultados/artifacts.
+/playwright-report/
+/test-results/
+/qa-results/
+/blob-report/
+/playwright/.cache/
