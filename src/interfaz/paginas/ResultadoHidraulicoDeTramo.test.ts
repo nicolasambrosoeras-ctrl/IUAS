@@ -226,6 +226,32 @@ describe('ResultadoHidraulicoDeTramo (UI) — D-δ.43', () => {
     expect(html).toContain('aria-label="Longitud [m] de Ramal Inodoro a depósito"')
     expect(html.match(/m2-ramal-subcard/g)?.length).toBe(2)
   })
+
+  it('GEOM-UX-01 §18: el cuerpo del detalle vive en una fila propia a ancho completo (colSpan), no en la celda angosta del Local', () => {
+    const proyecto = proyectoConToilette()
+
+    const html = renderToStaticMarkup(
+      createElement(ResultadoHidraulicoDeTramo, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
+    )
+
+    // Fila de detalle a ancho completo: <tr class="m2-fila-detalle"> con un
+    // <td colSpan="7"> que envuelve el cuerpo del detalle.
+    expect(html).toContain('class="m2-fila-detalle"')
+    expect(html).toMatch(/<tr class="m2-fila-detalle"[^>]*><td colSpan="7">/i)
+
+    // El <details><summary> de la primera celda ya NO contiene el árbol de
+    // ramales -- sólo el rótulo del Local. El árbol está en el cuerpo de la
+    // fila de detalle (después del </summary></details>).
+    const iCierreSummary = html.indexOf('</summary></details>')
+    expect(iCierreSummary).toBeGreaterThan(0)
+    expect(html.indexOf('m2-ramales-grid')).toBeGreaterThan(iCierreSummary)
+    expect(html.indexOf('m2-fila-detalle__cuerpo')).toBeGreaterThan(iCierreSummary)
+
+    // Colapsada por defecto: la fila de detalle se mantiene en el DOM con
+    // el atributo `hidden` (no se desmonta), igual criterio que el
+    // <details> nativo anterior.
+    expect(html).toMatch(/<tr class="m2-fila-detalle" hidden=""/)
+  })
 })
 
 describe("ResultadoHidraulicoDeTramo (UI) — granularidadHidraulica 'simplificada' (D-δ.44, corrección de granularidad de D-δ.43)", () => {

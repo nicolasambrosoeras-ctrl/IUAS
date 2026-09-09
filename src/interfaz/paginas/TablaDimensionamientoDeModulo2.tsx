@@ -3,13 +3,23 @@
 // (L -> DN -> V -> Pérdida -> Estado). Puramente presentacional: consume
 // resolverFilaDeDimensionamiento (view-model), no llama al motor.
 //
-// Cada fila puede expandirse (progressive disclosure, §28/§29) mediante un
-// <details> NATIVO -- sin estado JS, así el contenido del detalle queda
-// siempre en el DOM (colapsado): en Rápido, artefactos + desglose de
-// pérdida + estimación localizada; en Profesional, el árbol de Tramos
-// físicos + editores de accesorios/tees. El contenido lo provee quien usa
-// la tabla (`renderDetalle`).
-import type { ReactNode } from 'react'
+// Cada fila puede expandirse (progressive disclosure, §28/§29): el
+// resumen vive en la primera celda con un <details><summary> NATIVO (se
+// conserva por accesibilidad de teclado y para que el harness de fuzz lo
+// siga encontrando por `.tabla-tecnica details > summary`), y el CUERPO
+// del detalle se renderiza en una FILA PROPIA a ancho completo
+// (`<tr class="m2-fila-detalle"><td colSpan>`), no dentro de la celda
+// angosta del Tramo -- GEOM-UX-01 §18-§20: antes el árbol de ramales de
+// Profesional quedaba comprimido contra el borde izquierdo con media
+// tabla vacía a la derecha. El estado de apertura se sincroniza desde el
+// evento `toggle` del <details> nativo hacia React (un <details> no puede
+// gobernar por CSS la visibilidad de una fila hermana). El cuerpo se
+// mantiene SIEMPRE en el DOM (atributo `hidden` cuando está colapsado),
+// igual que antes: en Rápido, artefactos + desglose de pérdida +
+// estimación localizada; en Profesional, el árbol de Tramos físicos +
+// editores de accesorios/tees. El contenido lo provee quien usa la tabla
+// (`renderDetalle`).
+import { Fragment, useState, type ReactNode } from 'react'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import { ETIQUETA_RED } from './humanizarModulo2'
 import { BadgeDeRed } from './BadgeDeRed'
@@ -77,6 +87,11 @@ function CeldaLongitud({ entrada }: { entrada: EntradaDeTabla }) {
   )
 }
 
+// Columnas de la tabla -- referenciado por el colSpan de la fila de
+// detalle a ancho completo (GEOM-UX-01 §18): Tramo/Local · Red · Longitud
+// · DN · V · Pérdida · Estado.
+const CANTIDAD_DE_COLUMNAS = 7
+
 export function TablaDimensionamientoDeModulo2({
   entradas,
   encabezadoTramo,
@@ -84,9 +99,31 @@ export function TablaDimensionamientoDeModulo2({
   entradas: readonly EntradaDeTabla[]
   encabezadoTramo: string
 }) {
+  // Claves de las filas con el detalle expandido. Se sincroniza desde el
+  // evento `toggle` del <details> nativo de cada fila -- el <details> vive
+  // en la primera celda pero el cuerpo del detalle se pinta en una fila
+  // hermana a ancho completo, que CSS no puede mostrar/ocultar sola.
+  const [filasExpandidas, setFilasExpandidas] = useState<ReadonlySet<string>>(() => new Set())
+
   if (entradas.length === 0) {
     return null
   }
+
+  const alternarFila = (clave: string, abierta: boolean) => {
+    setFilasExpandidas((previas) => {
+      if (previas.has(clave) === abierta) {
+        return previas
+      }
+      const siguientes = new Set(previas)
+      if (abierta) {
+        siguientes.add(clave)
+      } else {
+        siguientes.delete(clave)
+      }
+      return siguientes
+    })
+  }
+
   return (
     <div className="tabla-scroll">
       <table className="tabla-tecnica" style={{ minWidth: '40rem' }}>
@@ -104,50 +141,63 @@ export function TablaDimensionamientoDeModulo2({
         <tbody>
           {entradas.map((entrada) => {
             const { fila } = entrada
+            const tieneDetalle = entrada.renderDetalle !== undefined
+            const expandida = filasExpandidas.has(entrada.clave)
             return (
-              <tr key={entrada.clave}>
-                <td>
-                  {entrada.renderDetalle !== undefined ? (
-                    <details>
-                      <summary>
-                        {entrada.etiqueta}
-                        {fila.nPuntos > 0 ? (
-                          <small style={{ opacity: 0.6 }}>
-                            {' '}
-                            · {fila.nPuntos} {fila.nPuntos === 1 ? 'punto' : 'puntos'}
-                          </small>
-                        ) : null}
-                      </summary>
-                      <div style={{ padding: '0.4rem 0 0.2rem', fontWeight: 400 }}>{entrada.renderDetalle()}</div>
-                    </details>
-                  ) : (
-                    entrada.etiqueta
-                  )}
-                </td>
-                <td>
-                  <BadgeDeRed red={entrada.red} />
-                </td>
-                <td className="col-num">
-                  <CeldaLongitud entrada={entrada} />
-                </td>
-                <td className="col-dn">
-                  {entrada.controlDn !== undefined && entrada.onCambiarDnAdoptado !== undefined ? (
-                    <ControlDeDn control={entrada.controlDn} onCambiarDnAdoptado={entrada.onCambiarDnAdoptado} />
-                  ) : (
-                    fila.dnTexto
-                  )}
-                </td>
-                <td className="col-num">
-                  <div className="celda-velocidad">
-                    <span>{fila.vTexto} m/s</span>
-                    <BadgeVelocidad clasificacion={fila.clasificacionVelocidad} />
-                  </div>
-                </td>
-                <td className="col-num">{fila.perdidaTotalTexto}</td>
-                <td className="col-estado">
-                  <BadgeEstadoDeFila estado={fila.estado} texto={fila.estadoTexto} />
-                </td>
-              </tr>
+              <Fragment key={entrada.clave}>
+                <tr>
+                  <td>
+                    {tieneDetalle ? (
+                      <details
+                        open={expandida}
+                        onToggle={(evento) => alternarFila(entrada.clave, evento.currentTarget.open)}
+                      >
+                        <summary>
+                          {entrada.etiqueta}
+                          {fila.nPuntos > 0 ? (
+                            <small style={{ opacity: 0.6 }}>
+                              {' '}
+                              · {fila.nPuntos} {fila.nPuntos === 1 ? 'punto' : 'puntos'}
+                            </small>
+                          ) : null}
+                        </summary>
+                      </details>
+                    ) : (
+                      entrada.etiqueta
+                    )}
+                  </td>
+                  <td>
+                    <BadgeDeRed red={entrada.red} />
+                  </td>
+                  <td className="col-num">
+                    <CeldaLongitud entrada={entrada} />
+                  </td>
+                  <td className="col-dn">
+                    {entrada.controlDn !== undefined && entrada.onCambiarDnAdoptado !== undefined ? (
+                      <ControlDeDn control={entrada.controlDn} onCambiarDnAdoptado={entrada.onCambiarDnAdoptado} />
+                    ) : (
+                      fila.dnTexto
+                    )}
+                  </td>
+                  <td className="col-num">
+                    <div className="celda-velocidad">
+                      <span>{fila.vTexto} m/s</span>
+                      <BadgeVelocidad clasificacion={fila.clasificacionVelocidad} />
+                    </div>
+                  </td>
+                  <td className="col-num">{fila.perdidaTotalTexto}</td>
+                  <td className="col-estado">
+                    <BadgeEstadoDeFila estado={fila.estado} texto={fila.estadoTexto} />
+                  </td>
+                </tr>
+                {tieneDetalle ? (
+                  <tr className="m2-fila-detalle" hidden={!expandida}>
+                    <td colSpan={CANTIDAD_DE_COLUMNAS}>
+                      <div className="m2-fila-detalle__cuerpo">{entrada.renderDetalle!()}</div>
+                    </td>
+                  </tr>
+                ) : null}
+              </Fragment>
             )
           })}
         </tbody>

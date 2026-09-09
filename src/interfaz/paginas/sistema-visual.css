@@ -735,6 +735,25 @@ summary > h3 {
   background: var(--color-superficie-2);
 }
 
+/* GEOM-UX-01 §18-§20 — fila de detalle expandido de la tabla de
+   dimensionamiento de M2. El detalle deja de vivir en la celda angosta
+   del Tramo/Local y ocupa una fila propia a ancho completo (colSpan de
+   todas las columnas), así el árbol de ramales de Profesional aprovecha
+   todo el ancho disponible en vez de comprimirse contra la izquierda. */
+.tabla-tecnica tr.m2-fila-detalle:hover td {
+  background: var(--color-superficie-2);
+}
+
+.tabla-tecnica td[colspan] {
+  padding: 0;
+}
+
+.m2-fila-detalle__cuerpo {
+  padding: 0.55rem 0.75rem 0.7rem;
+  font-weight: 400;
+  background: var(--color-superficie-2);
+}
+
 .tabla-tecnica .col-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -881,11 +900,14 @@ summary > h3 {
   grid-template-columns: 1fr;
 }
 
-/* A partir de ~56rem de ancho de la grilla hay lugar cómodo para 2
-   columnas; nunca más de 2 (sin auto-fit que pudiera generar 3+). */
+/* A partir de ~56rem de ancho de viewport hay lugar cómodo para 2
+   columnas; nunca más de 2 (sin auto-fit que pudiera generar 3+).
+   `minmax(0, 1fr)` (GEOM-UX-01 §20) en vez de `1fr`: evita que el
+   contenido intrínseco (tablas internas con `min-width`) empuje las
+   columnas y genere overflow horizontal del documento. */
 @media (min-width: 56rem) {
   .m2-ramales-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -895,6 +917,25 @@ summary > h3 {
   background: var(--color-superficie-2);
   padding: 0.5rem 0.75rem;
   min-width: 0; /* deja que el contenido se comprima en vez de desbordar */
+}
+
+/* GEOM-UX-01 §21 — impresión / browser print del frontend (NO toca
+   REPORT-01/pdfMake). El scroll horizontal local no aplica en papel:
+   el contenido ancho debe fluir, no quedar recortado. Las tarjetas de
+   ramales conservan las 2 columnas para no imprimir una columna angosta
+   con media hoja en blanco. */
+@media print {
+  .tabla-scroll {
+    overflow-x: visible;
+  }
+
+  .m2-ramales-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tabla-tecnica {
+    min-width: 0 !important;
+  }
 }
 
 /* ==================================================================
