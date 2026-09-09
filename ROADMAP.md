@@ -927,6 +927,27 @@ salvo bug inequívoco o decisión roja explícita.
     / 1280 px; el `<select>` sigue visible y dentro del viewport). Falla
     contra la producción pre-fix a 360 px.
 
+- **D-δ.85 — FIX-LEAK-01: humanizar los errores de validación en M3.** Fix
+  de **presentación** puntual (NO cambia validaciones, tipos de error del
+  dominio, reglas de completitud, ni cuándo M3 entra en error). Sin cambios
+  de cálculo/hidráulica/normativa; `v0.4.0-beta.5` sigue vigente.
+  - **Causa raíz:** `PanelDeMedidoresDeModulo3.tsx`, rama `estado === 'error'`,
+    pintaba `problema.problema.codigo` crudo
+    (`redHidraulicaTramoLongitudNoPositiva`). La tabla `MENSAJES_DE_VALIDACION`
+    era `const` local de `MotorDemandaPantalla.tsx`, inaccesible desde M3.
+  - **Fix:** `src/interfaz/paginas/mensajesDeValidacion.ts` (nuevo, capa de
+    interfaz) exporta la tabla + `describirProblemaDeValidacion(codigo)` con
+    **política segura** (código conocido → frase; cualquier otra cosa →
+    genérico "Hay un dato de la instalación que debe corregirse antes de
+    continuar."; nunca el identificador ni `[object Object]`). M1 y M3
+    consumen la MISMA función.
+  - **Regresión:** `mensajesDeValidacion.test.ts` (6 casos: conocido,
+    desconocido, no-string, cobertura completa del catálogo de códigos) +
+    `tests/e2e/hallazgos.spec.ts` (era `test.fail`, ahora regresión normal:
+    el mensaje humano aparece, el código no). `HALLAZGOS_CONOCIDOS` queda
+    **vacío**: la invariante `sin-codigos-de-validacion-visibles` vuelve a
+    ser estricta.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /

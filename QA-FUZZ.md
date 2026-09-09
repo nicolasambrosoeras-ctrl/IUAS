@@ -26,10 +26,11 @@ Qué hace:
 - ante un fallo guarda seed + secuencia mínima + trace + screenshot +
   `console.txt` + `pageerror.txt` + `failure.json`.
 
-Qué **no** hace (en esta corrida): no toca hidráulica, ni CRIT, ni la UX de
-negocio; no implementa ErrorBoundary (`DEFENSE-01`); no cambia la
-conectividad del catálogo (`CAT-CONN-01`); no corrige los bugs que
-encuentra (`FIX-CRASH-01`, `FIX-LEAK-01`).
+Qué **no** hace: no toca hidráulica, ni CRIT, ni la UX de negocio; no
+implementa ErrorBoundary (`DEFENSE-01`); no corrige *en la misma corrida*
+los bugs que encuentra — cada hallazgo se documenta y se cierra en su
+propio slice (`FIX-RESP-01/02`, `CAT-CONN-01`, `FIX-LEAK-01` — todos
+cerrados; queda `FIX-CRASH-01`).
 
 ---
 
@@ -43,7 +44,7 @@ tests/e2e/
   catalogo-conectividad.spec.ts asevera la matriz CAT-CONN-01 de los 16 artefactos
   sequence-fuzz.spec.ts        fuzz reproducible por seed
   crash-observado.spec.ts      escenarios A/B/C construidos a mano (brief §26)
-  hallazgos.spec.ts            bugs de app YA encontrados (test.fail, no se corrigen)
+  hallazgos.spec.ts            regresiones de hallazgos del fuzz (test.fail mientras el bug está abierto)
   responsive.spec.ts           regresión FIX-RESP-01 / FIX-RESP-02 (sin overflow horizontal @ 390/360/desktop)
   qa/
     prng.ts        mulberry32 determinista + helpers (peso, barajar). Sin deps.
@@ -225,6 +226,8 @@ brief §53).
 documentados** (con deuda abierta). Se excluyen de las invariantes **sólo**
 para que el fuzzer siga avanzando y encuentre bugs *nuevos*; se siguen
 loggeando como `…·hallazgo-conocido`. Cualquier leak nuevo rompe el run.
+**Hoy está vacío** (FIX-LEAK-01 se corrigió en D-δ.85); la maquinaria se
+conserva para el próximo hallazgo abierto.
 
 ---
 
@@ -297,32 +300,54 @@ artifact y el título del fallo.
 3. `test-results/<carpeta>/trace.zip` (o el HTML report).
 4. La clase (`APP` / `HARNESS` / `NETWORK`) y, si es APP, el nombre de la
    invariante violada.
-5. **No** pedir que se corrija en QA-FUZZ-01: el siguiente slice es
-   `FIX-CRASH-01` (crashes) / `FIX-LEAK-01` (este hallazgo).
+5. **No** pedir que se corrija en la misma corrida del fuzz: cada hallazgo
+   se cierra en su propio slice (`FIX-RESP-*`, `CAT-CONN-01`, `FIX-LEAK-01`
+   ya cerrados; abierto: `FIX-CRASH-01`).
 
 ---
 
 ## 12. Hallazgos de esta corrida
 
-### FIX-LEAK-01 — M3 filtra el código interno de validación al UI
+### FIX-LEAK-01 — M3 filtraba el código interno de validación al UI — RESUELTO (D-δ.85)
 
-- **Qué:** `src/interfaz/paginas/PanelDeMedidoresDeModulo3.tsx` (~línea 351),
-  rama `estado.estado === 'error'`, renderiza `problema.problema.codigo`
-  crudo (`<li>{problema.problema.codigo}</li>`) en vez de un mensaje
-  humano. M1 sí humaniza el mismo código
-  (`redHidraulicaTramoLongitudNoPositiva` → "Un tramo … longitud menor o
-  igual a cero.").
-- **Repro determinista:** iniciar Módulo 3 → activar Propiedad horizontal →
-  ACS = central → poner en `0` la longitud de un tramo en Tuberías →
-  volver a Medidores. El panel muestra el texto
-  `redHidraulicaTramoLongitudNoPositiva`.
+- **Qué:** `src/interfaz/paginas/PanelDeMedidoresDeModulo3.tsx`, rama
+  `estado.estado === 'error'`, renderizaba `problema.problema.codigo`
+  **crudo** (`<li>{problema.problema.codigo}</li>`) en vez de un mensaje
+  humano. La tabla de mensajes humanos (`MENSAJES_DE_VALIDACION`) vivía como
+  `const` local dentro de `MotorDemandaPantalla.tsx` (M1), inaccesible para M3.
+- **Repro determinista:** iniciar Módulo 3 → Propiedad horizontal → ACS
+  central → poner en `0` la longitud de un tramo en Tuberías → volver a
+  Medidores. El panel mostraba `redHidraulicaTramoLongitudNoPositiva`.
 - **Repro por fuzz:** `IUAS_FUZZ_SEED=424242 IUAS_FUZZ_RUNS=1 IUAS_FUZZ_STEPS=12`
-  → falla en el **step 10** (`editarLongitudTramo=0`), 3/3 replays
-  idénticos. Secuencia completa en el artifact.
-- **Severidad:** media (no es crash ni pantalla blanca; es leak de copy
-  interno). Encaja en brief §13-H.
-- **Estado:** documentado en `tests/e2e/hallazgos.spec.ts` (`test.fail`) y
-  en `HALLAZGOS_CONOCIDOS`. **No se corrige acá.**
+  → step 10 (`editarLongitudTramo=0`).
+- **Severidad:** media (leak de copy interno; no es crash ni pantalla
+  blanca). Encaja en §13-H.
+- **Fix (D-δ.85):**
+  - `src/interfaz/paginas/mensajesDeValidacion.ts` (nuevo): la tabla se
+    extrae acá y se exporta junto con
+    `describirProblemaDeValidacion(codigo)` — **política segura**: código
+    conocido → su frase; cualquier otra cosa (código nuevo del dominio sin
+    traducir, valor corrupto, no-string) → `MENSAJE_DE_VALIDACION_GENERICO`
+    ("Hay un dato de la instalación que debe corregirse antes de
+    continuar."). **Nunca** el identificador, `undefined` ni `[object Object]`.
+  - M1 (`MotorDemandaPantalla.tsx`) y M3 (`PanelDeMedidoresDeModulo3.tsx`)
+    consumen la MISMA función. Una sola traducción por código.
+  - Copy de `redHidraulicaTramoLongitudNoPositiva` unificada a "La longitud
+    de un tramo debe ser mayor que cero." (estilo declarativo del resto).
+  - No se tocaron validaciones, tipos de dominio, cuándo M3 entra en
+    error, ni reglas de completitud: sólo la **presentación**.
+- **Regresión:** `src/interfaz/paginas/mensajesDeValidacion.test.ts` (6
+  tests: código conocido, código desconocido → genérico, no-string →
+  genérico, cobertura completa del catálogo de códigos) +
+  `tests/e2e/hallazgos.spec.ts` (era `test.fail`, ahora **regresión
+  normal**: el mensaje humano aparece, el código NO, sin
+  pageerror/console.error, invariantes verdes). Falla contra la producción
+  pre-fix.
+- **`HALLAZGOS_CONOCIDOS`:** se **quitó** la entrada de FIX-LEAK-01
+  (`qa/invariantes.ts` queda con el array vacío); la invariante
+  `sin-codigos-de-validacion-visibles` vuelve a ser **estricta**. La
+  maquinaria (`esHallazgoConocido`, `evaluarTokens`) se conserva para el
+  próximo hallazgo abierto.
 
 ### QA-CI-01 — la seed base del fuzz era no determinista en discovery
 
@@ -432,7 +457,7 @@ handoff de D-δ.80 (ROADMAP / PENDIENTES).
 
 | Deuda | Qué |
 | ----- | --- |
-| `FIX-LEAK-01` | M3 muestra códigos internos de validación (este documento §12). |
+| ~~`FIX-LEAK-01`~~ | **RESUELTO en D-δ.85** — M3 mostraba códigos internos de validación; ahora `describirProblemaDeValidacion` compartido por M1 y M3 (§12). |
 | ~~`FIX-RESP-01`~~ | **RESUELTO en D-δ.82** — overflow horizontal de página en móvil con M2 Detalladas/Profesional (§12). |
 | ~~`FIX-RESP-02`~~ | **RESUELTO en D-δ.83** — overflow horizontal de página en M3 (excepción de ACS por UF) por `<select>` sin acotar (§12). |
 | `FIX-CRASH-01` | pantallas blancas dependientes de secuencia (si QA-FUZZ las reproduce). |

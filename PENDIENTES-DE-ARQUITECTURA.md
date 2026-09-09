@@ -9291,6 +9291,88 @@ queda vacío. La verificación E2E local de este incremento se hizo contra
 `vite` dev (`IUAS_BASE_URL=http://localhost:<port>/`), que sí funciona. El
 CI y el flujo por defecto apuntan a producción, no afectados.
 
+## D-δ.85 -- FIX-LEAK-01: humanizar los errores de validación en M3 -- CERRADA
+
+Fix de **presentación** puntual. No modifica validaciones, tipos de error
+del dominio, reglas de completitud, ni cuándo M3 entra en estado de error:
+sólo cambia **qué texto ve el usuario**. Alcance:
+`src/interfaz/paginas/mensajesDeValidacion.ts` (nuevo) + `.test.ts`,
+`MotorDemandaPantalla.tsx` (M1), `PanelDeMedidoresDeModulo3.tsx` (M3),
+`tests/e2e/hallazgos.spec.ts`, `tests/e2e/qa/invariantes.ts`,
+documentación. Versión pública funcional sigue **`v0.4.0-beta.5`**.
+
+### Causa raíz
+
+`PanelDeMedidoresDeModulo3.tsx`, rama `estado.estado === 'error'`,
+renderizaba `problema.problema.codigo` **crudo**
+(`<li>{problema.problema.codigo}</li>`). La tabla de mensajes humanos
+`MENSAJES_DE_VALIDACION` (`Record<CodigoValidacion, string>`, completa)
+vivía como `const` **local** dentro de `MotorDemandaPantalla.tsx` (M1),
+inaccesible desde M3. Repro (fuzz seed `424242`, step ~10,
+`editarLongitudTramo=0`): iniciar M3 + PH + ACS central + longitud de
+tramo `0` → M3 en error mostrando `redHidraulicaTramoLongitudNoPositiva`.
+`src/validacion/codigos` sí tiene descripciones, pero son **técnicas**
+(nombres de campo, CRIT, camelCase): no son copy de usuario.
+
+### Solución
+
+- **`src/interfaz/paginas/mensajesDeValidacion.ts` (nuevo, capa de
+  interfaz, NO dominio):**
+  - `MENSAJES_DE_VALIDACION` — la tabla, extraída de M1 y exportada.
+  - `MENSAJE_DE_VALIDACION_GENERICO` = "Hay un dato de la instalación que
+    debe corregirse antes de continuar."
+  - `describirProblemaDeValidacion(codigo)` — **política segura**: código
+    conocido → su frase; código desconocido / no-string / vacío →
+    genérico. Nunca el identificador, `undefined` ni `[object Object]`.
+- **M1 y M3 consumen la MISMA función.** Una sola traducción humana por
+  código, con el mismo comportamiento defensivo en ambos módulos. La copy
+  de `redHidraulicaTramoLongitudNoPositiva` se unificó a "La longitud de un
+  tramo debe ser mayor que cero." (estilo declarativo del resto de la
+  tabla). Ningún test asevera esa frase; sólo el código.
+- **Auditoría de la rama de error de M3** (PASO 6): `problema.problema.codigo`
+  en L351 era el único render crudo; el `incompleto` ya usa
+  `describirMotivoIncompletitudModulo3`, el badge `ETIQUETA_ESTADO_MODULO_3`,
+  y `evaluado` datos estructurados vía `fmt()`. Nada más que humanizar.
+
+### Regresión
+
+- **Unit** (`mensajesDeValidacion.test.ts`, 6 casos): código conocido →
+  frase humana sin el identificador; `configuracionMedidoresUnidadFuncionalInexistente`
+  → frase; código desconocido → genérico (no crudo, no `[object Object]`,
+  no `undefined`); entradas no-string → genérico; **TODO** `CodigoValidacion`
+  del dominio tiene copy propia no genérica; la tabla cubre exactamente
+  `Object.keys(codigosValidacion)`.
+- **E2E** (`tests/e2e/hallazgos.spec.ts`): era `test.fail`, ahora
+  **regresión normal** — iniciar M3 + PH + ACS central + tramo `0` →
+  vuelve a Medidores → el texto "La longitud de un tramo debe ser mayor
+  que cero." **aparece**, `redHidraulicaTramoLongitudNoPositiva` **no**,
+  sin `pageerror`/`console.error`, invariantes verdes. **Falla contra la
+  producción pre-fix** (regresión real). Verificado 2/2 (desktop + mobile)
+  contra un serve estático del build fijo.
+- **`HALLAZGOS_CONOCIDOS`** (`qa/invariantes.ts`): se **quitó** la entrada
+  de FIX-LEAK-01; el array queda **vacío** y la invariante
+  `sin-codigos-de-validacion-visibles` vuelve a ser **estricta**. La
+  maquinaria (`esHallazgoConocido`, `evaluarTokens`) se conserva. Fuzz
+  `seed 424242` STEPS=12 y STEPS=15: 2/2 cada uno, 12/12 y 15/15 pasos,
+  sin reaparecer el leak con la invariante ya estricta.
+
+### Verificación
+
+Vitest **1394 → 1400** (+6 de `mensajesDeValidacion.test.ts`); `tsc -b` /
+`npm run e2e:typecheck` / `npm run build` verdes; ESLint 11 / 0 / 0 (sin
+regresión). Playwright contra producción: `smoke` / `crash-observado` /
+`responsive.spec.ts` (14 pasan / 6 skip por proyecto) / `catalogo`
+**23/23** verdes; `hallazgos.spec.ts` 2/2 contra el build fijo (y falla
+contra producción pre-fix). Sin bugs nuevos.
+
+### Estado
+
+**D-δ.85 -- CERRADA.** Ninguna regla hidráulica, normativa ni de dominio
+modificada: una longitud `0` sigue siendo inválida y M3 sigue entrando en
+error; sólo cambia su **presentación**. Tags sin mover; snapshot
+`resguardo-documentacion/` intacto. **FIX-CRASH-01 / DEFENSE-01 /
+GEOM-UX-01 / MODE-UX-01 / UX-TEST-01 / REPORT-01 -- NO iniciar.**
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son
