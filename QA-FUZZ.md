@@ -29,8 +29,8 @@ Qué hace:
 Qué **no** hace: no toca hidráulica, ni CRIT, ni la UX de negocio; no
 implementa ErrorBoundary (`DEFENSE-01`); no corrige *en la misma corrida*
 los bugs que encuentra — cada hallazgo se documenta y se cierra en su
-propio slice (`FIX-RESP-01/02`, `CAT-CONN-01`, `FIX-LEAK-01`, `FIX-LEAK-02`
-— todos cerrados; queda `FIX-CRASH-01`).
+propio slice (`FIX-RESP-01/02`, `CAT-CONN-01`, `FIX-LEAK-01`, `FIX-LEAK-02`,
+`FIX-CRASH-01` — todos cerrados; queda `DEFENSE-01`, ErrorBoundary raíz).
 
 ---
 
@@ -306,8 +306,8 @@ artifact y el título del fallo.
 4. La clase (`APP` / `HARNESS` / `NETWORK`) y, si es APP, el nombre de la
    invariante violada.
 5. **No** pedir que se corrija en la misma corrida del fuzz: cada hallazgo
-   se cierra en su propio slice (`FIX-RESP-*`, `CAT-CONN-01`, `FIX-LEAK-01`
-   ya cerrados; abierto: `FIX-CRASH-01`).
+   se cierra en su propio slice (`FIX-RESP-*`, `CAT-CONN-01`, `FIX-LEAK-01/02`,
+   `FIX-CRASH-01` ya cerrados; abierto: `DEFENSE-01`).
 
 ---
 
@@ -503,11 +503,75 @@ artifact y el título del fallo.
   Falla contra la producción pre-fix a 360 px (test real).
 - **No se tocó** `HALLAZGOS_CONOCIDOS` ni `FIX-LEAK-01`.
 
+### FIX-CRASH-01 — longitud de tramo en 0 desmontaba la app — RESUELTO (D-δ.88)
+
+- **Qué:** `src/motor/tuberias/resolverPerdidaDistribuidaDeTramo.ts` sólo
+  devolvía su variante `sinLongitud` cuando `tramo.longitud_m === undefined`.
+  Una longitud **informada pero no utilizable** (`longitud_m <= 0` — estado
+  de edición legítimo: `resolverCambioDeLongitud` acepta `0`, y
+  `validarRedHidraulica` la marca con el predicado `!== undefined && <= 0`)
+  llegaba a `calcularPerdidaCargaHazenWilliams(J, 0)`, que **lanza** por
+  contrato (CRIT-A17 exige `L > 0`). `PanelDePresionDeModulo2` llama
+  `resolverPresionResidualDeCamino` **directo en el render** (dentro de un
+  `nodosTerminales.map(...)`), sin la barrera estructural de
+  `resolverEstadoModulo2`, así que la excepción propagaba por React y
+  **desmontaba la app** (`#root` vacío → `WHITE_SCREEN`).
+- **`desnivelConexion = -2` NO era el bug (CRIT-A37).** El desnivel es una
+  magnitud **firmada** (`Pcalc = Pácera − desnivelConexion`); `-2` es
+  válido. El step 19 era sólo el **disparador**: en modo Rápido + tanque
+  elevado, mientras faltaba el desnivel `resolverPeloDeAguaMinimoEfectivo`
+  devolvía `incompletoRapido` y el balance cortaba en la guarda de
+  desnivel **antes** de la acumulación de pérdida distribuida. Al informar
+  cualquier desnivel finito (`0`/`5`/`10`/`-2`), el balance avanzaba hasta
+  el tramo de longitud 0.
+- **Repro por fuzz:** **seed cloud** `34411681277-1:0` (QA Fuzz cloud
+  posterior a FIX-LEAK-02, seed generada `34411681277-1`, primer run),
+  **step 19** · `editarDesnivelConexion=-2 [M4]` — `WHITE_SCREEN` idéntico
+  en **desktop y mobile**. La corrida cloud quedó **roja** (2 failed / 38
+  did not run): no es una QA 20×30 completa.
+- **Severidad:** **P0** — desmontaje total de la app. Primer crash de
+  pantalla blanca dependiente de secuencia reproducido de forma
+  determinista (los escenarios A/B/C nunca lo habían logrado).
+- **Preexistencia:** la guarda `=== undefined` es de la primera versión
+  del resolver N3 (D-δ.34). GEOM-UX-01 y FIX-LEAK-02 **no** lo
+  introdujeron; la secuencia del fuzz sólo combinó por primera vez las
+  precondiciones (modo Rápido + tanque elevado + longitud 0 + desnivel
+  informado).
+- **Fix (D-δ.88):**
+  - La guarda pasa a
+    `if (tramo.longitud_m === undefined || tramo.longitud_m <= 0)` →
+    `sinLongitud`. Mismo predicado que `validarRedHidraulica`. Toda la
+    cadena de presión (`acumularPerdidaDistribuidaDeCamino` →
+    `perdidaDistribuidaIncompleta` → `resolverEstadoModulo2` `incompleto`)
+    degrada como ya hacía para la longitud ausente.
+  - **No** se tocó ninguna fórmula (`calcularPerdidaCargaHazenWilliams`
+    sigue exigiendo `L > 0`), ni CRIT-A37 (`-2` se conserva sin clamp), ni
+    la responsabilidad entre módulos. **No** se agregó `ErrorBoundary`
+    (DEFENSE-01 sigue pendiente para su propio slice).
+- **Regresión:** `resolverPerdidaDistribuidaDeTramo.test.ts` (caso
+  `sinLongitud` para `longitud_m ∈ {0, -2}` → `tipo: 'sinLongitud'`, sin
+  lanzar) + `tests/e2e/hallazgos.spec.ts` (**test normal**, no
+  `test.fail`: proyecto de ejemplo → Tuberías longitud `0` (app tolera el
+  estado) → Abastecimiento "Tanque elevado" → `Desnivel … [m]` = `-2` →
+  app viva, sin el `pageerror` de `calcularPerdidaCargaHazenWilliams`, sin
+  `console.error`, `#root` con contenido, el input conserva `-2`; falla
+  WHITE_SCREEN desktop + mobile contra el código pre-fix, verificado con
+  `git stash`).
+- **Seed canónica completa** `34411681277-1:0` **30/30** pasos, desktop +
+  mobile, contra `vite` dev con el fix. Documentada como *FIX-CRASH-01
+  canonical regression seed*. **NO** se agrega a `HALLAZGOS_CONOCIDOS`.
+- **Fuzz lateral:** seed cloud previa `34398035608-1` runs 0–12 **13/13**;
+  baseline `424242` sin regresión.
+- **`HALLAZGOS_CONOCIDOS`:** **sigue vacío**; la invariante
+  `pantalla-no-blanca` sigue estricta.
+
 ### Pantallas blancas observadas (A/B/C)
 
 `tests/e2e/crash-observado.spec.ts` reproduce los escenarios del brief §26
 contra `v0.4.0-beta.5`. Ver el resultado de la corrida de cierre en el
-handoff de D-δ.80 (ROADMAP / PENDIENTES).
+handoff de D-δ.80 (ROADMAP / PENDIENTES). Ninguno de esos tres reprodujo un
+crash; el primero determinista fue FIX-CRASH-01 (arriba), del fuzz por
+seed.
 
 ---
 
@@ -519,7 +583,7 @@ handoff de D-δ.80 (ROADMAP / PENDIENTES).
 | ~~`FIX-LEAK-02`~~ | **RESUELTO en D-δ.87** — M4 mostraba la descripción técnica del catálogo (`configuracionAbastecimiento.periodoConsumoMaximo_h…`); ahora `describirProblemaDeErrorModulo4` rutea por el mismo `describirProblemaDeValidacion` que M1/M3 (§12). |
 | ~~`FIX-RESP-01`~~ | **RESUELTO en D-δ.82** — overflow horizontal de página en móvil con M2 Detalladas/Profesional (§12). |
 | ~~`FIX-RESP-02`~~ | **RESUELTO en D-δ.83** — overflow horizontal de página en M3 (excepción de ACS por UF) por `<select>` sin acotar (§12). |
-| `FIX-CRASH-01` | pantallas blancas dependientes de secuencia (si QA-FUZZ las reproduce). |
+| ~~`FIX-CRASH-01`~~ | **RESUELTO en D-δ.88** — `resolverPerdidaDistribuidaDeTramo` no trataba `longitud_m <= 0` como `sinLongitud`; el throw de `calcularPerdidaCargaHazenWilliams` propagaba por el render de `PanelDePresionDeModulo2` y desmontaba la app. Seed canónica `34411681277-1:0` step 19 (§12). |
 | ~~`CAT-CONN-01`~~ | **RESUELTO en D-δ.84** — la conectividad física inicial pasó a resolverse por política de catálogo (`politicaConectividad.ts`), no por precedentes del proyecto. Matriz objetivo: sólo `lavavajillasIndustrial` y `lavarropasIndustrial` piden selección (14 no); `catalogo-conectividad.spec.ts` la asevera. |
 | `DEFENSE-01` | ErrorBoundary con estado Proyecto preservado. Después del fix raíz. |
 | `GEOM-UX-01` | herencia de cotas UF → Local → terminal. |

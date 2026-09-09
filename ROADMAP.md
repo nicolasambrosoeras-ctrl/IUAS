@@ -1025,6 +1025,59 @@ salvo bug inequívoco o decisión roja explícita.
   - La corrida cloud previa `34398035608` **no** es checkpoint verde: se
     detuvo en este hallazgo. El checkpoint posterior a GEOM-UX-01 +
     FIX-LEAK-02 es la próxima QA Fuzz cloud 20×30 con seed vacía.
+  - **Hallazgo nuevo (P0, dependiente de secuencia):** **FIX-CRASH-01** —
+    la QA Fuzz cloud posterior a FIX-LEAK-02 (seed `34411681277-1`)
+    reprodujo por primera vez de forma **determinista** un `WHITE_SCREEN`.
+    Caso `34411681277-1:0`, step 19 · `editarDesnivelConexion=-2 [M4]`,
+    desktop + mobile. **RESUELTO en D-δ.88.**
+
+- **D-δ.88 — FIX-CRASH-01: la longitud de tramo en 0 desmontaba la app.**
+  Primer crash de pantalla blanca dependiente de secuencia reproducido
+  determinísticamente. Fix de **una guarda** en un resolver puro; sin
+  cambios de hidráulica / normativa / dominio. `v0.4.0-beta.5` sigue
+  vigente (`1476c19`, tag sin mover).
+  - **`desnivelConexion = -2` NO era el bug.** CRIT-A37 define el desnivel
+    **firmado** (`Pcalc = Pácera − desnivelConexion`); `-2` es válido. El
+    fix **no** clampa, no rechaza negativos, no usa `Math.abs`, no oculta
+    el control: `-2` se conserva. El step 19 era el disparador; cualquier
+    desnivel finito habría destapado el mismo defecto.
+  - **Causa raíz:** `resolverPerdidaDistribuidaDeTramo` guardaba
+    `if (tramo.longitud_m === undefined)` para devolver su variante
+    `sinLongitud`. Una longitud **informada pero no utilizable**
+    (`longitud_m <= 0`, estado de edición legítimo) pasaba de largo hasta
+    `calcularPerdidaCargaHazenWilliams(J, 0)`, que **lanza** (CRIT-A17
+    exige `L > 0`). `PanelDePresionDeModulo2` llama
+    `resolverPresionResidualDeCamino` **directo en el render**, sin la
+    barrera estructural de `resolverEstadoModulo2`, así que la excepción
+    desmontaba React. El step 19 sólo destrababa el balance de presión
+    (antes bloqueado por `incompletoRapido` al faltar el desnivel en modo
+    Rápido + tanque elevado), dejándolo llegar al tramo de longitud 0.
+    **Pre-existente** (guarda de D-δ.34); GEOM/FIX-LEAK no lo
+    introdujeron.
+  - **Fix:** la guarda pasa a
+    `longitud_m === undefined || longitud_m <= 0` → `sinLongitud` (mismo
+    predicado que `validarRedHidraulica`). Toda la cadena de presión
+    degrada a "incompleto", como ya hacía para la longitud ausente. El
+    estado `longitud_m = 0` en edición sigue tolerado (muestra el error,
+    no desmonta). **No** se agregó `ErrorBoundary` (DEFENSE-01 sigue
+    pendiente, su propio slice).
+  - **Regresión:** `resolverPerdidaDistribuidaDeTramo.test.ts` (caso
+    `sinLongitud` para `longitud_m ∈ {0, -2}`, sin lanzar) +
+    `tests/e2e/hallazgos.spec.ts` (**test normal**: longitud 0 + tanque
+    elevado + desnivel `-2` → app viva, sin el `pageerror` de
+    `calcularPerdidaCargaHazenWilliams`, desnivel conserva `-2`; falla
+    WHITE_SCREEN contra el código pre-fix). Seed canónica completa
+    `34411681277-1:0` **30/30** desktop + mobile. `HALLAZGOS_CONOCIDOS`
+    **sigue vacío**.
+  - **Verificación:** Vitest **1440 → 1441**; `tsc` / `e2e:typecheck` /
+    `build` verdes; ESLint 11 / 0 / 0. E2E `hallazgos` (FIX-LEAK-01/02 +
+    FIX-CRASH-01) / `crash-observado` / `smoke` / `responsive` /
+    `catalogo` sin fallos. Fuzz local: canónica `34411681277-1:0` 30/30
+    (desktop + mobile), seed cloud previa `34398035608-1` runs 0–12 13/13,
+    baseline `424242` sin regresión.
+  - La corrida cloud que generó `34411681277-1` **no** es checkpoint
+    verde (2 failed / 38 did not run). El checkpoint previo a MODE-UX-01
+    es la próxima QA Fuzz cloud 20×30 con seed vacía contra producción.
 
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto

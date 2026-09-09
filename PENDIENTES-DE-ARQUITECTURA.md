@@ -9651,6 +9651,146 @@ checkpoint posterior a GEOM-UX-01 + FIX-LEAK-02. **MODE-UX-01 /
 HYD-EST-01 / M2-TOPO-01 / VIS-TOPO-01 / PERSIST-01 / REPORT-01 /
 UX-TEST-01 -- NO iniciar.**
 
+## D-δ.88 -- FIX-CRASH-01: la longitud de tramo en 0 desmontaba la app -- CERRADA
+
+Primer crash de **pantalla blanca dependiente de secuencia** reproducido
+de forma **determinista** (QA Fuzz cloud `QA Fuzz (Playwright)` posterior a
+FIX-LEAK-02, seed generada `34411681277-1`, primer run). Caso canónico
+`34411681277-1:0`, **step 19** · `editarDesnivelConexion=-2 [M4]` →
+`WHITE_SCREEN` idéntico en **desktop y mobile** (no es responsive). Fix de
+**una guarda** en un resolver puro: no cambia ninguna fórmula hidráulica,
+criterio normativo, tipo de dominio ni responsabilidad entre módulos.
+Alcance: `src/motor/tuberias/resolverPerdidaDistribuidaDeTramo.ts` +
+`.test.ts`, `tests/e2e/hallazgos.spec.ts`, documentación
+(`PENDIENTES-DE-ARQUITECTURA.md`, `ROADMAP.md`, `QA-FUZZ.md`). Versión
+pública funcional sigue **`v0.4.0-beta.5`** (`1476c19`, tag sin mover).
+
+### `desnivelConexion = -2` NO era el bug (CRIT-A37)
+
+CRIT-A37 define el desnivel **firmado**: `Pcalc = Pácera − desnivelConexion`.
+Un valor negativo representa una conexión por debajo de la referencia de
+acera y es **físicamente válido**. El fix **no** rechaza negativos, no
+clampa a 0, no aplica `Math.abs`, no oculta el control ni ignora el
+`onChange`: `-2` se conserva tal cual (el E2E lo asevera con
+`toHaveValue('-2')`). El step 19 era sólo el **disparador**: cualquier
+desnivel finito (`0`, `5`, `10`, `-2`) habría destapado el mismo defecto.
+
+### Causa raíz
+
+`resolverPerdidaDistribuidaDeTramo` (N3) tiene una variante de resultado
+explícita `sinLongitud` para el Tramo cuya longitud todavía no permite
+calcular la pérdida distribuida, y **toda** la cadena de presión aguas
+arriba ya la degrada a "incompleto"
+(`acumularPerdidaDistribuidaDeCamino` → `perdidaDistribuidaIncompleta` →
+`resolverEstadoModulo2` `incompleto`). Pero la guarda era
+`if (tramo.longitud_m === undefined)` — **sólo** la longitud no relevada.
+Una longitud **informada pero no utilizable** (`longitud_m <= 0`, estado
+de edición legítimo: `resolverCambioDeLongitud` acepta `0`, y
+`validarRedHidraulica` la marca como error con el predicado
+`!== undefined && <= 0`) pasaba de largo hasta
+`calcularPerdidaCargaHazenWilliams(J, 0)`, que **lanza** por contrato
+(CRIT-A17 exige `L > 0`).
+
+Por qué el crash aparecía recién en el step 19 y no en el step 13
+(`editarLongitudTramo=0`):
+
+- El proyecto estaba en modo **Rápido** (`granularidadHidraulica:
+  'simplificada'`, default del proyecto de ejemplo) + esquema **Tanque
+  elevado** (elegido en el step 8).
+- Con `desnivelConexion_m` ausente, `resolverPeloDeAguaMinimoEfectivo`
+  devuelve `incompletoRapido` → `aplicarPeloDeAguaMinimoEfectivo` le quita
+  la cota a los nodos raíz → `resolverPresionResidualDeCamino` corta en la
+  guarda `desnivel.tipo === 'incompleto'` **antes** de llamar a
+  `acumularPerdidaDistribuidaDeCamino`. Sin throw: M2 queda "incompleto".
+- El step 19 informa `desnivelConexion_m = -2` (número finito) →
+  `resolverPeloDeAguaMinimoEfectivo` pasa a `derivadoRapido` (cota
+  estimada `-2 − 0,50 = -2,5`) → los nodos raíz recuperan cota → el
+  balance **supera** la guarda de desnivel y llega a la acumulación de
+  pérdida distribuida sobre el Tramo de longitud 0 → **throw**.
+- `PanelDePresionDeModulo2` (sección "Verificación hidráulica", montada
+  siempre que `demandaValida`, no sólo con el hash activo) llama
+  `resolverPresionResidualDeCamino` **directo en el render**, dentro de un
+  `nodosTerminales.map(...)`, **sin** la barrera estructural de
+  `resolverEstadoModulo2` (que sí habría cortado en `estado: 'error'` por
+  `redHidraulicaTramoLongitudNoPositiva`). La excepción propaga por el
+  render de React → la app entera se desmonta → `#root` vacío
+  (`WHITE_SCREEN`). El panel/tabla de M2 (`resolverResultadoDeTramoParaUi`,
+  `resolverFilaDeDimensionamiento`) ya envolvían el mismo resolver en
+  `try/catch` — por eso el step 13 no rompía nada visible.
+
+Preexistencia: el defecto es **anterior** a GEOM-UX-01 y a FIX-LEAK-02
+(la guarda `=== undefined` es de la primera versión del resolver N3,
+D-δ.34). GEOM/FIX-LEAK no lo introdujeron; la secuencia del fuzz sólo
+combinó por primera vez las precondiciones (modo Rápido + tanque elevado +
+longitud 0 + desnivel informado) que lo hacen observable.
+
+### Solución
+
+`resolverPerdidaDistribuidaDeTramo.ts`: la guarda pasa a
+`if (tramo.longitud_m === undefined || tramo.longitud_m <= 0)` →
+`sinLongitud`. Mismo predicado que `validarRedHidraulica`. Con eso:
+
+- `calcularPerdidaCargaHazenWilliams` **nunca** recibe `L <= 0` desde el
+  orquestador productivo — su guarda CRIT-A17 queda como defensa, no como
+  ruta alcanzable.
+- La cadena de presión degrada a "incompleto" de punta a punta, igual que
+  ya hacía para la longitud ausente. `PanelDePresionDeModulo2` muestra la
+  verificación como incompleta (motivo `perdidaDistribuidaIncompleta`), la
+  app sigue montada, M2/M4 operables.
+- Un proyecto en edición con `longitud_m = 0` sigue siendo un estado
+  **tolerado**: se informa el error de validación (copy humana vía
+  FIX-LEAK-01), no se bloquea la edición, no se desmonta nada.
+
+No se agregó `ErrorBoundary` (DEFENSE-01 sigue pendiente para su propio
+slice, §12 del brief de FIX-CRASH-01): el fix ataca la causa, no el
+síntoma, y agregar el boundary ahora ampliaría el alcance.
+
+### Regresión
+
+- **Unit** (`resolverPerdidaDistribuidaDeTramo.test.ts`): nuevo caso
+  `sinLongitud` para `longitud_m ∈ {0, -2}` → `tipo: 'sinLongitud'`
+  (candidato comercial preservado, `qc_lps`/`n` intactos), **sin lanzar**.
+- **E2E** (`tests/e2e/hallazgos.spec.ts`, **test normal**, no `test.fail`):
+  proyecto de ejemplo → Tuberías: `Longitud [m]` del primer tramo = `0`
+  (invariantes verdes: la app tolera el estado) → Abastecimiento: "Tanque
+  elevado" → `Desnivel … [m]` = `-2` → la app sigue montada, sin el
+  `pageerror` de `calcularPerdidaCargaHazenWilliams`, sin `console.error`,
+  `#root` con contenido, y el input de desnivel conserva `-2` (CRIT-A37).
+  Falla (WHITE_SCREEN, desktop + mobile) contra el código pre-fix
+  (verificado con `git stash`).
+- **Seed canónica completa** `34411681277-1:0` **30/30** pasos, desktop +
+  mobile, contra `vite` dev con el fix (pre-fix: falla en el step 19). Se
+  documenta como *FIX-CRASH-01 canonical regression seed*; **no** se
+  agrega a `HALLAZGOS_CONOCIDOS`.
+- **`HALLAZGOS_CONOCIDOS`** (`qa/invariantes.ts`): **sigue vacío**. La
+  invariante `pantalla-no-blanca` sigue estricta.
+
+### Verificación
+
+Vitest **1440 → 1441** (+1); `tsc -b` / `npm run e2e:typecheck` /
+`npm run build` verdes; ESLint **11 / 0 / 0** (sin regresión, todos
+preexistentes). Playwright contra `vite` dev
+(`IUAS_BASE_URL=http://localhost:5173/`): `hallazgos` (FIX-LEAK-01 +
+FIX-LEAK-02 + FIX-CRASH-01) / `crash-observado` (A/B/C) / `smoke` /
+`responsive` (FIX-RESP-01/02) / `catalogo` (CAT-CONN) → **0 fallos**.
+Fuzz local: canónica `34411681277-1:0` **30/30** (desktop + mobile); seed
+cloud previa de FIX-LEAK-02 `34398035608-1` runs 0–12 **13/13**; baseline
+`424242` sin regresión lateral.
+
+### Estado
+
+**D-δ.88 -- CERRADA.** CRIT-A37 **sin cambios**: `desnivelConexion`
+sigue siendo una magnitud **firmada** (`Pcalc = Pácera − desnivelConexion`),
+`-2` es válido y se conserva sin clamp. `calcularPerdidaCargaHazenWilliams`
+sigue exigiendo `L > 0` (CRIT-A17). Ninguna fórmula hidráulica, criterio
+normativo ni responsabilidad entre módulos modificada. Tags sin mover
+(`v0.4.0-beta.5` sigue en `1476c19`); snapshot `resguardo-documentacion/`
+intacto. La corrida cloud que generó `34411681277-1` **no** cuenta como
+checkpoint verde (2 failed / 38 did not run). Siguiente paso: QA Fuzz
+cloud 20×30 con seed vacía contra producción como checkpoint previo a
+MODE-UX-01. **MODE-UX-01 / HYD-EST-01 / M2-TOPO-01 / VIS-TOPO-01 /
+PERSIST-01 / REPORT-01 / UX-TEST-01 / DEFENSE-01 -- NO iniciar.**
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son
