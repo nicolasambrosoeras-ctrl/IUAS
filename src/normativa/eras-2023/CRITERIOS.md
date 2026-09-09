@@ -2669,3 +2669,79 @@ ampliación de CRIT-A15 de D-δ.79, no una disposición textual de ERAS.
 consumido por el flujo de M1 (`MotorDemandaPantalla.tsx`),
 `reconciliarConectividadFisicaPorCambioDeArtefacto` y
 `duplicarUnidadFuncional`. `determinarRedesFisicasPorPrecedente` eliminado.
+
+## GEOM-COTA-01 — Cota hidráulica efectiva por jerarquía heredada (UF → Local → Artefacto)
+
+**Regla.** La cota hidráulica efectiva del terminal de un artefacto (el
+dato geométrico `z` con que Módulo 2 lo representa físicamente para el
+Δz del balance de presión) se **deriva**:
+
+```
+cota hidráulica efectiva = cota de piso efectiva del Local
+                         + altura hidráulica efectiva del artefacto sobre piso
+```
+
+donde:
+
+- **cota de piso efectiva del Local** = `Local.cotaPiso_m` si está
+  presente (override explícito), si no `UnidadFuncional.cotaHidraulicaReferencia_m`
+  (heredada). `UnidadFuncional.cotaHidraulicaReferencia_m` es la **cota de
+  PISO terminado** de la UF respecto del datum del Proyecto (0 = vereda),
+  no una cota representativa del punto hidráulico. Su default por nivel es
+  `3·nivel` (sólo altura libre entre plantas; PB = 0) — el `+1 m` de
+  "altura de conexión típica" de D-δ.46 se traspasó a la altura por tipo.
+- **altura hidráulica efectiva del artefacto** = `Artefacto.alturaHidraulicaSobrePiso_m`
+  si está presente (override explícito), si no la **altura de referencia
+  IUAS del tipo** (`normativa/eras-2023/catalogo-artefactos/alturasHidraulicasIuas.ts`).
+
+Vale para **ambas** granularidades (`simplificada` y `profesional`):
+GEOM-UX-01 sustituyó la hipótesis geométrica uniforme de 1,00 m del modo
+Rápido (D-δ.46) por esta derivación. Se ignora la `Nodo.cota_m` propia del
+terminal. **Única excepción:** un terminal que además es la raíz del
+camino (sin ningún tramo entrante — funciona como punto de alimentación)
+conserva su `Nodo.cota_m`.
+
+**Sólo se persisten overrides explícitos** (`Local.cotaPiso_m`,
+`Artefacto.alturaHidraulicaSobrePiso_m`, ambos opcionales, sin migración
+de schema): los defaults nunca se materializan. "Restablecer" borra el
+override y vuelve a heredar / a la Tabla IUAS. Al **cambiar el tipo de
+catálogo** de un artefacto, su override de altura se **limpia** (adopta
+el default IUAS del tipo nuevo) — mismo criterio que la limpieza de
+`conectividadElegida` de CAT-CONN-01. **Duplicar una UF** conserva los
+overrides explícitos y mantiene heredado lo heredado.
+
+**Relación con CRIT-A20 / CRIT-A29.** No redefine CRIT-A29: el punto
+físico de verificación de presión sigue siendo la boca de conexión del
+artefacto. No cambia CRIT-A20: la compatibilidad geométrica
+`longitud_m ≥ |Δz|` se sigue evaluando, ahora con el Δz derivado. No
+toca ninguna fórmula (Hazen-Williams, Darcy-Weisbach, pérdidas
+localizadas, Pmin, `Q`, DN, medidores, reserva).
+
+**Tabla de alturas de referencia IUAS v1 — criterio IUAS, NO ERAS.** Los
+16 valores (uno por tipo del catálogo, con test de completitud) son
+alturas hidráulicas iniciales de referencia adoptadas por IUAS a partir
+de geometrías usuales, documentación de fabricantes y práctica de
+proyecto. ERAS-2023 publica los `qu` de demanda de cada artefacto pero
+**no fija a qué altura sobre el piso está su punto de conexión**. Son
+**siempre editables** por el proyectista; no se debe presentar la tabla
+como prescripción normativa. Mismo estatus epistémico que la política de
+CAT-CONN-01 y la ampliación de CRIT-A15 de D-δ.79.
+
+**Consecuencia sobre el baseline (rebaseline SÓLO de presión).** Al
+desaparecer la hipótesis uniforme de 1,00 m, cambia el Δz de los
+terminales y por lo tanto su presión residual y su margen. **M1 (Qc),
+M3 (medidores) y M4 (reserva) no cambian.** El terminal crítico del
+proyecto canónico D-δ.70 (receptáculo de ducha del baño) pasa su cota
+efectiva de 1,00 m a `0 + 2,00 = 2,00 m` → margen del crítico
+**−16,664 → −17,664 m.c.a.** (seguía NO CUMPLE por CRIT-A39). El detalle
+golden-por-golden está en `PENDIENTES-DE-ARQUITECTURA.md` D-δ.86.
+
+**Naturaleza:** decisión de producto IUAS (geometrías de proyecto,
+documentación de fabricantes). No es una disposición textual de ERAS.
+
+**Estado:** Firme e implementado (D-δ.86). Funciones puras en
+`motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto.ts`; tabla en
+`normativa/eras-2023/catalogo-artefactos/alturasHidraulicasIuas.ts`;
+consumido por `resolverPresionResidualDeCamino` y por la UI de M1
+(`MotorDemandaPantalla.tsx`). `resolverCotaTerminalEfectiva` (D-δ.46)
+eliminado.

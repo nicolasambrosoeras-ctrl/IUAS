@@ -9371,7 +9371,190 @@ contra producción pre-fix). Sin bugs nuevos.
 modificada: una longitud `0` sigue siendo inválida y M3 sigue entrando en
 error; sólo cambia su **presentación**. Tags sin mover; snapshot
 `resguardo-documentacion/` intacto. **FIX-CRASH-01 / DEFENSE-01 /
-GEOM-UX-01 / MODE-UX-01 / UX-TEST-01 / REPORT-01 -- NO iniciar.**
+MODE-UX-01 / UX-TEST-01 / REPORT-01 -- NO iniciar.**
+
+## D-δ.86 -- GEOM-UX-01: cotas hidráulicas heredadas + Tabla IUAS v1 + Reiniciar cálculo + layout M2 Profesional -- CERRADA
+
+Incremento funcional/UX transversal. Cuatro bloques relacionados, ninguno
+de los cuales toca fórmulas hidráulicas, CRIT-A29, CRIT-A39, pérdidas,
+Pmin, `Q`, DN, medidores ni reserva: sólo cambian (A) el dato geométrico
+`z` con que se representa físicamente cada terminal, (C) el proyecto que
+carga "Reiniciar", y (D) el CSS/markup del detalle de M2. Versión pública
+funcional sigue **`v0.4.0-beta.5`** (sin tag nuevo). Baseline Vitest
+**1400 → 1438**; `tsc -b` / `e2e:typecheck` / `build` verdes; ESLint
+**11 / 0 / 0** (sin regresión).
+
+### A -- Cotas hidráulicas heredadas (UF → Local → Artefacto)
+
+**Semántica objetivo:** `cota hidráulica efectiva del artefacto = cota de
+piso efectiva del Local + altura hidráulica efectiva del artefacto sobre
+piso`. Se aplica en **ambas** granularidades ('simplificada' y
+'profesional') -- GEOM-UX-01 **sustituye** la hipótesis geométrica
+uniforme de 1,00 m del modo Rápido (D-δ.46) por esta derivación.
+
+- **`UnidadFuncional.cotaHidraulicaReferencia_m` reencuadrada**: ya no es
+  "una cota representativa del punto hidráulico" sino la **cota de PISO**
+  terminado de la UF. `calcularCotaHidraulicaDefaultDeNivel` pasó de
+  `1 + 3·nivel` a `3·nivel` (sólo altura entre plantas; PB = 0). El `+1 m`
+  de "altura de conexión típica" lo aporta ahora la Tabla IUAS por tipo.
+- **`Local.cotaPiso_m` (nuevo, opcional)**: override de piso del Local.
+  Ausente ⇒ hereda la cota de la UF. "Restablecer" = borrar el campo.
+- **`Artefacto.alturaHidraulicaSobrePiso_m` (nuevo, opcional)**: override
+  de la altura hidráulica sobre piso. Ausente ⇒ altura de referencia IUAS
+  del tipo. "Restablecer" = borrar el campo.
+- **Sólo se guardan overrides explícitos**; los defaults nunca se
+  materializan. Backward-compatible sin migración (`SCHEMA_VERSION_ACTUAL`
+  no cambia), mismo patrón que `conectividadElegida` (CAT-CONN-01).
+- **Funciones puras**
+  (`motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto.ts`):
+  `resolverCotaPisoDeLocal` / `resolverAlturaHidraulicaDeArtefacto` /
+  `resolverCotaHidraulicaEfectivaDeArtefacto`. `resolverPresionResidualDeCamino`
+  las consume; se **eliminó** `resolverCotaTerminalEfectiva` (obsoleto).
+  El terminal degenerado que además es raíz del camino (punto de
+  alimentación) conserva su propia `Nodo.cota_m` en ambas granularidades
+  -- sustituirla colapsaría Δz a 0.
+- **Tabla de referencias IUAS v1**
+  (`normativa/eras-2023/catalogo-artefactos/alturasHidraulicasIuas.ts`):
+  16/16 tipos del catálogo, con **test de completitud** (tipo nuevo sin
+  altura o entrada huérfana ⇒ rojo). Vive junto al catálogo pero fuera de
+  `index.ts` (transcripción normativa pura), con cabecera **"Criterio
+  IUAS -- NO ERAS"**: son alturas de referencia adoptadas por IUAS a
+  partir de geometrías usuales, documentación de fabricantes y práctica de
+  proyecto, **siempre editables** por el proyectista; ERAS-2023 no fija a
+  qué altura sobre el piso está el punto de conexión de cada artefacto.
+  Valores: inodoroValvula 1,00 · bañera 0,70 · receptaculoDucha 2,00 ·
+  bidet 0,40 · lavatorio 0,90 · inodoroDeposito 0,40 · piletaDeCocina
+  0,90 · maquinaLavavajillas 0,60 · piletaDeLavar 1,10 · maquinaLavarropas
+  0,60 · valvulaMingitorio 1,00 · piletaDeCocinaIndustrial 0,90 ·
+  lavavajillasIndustrial 0,60 · lavarropasIndustrial 0,60 · lavachatas
+  1,10 · canillaDeServicio 0,60.
+- **Cambio de tipo de artefacto (regla aprobada del slice, §7)**: **limpia
+  el override de altura hidráulica** y adopta el default IUAS del tipo
+  nuevo -- una ducha personalizada a 2,20 m no debe volverse un bidet de
+  2,20 m por accidente. Helper `conTipoDeArtefactoCambiado` (usado por los
+  dos flujos de cambio de tipo de M1); limpia también `conectividadElegida`
+  como ya hacía CAT-CONN-01.
+- **Duplicar UF (§8)**: conserva el diseño explícito -- override de cota
+  del Local y override de altura de artefacto se duplican; los valores
+  heredados siguen heredados; los defaults no se materializan.
+- **UI M1 (§11)**: el campo de cota de la UF se rotula "Cota de piso de
+  la unidad funcional [m]"; cada Local tiene un editor compacto de "Cota
+  de piso" ("hereda UF: +X,XX m" / [Personalizar] / "personalizada" +
+  [Restablecer]); cada fila de artefacto muestra "Altura sobre piso:
+  X,XX m · sugerida IUAS" con [Personalizar]/[Restablecer] y la "Cota
+  hidráulica efectiva" derivada. Personalizar el Local re-deriva todas
+  las cotas efectivas hijas sin editarlas.
+
+### Impacto hidráulico -- rebaseline SÓLO de presión, justificado uno a uno
+
+Al desaparecer la hipótesis uniforme de 1,00 m, cambia el Δz de los
+terminales. **M1 (Qc), M3 (medidores) y M4 (reserva) no cambian.**
+
+- **Proyecto canónico D-δ.70** (`auditoriaTransversalM1M4.baseline.test.ts`
+  / `resolverResumenDeProyecto.test.ts`): el terminal crítico es el
+  **receptáculo de ducha del baño**. ANTES cota efectiva 1,00 m (UF
+  uniforme); DESPUÉS `0 (piso PB) + 2,00 (IUAS ducha) = 2,00 m`. Δz +1,00 m
+  ⇒ 1,00 m menos de presión residual ⇒ margen del crítico
+  **−16,664 → −17,664 m.c.a.** (sigue **NO CUMPLE**; ya lo era por
+  CRIT-A39). El bidet, en cambio, baja de 1,00 a 0,40 m (gana margen);
+  no es el crítico. La `cotaHidraulicaReferencia_m` del proyecto de
+  ejemplo pasó de `1` a `0`.
+- **Aceptación D-δ.48** (`verificacionTerminalCriticoPorUF.aceptacion.test.ts`):
+  cargas geométricas de los 4 pisos (raíz a 16 m): PB `16 − 1,00 = 15,00`
+  (inodoroValvula IUAS 1,00 = la vieja uniforme, sin cambio) · P1
+  `16 − 3,90 = 12,10` · P2 `16 − 6,90 = 9,10` · P3 `16 − 9,60 = 6,40`
+  (antes 15 / 12 / 9 / 6). Ningún terminal cambia de CUMPLE/NO CUMPLE por
+  esto; el contraejemplo de PB (menor margen por Pmin normativa alta) se
+  sostiene idéntico.
+- Fixtures de motor (`resolverPresionResidualDeCamino` /
+  `resolverEstadoModulo2` / `resolverTerminalMasDesfavorable` /
+  `modulo4/integracionOrigenM2`): se les añadió `cotaHidraulicaReferencia_m`
+  (o un override de altura del artefacto) para que la cota efectiva
+  DERIVADA reproduzca la `Nodo.cota_m` clásica -- balance byte-idéntico
+  donde el test aísla otro efecto; donde el test compara márgenes entre
+  sí (auto-referencial) no hubo rebaseline.
+
+### C -- Reiniciar cálculo (§13-§17)
+
+Acción global "Reiniciar cálculo" en el encabezado (secundaria/neutra),
+con confirmación previa sobre un `<dialog>` nativo accesible por teclado.
+Al confirmar: `crearProyectoVacio()` reemplaza el Proyecto por uno
+**vacío real** -- 0 UF/Locales/Artefactos, sin `redHidraulica`, sin
+`configuracionMedidores`, sin `configuracionAbastecimiento` (M2/M3/M4
+'noIniciado'). **NO vuelve al demo** (decisión explícita del usuario,
+§14): `proyectoDeEjemplo` es sólo el proyecto de bienvenida.
+`crearProyectoVacio` es una factory (sin referencias mutables
+compartidas) que conserva únicamente lo del PRODUCTO: `schemaVersion` +
+`configuracionHidraulica` de arranque (Rápido). Los estados transitorios
+de UI (UF colapsadas, drafts, selectores pendientes, filas expandidas,
+`<details>`, estado local de los paneles) se limpian **remontando** el
+subárbol índice+contenido vía una `key` que se incrementa -- no hace
+falta enumerarlos. Se vuelve al inicio (scrollTo 0) con el foco en el
+disparador. **PERSIST-01 sigue fuera de alcance**: es una acción React de
+sesión, no toca almacenamiento (F5 sigue restaurando el demo, §16).
+E2E: `tests/e2e/reiniciar-calculo.spec.ts` (demo → M1/M3/M4 tocados →
+reiniciar → vacío sano en Demanda; y Reiniciar → Cancelar conserva todo).
+
+### D -- Layout del detalle de M2 Profesional (§18-§21)
+
+El cuerpo del detalle expandible de la tabla de dimensionamiento de M2
+vivía dentro de la primera celda (columna angosta del Tramo/Local), así
+que el árbol de ramales de Profesional quedaba comprimido contra la
+izquierda con media tabla vacía a la derecha. Ahora el resumen sigue en
+un `<details><summary>` nativo (accesible por teclado, lo sigue
+encontrando el harness de fuzz por `.tabla-tecnica details > summary`) y
+el cuerpo se pinta en una **fila propia a ancho completo**
+(`<tr class="m2-fila-detalle"><td colSpan>`); el estado de apertura se
+sincroniza desde el evento `toggle` del `<details>` hacia React. El cuerpo
+se mantiene siempre en el DOM (`hidden` al colapsar). `.m2-ramales-grid`
+usa `repeat(2, minmax(0, 1fr))` (evita overflow por contenido
+intrínseco); `@media print` deja fluir el scroll local y conserva las 2
+columnas de ramales. FIX-RESP-01 / FIX-RESP-02 siguen verdes.
+
+### Verificación
+
+- **Vitest 1438 / 1438.** Nuevos: `alturasHidraulicasIuas.test.ts`
+  (completitud 16/16), `resolverCotaHidraulicaDeArtefacto.test.ts`
+  (herencia / overrides / cota efectiva / §23), `conTipoDeArtefactoCambiado.test.ts`
+  (§7), `crearProyectoVacio.test.ts`; casos añadidos a
+  `duplicarUnidadFuncional.test.ts` (§8) y a `ResultadoHidraulicoDeTramo.test.ts`
+  (fila de detalle a ancho completo). Rebaseline documentado arriba en
+  `auditoriaTransversalM1M4.baseline` / `resolverResumenDeProyecto` /
+  `verificacionTerminalCriticoPorUF.aceptacion` y ajuste de fixtures en
+  los tests de motor de presión.
+- **E2E** (contra serve estático del build fijo): `smoke` · `catalogo`
+  (23/23) · `crash-observado` · `responsive` (FIX-RESP-01/02) ·
+  `hallazgos` (FIX-LEAK-01) · `reiniciar-calculo` (nuevo, 2/2) ·
+  `cotas-heredadas` (nuevo, 1/1) -- todos verdes.
+- **Fuzz local**: `seed 424242` RUNS=3 STEPS=25 → 3/3, 25/25 pasos, sin
+  hallazgos nuevos (GEOM-UX-01 no introduce ningún leak). `HALLAZGOS_CONOCIDOS`
+  sigue **vacío**.
+
+### Hallazgo nuevo (fuera del alcance de GEOM-UX-01)
+
+**FIX-LEAK-02 -- M4 muestra el código interno de validación de
+`configuracionAbastecimiento.periodoConsumoMaximo_h`.** Descubierto por
+fuzz con una seed exploratoria (`20250909:0`, step 6,
+`editarPeriodoConsumoMaximo=6` fuera del rango [1, 4]). `humanizarModulo4.ts`
+(`describirProblemaDeErrorModulo4`) devuelve `codigosValidacion[codigo].descripcion`
+**crudo** en vez de rutear por `describirProblemaDeValidacion`
+(`mensajesDeValidacion.ts`), que ya tiene la copy humana. Es el
+**equivalente en M4 de FIX-LEAK-01** (que era M3), y es **pre-existente**:
+`git diff d926281..HEAD` no toca `humanizarModulo4.ts` /
+`PanelDeModulo4.tsx` / la validación de abastecimiento. No bloquea el
+cierre de GEOM-UX-01 (la seed mandada `424242` está verde y toda la E2E
+mandada pasa); por §29 no se corrige otro dominio en este slice. Evidencia
+preservada en `qa-results/seed-20250909_0/`. Candidato a un slice propio
+de humanización (misma solución de una línea que FIX-LEAK-01).
+
+### Estado
+
+**D-δ.86 -- CERRADA.** Ninguna fórmula hidráulica, criterio normativo ni
+regla de dominio modificados: sólo cambia el dato geométrico `z` de cada
+terminal (rebaseline de presión documentado), el proyecto que carga
+"Reiniciar", y el CSS del detalle de M2. Tags sin mover; snapshot
+`resguardo-documentacion/` intacto. **MODE-UX-01 / HYD-EST-01 / M2-TOPO-01
+/ VIS-TOPO-01 / PERSIST-01 / REPORT-01 / UX-TEST-01 -- NO iniciar.**
 
 ## Regla — `resguardo-documentacion/` es inmutable
 

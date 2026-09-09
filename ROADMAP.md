@@ -948,6 +948,49 @@ salvo bug inequívoco o decisión roja explícita.
     **vacío**: la invariante `sin-codigos-de-validacion-visibles` vuelve a
     ser estricta.
 
+- **D-δ.86 — GEOM-UX-01: cotas hidráulicas heredadas + Tabla IUAS v1 +
+  Reiniciar cálculo + layout M2 Profesional.** Incremento funcional/UX
+  transversal. NO toca fórmulas hidráulicas, CRIT-A29/A39, pérdidas, Pmin,
+  Qc, DN, medidores ni reserva; `v0.4.0-beta.5` sigue vigente. Ver
+  `PENDIENTES-DE-ARQUITECTURA.md` D-δ.86 para el detalle.
+  - **Cotas:** la cota hidráulica efectiva de cada terminal se DERIVA como
+    `cota de piso efectiva del Local + altura hidráulica efectiva del
+    artefacto`, en **ambas** granularidades — sustituye la hipótesis
+    geométrica uniforme de 1,00 m del modo Rápido (D-δ.46).
+    `UnidadFuncional.cotaHidraulicaReferencia_m` pasa a ser la **cota de
+    piso** de la UF (`calcularCotaHidraulicaDefaultDeNivel` = `3·nivel`);
+    nuevos overrides opcionales `Local.cotaPiso_m` (hereda la UF si está
+    ausente) y `Artefacto.alturaHidraulicaSobrePiso_m` (Tabla IUAS del
+    tipo si está ausente). **Tabla de referencias IUAS v1** (16/16 tipos,
+    test de completitud): **criterio IUAS, NO ERAS** — alturas iniciales
+    editables, la norma no fija la altura del punto de conexión. Cambiar
+    el tipo de artefacto limpia el override de altura (adopta el default
+    IUAS del tipo nuevo); duplicar UF conserva los overrides explícitos.
+  - **Rebaseline SÓLO de presión, justificado uno a uno:** el crítico del
+    canónico (ducha del baño) pasa su cota efectiva de 1,00 a 2,00 m →
+    margen **−16,664 → −17,664 m.c.a.** (seguía NO CUMPLE por CRIT-A39);
+    cargas geométricas de la aceptación D-δ.48 15 / 12,10 / 9,10 / 6,40.
+    M1 (Qc), M3 y M4 sin cambios.
+  - **Reiniciar cálculo:** acción global con confirmación; `crearProyectoVacio()`
+    deja un proyecto **vacío real** (0 UF/Locales/Artefactos, M2/M3/M4 sin
+    iniciar), **NO el demo** (decisión explícita del usuario). No hay
+    persistencia (PERSIST-01 sigue fuera de alcance): F5 restaura el demo.
+  - **Layout M2:** el detalle expandido de la tabla de dimensionamiento
+    pasa a una fila propia a ancho completo (`colSpan`) — el árbol de
+    ramales de Profesional deja de comprimirse contra la izquierda; 2
+    columnas en desktop, 1 en móvil, `@media print` mejorado. Sin
+    regresión FIX-RESP-01/02.
+  - **Verificación:** Vitest **1400 → 1438**; `tsc`/`e2e:typecheck`/`build`
+    verdes; ESLint 11 / 0 / 0. E2E `smoke`/`catalogo`/`crash`/`responsive`/
+    `hallazgos`/`reiniciar-calculo`/`cotas-heredadas` verdes; fuzz local
+    `seed 424242` 3×25 verde. `HALLAZGOS_CONOCIDOS` sigue vacío.
+  - **Hallazgo nuevo (otro dominio, no bloqueante):** **FIX-LEAK-02** — M4
+    muestra el código interno de validación de
+    `configuracionAbastecimiento.periodoConsumoMaximo_h` crudo
+    (`humanizarModulo4.ts` no rutea por `mensajesDeValidacion.ts`).
+    Equivalente en M4 de FIX-LEAK-01, **pre-existente**. Evidencia en
+    `qa-results/seed-20250909_0/`. No se corrige acá (§29).
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
