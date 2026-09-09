@@ -6,7 +6,7 @@
 // artefactos. Gate de validación antes de calcular, y visualización
 // completa del ResultadoDeCalculo. No recalcula: solo llama a
 // validarProyecto y calcularSimultaneidad y muestra lo que devuelven.
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Proyecto, UnidadFuncional, Local, TipoDeLocal, RegimenLocal, Artefacto } from '../../modelo/proyecto'
 import type { ConectividadFisica, RedDeTramo } from '../../modelo/redHidraulica'
 import type { ResultadoDeCalculo, Paso, ValorCalculado } from '../../modelo/resultado'
@@ -54,6 +54,8 @@ import { resumenDeUnidadFuncional } from './resumenDeUnidadFuncional'
 import { sugerirArtefactoParaLocal } from './sugerenciaDeArtefacto'
 import { SelectorDeModoDeTrabajo } from './SelectorDeModoDeTrabajo'
 import { proyectoInicial } from './proyectoDeEjemplo'
+import { crearProyectoVacio } from './crearProyectoVacio'
+import { DialogoDeConfirmacion } from './DialogoDeConfirmacion'
 
 const TIPOS_DE_LOCAL: readonly TipoDeLocal[] = [
   'bano',
@@ -1391,6 +1393,39 @@ export function MotorDemandaPantalla() {
   const [proyecto, setProyecto] = useState<Proyecto>(() =>
     backfillLongitudesDePredimensionamiento(proyectoInicial),
   )
+
+  // GEOM-UX-01 §13-§17 — "Reiniciar cálculo". `generacionDeProyecto` es la
+  // key del subárbol de trabajo (índice + contenido): al reiniciar se
+  // incrementa y React DESMONTA/REMONTA todo ese subárbol, descartando de
+  // un golpe cualquier estado transitorio de UI que vive dentro (UF
+  // colapsadas, draft de artefacto, selector de conectividad pendiente,
+  // filas de tabla expandidas, <details> abiertos, estado local de los
+  // paneles de M3/M4/M2-B...). No hace falta enumerarlos ni resetearlos a
+  // mano: el remonte los limpia todos. El <header> queda montado a
+  // propósito -- no tiene estado transitorio, sólo lee del Proyecto.
+  const [generacionDeProyecto, setGeneracionDeProyecto] = useState(0)
+  const [confirmandoReinicio, setConfirmandoReinicio] = useState(false)
+  const botonReiniciarRef = useRef<HTMLButtonElement>(null)
+
+  function cerrarConfirmacionDeReinicio() {
+    setConfirmandoReinicio(false)
+    // Devolver el foco al disparador tras cerrar el diálogo (§27).
+    botonReiniciarRef.current?.focus()
+  }
+
+  function reiniciarCalculo() {
+    // Proyecto VACÍO real, NO el de ejemplo (§14). PERSIST-01 sigue fuera
+    // de alcance: esto es una acción React de sesión, no toca almacenamiento.
+    setProyecto(crearProyectoVacio())
+    setGeneracionDeProyecto((generacion) => generacion + 1)
+    setConfirmandoReinicio(false)
+    // Volver al inicio de la primera etapa (Demanda) con un estado vacío
+    // sano -- el remonte ya dejó la navegación en su estado inicial.
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0 })
+    }
+    botonReiniciarRef.current?.focus()
+  }
   const validacion = validarProyecto(proyecto, catalogoArtefactos, coeficientesMayoracion, catalogoSistemasDeTuberia)
   // FIX P0 (UI-CRIT-10): la dependencia es M1 -> M4, nunca al revés. Sólo
   // un error de alcance 'demanda' impide calcular Qc; un Tc fuera de rango
@@ -1421,7 +1456,11 @@ export function MotorDemandaPantalla() {
       <header className="app-header">
         <div className="app-header__titulo">
           <h1>IUAS — Instalaciones internas</h1>
-          <p>Proyecto de ejemplo — vivienda unifamiliar · Todos los datos pueden modificarse.</p>
+          <p>
+            {proyecto.unidadesFuncionales.length === 0
+              ? 'Proyecto vacío · Empezá agregando una unidad funcional.'
+              : 'Proyecto de ejemplo — vivienda unifamiliar · Todos los datos pueden modificarse.'}
+          </p>
         </div>
         {/* UX-02 / UI-01E (brief §47-49): Modo de trabajo global, a la
             derecha del título en desktop, apilado debajo en móvil. */}
@@ -1433,9 +1472,26 @@ export function MotorDemandaPantalla() {
           Versión piloto · Los cambios se conservan sólo durante esta sesión. Recargar la página restablece el proyecto de
           ejemplo.
         </p>
+        {/* GEOM-UX-01 §13: acción global secundaria/neutra. No vuelve al
+            demo -- deja un proyecto vacío (§14). Confirmación previa (§13). */}
+        <div className="app-header__reiniciar">
+          <button type="button" ref={botonReiniciarRef} onClick={() => setConfirmandoReinicio(true)}>
+            Reiniciar cálculo
+          </button>
+        </div>
       </header>
 
-      <div className="app-layout">
+      {confirmandoReinicio ? (
+        <DialogoDeConfirmacion
+          titulo="¿Reiniciar el cálculo?"
+          descripcion="Se eliminarán los datos cargados durante esta sesión y se comenzará con un proyecto vacío."
+          etiquetaConfirmar="Reiniciar"
+          onConfirmar={reiniciarCalculo}
+          onCancelar={cerrarConfirmacionDeReinicio}
+        />
+      ) : null}
+
+      <div className="app-layout" key={generacionDeProyecto}>
         <NavegacionDeSecciones resumen={resumen} />
 
         <main className="app-contenido">

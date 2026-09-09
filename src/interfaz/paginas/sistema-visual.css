@@ -668,6 +668,46 @@ summary > h3 {
   color: var(--color-texto);
 }
 
+/* --- Diálogo de confirmación modal (GEOM-UX-01 §13). <dialog> nativo:
+   el backdrop y la trampa de foco los da el navegador. --- */
+.ui-dialogo {
+  max-width: min(28rem, calc(100vw - 2rem));
+  padding: var(--esp-lg);
+  border: 1px solid var(--color-borde-fuerte);
+  border-radius: var(--radio-panel, 0.5rem);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+}
+
+.ui-dialogo::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.ui-dialogo__titulo {
+  margin: 0 0 var(--esp-sm);
+  font-size: var(--fs-subtitulo, 1.05rem);
+}
+
+.ui-dialogo__descripcion {
+  margin: 0 0 var(--esp-lg);
+  color: var(--color-texto-2);
+}
+
+.ui-dialogo__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--esp-sm);
+}
+
+/* Disparador global "Reiniciar cálculo": acción secundaria/neutra en el
+   encabezado (§13). Fila propia bajo el título/modo, alineada a la
+   izquierda; sin color de alarma. */
+.app-header__reiniciar {
+  flex-basis: 100%;
+  display: flex;
+}
+
 /* --- Segmented control (Rápido / Profesional, sección 36) --- */
 .ui-segmented {
   display: inline-flex;
