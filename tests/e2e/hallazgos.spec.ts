@@ -19,6 +19,22 @@
 // la misma `describirProblemaDeValidacion` que M1/M3. Reproducido por el
 // fuzz: seed histórica `20250909:0` y seed cloud `34398035608-1:12` (step
 // 17 · `editarPeriodoConsumoMaximo=6 [M4]`).
+//
+// FIX-CRASH-01 — RESUELTO (D-δ.88). Con un Tramo cuya longitud se editó a
+// 0 (estado de edición legítimo) + esquema de abastecimiento "Tanque
+// elevado" en modo Rápido, al informar el desnivel de conexión la
+// verificación de presión dejaba de estar bloqueada por
+// `incompletoRapido`, alcanzaba `acumularPerdidaDistribuidaDeCamino` sobre
+// ese Tramo y `calcularPerdidaCargaHazenWilliams` (CRIT-A17, exige L > 0)
+// lanzaba. `PanelDePresionDeModulo2` llama `resolverPresionResidualDeCamino`
+// en el render sin la barrera estructural de `resolverEstadoModulo2`, así
+// que la excepción DESMONTABA la app (WHITE_SCREEN). Reproducido por el
+// fuzz: seed cloud `34411681277-1:0`, step 19 ·
+// `editarDesnivelConexion=-2 [M4]` — desktop y mobile. Fix:
+// `resolverPerdidaDistribuidaDeTramo` trata `longitud_m <= 0` igual que
+// `undefined` → `sinLongitud` → toda la cadena de presión degrada a
+// "incompleto". `desnivelConexion = -2` NO era el bug (CRIT-A37: es un
+// desnivel firmado válido) y se conserva sin clamp.
 import { test, expect } from './qa/fixtures'
 import { cargarAppLimpia, estabilizar } from './qa/estado'
 import { verificarInvariantes, primerFallo } from './qa/invariantes'
@@ -126,5 +142,57 @@ test.describe('QA-FUZZ-01 · regresiones de hallazgos', () => {
     // (incluida `sin-codigos-de-validacion-visibles`, estricta).
     const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
     expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+  })
+
+  test('FIX-CRASH-01 · longitud de tramo en 0 + tanque elevado + desnivel de conexión no desmonta la app', async ({
+    page,
+    errores,
+    baseURLEfectiva,
+  }) => {
+    await cargarAppLimpia(page, baseURLEfectiva)
+
+    // 1. Tuberías: poner en 0 la longitud de un tramo. Es un estado de
+    //    edición legítimo (resolverCambioDeLongitud acepta 0); la app debe
+    //    tolerarlo mostrando el error, nunca desmontándose.
+    await page.getByRole('link', { name: /Tuber[ií]as/ }).first().click()
+    await estabilizar(page)
+    const longitud = page.getByRole('spinbutton', { name: /^Longitud \[m\] de / }).first()
+    await longitud.fill('0')
+    await longitud.blur()
+    await estabilizar(page)
+    let violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+
+    // 2. Abastecimiento: esquema "Tanque elevado".
+    await page.getByRole('link', { name: /Abastecimiento/ }).first().click()
+    await estabilizar(page)
+    const tanque = page.getByRole('button', { name: 'Tanque elevado', exact: true })
+    if (await tanque.isVisible().catch(() => false)) {
+      await tanque.click()
+      await estabilizar(page)
+    }
+
+    // 3. Informar el desnivel de conexión = -2. Antes de este dato el modo
+    //    Rápido dejaba la verificación de presión en `incompletoRapido`;
+    //    con el desnivel presente la cadena de presión avanza hasta el
+    //    tramo de longitud 0. `-2` es un desnivel FIRMADO válido (CRIT-A37,
+    //    Pcalc = Pacera − desnivel): no se rechaza ni se clampa.
+    const desnivel = page.getByLabel(/^Desnivel .* \[m\]:/).first()
+    await desnivel.fill('-2')
+    await desnivel.blur().catch(() => {})
+    await estabilizar(page)
+
+    // 4. La app sigue montada: sin WHITE_SCREEN, sin el pageerror de
+    //    `calcularPerdidaCargaHazenWilliams`, sin console.error.
+    violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+
+    const texto = await page.locator('#root').innerText()
+    expect(texto.length).toBeGreaterThan(40)
+    expect(texto).not.toContain('calcularPerdidaCargaHazenWilliams')
+
+    // 5. CRIT-A37: el valor firmado se conserva tal cual, sin clamp a 0 ni
+    //    Math.abs.
+    await expect(desnivel).toHaveValue('-2')
   })
 })

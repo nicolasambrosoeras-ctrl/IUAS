@@ -123,7 +123,19 @@ export function resolverPerdidaDistribuidaDeTramo(
     throw new Error(`resolverPerdidaDistribuidaDeTramo: no existe ningún tramo con id "${tramoId}"`)
   }
 
-  if (tramo.longitud_m === undefined) {
+  // 'sinLongitud' cubre tanto la longitud NO relevada (undefined) como la
+  // longitud informada pero NO utilizable (<= 0). Un Tramo cuya longitud
+  // se está editando y pasa transitoriamente por 0 es un estado de dominio
+  // legítimo (resolverCambioDeLongitud acepta 0; validarRedHidraulica lo
+  // marca como error con el MISMO predicado `!== undefined && <= 0`): la
+  // pérdida distribuida de ese Tramo no es 0 ni calculable, es un término
+  // obligatorio ausente. Sin este guard, `calcularPerdidaCargaHazenWilliams`
+  // (CRIT-A17, exige L > 0) lanza y, en el camino de render de
+  // `PanelDePresionDeModulo2` (que llama `resolverPresionResidualDeCamino`
+  // sin la barrera estructural de `resolverEstadoModulo2`), la excepción
+  // desmonta la app (FIX-CRASH-01). Devolver 'sinLongitud' hace que toda la
+  // cadena de presión degrade a 'incompleto', como ya hace para `undefined`.
+  if (tramo.longitud_m === undefined || tramo.longitud_m <= 0) {
     return {
       tipo: 'sinLongitud',
       qc_lps,

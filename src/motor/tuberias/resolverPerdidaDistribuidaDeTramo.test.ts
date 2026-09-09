@@ -217,6 +217,42 @@ describe('resolverPerdidaDistribuidaDeTramo — casos de dominio', () => {
     expect(resultado.velocidadPorDebajoDelMinimo).toBe(false)
   })
 
+  it('sinLongitud: longitud_m informada pero NO utilizable (0 o negativa) -> sinLongitud, nunca lanza (FIX-CRASH-01)', () => {
+    // Un Tramo cuya longitud se edita y pasa transitoriamente por 0 es un
+    // estado de dominio legítimo (resolverCambioDeLongitud acepta 0). El
+    // resolver debe devolver 'sinLongitud' -- igual que para undefined --
+    // y NUNCA propagar el throw de calcularPerdidaCargaHazenWilliams
+    // (CRIT-A17, exige L > 0), que en el camino de render de
+    // PanelDePresionDeModulo2 desmontaba la app.
+    const lavatorio = artefacto('inst-lavatorio', 'lavatorio')
+    const uf = unidadFuncionalCon('uf-1', 'local-1', [lavatorio])
+    const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n1', referencia: referenciaDe('uf-1', 'local-1', 'inst-lavatorio') }]
+
+    for (const longitudNoUtilizable of [0, -2]) {
+      const tramos: Tramo[] = [
+        { id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: longitudNoUtilizable },
+      ]
+      const proyecto = proyectoCon([uf], { nodos, tramos }, 'hazenWilliams')
+
+      const resultado = resolverPerdidaDistribuidaDeTramo(
+        proyecto,
+        't0',
+        catalogoArtefactos,
+        catalogoSistemasDeTuberia,
+        catalogoMaterialesTuberia,
+      )
+
+      if (resultado.tipo !== 'sinLongitud') {
+        throw new Error(`longitud_m=${longitudNoUtilizable}: se esperaba sinLongitud, se obtuvo "${resultado.tipo}"`)
+      }
+      // El candidato comercial ya resuelto se preserva igual que en el
+      // caso undefined: la longitud es el único término ausente.
+      expect(resultado.qc_lps).toBe(0.2)
+      expect(resultado.n).toBe(1)
+      expect(resultado.candidato).toEqual({ denominacionComercial: '20 mm', diametroInteriorEfectivo_mm: 14.4 })
+    }
+  })
+
   it('D-delta.27: Qc=0.08 l/s (lavatorio, condición aguaFria, el mínimo real del catálogo) -- fallback de Vmin propagado, Darcy completa sin alcanzar el guard de Reynolds', () => {
     // Artefacto mixto (D-delta.3): mismo lavatorio referenciado por un nodo
     // terminal AF y uno AC -- t0 (AF) evaluado en aislamiento resuelve
