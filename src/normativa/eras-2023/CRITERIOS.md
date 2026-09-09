@@ -2603,3 +2603,69 @@ M3 / M4 / Tabla N°1 intactos. Ver `BASELINE-FUNCIONAL-M1-M4.md`.
 `motor/modulo4/resolverPeloDeAguaMinimoDeTanque.ts`, compuesto en
 `interfaz/paginas/resolverEntradasDeVerificacion.ts`, consumido por
 `PanelDePresionDeModulo2.tsx` y `resolverResumenDeProyecto.ts`. Ver D-δ.79.
+
+## CAT-CONN-01 — Conectividad física inicial por política de catálogo (no por precedentes ni por `qu`)
+
+**Artículo:** ninguno. Es un **criterio de producto IUAS**, no una
+prescripción de ERAS-2023. La Guía publica `qu Total`, `qu (A. Fría)` y
+`qu (A. Cal.)` como datos hidráulicos de demanda (§2.9.1.2/§2.9.1.3); no
+establece cuántas alimentaciones físicas (AF / AC) tiene cada artefacto
+ni obliga a conectarlo a ambas.
+
+**Criterio adoptado:** la conectividad física con la que un artefacto
+queda conectado al incorporarse a un Proyecto se determina por una
+**política explícita por tipo de catálogo**, y nunca por:
+
+- `quFria > 0`, `quCaliente > 0`, `quCaliente == 0` ni ninguna combinación
+  de `qu`;
+- el label visible, el nombre/string del artefacto, `includes()` o un
+  switch de UI por texto;
+- la existencia de otra instancia parecida en otra UF/Local del mismo
+  Proyecto (**precedente** — mecanismo retirado, ver D-δ.84).
+
+La política vive en
+`normativa/eras-2023/catalogo-artefactos/politicaConectividad.ts` (archivo
+separado de `index.ts`, que es transcripción normativa pura) y clasifica
+cada tipo en:
+
+- **`automatica`** — conectividad de referencia fija; se resuelve de
+  inmediato, sin preguntar. Inodoro con válvula → AF; bañera / receptáculo
+  de ducha / bidet / lavatorio / pileta de cocina / pileta de lavar →
+  AF+AC; inodoro a depósito → AF; válvula de mingitorio → AF; pileta de
+  cocina industrial → AF+AC; lavachatas → AF; canilla de servicio → AF.
+- **`defaultConfigurable`** — referencia inicial + opciones editables por
+  instancia. Máquina lavavajillas y máquina lavarropas domésticas → AF por
+  defecto, editable a AF+AC (nunca AC sola).
+- **`requiereSeleccion`** — sin default; al incorporarlo se exige declarar
+  la alimentación. Lavavajillas industrial y lavarropas industrial →
+  AF / AC / AF+AC.
+
+`lavachatas` es el artefacto sanitario ERAS (depósito automático / válvula
+de limpieza), AF. Una máquina lavachatas / washer-disinfector moderna
+sería un tipo de catálogo futuro distinto y no debe reutilizar esta
+entrada.
+
+**Override explícito por instancia:** `Artefacto.conectividadElegida`
+(opcional, sin migración de schema) registra una decisión de instalación
+real de una instancia concreta — la respuesta a `requiereSeleccion`, o la
+personalización de un `defaultConfigurable`. Ausente = usar la política.
+
+**Relación con CRIT-A15:** este criterio decide **qué terminales físicos
+se crean**; CRIT-A15 decide **qué `qu` transporta cada rama** una vez que
+los terminales existen. `Proyecto.redHidraulica` sigue siendo la
+representación física autoritativa que consume Módulo 2. CAT-CONN-01 no
+modifica ninguna fórmula, ni la simultaneidad, ni el catálogo. La pileta
+de cocina industrial pasa a AF+AC automática y respeta exactamente el
+comportamiento conservador de CRIT-A15 (cada rama transporta `quTotal`, el
+tramo común aguas arriba lo cuenta una sola vez).
+
+**Naturaleza:** decisión de producto IUAS (investigación normativa /
+fabricantes realizada fuera del repo). Mismo estatus epistémico que la
+ampliación de CRIT-A15 de D-δ.79, no una disposición textual de ERAS.
+
+**Estado:** Firme e implementado (D-δ.84). Política en
+`politicaConectividad.ts`; resolver puro en
+`motor/tuberias/topologia/resolverConectividadInicialDeArtefacto.ts`;
+consumido por el flujo de M1 (`MotorDemandaPantalla.tsx`),
+`reconciliarConectividadFisicaPorCambioDeArtefacto` y
+`duplicarUnidadFuncional`. `determinarRedesFisicasPorPrecedente` eliminado.

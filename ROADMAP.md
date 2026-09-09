@@ -217,24 +217,33 @@ resuelta (CRIT-A29).
 
 **Ya implementado** (D-δ.39): alta y baja de un Artefacto en un Local ya
 físicamente conectado sincronizan `redHidraulica` automáticamente —
-`sincronizarConectividadFisicaDeArtefacto`/`quitarConectividadFisicaDeArtefacto`
-(`interfaz/paginas/`), apoyados en `hallarNodoDeInsercionDeLocal` y
-`determinarRedesFisicasPorPrecedente` (`motor/tuberias/topologia/`). Sin
+`sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas`/`quitarConectividadFisicaDeArtefacto`
+(`interfaz/paginas/`), apoyados en `hallarNodoDeInsercionDeLocal`. Sin
 ningún concepto nuevo de "cabecera" persistida — el punto de inserción se
 deriva de la topología existente en cada llamada. Aditivo/no destructivo:
 nunca modifica `longitud_m`/`cota_m`/`accesorios` ya cargados, nunca
 elimina infraestructura compartida del Local.
 
+**Qué Redes conectar (D-δ.84, CAT-CONN-01):** ya no se deduce de un
+precedente del proyecto (`determinarRedesFisicasPorPrecedente` — eliminado)
+sino de la **política de conectividad del catálogo** + el override de
+instancia `Artefacto.conectividadElegida`, vía
+`resolverConectividadInicialDeArtefacto` (`motor/tuberias/topologia/`).
+`automatica` / `defaultConfigurable` conectan sin preguntar;
+`requiereSeleccion` (lavavajillas / lavarropas industrial) pide declarar
+la alimentación. Ver `CRITERIOS.md` → CAT-CONN-01.
+
 **Pendiente:**
 
-- primera instancia de un `artefactoId` de catálogo sin ningún precedente
-  en el proyecto (conectividad física no determinable sin inferir desde
-  catálogo, lo que violaría CRIT-A15) — queda funcionalmente creada pero
-  sin conexión física, señalada por S1/S2 como hoy;
+- ~~primera instancia de un `artefactoId` sin precedente~~ — RESUELTO en
+  D-δ.84 (CAT-CONN-01): la conectividad sale de la política del catálogo,
+  no de un precedente; `requiereSeleccion` es el único caso que sigue
+  pidiendo declaración explícita;
 - ~~sincronización al **cambiar el tipo** de un artefacto ya creado~~ —
   RESUELTO en D-δ.52 (`reconciliarConectividadFisicaPorCambioDeArtefacto`:
   reconciliación AF/AC por conjuntos de Redes, reutilizando bootstrap/
-  retrofit/hermano de D-δ.49);
+  retrofit/hermano de D-δ.49); D-δ.84 lo reorientó a la política del tipo
+  nuevo (sin herencia stale del tipo anterior);
 - reconciliación general Proyecto ↔ `redHidraulica` para el resto de
   mutaciones (más allá de alta/baja/cambio-de-tipo de Artefacto individual).
 

@@ -9115,6 +9115,182 @@ intacto; `FIX-LEAK-01` sin tocar. Tags sin mover; snapshot
 CAT-CONN-01 / DEFENSE-01 / GEOM-UX-01 / MODE-UX-01 -- NO iniciar.
 UX-TEST-01 / REPORT-01 -- NO iniciar.**
 
+## D-δ.84 -- CAT-CONN-01: conectividad física por política de catálogo, sin precedentes -- CERRADA
+
+Incremento funcional de alcance medio. Cambia CÓMO se decide la
+conectividad física inicial (AF / AC / AF+AC) de un artefacto. NO toca
+ninguna fórmula hidráulica, ni la simultaneidad, ni CRIT-A15, ni el
+schema de `Proyecto` (`SCHEMA_VERSION_ACTUAL` intacto, `migraciones`
+sigue `[]`). Versión pública funcional sigue **`v0.4.0-beta.5`** (tags
+sin mover).
+
+### Problema
+
+`determinarRedesFisicasPorPrecedente` decidía la conectividad de un
+artefacto nuevo copiándola de otra instancia del mismo `artefactoId` de
+catálogo ya conectada **en cualquier UF/Local del proyecto**; si no había
+ninguna, o había patrones contradictorios, mostraba el banner AF/AC/AF+AC.
+El proyecto de ejemplo tiene 9 tipos conectados (lavatorio, ducha, bidet,
+inodoro a depósito, pileta de cocina, lavavajillas doméstico, pileta de
+lavar, lavarropas doméstico, canilla de servicio), así que esos 9 nunca
+preguntaban y los otros 7 (inodoro con válvula, bañera, válvula de
+mingitorio, pileta de cocina industrial, lavavajillas industrial,
+lavarropas industrial, lavachatas) siempre preguntaban. Comportamiento
+dependiente del contenido accidental del demo, no del artefacto.
+
+### Principio de dominio (cerrado, criterio IUAS -- no ERAS)
+
+`quTotal` / `quFria` / `quCaliente` son datos HIDRÁULICOS de demanda; no
+son la fuente de verdad de la cantidad/tipo de alimentaciones físicas.
+Prohibido inferir la conectividad de `qu`, del label, del nombre, de
+`includes()`, de un switch de UI por texto, o de un precedente del
+proyecto. La conectividad inicial sale de una política explícita por tipo;
+la conectividad no estándar de una instancia sale de un override
+explícito de esa instancia. `redHidraulica` sigue siendo la fuente
+EFECTIVA que consume Módulo 2 (CRIT-A15): la política sólo fija qué
+terminales se crean/reconcilian.
+
+### Política de catálogo
+
+`src/normativa/eras-2023/catalogo-artefactos/politicaConectividad.ts`
+(archivo separado de `index.ts`, que es transcripción normativa pura):
+
+| política | tipos | comportamiento |
+| --- | --- | --- |
+| `automatica` (referencia) | inodoroValvula→AF, banera→AF+AC, receptaculoDucha→AF+AC, bidet→AF+AC, lavatorio→AF+AC, inodoroDeposito→AF, piletaDeCocina→AF+AC, piletaDeLavar→AF+AC, valvulaMingitorio→AF, piletaDeCocinaIndustrial→AF+AC, lavachatas→AF, canillaDeServicio→AF | conecta de inmediato, sin preguntar, sin editor |
+| `defaultConfigurable` (referencia + opciones) | maquinaLavavajillas→AF default, maquinaLavarropas→AF default; opciones `[soloAF, ambas]` (nunca AC sola) | conecta AF de inmediato; editor discreto `Alimentación [AF] [AF+AC]` en la fila de M1 |
+| `requiereSeleccion` (opciones) | lavavajillasIndustrial, lavarropasIndustrial; opciones `[soloAF, soloAC, ambas]` | sin default: al incorporarlo se pide declarar la alimentación |
+
+`lavachatas` de esta tabla es el artefacto sanitario ERAS (depósito
+automático / válvula de limpieza), AF. Una máquina lavachatas /
+washer-disinfector moderna sería un tipo de catálogo futuro distinto.
+
+Test de completitud: todo artefacto del catálogo tiene exactamente una
+política; un `artefactoId` sin política resuelve `tipoDesconocido` (falla
+visible/testeable, nunca un default silencioso).
+
+### Modelo
+
+`Artefacto.conectividadElegida?: ConectividadFisica` -- opcional,
+backward-compatible, **sin migración** (`SCHEMA_VERSION_ACTUAL` no cambia;
+un Proyecto guardado antes resuelve por política de catálogo). Ausente =
+usar la política. Presente = decisión de instalación real de esa
+instancia, tomada por el usuario:
+- `requiereSeleccion`: se guarda al declarar la alimentación (ausencia =
+  todavía sin declarar);
+- `defaultConfigurable`: se guarda al personalizar; volver exactamente al
+  default AF **normaliza** el campo a ausente (sólo marca elecciones NO
+  estándar).
+
+`ConectividadFisica` (`'soloAF' | 'soloAC' | 'ambas'`) se movió a
+`modelo/redHidraulica` como vocabulario de dominio compartido;
+`determinarConectividadFisica` la re-exporta para los consumidores
+históricos.
+
+### Resolver puro
+
+`src/motor/tuberias/topologia/resolverConectividadInicialDeArtefacto.ts`:
+`(artefactoIdCatalogo, conectividadElegida?)` →
+`{ tipo:'resuelta', conectividad, redes }` | `{ tipo:'requiereSeleccion',
+opcionesPermitidas }` | `{ tipo:'tipoDesconocido' }`. Precedencia:
+override de instancia (si la política lo admite) → política de catálogo →
+nada. `automatica` NUNCA honra un override (no hay UI para setearlo; suele
+ser stale de un tipo anterior). Incluye la única conversión
+`ConectividadFisica ↔ RedDeTramo[]` del repo (`redesDeConectividadFisica`
+/ `conectividadFisicaDeRedes`).
+
+### Flujo de M1
+
+- **ALTA** (`altaDeArtefacto`): resuelve política. `resuelta` →
+  `sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas` con esas
+  Redes, sin banner. `requiereSeleccion` → fila creada sin terminales +
+  selector de alimentación para esa fila (copy: "… requiere que declares
+  su alimentación"). Cancelar en ALTA sigue eliminando la fila (brief
+  §17), nunca inventa conectividad.
+- **Editor `defaultConfigurable`**: `EditorDeConectividad` en la fila,
+  opciones de la política (sin `if` por artefactoId), reusa `.ui-segmented`.
+  Cambiar → fija `conectividadElegida` (con normalización) y
+  `reconciliarConectividadFisicaPorCambioDeArtefacto` agrega/quita SÓLO la
+  Red que cambia, preservando la otra rama (longitud/accesorios/DN).
+- **Cambio de tipo**: reconcilia contra la política del tipo NUEVO. Se
+  limpia siempre `conectividadElegida` del tipo anterior. Hacia
+  `requiereSeleccion` sobre un artefacto **ya conectado**: transacción
+  pendiente -- el `<select>` muestra el tipo nuevo pero Proyecto conserva
+  tipo y topología anteriores hasta confirmar la alimentación en el
+  selector; Cancelar restaura. Hacia el resto: se aplica de inmediato.
+
+### Precedente retirado
+
+`determinarRedesFisicasPorPrecedente` (+ test) eliminado. Ya no participa
+de alta / cambio de tipo / duplicación / apertura del banner. La variante
+`sincronizarConectividadFisicaDeArtefacto` (por precedente) y su resultado
+`redesNoDeterminables` se retiraron; queda sólo `...ConRedesDeclaradas`.
+No hay fallback oculto "si no hay política → precedente".
+
+### Duplicar UF
+
+`duplicarUnidadFuncionalEnProyecto` conserva la conectividad DISEÑADA del
+original: `conectividadElegida` si existe, si no la conectividad real
+derivada de la topología del original (que sigue conectado). Un
+`lavavajillasIndustrial` seleccionado AF+AC se clona AF+AC sin volver a
+preguntar. Ya no depende de que el original sirva como "precedente".
+
+### CRIT-A15 -- sin regresión
+
+`determinarConectividadFisica` y `resolverQuEfectivoParaTramo` leen la
+topología resultante; no les importa cómo se decidieron los terminales.
+`piletaDeCocinaIndustrial` pasa a AF+AC automática: rama AF = `quTotal`,
+rama AC = `quTotal`, tramo común aguas arriba = `quTotal` una sola vez
+(nunca `2×quTotal`) -- comportamiento conservador de la ampliación de
+CRIT-A15 (D-δ.79), verificado en `catConn01.integracion.test.ts`.
+
+### Matriz QA (objetivo alcanzado)
+
+`tests/e2e/catalogo-conectividad.spec.ts` asevera: exactamente **2** tipos
+piden selección (`lavavajillasIndustrial`, `lavarropasIndustrial`), **14**
+no; independiente del contenido del proyecto. AF/AC/AF+AC de los dos
+industriales sin crash.
+
+### GAP conocido -- edición posterior de `defaultConfigurable`
+
+Antes de CAT-CONN-01 no existía NINGUNA forma de editar la conectividad de
+un artefacto ya conectado (sólo cambiar tipo y volver, o eliminar y
+recrear). Este incremento **cierra** ese hueco para
+`maquinaLavavajillas` / `maquinaLavarropas` con el editor discreto de la
+fila. Para los tipos `automatica` sigue sin haber (ni hace falta: su
+conectividad es fija por diseño). Para `requiereSeleccion` la única
+edición posterior es cambiar el tipo (que reabre la selección).
+
+### Estado
+
+**D-δ.84 -- CERRADA.** Baseline: Vitest **1394 / 1394** (1363 → 1394,
++31 neto: nuevos tests de `politicaConectividad`,
+`resolverConectividadInicialDeArtefacto` y la integración CAT-CONN, menos
+los de `determinarRedesFisicasPorPrecedente` retirados y la fusión de la
+suite de `sincronizarConectividadFisicaDeArtefacto`); `tsc -b` /
+`npm run e2e:typecheck` /
+`npm run build` verdes; ESLint 11 / 0 / 0 (sin regresión -- los 11
+preexistentes intactos). Playwright contra build/dev local:
+`catalogo-conectividad.spec.ts` **23/23**, `smoke` / `crash-observado`
+(3 escenarios) / `responsive.spec.ts` **6/6** (FIX-RESP-01 + FIX-RESP-02)
+verdes; fuzz corto `seed 424242 · 15 pasos` verde. Baseline funcional
+M1-M4 del demo intacta (los `maquinaLavavajillas` / `maquinaLavarropas`
+del proyecto de ejemplo ya eran AF-only en su topología, coherente con la
+política -- Qc y goldens sin cambio). `HALLAZGOS_CONOCIDOS` intacto;
+`FIX-LEAK-01` sin tocar. Tags sin mover; snapshot
+`resguardo-documentacion/` intacto. **FIX-LEAK-01 / FIX-CRASH-01 /
+DEFENSE-01 / GEOM-UX-01 / MODE-UX-01 / UX-TEST-01 / REPORT-01 -- NO
+iniciar.**
+
+### Nota infra (no bloqueante, fuera de alcance)
+
+El flujo `IUAS_PREVIEW=1` de Playwright sirve el build con `base: '/'`
+(config: `command !== 'build'` en `vite.config.ts`), pero el `index.html`
+del build referencia `/IUAS/assets/...` → los assets dan 404 y `#root`
+queda vacío. La verificación E2E local de este incremento se hizo contra
+`vite` dev (`IUAS_BASE_URL=http://localhost:<port>/`), que sí funciona. El
+CI y el flujo por defecto apuntan a producción, no afectados.
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son

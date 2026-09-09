@@ -40,7 +40,7 @@ playwright.config.ts            baseURL, proyectos desktop/mobile, trace/screens
 tsconfig.e2e.json              type-check del harness (aparte de `tsc -b`)
 tests/e2e/
   smoke.spec.ts                camino feliz determinista por las 5 secciones
-  catalogo-conectividad.spec.ts recorre los 17 artefactos del catálogo (matriz)
+  catalogo-conectividad.spec.ts asevera la matriz CAT-CONN-01 de los 16 artefactos
   sequence-fuzz.spec.ts        fuzz reproducible por seed
   crash-observado.spec.ts      escenarios A/B/C construidos a mano (brief §26)
   hallazgos.spec.ts            bugs de app YA encontrados (test.fail, no se corrigen)
@@ -436,7 +436,7 @@ handoff de D-δ.80 (ROADMAP / PENDIENTES).
 | ~~`FIX-RESP-01`~~ | **RESUELTO en D-δ.82** — overflow horizontal de página en móvil con M2 Detalladas/Profesional (§12). |
 | ~~`FIX-RESP-02`~~ | **RESUELTO en D-δ.83** — overflow horizontal de página en M3 (excepción de ACS por UF) por `<select>` sin acotar (§12). |
 | `FIX-CRASH-01` | pantallas blancas dependientes de secuencia (si QA-FUZZ las reproduce). |
-| `CAT-CONN-01` | revisar qué artefactos *deberían* preguntar conectividad (Bañera, Válvula de mingitorio, Lavachatas…). El reporte de matriz es su evidencia. |
+| ~~`CAT-CONN-01`~~ | **RESUELTO en D-δ.84** — la conectividad física inicial pasó a resolverse por política de catálogo (`politicaConectividad.ts`), no por precedentes del proyecto. Matriz objetivo: sólo `lavavajillasIndustrial` y `lavarropasIndustrial` piden selección (14 no); `catalogo-conectividad.spec.ts` la asevera. |
 | `DEFENSE-01` | ErrorBoundary con estado Proyecto preservado. Después del fix raíz. |
 | `GEOM-UX-01` | herencia de cotas UF → Local → terminal. |
 | `MODE-UX-01` | preset Profesional (Hazen + Estimadas + Simplificada). |
