@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import type { CodigoValidacion } from '../../validacion/codigos'
+import type { DiagnosticoErrorModulo4 } from '../../motor/modulo4/resolverEstadoModulo4'
 import {
   ETIQUETA_ESQUEMA_ABASTECIMIENTO,
   ETIQUETA_ESTADO_MODULO_4,
@@ -100,18 +102,41 @@ describe('humanizarModulo4', () => {
     ).toBe('La presión de cálculo (2,00 m) queda fuera del rango de la Tabla N°1 (4–35 m). No se extrapola.')
   })
 
-  it('describirProblemaDeErrorModulo4 reutiliza la descripción central del código de validación', () => {
-    const texto = describirProblemaDeErrorModulo4({
+  // FIX-LEAK-02: los errores de validación de M4 se humanizan por la MISMA
+  // política compartida que M1/M3 (`describirProblemaDeValidacion`), no por
+  // la descripción técnica interna del catálogo de códigos.
+  describe('describirProblemaDeErrorModulo4 (FIX-LEAK-02)', () => {
+    const problemaDe = (codigo: CodigoValidacion, campo: string): DiagnosticoErrorModulo4 => ({
       tipo: 'problemaDeValidacion',
-      problema: {
-        codigo: 'parametrosDiametroNominalConexionNoAdmisible',
-        severidad: 'error',
-        alcance: 'abastecimiento',
-        campo: 'parametros.diametroNominalConexion_m',
-        valorRecibido: 0.013,
-      },
+      problema: { codigo, severidad: 'error', alcance: 'abastecimiento', campo, valorRecibido: undefined },
     })
-    expect(texto).toContain('Tabla N°1')
-    expect(texto).toContain('0,019 m')
+
+    it('el período de consumo máximo inválido da un mensaje humano, sin nombres de campo internos', () => {
+      const texto = describirProblemaDeErrorModulo4(
+        problemaDe(
+          'configuracionAbastecimientoPeriodoConsumoMaximoInvalido',
+          'configuracionAbastecimiento.periodoConsumoMaximo_h',
+        ),
+      )
+      expect(texto).toBe('El período de consumo máximo del abastecimiento debe estar entre 1 y 4 horas.')
+      expect(texto).not.toContain('configuracionAbastecimiento')
+      expect(texto).not.toContain('periodoConsumoMaximo_h')
+    })
+
+    it('otro código de la misma rama de M4 toma la misma ruta humana', () => {
+      const texto = describirProblemaDeErrorModulo4(
+        problemaDe('parametrosDiametroNominalConexionNoAdmisible', 'parametros.diametroNominalConexion_m'),
+      )
+      expect(texto).toContain('Tabla N°1')
+      expect(texto).not.toMatch(/parametros\./)
+    })
+
+    it('un código no reconocido cae en el mensaje genérico seguro, nunca en el identificador', () => {
+      const texto = describirProblemaDeErrorModulo4(
+        problemaDe('codigoInventadoQueNoExiste' as CodigoValidacion, 'x'),
+      )
+      expect(texto).toBe('Hay un dato de la instalación que debe corregirse antes de continuar.')
+      expect(texto).not.toContain('codigoInventado')
+    })
   })
 })

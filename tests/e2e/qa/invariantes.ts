@@ -66,10 +66,13 @@ export type OpcionesInvariantes = {
 // NUEVOS en vez de detenerse siempre en el mismo. Cada hallazgo nuevo (que
 // no matchee estos patrones) sigue rompiendo el run.
 //
-// Vacío: FIX-LEAK-01 (código interno de validación visible en M3) quedó
-// corregido en D-δ.85, así que la invariante `sin-codigos-de-validacion-visibles`
-// vuelve a ser estricta. La maquinaria (`esHallazgoConocido`,
-// `evaluarTokens`) se conserva para el próximo hallazgo abierto.
+// Vacío: FIX-LEAK-01 (código interno de validación visible en M3, D-δ.85) y
+// FIX-LEAK-02 (descripción técnica del catálogo visible en M4, D-δ.87)
+// quedaron corregidos ruteando ambos módulos por
+// `describirProblemaDeValidacion`, así que la invariante
+// `sin-codigos-de-validacion-visibles` sigue estricta. La maquinaria
+// (`esHallazgoConocido`, `evaluarTokens`) se conserva para el próximo
+// hallazgo abierto.
 export const HALLAZGOS_CONOCIDOS: readonly { patron: RegExp; deuda: string; nota: string }[] = []
 
 function esHallazgoConocido(texto: string): { deuda: string; nota: string } | null {

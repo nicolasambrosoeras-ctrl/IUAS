@@ -3,12 +3,12 @@
 // NO calcula nada ni reinterpreta ningún resultado del motor
 // (resolverEstadoModulo4 ya devuelve todo).
 import type { EsquemaDeAbastecimiento } from '../../modelo/proyecto'
-import { codigosValidacion, type CodigoValidacion } from '../../validacion/codigos'
 import type {
   DiagnosticoErrorModulo4,
   DiagnosticoIncompletitudModulo4,
   EstadoModulo4,
 } from '../../motor/modulo4/resolverEstadoModulo4'
+import { describirProblemaDeValidacion } from './mensajesDeValidacion'
 
 export const ETIQUETA_ESTADO_MODULO_4: Readonly<Record<EstadoModulo4['estado'], string>> = {
   noIniciado: 'No iniciado',
@@ -118,10 +118,14 @@ export function describirMotivoIncompletitudModulo4(motivo: DiagnosticoIncomplet
   }
 }
 
-// Los diagnósticos de error son problemas de validación estructural: se
-// reutiliza la descripción central del catálogo de códigos (ya en
-// castellano), sin reinterpretar.
+// Los diagnósticos de error de M4 son problemas de validación estructural
+// (`DiagnosticoErrorModulo4` sólo lleva un `CodigoValidacion`). Se humaniza
+// por la MISMA política de presentación compartida que M1 y M3
+// (`describirProblemaDeValidacion`, FIX-LEAK-01): código conocido → frase
+// humana; código inesperado → copy genérica. Antes se devolvía
+// `codigosValidacion[codigo].descripcion` —la descripción TÉCNICA interna
+// del catálogo, con nombres de campo (`configuracionAbastecimiento.
+// periodoConsumoMaximo_h`, etc.)— que se filtraba a la UI (FIX-LEAK-02).
 export function describirProblemaDeErrorModulo4(problema: DiagnosticoErrorModulo4): string {
-  const codigo: CodigoValidacion = problema.problema.codigo
-  return codigosValidacion[codigo].descripcion
+  return describirProblemaDeValidacion(problema.problema.codigo)
 }
