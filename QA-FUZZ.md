@@ -29,8 +29,8 @@ Qué hace:
 Qué **no** hace: no toca hidráulica, ni CRIT, ni la UX de negocio; no
 implementa ErrorBoundary (`DEFENSE-01`); no corrige *en la misma corrida*
 los bugs que encuentra — cada hallazgo se documenta y se cierra en su
-propio slice (`FIX-RESP-01/02`, `CAT-CONN-01`, `FIX-LEAK-01` — todos
-cerrados; queda `FIX-CRASH-01`).
+propio slice (`FIX-RESP-01/02`, `CAT-CONN-01`, `FIX-LEAK-01`, `FIX-LEAK-02`
+— todos cerrados; queda `FIX-CRASH-01`).
 
 ---
 
@@ -84,18 +84,22 @@ npm run e2e:crash               # escenarios observados
 npx playwright show-report      # abre el reporte HTML del último run
 ```
 
-### Local contra un build estático (subpath `/IUAS/`)
+### Local contra el dev server (recomendado para un fix sin deployar)
 
 ```bash
-npm run build
-npm run preview                 # sirve http://localhost:4173/IUAS/
-IUAS_BASE_URL=http://localhost:4173/IUAS/ npm run e2e
-# …o que Playwright levante el preview solo:
-IUAS_PREVIEW=1 npm run e2e
+npm run dev                     # vite dev, base '/', http://localhost:5173/
+IUAS_BASE_URL=http://localhost:5173/ npm run e2e
 ```
 
-> `vite preview` respeta `base: '/IUAS/'` del build (Vite dev NO: sirve en la
-> raíz). Validar siempre con un servidor estático que preserve el subpath.
+> **Nota infra (D-δ.86 / D-δ.87):** el flujo `IUAS_PREVIEW=1` está **roto**
+> con la config actual. `vite.config.ts` fija `base: '/IUAS/'` sólo cuando
+> `command === 'build'`; `vite preview` resuelve la config con
+> `command !== 'build'`, así que sirve en la raíz (`/`) mientras el
+> `index.html` del build referencia `/IUAS/assets/…` → los assets dan
+> fallback SPA y `#root` queda vacío. Hasta arreglar eso, la verificación
+> E2E local de un cambio no deployado se hace contra `vite` dev
+> (`IUAS_BASE_URL=http://localhost:5173/`), que sí funciona. CI y el flujo
+> por defecto apuntan a producción, no afectados.
 
 ### Unit tests del harness (parte de la suite Vitest)
 
@@ -226,8 +230,9 @@ brief §53).
 documentados** (con deuda abierta). Se excluyen de las invariantes **sólo**
 para que el fuzzer siga avanzando y encuentre bugs *nuevos*; se siguen
 loggeando como `…·hallazgo-conocido`. Cualquier leak nuevo rompe el run.
-**Hoy está vacío** (FIX-LEAK-01 se corrigió en D-δ.85); la maquinaria se
-conserva para el próximo hallazgo abierto.
+**Hoy está vacío** (FIX-LEAK-01 se corrigió en D-δ.85, FIX-LEAK-02 en
+D-δ.87 — ambos ruteando por `describirProblemaDeValidacion`); la maquinaria
+se conserva para el próximo hallazgo abierto.
 
 ---
 
@@ -349,6 +354,59 @@ artifact y el título del fallo.
   maquinaria (`esHallazgoConocido`, `evaluarTokens`) se conserva para el
   próximo hallazgo abierto.
 
+### FIX-LEAK-02 — M4 filtraba la descripción técnica del catálogo al UI — RESUELTO (D-δ.87)
+
+- **Qué:** `src/interfaz/paginas/humanizarModulo4.ts` →
+  `describirProblemaDeErrorModulo4` devolvía
+  `codigosValidacion[problema.problema.codigo].descripcion` — la
+  descripción **técnica** interna del catálogo `src/validacion/codigos`
+  (nombres de campo, CRIT, camelCase). `PanelDeModulo4.tsx`, rama
+  `estado.estado === 'error'`, la pinta cruda en `<li>`. Es el equivalente
+  en M4 de FIX-LEAK-01; **pre-existente**. M1/M3 ya no lo tenían porque
+  desde D-δ.85 rutean por `describirProblemaDeValidacion`.
+- **Texto filtrado observado:**
+  `configuracionAbastecimiento.periodoConsumoMaximo_h, cuando está
+  presente, debe ser un número finito entre 1 y 4 horas (ERAS §2.10.2 /
+  CRIT-A35)…`
+- **Repro por fuzz:**
+  - **Seed cloud** `34398035608-1:12` (`QA Fuzz (Playwright) #5`, run 12),
+    **step 17** · `editarPeriodoConsumoMaximo=6 [M4]` — falla idéntica en
+    desktop y mobile; la corrida cloud quedó **roja** por este hallazgo y
+    saltó los runs siguientes (no es una QA 20×30 completa).
+  - **Seed histórica** `20250909:0` · `editarPeriodoConsumoMaximo=6`
+    (descubierta durante GEOM-UX-01; evidencia en
+    `qa-results/seed-20250909_0/`).
+- **Severidad:** media/baja (leak de copy interno; no es crash ni pantalla
+  blanca ni problema hidráulico). Encaja en §13-H.
+- **Fix (D-δ.87):**
+  - `describirProblemaDeErrorModulo4` ahora devuelve
+    `describirProblemaDeValidacion(problema.problema.codigo)` — la MISMA
+    función y política segura que M1/M3. Sin mapa nuevo:
+    `DiagnosticoErrorModulo4` es un único shape con un `CodigoValidacion`,
+    vocabulario que `MENSAJES_DE_VALIDACION` ya cubre entero. El fix cubre
+    toda la rama de error estructural de M4 (esquema / período / DN /
+    desnivel / volúmenes).
+  - No se tocaron validaciones, tipos de dominio, el rango `1 ≤ Tc ≤ 4`
+    (CRIT-A35), `VReserva`, ni cuándo M4 entra en error: `Tc = 6` sigue
+    inválido. Sólo la **presentación**.
+- **Regresión:** `humanizarModulo4.test.ts` (período inválido → frase
+  humana sin `configuracionAbastecimiento` / `periodoConsumoMaximo_h`;
+  otro código de la rama → misma ruta; código desconocido → genérico
+  seguro) + `tests/e2e/hallazgos.spec.ts` (**regresión normal**, no
+  `test.fail`: M4 → esquema con tanque → `Período de consumo máximo` = `6`
+  → mensaje humano visible, código/identificador/`[object Object]`/`undefined`
+  ausentes, `buscarCodigosDeValidacion` vacío, sin pageerror/console.error,
+  invariantes verdes). Falla contra la producción pre-fix. Verificado
+  contra `vite` dev (2/2 desktop + mobile).
+- **Fuzz:** seed histórica `20250909:0` **30/30**; seed cloud
+  `34398035608-1` runs 0–12 **13/13** (run 12 supera el antiguo step 17);
+  baseline `424242` **15/15** sin regresión.
+- **`HALLAZGOS_CONOCIDOS`:** **NO se añadió** entrada para FIX-LEAK-02 (el
+  fix entró en el mismo checkpoint que el hallazgo); el array sigue
+  **vacío** y la invariante `sin-codigos-de-validacion-visibles` sigue
+  **estricta**. Sólo se actualizó el comentario de `qa/invariantes.ts`
+  para nombrar ambos fixes.
+
 ### QA-CI-01 — la seed base del fuzz era no determinista en discovery
 
 - **Qué:** `tests/e2e/sequence-fuzz.spec.ts` calculaba la seed base durante
@@ -458,6 +516,7 @@ handoff de D-δ.80 (ROADMAP / PENDIENTES).
 | Deuda | Qué |
 | ----- | --- |
 | ~~`FIX-LEAK-01`~~ | **RESUELTO en D-δ.85** — M3 mostraba códigos internos de validación; ahora `describirProblemaDeValidacion` compartido por M1 y M3 (§12). |
+| ~~`FIX-LEAK-02`~~ | **RESUELTO en D-δ.87** — M4 mostraba la descripción técnica del catálogo (`configuracionAbastecimiento.periodoConsumoMaximo_h…`); ahora `describirProblemaDeErrorModulo4` rutea por el mismo `describirProblemaDeValidacion` que M1/M3 (§12). |
 | ~~`FIX-RESP-01`~~ | **RESUELTO en D-δ.82** — overflow horizontal de página en móvil con M2 Detalladas/Profesional (§12). |
 | ~~`FIX-RESP-02`~~ | **RESUELTO en D-δ.83** — overflow horizontal de página en M3 (excepción de ACS por UF) por `<select>` sin acotar (§12). |
 | `FIX-CRASH-01` | pantallas blancas dependientes de secuencia (si QA-FUZZ las reproduce). |

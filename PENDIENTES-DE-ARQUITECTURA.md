@@ -9556,6 +9556,101 @@ terminal (rebaseline de presión documentado), el proyecto que carga
 `resguardo-documentacion/` intacto. **MODE-UX-01 / HYD-EST-01 / M2-TOPO-01
 / VIS-TOPO-01 / PERSIST-01 / REPORT-01 / UX-TEST-01 -- NO iniciar.**
 
+## D-δ.87 -- FIX-LEAK-02: humanizar los errores de validación en M4 -- CERRADA
+
+Fix de **presentación** puntual, equivalente en M4 de FIX-LEAK-01. No
+modifica validaciones, tipos de error del dominio, el rango `1 ≤ Tc ≤ 4`
+(CRIT-A35), `VReserva`, `Dc`, `Qconn`, Tabla N°1, el esquema, el volumen
+adoptado, el estado de completitud ni cuándo M4 entra en error: sólo
+cambia **qué texto ve el usuario**. Alcance:
+`src/interfaz/paginas/humanizarModulo4.ts` + `.test.ts`,
+`tests/e2e/hallazgos.spec.ts`, `tests/e2e/qa/invariantes.ts` (comentario),
+documentación. Versión pública funcional sigue **`v0.4.0-beta.5`**.
+
+### Causa raíz
+
+`humanizarModulo4.ts`, `describirProblemaDeErrorModulo4(problema)`,
+devolvía `codigosValidacion[problema.problema.codigo].descripcion` — la
+descripción **técnica** interna del catálogo `src/validacion/codigos`
+(nombres de campo, CRIT, camelCase; p. ej.
+`"configuracionAbastecimiento.periodoConsumoMaximo_h, cuando está
+presente, debe ser un número finito entre 1 y 4 horas (ERAS §2.10.2 /
+CRIT-A35)…"`). `PanelDeModulo4.tsx`, rama `estado.estado === 'error'`,
+la pinta cruda en `<li>`. M1 y M3 **no** tenían el problema porque desde
+D-δ.85 (FIX-LEAK-01) rutean por `describirProblemaDeValidacion`
+(`src/interfaz/paginas/mensajesDeValidacion.ts`), que tiene copy humana y
+política segura; M4 nunca se enganchó a esa función.
+
+### Solución
+
+- `describirProblemaDeErrorModulo4` ahora devuelve
+  `describirProblemaDeValidacion(problema.problema.codigo)` — la MISMA
+  función que M1/M3, con la MISMA política segura (código conocido → su
+  frase; desconocido / no-string → `MENSAJE_DE_VALIDACION_GENERICO`;
+  nunca el identificador, `undefined` ni `[object Object]`).
+- **No** se creó un mapa específico de M4: `DiagnosticoErrorModulo4` es un
+  único shape `{ tipo: 'problemaDeValidacion'; problema: ProblemaValidacion }`
+  y `problema.problema.codigo` es exactamente un `CodigoValidacion`, el
+  mismo vocabulario que ya cubre `MENSAJES_DE_VALIDACION` (completa por el
+  `Record<CodigoValidacion, string>`). El fix cubre de una toda la rama de
+  error estructural de M4: esquema inválido, período fuera de `[1,4]`, DN
+  de conexión no admisible, desnivel no finito, volúmenes de tanque
+  inválidos.
+- Se eliminó el import de `codigosValidacion` / `CodigoValidacion` en
+  `humanizarModulo4.ts` (ya no se usan). `describirMotivoIncompletitudModulo4`
+  (rama `incompleto`, no `error`) no se toca: ya devolvía frases humanas.
+
+### Regresión
+
+- **Unit** (`humanizarModulo4.test.ts`): período de consumo máximo
+  inválido → `"El período de consumo máximo del abastecimiento debe estar
+  entre 1 y 4 horas."` y el texto **no** contiene `configuracionAbastecimiento`
+  ni `periodoConsumoMaximo_h`; `parametrosDiametroNominalConexionNoAdmisible`
+  (otro código de la misma rama) → misma ruta humana, sin `parametros.`;
+  código no reconocido → `MENSAJE_DE_VALIDACION_GENERICO`, nunca el
+  identificador. (`mensajesDeValidacion.test.ts` ya asevera la cobertura
+  completa del catálogo, no se duplica.)
+- **E2E** (`tests/e2e/hallazgos.spec.ts`, **test normal**, no `test.fail`):
+  abrir M4 → esquema "Tanque elevado" → `Período de consumo máximo` = `6`
+  → M4 en error ("Configuración con errores") → el mensaje humano
+  aparece; `configuracionAbastecimiento`, `periodoConsumoMaximo_h`, el
+  código interno y `buscarCodigosDeValidacion(texto)` ausentes; sin
+  `[object Object]`, sin `undefined`, sin `pageerror` / `console.error`;
+  invariantes verdes. Falla contra la producción pre-fix.
+- **`HALLAZGOS_CONOCIDOS`** (`qa/invariantes.ts`): **sigue vacío** (§14 del
+  brief). No se añadió entrada para FIX-LEAK-02; la invariante
+  `sin-codigos-de-validacion-visibles` sigue **estricta**. Sólo se
+  actualizó el comentario para nombrar ambos fixes.
+
+### Verificación
+
+Vitest **1438 → 1440** (+2 de `humanizarModulo4.test.ts`); `tsc -b` /
+`npm run e2e:typecheck` / `npm run build` verdes; ESLint **11 / 0 / 0**
+(sin regresión). Playwright contra `vite` dev
+(`IUAS_BASE_URL=http://localhost:5173/` — el flujo `IUAS_PREVIEW=1` sigue
+roto por el `base` de `vite.config`, ver nota infra de D-δ.86):
+`smoke` / `hallazgos` (FIX-LEAK-01 + FIX-LEAK-02) / `catalogo` (CAT-CONN) /
+`responsive` / `reiniciar-calculo` / `cotas-heredadas` / `crash-observado`
+→ **47 pasan / 29 skip** por proyecto, 0 fallos. Fuzz local: seed
+histórica `20250909:0` **30/30**; seed cloud `34398035608-1` runs 0–12
+**13/13** (run 12 supera el antiguo step 17
+`editarPeriodoConsumoMaximo=6 [M4]` que rompía la invariante en la corrida
+cloud `QA Fuzz (Playwright) #5`); baseline `424242` **15/15** sin
+regresión lateral.
+
+### Estado
+
+**D-δ.87 -- CERRADA.** `Tc = 6 h` sigue **inválido** (`1 ≤ Tc ≤ 4`,
+CRIT-A35) y M4 sigue entrando en error; sólo cambia su **presentación**.
+Ninguna regla hidráulica, normativa ni de dominio modificada. Tags sin
+mover (`v0.4.0-beta.5` sigue en `1476c19`); snapshot
+`resguardo-documentacion/` intacto. La corrida cloud previa
+`34398035608` **no** cuenta como checkpoint verde: se detuvo en este
+hallazgo. Siguiente paso: QA Fuzz cloud 20×30 con seed vacía como
+checkpoint posterior a GEOM-UX-01 + FIX-LEAK-02. **MODE-UX-01 /
+HYD-EST-01 / M2-TOPO-01 / VIS-TOPO-01 / PERSIST-01 / REPORT-01 /
+UX-TEST-01 -- NO iniciar.**
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son

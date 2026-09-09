@@ -989,7 +989,42 @@ salvo bug inequívoco o decisión roja explícita.
     `configuracionAbastecimiento.periodoConsumoMaximo_h` crudo
     (`humanizarModulo4.ts` no rutea por `mensajesDeValidacion.ts`).
     Equivalente en M4 de FIX-LEAK-01, **pre-existente**. Evidencia en
-    `qa-results/seed-20250909_0/`. No se corrige acá (§29).
+    `qa-results/seed-20250909_0/`. No se corrige acá (§29). **RESUELTO en
+    D-δ.87.**
+
+- **D-δ.87 — FIX-LEAK-02: humanizar los errores de validación en M4.** Fix
+  de **presentación** puntual (NO cambia validaciones, tipos de error del
+  dominio, el rango `[1,4]` de Tc, `VReserva`, ni cuándo M4 entra en
+  error). Sin cambios de cálculo/hidráulica/normativa; `v0.4.0-beta.5`
+  sigue vigente.
+  - **Causa raíz:** `humanizarModulo4.ts` →
+    `describirProblemaDeErrorModulo4` devolvía
+    `codigosValidacion[codigo].descripcion`, la descripción **técnica**
+    interna del catálogo (`configuracionAbastecimiento.periodoConsumoMaximo_h,
+    cuando está presente, debe ser…`). M1/M3 ya no tenían el problema
+    porque desde D-δ.85 rutean por `describirProblemaDeValidacion`.
+  - **Fix:** `describirProblemaDeErrorModulo4` ahora llama a
+    `describirProblemaDeValidacion(problema.problema.codigo)` — la MISMA
+    función y política segura de FIX-LEAK-01. `DiagnosticoErrorModulo4`
+    sólo lleva un `CodigoValidacion`, así que cubre toda la rama de error
+    de M4 (esquema / período / DN / desnivel / volúmenes). Sin mapa nuevo.
+  - **Regresión:** `humanizarModulo4.test.ts` (período inválido → frase
+    humana sin nombres de campo; otro código de la rama → misma ruta;
+    código desconocido → genérico seguro) + `tests/e2e/hallazgos.spec.ts`
+    (**test normal**, no `test.fail`: Tc=6 → mensaje humano, sin
+    `configuracionAbastecimiento` / `periodoConsumoMaximo_h` / código
+    interno, app viva). `HALLAZGOS_CONOCIDOS` **sigue vacío**; la
+    invariante `sin-codigos-de-validacion-visibles` sigue estricta.
+  - **Verificación:** Vitest **1438 → 1440**; `tsc` / `e2e:typecheck` /
+    `build` verdes; ESLint 11 / 0 / 0. E2E `smoke` / `hallazgos` (FIX-LEAK-01
+    + FIX-LEAK-02) / `catalogo` / `responsive` / `reiniciar-calculo` /
+    `cotas-heredadas` / `crash-observado` verdes (47 pasan / 29 skip por
+    proyecto). Fuzz local: seed histórica `20250909:0` 30/30, seed cloud
+    `34398035608-1` runs 0–12 (13/13, run 12 supera el antiguo step 17
+    `editarPeriodoConsumoMaximo=6`), baseline `424242` 15/15 sin regresión.
+  - La corrida cloud previa `34398035608` **no** es checkpoint verde: se
+    detuvo en este hallazgo. El checkpoint posterior a GEOM-UX-01 +
+    FIX-LEAK-02 es la próxima QA Fuzz cloud 20×30 con seed vacía.
 
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
