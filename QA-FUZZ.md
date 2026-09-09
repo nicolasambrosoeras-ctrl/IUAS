@@ -46,6 +46,7 @@ tests/e2e/
   hallazgos.spec.ts            bugs de app YA encontrados (test.fail, no se corrigen)
   qa/
     prng.ts        mulberry32 determinista + helpers (peso, barajar). Sin deps.
+    seed.ts        resolverSeedBase(env) PURO (QA-CI-01): explícita o fallback fijo
     tipos.ts       tipos serializables compartidos (AccionRegistrada, InfoDeFallo…)
     deteccionBlanco.ts   función PURA de veredicto de pantalla blanca
     tokensProhibidos.ts  funciones PURAS de detección de basura en la UI
@@ -110,7 +111,7 @@ npm run e2e:typecheck          # type-check del harness (no entra en `tsc -b`)
 | ------------------- | ----------------------------------------- | ------ |
 | `IUAS_BASE_URL`     | `https://nicolasambrosoeras-ctrl.github.io/IUAS/` | URL objetivo. Se le agrega `/` final si falta. |
 | `IUAS_PREVIEW`      | —                                         | `=1` fuerza `http://localhost:4173/IUAS/` y levanta `npm run preview`. |
-| `IUAS_FUZZ_SEED`    | generada (se imprime)                     | Seed base del fuzz. Explícita ⇒ reproducible. |
+| `IUAS_FUZZ_SEED`    | `424242` (fallback local fijo)            | Seed base del fuzz. Explícita ⇒ reproducible. Sin ella: fallback estable local; en CI la resuelve el workflow (ver §5). |
 | `IUAS_FUZZ_RUNS`    | `10`                                      | Cantidad de runs (cada uno parte de app limpia). |
 | `IUAS_FUZZ_STEPS`   | `20`                                      | Pasos por run. |
 | `IUAS_FUZZ_MAX_STEP`| `= STEPS`                                 | Acota los pasos (para acotar un fallo por bisección). |
@@ -122,10 +123,22 @@ npm run e2e:typecheck          # type-check del harness (no entra en `tsc -b`)
 El PRNG es **mulberry32** (`qa/prng.ts`), 32 bits de estado, sin
 dependencias. Nunca se usa `Math.random()`.
 
+- La seed base se resuelve con `resolverSeedBase(process.env.IUAS_FUZZ_SEED)`
+  (`qa/seed.ts`) — **función determinista del environment**: con
+  `IUAS_FUZZ_SEED` explícita se usa tal cual; sin ella, fallback local
+  **fijo** `424242`. **Nunca** se genera durante el import a partir de una
+  fuente mutable (`Date.now`, `process.pid`, random, `crypto`): eso rompía
+  el *discovery* de Playwright (QA-CI-01, ver §12).
 - La seed de cada run es `` `${seedBase}:${run}` `` (texto → uint32 vía
   FNV-1a).
-- **Misma seed ⇒ misma secuencia de acciones** (unit test en
-  `qa/prng.test.ts` y `qa/generador.test.ts`).
+- **Misma seed ⇒ misma secuencia de acciones** (`qa/prng.test.ts`,
+  `qa/generador.test.ts`, `qa/seed.test.ts`).
+- **En CI**, cuando el `workflow_dispatch` no recibe `seed`, el paso
+  «Resolver seed de QA fuzz» del workflow genera **una sola** seed a partir
+  de `GITHUB_RUN_ID`-`GITHUB_RUN_ATTEMPT` (estable dentro del job, distinta
+  entre runs), la escribe en `$GITHUB_ENV` como `IUAS_FUZZ_SEED` y la deja
+  en el *step summary* (`QA fuzz seed base: <valor>`). Todos los procesos
+  de Playwright (coordinator + workers) heredan la misma.
 - Cada acción registra la elección concreta del PRNG (`valor`, `detalle`),
   de modo que el `actions.json` es legible y no depende de volver a sortear.
 
@@ -249,9 +262,12 @@ sin deploy, sin tocar Pages.
   Ej.: Run workflow con `runs=100`, `steps=30`, `seed` vacía (se genera).
 - **`schedule`**: nocturno `30 3 * * *` UTC (frecuencia baja a propósito).
   Corre `runs=50 × steps=30`.
-- Pasos: checkout → setup-node → `npm ci` →
+- Pasos: checkout → **resolver seed de QA fuzz** (una sola, a `$GITHUB_ENV`
+  como `IUAS_FUZZ_SEED`; QA-CI-01) → setup-node → `npm ci` →
   `npx playwright install --with-deps chromium` → unit tests del harness →
   smoke → catálogo → escenarios → fuzz.
+- La seed base de la corrida queda en el *step summary*
+  (`QA fuzz seed base: <valor>`) para reproducirla localmente.
 - Artifacts subidos **siempre** (`if: always()`), retención **7 días**.
 - Si el fuzz encuentra un bug real, el job queda **rojo**: eso **no**
   significa que el harness falló (brief §59/§60). Distinguir en el artifact:
@@ -306,6 +322,46 @@ artifact y el título del fallo.
 - **Estado:** documentado en `tests/e2e/hallazgos.spec.ts` (`test.fail`) y
   en `HALLAZGOS_CONOCIDOS`. **No se corrige acá.**
 
+### QA-CI-01 — la seed base del fuzz era no determinista en discovery
+
+- **Qué:** `tests/e2e/sequence-fuzz.spec.ts` calculaba la seed base durante
+  el *import* con `Date.now() ^ (process.pid << 16)` cuando `IUAS_FUZZ_SEED`
+  estaba ausente, y esa seed va en el título de cada `test(...)`. Playwright
+  importa el spec en procesos distintos (coordinator para *discovery*,
+  workers para ejecución): cada uno obtenía una seed distinta, los títulos
+  no coincidían y **los 40 tests fallaban en 0 ms** con
+  `Test not found in the worker process`.
+- **Por qué no se vio antes:** la validación local de QA-FUZZ-01 usó casi
+  siempre `IUAS_FUZZ_SEED=424242` (seed constante entre procesos). El primer
+  run cloud de QA-FUZZ-01 (20×30, `seed` vacía) NO fue una corrida fuzz
+  válida: falló en discovery, antes de ejecutar acciones.
+- **Corrección (QA-CI-01, D-δ.81):**
+  - `qa/seed.ts` → `resolverSeedBase(env)` puro: explícita ⇒ tal cual; sin
+    ella ⇒ fallback local **fijo** `424242`. Sin `Date.now`/`pid`/random.
+  - El workflow resuelve **una** seed antes de Playwright (paso «Resolver
+    seed de QA fuzz»), la exporta a `$GITHUB_ENV` y la registra en el
+    *step summary*. Coordinator y workers heredan la misma.
+  - Regresión: `qa/seed.test.ts` (passthrough, fallback estable,
+    determinismo por run, guarda anti-`Date.now`/`Math.random`/`pid`…).
+
+### FIX-RESP-01 — overflow horizontal de página en móvil con M2 «Profesional»
+
+- **Qué:** en viewport móvil (390 px), al pasar la granularidad de M2 a
+  `profesional`, la **página** desborda en horizontal
+  (`document.documentElement.scrollWidth 593 > clientWidth 390`, `body`
+  también). Culpables medidos: `table.tabla-tecnica` del detalle Profesional
+  (`min-width: 40rem`, `overflow-x: visible` — **no** envuelta en un
+  contenedor `.tabla-scroll`), y un `<a>` de la navegación (`right ≈ 724`).
+- **Severidad:** media (responsive; no es crash ni `pageerror`; incumple la
+  regla "el body nunca hace scroll horizontal").
+- **Repro por fuzz:** sin seed ⇒ fallback `424242` ⇒ **run 1, step 1**,
+  `cambiarGranularidad=profesional`, proyecto **mobile**. 3/3 idéntico.
+  Desktop con la misma seed pasa.
+- **Estado:** hallazgo **surgido al arreglar QA-CI-01** (antes el fuzz ni
+  siquiera llegaba a ejecutarse). **No se corrige acá** (fuera de alcance
+  QA-CI-01; no se tocan invariantes ni `HALLAZGOS_CONOCIDOS`). Evidencia en
+  `qa-results/seed-424242_1-run1/`.
+
 ### Pantallas blancas observadas (A/B/C)
 
 `tests/e2e/crash-observado.spec.ts` reproduce los escenarios del brief §26
@@ -319,6 +375,7 @@ handoff de D-δ.80 (ROADMAP / PENDIENTES).
 | Deuda | Qué |
 | ----- | --- |
 | `FIX-LEAK-01` | M3 muestra códigos internos de validación (este documento §12). |
+| `FIX-RESP-01` | overflow horizontal de página en móvil con M2 Profesional (§12). Al abrirlo, sumar su patrón a `HALLAZGOS_CONOCIDOS` para que el fuzz no se detenga siempre ahí. |
 | `FIX-CRASH-01` | pantallas blancas dependientes de secuencia (si QA-FUZZ las reproduce). |
 | `CAT-CONN-01` | revisar qué artefactos *deberían* preguntar conectividad (Bañera, Válvula de mingitorio, Lavachatas…). El reporte de matriz es su evidencia. |
 | `DEFENSE-01` | ErrorBoundary con estado Proyecto preservado. Después del fix raíz. |

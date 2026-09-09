@@ -858,6 +858,29 @@ salvo bug inequívoco o decisión roja explícita.
     `FIX-LEAK-01`. QA-FUZZ-01 cierra igualmente como exitosa (brief §61).
   - Documentación operativa: **`QA-FUZZ.md`**.
 
+- **D-δ.81 — QA-CI-01: estabilizar la seed del sequence fuzz en CI.**
+  Corrección de infraestructura de test (sin cambios funcionales;
+  `v0.4.0-beta.5` intacta; alcance: workflow + `tests/e2e/**` + docs).
+  - **Causa (HARNESS):** el primer run cloud de QA-FUZZ-01 (20×30, `seed`
+    vacía) falló sólo en `Sequence fuzz` — 40 tests en 0 ms con
+    `Test not found in the worker process`. El spec generaba la seed base
+    durante el import con `Date.now() ^ (process.pid << 16)` cuando
+    `IUAS_FUZZ_SEED` estaba ausente, y esa seed va en el título del test;
+    coordinator y workers (procesos distintos) obtenían títulos distintos.
+    Local con `seed=424242` nunca lo mostró. Ese primer run cloud **no fue
+    una corrida fuzz válida**.
+  - **Fix:** `tests/e2e/qa/seed.ts` → `resolverSeedBase(env)` puro (explícita
+    o fallback local fijo `424242`, sin fuentes mutables); el workflow
+    resuelve **una** seed antes de Playwright (de `GITHUB_RUN_ID`-`ATTEMPT`
+    si no hay `seed`), la exporta a `$GITHUB_ENV` y la deja en el step
+    summary; `tests/e2e/qa/seed.test.ts` (10 tests, con guarda
+    anti-regresión). `fuzz sin seed` ≡ `fuzz seed=424242` (byte-idéntico).
+  - **Hallazgo surgido (APP, NO corregido): `FIX-RESP-01`** — en móvil
+    (390 px), M2 «Profesional» desborda la página en horizontal
+    (`scrollWidth 593 > 390`): `table.tabla-tecnica` del detalle sin
+    envoltura `.tabla-scroll`. Determinista, sólo mobile. Fuera de alcance
+    QA-CI-01. Ver `QA-FUZZ.md` §12.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /

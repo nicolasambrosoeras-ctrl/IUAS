@@ -8825,6 +8825,110 @@ nuevos del harness; `tsc -b` verde; `npm run build` verde; ESLint
 NO iniciar. REPORT-01 -- NO iniciar. FIX-LEAK-01 / FIX-CRASH-01 -- NO
 iniciar en esta corrida.**
 
+## D-δ.81 -- QA-CI-01: estabilizar la seed del sequence fuzz en CI -- CERRADA
+
+Corrección de infraestructura de test. Sin cambios funcionales; versión
+pública sigue **`v0.4.0-beta.5`**. Alcance limitado a
+`.github/workflows/qa-fuzz.yml`, `tests/e2e/**` y documentación.
+
+### Causa raíz (HARNESS, no APP)
+
+El primer run cloud de QA-FUZZ-01 (`workflow_dispatch`, 20×30, `seed`
+vacía) falló **sólo** en el job `Sequence fuzz`: los 40 tests
+(20 desktop + 20 mobile) fallaron en 0 ms con
+`Test not found in the worker process. Make sure test title does not
+change.` Los demás jobs (unit tests, smoke, catálogo, escenarios) pasaron.
+
+`tests/e2e/sequence-fuzz.spec.ts` calculaba la seed base **durante el
+import**:
+
+```
+const SEED_BASE = process.env.IUAS_FUZZ_SEED?.trim()
+  || String((Date.now() ^ (process.pid << 16)) >>> 0)
+```
+
+y esa seed va en el **título** de cada `test()`
+(`` `run ${run} · seed ${seedBase}:${run}` ``). Playwright importa el spec
+en procesos distintos: el *coordinator* para el discovery y cada *worker*
+para ejecutar. Con `IUAS_FUZZ_SEED` ausente, cada proceso evaluaba
+`Date.now() ^ pid` y obtenía una seed distinta ⇒ los títulos descubiertos
+no coincidían con los registrados en el worker. Con `IUAS_FUZZ_SEED=424242`
+(la seed usada en casi toda la validación local de QA-FUZZ-01) la seed era
+constante entre procesos y el bug quedaba invisible. En CI el workflow
+pasaba `IUAS_FUZZ_SEED: ${{ github.event.inputs.seed }}` = `''` cuando el
+usuario dejaba `seed` en blanco ⇒ se activaba el fallback inestable.
+
+**El primer run cloud de QA-FUZZ-01 NO constituyó una corrida fuzz válida**:
+falló en discovery, antes de ejecutar ninguna acción.
+
+### Corrección
+
+- **`tests/e2e/qa/seed.ts`** (nuevo): `resolverSeedBase(valorEnv)` — función
+  **pura y determinista del argumento**. `IUAS_FUZZ_SEED` explícita ⇒ se usa
+  tal cual; ausente / `''` / sólo espacios ⇒ `SEED_LOCAL_POR_DEFECTO`
+  (`'424242'`, fijo y documentado). Nunca `Date.now`, `process.pid`,
+  `Math.random`, `crypto`, timestamp ni UUID. `seedDeRun(base, run)`
+  mantiene el esquema `` `${base}:${run}` ``.
+- **`sequence-fuzz.spec.ts`**: `const SEED_BASE =
+  resolverSeedBase(process.env.IUAS_FUZZ_SEED)`. La colección de tests pasa
+  a ser función determinista del environment.
+- **`.github/workflows/qa-fuzz.yml`**: paso nuevo «Resolver seed de QA
+  fuzz» (tras checkout, antes de todo Playwright). Si el dispatch trae
+  `seed` ⇒ se respeta; si viene vacía ⇒ `SEED="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"`
+  (estable dentro del job, distinta entre runs). Se escribe **una vez** en
+  `$GITHUB_ENV` como `IUAS_FUZZ_SEED` (todos los procesos hijos —
+  coordinator + workers — la heredan idéntica) y en `$GITHUB_STEP_SUMMARY`
+  como `QA fuzz seed base: <valor>` + comando de replay local. Se quitó
+  el `env: IUAS_FUZZ_SEED` a nivel de job.
+- **`tests/e2e/qa/seed.test.ts`** (nuevo, 10 tests): passthrough de seed
+  explícita; fallback local fijo y estable (1000 resoluciones idénticas);
+  pureza (no lee `process.env`); determinismo de la derivación por run
+  (mismo run ⇒ misma secuencia; run distinto ⇒ secuencia distinta y
+  reproducible); seed numérica del workflow reproducible; **guarda
+  anti-regresión** que escanea el código (sin comentarios) de `seed.ts` y
+  `sequence-fuzz.spec.ts` y falla si reaparece `Date.now` / `Math.random` /
+  `process.pid` / `crypto.random*` / `performance.now` / `hrtime`.
+
+### Comportamiento resultante
+
+| Contexto | Seed base |
+| --- | --- |
+| local, `IUAS_FUZZ_SEED=424242` | `424242` (idéntico en todos los procesos) |
+| local, sin `IUAS_FUZZ_SEED` | `424242` (fallback fijo) — antes: `Date.now()^pid` distinto por proceso |
+| CI dispatch con `seed=N` | `N`, exportada por el workflow |
+| CI dispatch / schedule sin `seed` | `${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}`, resuelta una vez, visible en el step summary |
+
+`fuzz sin seed` y `fuzz IUAS_FUZZ_SEED=424242` producen resultados
+**byte-idénticos** (verificado local, RUNS=2 STEPS=3, desktop + mobile).
+
+### Hallazgo surgido al arreglar QA-CI-01 -- FIX-RESP-01 (APP, NO corregido)
+
+Con el fuzz ya funcional, la primera corrida corta sin seed (fallback
+`424242`) rompió en **run 1 · step 1 · `cambiarGranularidad=profesional` ·
+proyecto mobile (390 px)**: invariante `sin-overflow-horizontal` —
+`document.documentElement.scrollWidth 593 > clientWidth 390` (el `body`
+también). Sonda de causa: `table.tabla-tecnica` del detalle de M2
+Profesional (`min-width: 40rem`, `overflow-x: visible`, **sin** envoltura
+`.tabla-scroll`) y un `<a>` de la navegación llegan a `right ≈ 654` /
+`724`. Determinista (3/3), sólo mobile (desktop con la misma seed pasa).
+Clasificación **APP** (layout/responsive; sin `pageerror`/`console.error`).
+**Fuera de alcance QA-CI-01**: no se corrige, no se tocan invariantes ni
+`HALLAZGOS_CONOCIDOS`. Evidencia en `qa-results/seed-424242_1-run1/`.
+Deuda: **FIX-RESP-01** (al abrirla, sumar el patrón a `HALLAZGOS_CONOCIDOS`
+para que el fuzz no se detenga siempre ahí, igual que FIX-LEAK-01).
+
+### Estado
+
+**D-δ.81 -- CERRADA.** Sin cambios funcionales; `v0.4.0-beta.5` intacta.
+Baseline: Vitest 1353 → **1363** (+10 tests de `seed.test.ts`); `tsc -b`
+verde; `npm run e2e:typecheck` verde; `npm run build` verde; ESLint
+11 / 0 / 0 (sin regresión). Playwright local: smoke, catálogo (37/37),
+escenarios + hallazgos verdes; fuzz corto sin seed y con `424242`
+byte-idénticos (surge FIX-RESP-01, APP, no corregido). Tags sin mover.
+Snapshot `resguardo-documentacion/2026-09-08_pre-UI-01B/` intacto.
+**FIX-LEAK-01 / FIX-RESP-01 / FIX-CRASH-01 / CAT-CONN-01 -- NO iniciar en
+esta corrida. UX-TEST-01 -- NO iniciar. REPORT-01 -- NO iniciar.**
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son
