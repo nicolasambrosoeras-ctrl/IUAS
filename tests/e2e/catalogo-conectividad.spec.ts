@@ -1,18 +1,24 @@
-// QA-FUZZ-01 · recorrido determinista del catálogo (brief §18, §19, §42,
-// §48). Para CADA artefacto del catálogo:
-//   - se agrega en un Local nuevo (estado limpio),
-//   - se registra si aparece la pregunta de conectividad AF/AC/AF+AC,
-//   - si aparece, en pruebas independientes se elige AF, AC y AF+AC y se
-//     verifica que ninguna opción provoque crash / pantalla blanca.
+// CAT-CONN-01 (D-δ.84) · recorrido determinista del catálogo. Para CADA
+// artefacto del catálogo:
+//   - se agrega en un Local nuevo (estado limpio, SIN precedentes),
+//   - se ASEVERA si aparece o no el selector de alimentación AF/AC/AF+AC,
+//     contra la política de conectividad del catálogo:
+//       · automatica / defaultConfigurable -> NO pregunta, queda conectado;
+//       · requiereSeleccion                -> pregunta SIEMPRE.
+//   - para los `requiereSeleccion`, en pruebas independientes se elige AF,
+//     AC y AF+AC y se verifica que ninguna opción provoque crash.
 //
-// NO decide qué artefacto DEBERÍA preguntar (eso es CAT-CONN-01). Sólo
-// mapea comportamiento real y seguridad, y emite la matriz.
+// Ya no es un mapeo exploratorio: la matriz objetivo es la aserción.
 import { test, expect } from './qa/fixtures'
 import { cargarAppLimpia, estabilizar } from './qa/estado'
 import { verificarInvariantes, primerFallo } from './qa/invariantes'
 import { escribirReporteDeCatalogo } from './qa/reporte'
 import type { FilaDeCatalogo } from './qa/tipos'
 import { catalogoArtefactos } from '../../src/normativa/eras-2023/catalogo-artefactos/index'
+import {
+  obtenerPoliticaDeConectividad,
+  ARTEFACTOS_QUE_REQUIEREN_SELECCION,
+} from '../../src/normativa/eras-2023/catalogo-artefactos/politicaConectividad'
 import type { Page } from '@playwright/test'
 
 // Resultados acumulados entre tests (serial) -> matriz final en afterAll.
@@ -40,14 +46,16 @@ function actualizar(id: string, parcial: Partial<FilaDeCatalogo>): void {
   filas.set(id, { ...filaBase(id), ...parcial })
 }
 
+function politicaRequiereSeleccion(id: string): boolean {
+  return obtenerPoliticaDeConectividad(id)?.politica === 'requiereSeleccion'
+}
+
 // Agrega un artefacto ESPECÍFICO en un Local nuevo y devuelve si apareció
-// la pregunta de conectividad para esa fila.
+// el selector de alimentación para esa fila.
 async function agregarArtefactoEnLocalNuevo(page: Page, artefactoId: string): Promise<boolean> {
   await page.getByRole('link', { name: /Demanda/ }).first().click()
   await estabilizar(page)
 
-  // UF1 del proyecto de ejemplo arranca expandida; si estuviera colapsada,
-  // expandirla.
   const expandir = page.getByRole('button', { name: /^Expandir / }).first()
   if (await expandir.isVisible().catch(() => false)) {
     await expandir.click()
@@ -58,10 +66,9 @@ async function agregarArtefactoEnLocalNuevo(page: Page, artefactoId: string): Pr
   await estabilizar(page)
 
   const local = page.locator('.m1-local').last()
-  // Local tipo "otros": sin sugerencia contextual (sugerirArtefactoParaLocal
-  // -> undefined), así "+ Agregar artefacto" abre SIEMPRE el borrador
-  // "Seleccionar artefacto…" y podemos elegir el tipo exacto, cuyo alta
-  // dispara la pregunta de conectividad si no hay precedente en el proyecto.
+  // Local tipo "otros": sin sugerencia contextual -> "+ Agregar artefacto"
+  // abre SIEMPRE el borrador "Seleccionar artefacto…" y podemos elegir el
+  // tipo exacto.
   await local.getByLabel(/^Tipo:/).selectOption('otros')
   await estabilizar(page)
 
@@ -79,23 +86,42 @@ async function agregarArtefactoEnLocalNuevo(page: Page, artefactoId: string): Pr
   return local.locator('.m1-declaracion[role="alert"]').isVisible().catch(() => false)
 }
 
-test.describe('QA-FUZZ-01 · catálogo de conectividad', () => {
+test.describe('CAT-CONN-01 · catálogo de conectividad', () => {
   test.describe.configure({ mode: 'serial' })
 
-  // La matriz completa se mapea en desktop; mobile no aporta nueva
-  // información de conectividad (brief §27: no multiplicar por anchos).
   const soloDesktop = (nombreProyecto: string): void => {
     test.skip(nombreProyecto !== 'desktop', 'catálogo sólo en desktop')
   }
 
   for (const cat of catalogoArtefactos) {
-    test(`agregar «${cat.nombre}» no rompe la app`, async ({ page, errores, baseURLEfectiva }, testInfo) => {
+    const requiere = politicaRequiereSeleccion(cat.id)
+
+    test(`«${cat.nombre}» ${requiere ? 'PIDE' : 'NO pide'} selección de alimentación`, async ({
+      page,
+      errores,
+      baseURLEfectiva,
+    }, testInfo) => {
       soloDesktop(testInfo.project.name)
       await cargarAppLimpia(page, baseURLEfectiva)
       filaBase(cat.id)
       try {
         const pregunta = await agregarArtefactoEnLocalNuevo(page, cat.id)
         actualizar(cat.id, { preguntaConectividad: pregunta })
+
+        // La aserción central de CAT-CONN-01: la pregunta depende SÓLO de
+        // la política del catálogo, nunca del contenido del proyecto.
+        expect(
+          pregunta,
+          `«${cat.nombre}»: política=${obtenerPoliticaDeConectividad(cat.id)?.politica ?? '???'}`,
+        ).toBe(requiere)
+
+        const local = page.locator('.m1-local').last()
+        if (!requiere) {
+          // automatica / defaultConfigurable: la fila quedó creada y
+          // conectada, sin banner y sin romper invariantes.
+          await expect(local.locator('.m1-declaracion[role="alert"]')).toHaveCount(0)
+        }
+
         const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
         const fallo = primerFallo(violaciones)
         if (fallo) {
@@ -108,44 +134,51 @@ test.describe('QA-FUZZ-01 · catálogo de conectividad', () => {
       }
     })
 
-    for (const opcion of [
-      { clave: 'af', nombre: 'Agua fría (AF)', campo: 'afSafe' as const },
-      { clave: 'ac', nombre: 'Agua caliente (AC)', campo: 'acSafe' as const },
-      { clave: 'afac', nombre: 'Agua fría y caliente (AF + AC)', campo: 'afAcSafe' as const },
-    ]) {
-      test(`«${cat.nombre}» · conectividad ${opcion.clave.toUpperCase()} sin crash`, async ({
-        page,
-        errores,
-        baseURLEfectiva,
-      }, testInfo) => {
-        soloDesktop(testInfo.project.name)
-        await cargarAppLimpia(page, baseURLEfectiva)
-        filaBase(cat.id)
-        const pregunta = await agregarArtefactoEnLocalNuevo(page, cat.id)
-        if (!pregunta) {
-          actualizar(cat.id, { [opcion.campo]: null })
-          test.skip(true, `«${cat.nombre}» no pregunta conectividad en este flujo`)
-          return
-        }
-        const banner = page.locator('.m1-local .m1-declaracion[role="alert"]').last()
-        await banner.getByRole('button', { name: opcion.nombre }).click()
-        await estabilizar(page)
-        const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
-        const fallo = primerFallo(violaciones)
-        actualizar(cat.id, {
-          preguntaConectividad: true,
-          [opcion.campo]: fallo === null,
-          ...(fallo ? { error: `${opcion.clave.toUpperCase()} → ${fallo.nombre}: ${fallo.detalle ?? ''}`.trim() } : {}),
+    if (requiere) {
+      for (const opcion of [
+        { clave: 'af', nombre: 'Agua fría (AF)', campo: 'afSafe' as const },
+        { clave: 'ac', nombre: 'Agua caliente (AC)', campo: 'acSafe' as const },
+        { clave: 'afac', nombre: 'Agua fría y caliente (AF + AC)', campo: 'afAcSafe' as const },
+      ]) {
+        test(`«${cat.nombre}» · alimentación ${opcion.clave.toUpperCase()} sin crash`, async ({
+          page,
+          errores,
+          baseURLEfectiva,
+        }, testInfo) => {
+          soloDesktop(testInfo.project.name)
+          await cargarAppLimpia(page, baseURLEfectiva)
+          filaBase(cat.id)
+          const pregunta = await agregarArtefactoEnLocalNuevo(page, cat.id)
+          expect(pregunta).toBe(true)
+          const banner = page.locator('.m1-local .m1-declaracion[role="alert"]').last()
+          await banner.getByRole('button', { name: opcion.nombre }).click()
+          await estabilizar(page)
+          const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+          const fallo = primerFallo(violaciones)
+          actualizar(cat.id, {
+            preguntaConectividad: true,
+            [opcion.campo]: fallo === null,
+            ...(fallo ? { error: `${opcion.clave.toUpperCase()} → ${fallo.nombre}: ${fallo.detalle ?? ''}`.trim() } : {}),
+          })
+          expect(fallo, fallo ? JSON.stringify(fallo) : undefined).toBeNull()
         })
-        expect(fallo, fallo ? JSON.stringify(fallo) : undefined).toBeNull()
-      })
+      }
     }
   }
+
+  test('exactamente 2 tipos piden selección (lavavajillas y lavarropas industrial)', async ({}, testInfo) => {
+    soloDesktop(testInfo.project.name)
+    const preguntan = catalogoArtefactos.filter((c) => filas.get(c.id)?.preguntaConectividad).map((c) => c.id)
+    expect([...preguntan].sort()).toEqual([...ARTEFACTOS_QUE_REQUIEREN_SELECCION].sort())
+    expect(preguntan).toHaveLength(2)
+    // 14 no preguntan.
+    expect(catalogoArtefactos.length - preguntan.length).toBe(14)
+  })
 
   test.afterAll(async () => {
     if (filas.size === 0) return
     const orden = catalogoArtefactos.map((c) => filas.get(c.id)).filter((f): f is FilaDeCatalogo => !!f)
     const { json, md } = await escribirReporteDeCatalogo(orden)
-    console.log(`\nQA-FUZZ-01 · matriz de catálogo escrita:\n  ${json}\n  ${md}\n`)
+    console.log(`\nCAT-CONN-01 · matriz de catálogo escrita:\n  ${json}\n  ${md}\n`)
   })
 })
