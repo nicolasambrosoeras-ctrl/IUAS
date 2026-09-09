@@ -77,10 +77,24 @@ function proyectoUnTerminalCompleto(opts?: {
 }): Proyecto {
   const o = opts ?? {}
   const artefactoIdCatalogo = o.artefactoIdCatalogo ?? 'lavatorio'
+  // GEOM-UX-01: la cota efectiva del terminal se deriva de la cota de
+  // piso de la UF (0) + la altura hidraulica sobre piso. Se fija un
+  // override de altura (3) en el artefacto para que la efectiva
+  // reproduzca la cota_m clasica del Nodo (3) y el fixture sea
+  // autocontenido incluso con `artefactoIdCatalogo` sintetico (fuera de
+  // la Tabla IUAS).
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
-    locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', artefactoIdCatalogo)] }],
+    cotaHidraulicaReferencia_m: 0,
+    locales: [
+      {
+        id: 'local-1',
+        tipo: 'bano',
+        regimen: 'domiciliario',
+        artefactos: [{ ...artefacto('inst-1', artefactoIdCatalogo), alturaHidraulicaSobrePiso_m: 3 }],
+      },
+    ],
   }
   const nodos: Nodo[] = [
     { id: 'raiz', cota_m: 0 },
@@ -106,9 +120,14 @@ function proyectoUnTerminalCompleto(opts?: {
 // 'local-1', util tanto para modo estimado (1 tee estimada) como para
 // demostrar el terminal critico entre dos caminos reales distintos.
 function proyectoDosTerminales(metodoPerdidaLocalizada: MetodoPerdidaLocalizada): Proyecto {
+  // GEOM-UX-01: cota efectiva derivada = cota de piso de la UF (0) +
+  // altura IUAS del tipo (lavatorio 0,90; ducha 2,00). Las cota_m de los
+  // Nodos (3 y 8) se ignoran. Los tests comparan los dos márgenes entre
+  // sí (via el propio motor), no contra un golden absoluto.
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
+    cotaHidraulicaReferencia_m: 0,
     locales: [
       {
         id: 'local-1',
@@ -507,6 +526,7 @@ describe('resolverEstadoModulo2 — completo', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
+      cotaHidraulicaReferencia_m: 0,
       locales: [
         {
           id: 'local-1',

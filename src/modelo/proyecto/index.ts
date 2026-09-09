@@ -48,12 +48,40 @@ export type Artefacto = {
   // guardado antes de CAT-CONN-01 no lo tiene y resuelve por política de
   // catálogo, sin migración (SCHEMA_VERSION_ACTUAL no cambia).
   conectividadElegida?: ConectividadFisica;
+  // GEOM-UX-01 (D-δ.86): "Altura hidráulica de referencia sobre piso
+  // terminado del Local", en metros -- el punto hidráulico representativo
+  // de este artefacto sobre el piso efectivo de su Local. NO es la altura
+  // del borde del artefacto, ni la del caño embutido, ni una cota
+  // absoluta. Es un OVERRIDE explícito del proyectista:
+  //   presente  -> se usa este valor;
+  //   ausente   -> se deriva de la altura hidráulica de referencia IUAS
+  //                del tipo (normativa/eras-2023/catalogo-artefactos/
+  //                alturasHidraulicasIuas, tabla NO normativa, siempre
+  //                editable). El default NUNCA se materializa como override.
+  // La cota hidráulica efectiva del terminal = cota de piso efectiva del
+  // Local + esta altura efectiva (ver
+  // motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto). Al
+  // cambiar el tipo de catálogo del artefacto este override se LIMPIA
+  // (§7): una ducha personalizada a 2,20 m no debe convertirse en un
+  // bidet de 2,20 m por accidente. Backward-compatible sin migración.
+  alturaHidraulicaSobrePiso_m?: number;
 };
 
 export type Local = {
   id: string;
   tipo: TipoDeLocal;
   regimen?: RegimenLocal;
+  // GEOM-UX-01 (D-δ.86): cota de piso terminado del Local respecto del
+  // datum del Proyecto, en metros. Es un OVERRIDE explícito:
+  //   presente  -> el Local dejó de seguir a la UF y usa esta cota propia;
+  //   ausente   -> hereda la cota de piso de la UnidadFuncional
+  //                (UnidadFuncional.cotaHidraulicaReferencia_m).
+  // "Restablecer" el Local = borrar este campo y volver a heredar. El
+  // default heredado NUNCA se materializa como override (§4: guardar sólo
+  // overrides explícitos y derivar lo demás). Ver
+  // motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto
+  // (resolverCotaPisoDeLocal). Backward-compatible sin migración.
+  cotaPiso_m?: number;
   artefactos: readonly Artefacto[];
 };
 
@@ -68,22 +96,25 @@ export type UnidadFuncional = {
   // interfaz/paginas/nivelUnidadFuncional.ts (nombreDeNivel,
   // calcularCotaHidraulicaDefaultDeNivel).
   nivel?: number;
-  // Cota hidráulica de referencia de la UF, en metros respecto del datum
-  // del Proyecto (misma convención que Nodo.cota_m). Bajo
-  // GranularidadHidraulica='simplificada' (D-δ.46), esta es la ÚNICA
-  // cota que participa del cálculo de presión para TODOS los terminales
-  // AF/AC de esta UF -- reemplaza la cota individual por Artefacto que
-  // 'profesional' sigue exigiendo (ver
-  // motor/tuberias/geometria/resolverCotaTerminalEfectiva.ts). Ausente
-  // != 0 (CRIT-A20, mismo criterio que Nodo.cota_m): dato físico no
-  // provisto todavía, nunca se asume 0. Se propone automáticamente al
-  // asignar/cambiar `nivel`, pero el usuario puede editarla libremente
-  // -- el valor guardado acá es el que efectivamente participa del
-  // cálculo, nunca la fórmula del default recalculada en cada uso. Esta
-  // es una aproximación deliberada del modo rápido (no redefine CRIT-A29:
-  // el punto físico de verificación de presión sigue siendo la conexión
-  // del Artefacto -- simplificada solo deja de exigir conocer su altura
-  // exacta, adoptando una cota representativa común a toda la UF).
+  // Cota de PISO terminado de referencia de la UF, en metros respecto del
+  // datum del Proyecto (misma convención que Nodo.cota_m). GEOM-UX-01
+  // (D-δ.86) reencuadró este campo: ya NO es "una cota representativa del
+  // punto hidráulico" -- es la cota del PISO de la UF. La cota hidráulica
+  // efectiva de cada terminal se DERIVA sumando, sobre esta cota de piso
+  // (o sobre el override de piso del Local, si lo hay), la altura
+  // hidráulica sobre piso del artefacto (override explícito o Tabla IUAS
+  // del tipo). Vale para AMBAS granularidades -- 'simplificada' ya no usa
+  // una única cota uniforme por UF (ver
+  // motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto y
+  // resolverCotaTerminalEfectiva.ts). Ausente != 0 (CRIT-A20, mismo
+  // criterio que Nodo.cota_m): dato físico no provisto todavía, nunca se
+  // asume 0. Se propone automáticamente al asignar/cambiar `nivel`
+  // (calcularCotaHidraulicaDefaultDeNivel = 3·nivel, sólo altura entre
+  // plantas), pero el usuario la edita libremente -- el valor guardado
+  // acá es el que participa del cálculo, nunca la fórmula recalculada. No
+  // redefine CRIT-A29: el punto físico de verificación sigue siendo la
+  // conexión del Artefacto; simplemente su altura sobre piso ahora la
+  // aporta la Tabla IUAS por tipo en vez de exigirse relevada.
   cotaHidraulicaReferencia_m?: number;
   locales: readonly Local[];
 };

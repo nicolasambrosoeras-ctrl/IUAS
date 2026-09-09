@@ -64,10 +64,16 @@ describe('resolverResumenDeProyecto (UI-01C)', () => {
     // el valor manual y pasa a estimarse como
     // `desnivelConexion_m − 0,50 = 0 − 0,50 = −0,50 m`. El par histórico
     // (pelo manual 20 m / desnivelConexion_m 0 m) eran knobs independientes
-    // antes de CRIT-A39 y quedó semánticamente inconsistente; el nuevo
-    // margen del crítico es −16,664 m.c.a. → NO CUMPLE. Es el único cambio
-    // numérico esperable por CRIT-A39 (M1/M3/M4 y Tabla N°1 sin tocar).
-    if (r.margenCritico.tipo === 'valor') expect(r.margenCritico.texto).toBe('-16,664 m.c.a.')
+    // antes de CRIT-A39 y quedó semánticamente inconsistente; con el
+    // origen estimado el margen del crítico era −16,664 m.c.a. → NO CUMPLE.
+    //
+    // GEOM-UX-01 (D-δ.86): la cota efectiva del crítico (receptáculo de
+    // ducha del baño) se deriva ahora como cota de piso de la UF (0) +
+    // altura IUAS de la ducha (2,00) = 2,00 m, en vez de la uniforme de
+    // 1,00 m -> 1,00 m más alto -> 1,00 m menos de residual -> el margen
+    // pasa a −17,664 m.c.a. (sigue NO CUMPLE). M1/M3/M4 y Tabla N°1 sin
+    // tocar.
+    if (r.margenCritico.tipo === 'valor') expect(r.margenCritico.texto).toBe('-17,664 m.c.a.')
     expect(r.margenCumple).toBe(false)
   })
 

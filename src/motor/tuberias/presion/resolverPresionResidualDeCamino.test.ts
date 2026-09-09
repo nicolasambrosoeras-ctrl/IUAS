@@ -23,6 +23,7 @@ import { describe, it, expect } from 'vitest'
 import type { Artefacto, MetadatosProyecto, ParametrosProyecto, Proyecto, UnidadFuncional } from '../../../modelo/proyecto'
 import type { AccesorioDeTramo, Nodo, RedHidraulica, ReferenciaDeArtefacto, Tramo } from '../../../modelo/redHidraulica'
 import { catalogoArtefactos } from '../../../normativa/eras-2023/catalogo-artefactos'
+import { obtenerAlturaHidraulicaIuas } from '../../../normativa/eras-2023/catalogo-artefactos/alturasHidraulicasIuas'
 import { validarRedHidraulica } from '../../../validacion/redHidraulica'
 import { catalogoSistemasDeTuberia } from '../sistemaDeTuberia'
 import { catalogoMaterialesTuberia } from '../materialTuberia'
@@ -76,11 +77,20 @@ function ufLavatorio(): UnidadFuncional {
   }
 }
 
-// raiz(cota 0) -> mid -> terminal(cota 8, lavatorio); ambos Tramos AF con
-// longitud_m -> desnivel 8, hf distribuida acumulable. Los flags `omit*`
-// quitan explicitamente un dato para ejercitar los estados incompletos
-// (no se usa `x?: number` con default porque no distinguiria "ausente" de
-// "undefined explicito").
+// raiz(cota 0) -> mid -> terminal(lavatorio); ambos Tramos AF con
+// longitud_m -> desnivel 8, hf distribuida acumulable.
+//
+// GEOM-UX-01: la cota efectiva del terminal ya NO sale de Nodo.cota_m
+// -- se deriva de la cota de piso de la UF + la altura hidraulica IUAS
+// del tipo. La `cota_m` del Nodo terminal se sigue escribiendo en el
+// fixture (para tests que verifican que se ignora), pero la que manda es
+// `cotaHidraulicaReferencia_m` de la UF, que este builder fija en
+// `cotaTerminal - alturaIUAS(tipo)` para que la efectiva reproduzca
+// exactamente el `cotaTerminal` clasico -- asi todos los `desnivel_m`
+// esperados de este archivo se preservan sin rebaseline. `omitCotaUF`
+// quita esa cota de piso para ejercitar 'unidadFuncionalSinCotaDeReferencia'.
+// Los flags `omit*` quitan explicitamente un dato para ejercitar los
+// estados incompletos.
 function proyectoCaminoCompleto(opts?: {
   cotaRaiz?: number
   cotaTerminal?: number
@@ -89,6 +99,7 @@ function proyectoCaminoCompleto(opts?: {
   artefactoIdCatalogo?: string
   omitCotaRaiz?: boolean
   omitCotaTerminal?: boolean
+  omitCotaUF?: boolean
   omitLongT0?: boolean
   omitLongT1?: boolean
   // Por defecto ambos tramos quedan "relevados sin accesorios" ([]) para
@@ -107,10 +118,14 @@ function proyectoCaminoCompleto(opts?: {
   const artefactoIdCatalogo = o.artefactoIdCatalogo ?? 'lavatorio'
   const accesoriosT0 = o.accesoriosT0 ?? []
   const accesoriosT1 = o.accesoriosT1 ?? []
+  // Cota de piso de la UF tal que piso + alturaIUAS(tipo) === cotaTerminal.
+  const alturaIuas = obtenerAlturaHidraulicaIuas(artefactoIdCatalogo) ?? 0
+  const cotaPisoUF = cotaTerminal - alturaIuas
 
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
+    ...(o.omitCotaUF ? {} : { cotaHidraulicaReferencia_m: cotaPisoUF }),
     locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', artefactoIdCatalogo)] }],
   }
   const nodos: Nodo[] = [
@@ -280,8 +295,32 @@ describe('resolverPresionResidualDeCamino', () => {
     })
   })
 
-  it('terminal sin cota_m -> desnivelIncompleto, ausencia nunca se interpreta como 0', () => {
-    const proyecto = proyectoCaminoCompleto({ omitCotaTerminal: true })
+  it('GEOM-UX-01: la cota_m propia del Nodo terminal se IGNORA -- omitirla no cambia nada (la efectiva se deriva de piso + IUAS)', () => {
+    const conCota = proyectoCaminoCompleto({ omitCotaTerminal: false })
+    const sinCota = proyectoCaminoCompleto({ omitCotaTerminal: true })
+
+    const r = (p: Proyecto) =>
+      resolverPresionResidualDeCamino(
+        p,
+        'terminal',
+        P_DISPONIBLE,
+        undefined,
+        catalogoArtefactos,
+        catalogoSistemasDeTuberia,
+        catalogoMaterialesTuberia,
+      )
+
+    const rConCota = r(conCota)
+    const rSinCota = r(sinCota)
+    if (rConCota.tipo !== 'balanceIncompleto' || rSinCota.tipo !== 'balanceIncompleto') {
+      throw new Error('se esperaba balanceIncompleto en ambos')
+    }
+    expect(rSinCota.desnivel_m).toBe(rConCota.desnivel_m)
+    expect(rSinCota.desnivel_m).toBe(8)
+  })
+
+  it('UF sin cota de piso -> unidadFuncionalSinCotaDeReferencia, ausencia nunca se interpreta como 0', () => {
+    const proyecto = proyectoCaminoCompleto({ omitCotaUF: true })
 
     const resultado = resolverPresionResidualDeCamino(
       proyecto,
@@ -293,7 +332,7 @@ describe('resolverPresionResidualDeCamino', () => {
       catalogoMaterialesTuberia,
     )
 
-    expect(resultado).toEqual({ tipo: 'desnivelIncompleto', nodosSinCota: ['terminal'] })
+    expect(resultado).toEqual({ tipo: 'unidadFuncionalSinCotaDeReferencia', unidadFuncionalId: 'uf-1' })
   })
 
   it('Tramo del camino sin longitud_m -> perdidaDistribuidaIncompleta (con cotas completas)', () => {
@@ -315,8 +354,8 @@ describe('resolverPresionResidualDeCamino', () => {
     })
   })
 
-  it('el desnivel incompleto se reporta antes que la perdida (precedencia de etapas)', () => {
-    const proyecto = proyectoCaminoCompleto({ omitCotaTerminal: true, omitLongT1: true })
+  it('la cota de piso faltante se reporta antes que la perdida (precedencia de etapas)', () => {
+    const proyecto = proyectoCaminoCompleto({ omitCotaUF: true, omitLongT1: true })
 
     const resultado = resolverPresionResidualDeCamino(
       proyecto,
@@ -328,7 +367,7 @@ describe('resolverPresionResidualDeCamino', () => {
       catalogoMaterialesTuberia,
     )
 
-    expect(resultado.tipo).toBe('desnivelIncompleto')
+    expect(resultado.tipo).toBe('unidadFuncionalSinCotaDeReferencia')
   })
 
   it('raiz inmediata: consultar la propia raiz con un artefacto y cota -> desnivel 0, hf 0, balanceIncompleto', () => {
@@ -486,18 +525,23 @@ describe('resolverPresionResidualDeCamino', () => {
 })
 
 // metodoPerdidaLocalizada='estimado' (D-delta.40): raiz(cota0) -> mid ->
-// dos terminales hermanos del mismo Local (lavatorio cota3, ducha cota8)
-// -- n=2 terminales fisicos AF en 'local-1' -> 1 tee estimada. 'mid'
-// queda deliberadamente SIN tee configurada: el modo estimado no la
-// necesita (nunca llama resolverClasificacionDeTee), y validarRedHidraulica
-// no exige Nodo.tee salvo que este declarado (ver validacion/redHidraulica).
-// El tramo mid->lavatorio declara accesorios reales a proposito, para
-// demostrar que el modo estimado los ignora por completo (nunca sale de
-// acumularPerdidaLocalizadaDeCamino ni de Tramo.accesorios).
+// dos terminales hermanos del mismo Local (lavatorio, ducha) -- n=2
+// terminales fisicos AF en 'local-1' -> 1 tee estimada. 'mid' queda
+// deliberadamente SIN tee configurada: el modo estimado no la necesita
+// (nunca llama resolverClasificacionDeTee), y validarRedHidraulica no
+// exige Nodo.tee salvo que este declarado. El tramo mid->lavatorio
+// declara accesorios reales a proposito, para demostrar que el modo
+// estimado los ignora por completo. GEOM-UX-01: la cota efectiva de cada
+// terminal se deriva de la cota de piso de la UF (0) + la altura IUAS del
+// tipo (lavatorio 0,90; ducha 2,00) -- las cota_m propias de los Nodos
+// (3 y 8) se ignoran; los tests de este bloque asertan la presion
+// residual contra `resultado.desnivel_m` (auto-referencial), no contra un
+// golden absoluto, asi que el cambio de derivacion no los rebaselinea.
 function proyectoEstimadoDosTerminales(opts?: { conAccesoriosDetallados?: boolean }): Proyecto {
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
+    cotaHidraulicaReferencia_m: 0,
     locales: [
       {
         id: 'local-1',
@@ -675,6 +719,7 @@ describe('resolverPresionResidualDeCamino — metodoPerdidaLocalizada=estimado (
         {
           id: 'uf-1',
           nombre: 'uf-1',
+          cotaHidraulicaReferencia_m: 0,
           locales: [
             {
               id: 'local-1',
@@ -725,11 +770,14 @@ describe('resolverPresionResidualDeCamino — metodoPerdidaLocalizada=estimado (
   })
 })
 
-// D-delta.46: granularidadHidraulica='simplificada' hace que la cota del
-// terminal salga de UnidadFuncional.cotaHidraulicaReferencia_m en vez de
-// Nodo.cota_m -- estos tests fijan cotas DISTINTAS en el Nodo y en la UF
-// a propósito, para demostrar sin ambigüedad cuál efectivamente participa.
-describe("resolverPresionResidualDeCamino — granularidadHidraulica='simplificada' (D-delta.46, cota por UF)", () => {
+// GEOM-UX-01 (D-δ.86): la cota efectiva del terminal se DERIVA de la
+// jerarquia heredada -- cota de piso de la UF + altura hidraulica IUAS
+// del tipo -- e IGNORA por completo Nodo.cota_m. Estos tests fijan cotas
+// DISTINTAS en el Nodo y en la UF a propósito, para demostrar sin
+// ambigüedad cuál efectivamente participa. El artefacto de los fixtures
+// es `receptaculoDucha` (altura IUAS 2,00 m), así que la efectiva es
+// `cotaPisoUF + 2,00`.
+describe("resolverPresionResidualDeCamino — cota efectiva derivada (GEOM-UX-01)", () => {
   // raiz(cota 0) -> mid -> dos terminales hermanos (AF y AC) del mismo
   // Artefacto -- ambos con cota_m propia DISTINTA de la de la UF, para
   // demostrar que en 'simplificada' esa cota propia se ignora por completo.
@@ -762,7 +810,7 @@ describe("resolverPresionResidualDeCamino — granularidadHidraulica='simplifica
     return { ...proyecto, configuracionHidraulica: { ...proyecto.configuracionHidraulica, granularidadHidraulica: 'simplificada' } }
   }
 
-  it('usa la cota de la UF, ignorando por completo la cota propia (distinta) del Nodo terminal', () => {
+  it('deriva la cota de piso de la UF + altura IUAS del tipo, ignorando por completo la cota propia del Nodo terminal', () => {
     const proyecto = proyectoTerminalesAFyAC(7)
 
     const resultado = resolverPresionResidualDeCamino(
@@ -776,12 +824,13 @@ describe("resolverPresionResidualDeCamino — granularidadHidraulica='simplifica
     )
 
     if (resultado.tipo !== 'balanceIncompleto') throw new Error('se esperaba balanceIncompleto')
-    // desnivel = cotaTerminal(7, de la UF) - cotaRaiz(0) = 7, NUNCA 999
-    // (la cota propia del Nodo, deliberadamente distinta en el fixture).
-    expect(resultado.desnivel_m).toBe(7)
+    // desnivel = cotaEfectiva - cotaRaiz(0); cotaEfectiva = cotaPisoUF(7)
+    // + alturaIUAS(receptaculoDucha = 2,00) = 9. NUNCA 999 (la cota propia
+    // del Nodo, deliberadamente distinta en el fixture).
+    expect(resultado.desnivel_m).toBe(9)
   })
 
-  it('AF y AC del mismo Artefacto reciben la MISMA cota de la UF, aunque sus Nodos tengan cota_m distinta', () => {
+  it('AF y AC del mismo Artefacto reciben la MISMA cota efectiva derivada, aunque sus Nodos tengan cota_m distinta', () => {
     const proyecto = proyectoTerminalesAFyAC(7)
 
     const resultadoAF = resolverPresionResidualDeCamino(
@@ -794,8 +843,8 @@ describe("resolverPresionResidualDeCamino — granularidadHidraulica='simplifica
     if (resultadoAF.tipo !== 'balanceIncompleto' || resultadoAC.tipo !== 'balanceIncompleto') {
       throw new Error('se esperaba balanceIncompleto en ambos')
     }
-    expect(resultadoAF.desnivel_m).toBe(7)
-    expect(resultadoAC.desnivel_m).toBe(7)
+    expect(resultadoAF.desnivel_m).toBe(9)
+    expect(resultadoAC.desnivel_m).toBe(9)
   })
 
   it('UF sin cotaHidraulicaReferencia_m -> unidadFuncionalSinCotaDeReferencia (nunca desnivelIncompleto, nunca asume 0)', () => {
@@ -814,7 +863,7 @@ describe("resolverPresionResidualDeCamino — granularidadHidraulica='simplifica
     expect(resultado).toEqual({ tipo: 'unidadFuncionalSinCotaDeReferencia', unidadFuncionalId: 'uf-1' })
   })
 
-  it('cambiar la cota de la UF cambia reactivamente el desnivel (y por lo tanto Presidual) de todos sus terminales', () => {
+  it('cambiar la cota de piso de la UF cambia reactivamente el desnivel (y por lo tanto Presidual) de todos sus terminales', () => {
     const proyectoA = proyectoTerminalesAFyAC(1)
     const proyectoB = proyectoTerminalesAFyAC(2)
 
@@ -828,8 +877,9 @@ describe("resolverPresionResidualDeCamino — granularidadHidraulica='simplifica
     if (resultadoA.tipo !== 'balanceIncompleto' || resultadoB.tipo !== 'balanceIncompleto') {
       throw new Error('se esperaba balanceIncompleto en ambos')
     }
-    expect(resultadoA.desnivel_m).toBe(1)
-    expect(resultadoB.desnivel_m).toBe(2)
+    // Efectiva = cotaPisoUF + alturaIUAS(receptaculoDucha = 2,00).
+    expect(resultadoA.desnivel_m).toBe(3)
+    expect(resultadoB.desnivel_m).toBe(4)
   })
 
   it('caso degenerado (terminal ES la raiz, sin ningun tramo entrante): conserva su propia cota_m, NUNCA la de la UF', () => {

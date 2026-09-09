@@ -27,12 +27,14 @@ export const proyectoInicial: Proyecto = {
     {
       id: 'uf-1',
       nombre: 'Unidad funcional 1',
-      // D-δ.46: PB, cota hidráulica de referencia por defecto de ese
-      // nivel (1,00 m) -- participa del cálculo de presión de todos los
-      // terminales de esta UF mientras el proyecto esté en granularidad
-      // 'simplificada' (default de este proyecto de ejemplo).
+      // PB: cota de PISO por defecto de ese nivel = 0,00 m (GEOM-UX-01,
+      // 3·nivel). La cota hidráulica efectiva de cada terminal se deriva
+      // sumando la altura hidráulica sobre piso del artefacto (Tabla IUAS
+      // del tipo, salvo override): p.ej. ducha 0 + 2,00 = 2,00 m; bidet
+      // 0 + 0,40 = 0,40 m. Ningún Local ni artefacto de este ejemplo trae
+      // override -- todo se deriva.
       nivel: 0,
-      cotaHidraulicaReferencia_m: 1,
+      cotaHidraulicaReferencia_m: 0,
       locales: [
         {
           id: 'local-bano',

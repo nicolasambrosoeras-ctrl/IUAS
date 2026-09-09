@@ -226,14 +226,18 @@ function referenciaDe(unidadFuncionalId: string, localId: string, artefactoId: s
   return { tipo: 'artefacto', unidadFuncionalId, localId, artefactoId }
 }
 
-// raiz(cota 0) -> mid -> dos terminales hermanos (lavatorio cota 3, ducha
-// cota 8), ambos AF con longitud_m -- dos caminos reales e independientes
-// hacia el mismo origen, tal como los recorrería la UI para comparar
-// terminales de un mismo Local.
+// raiz(cota 0) -> mid -> dos terminales hermanos (lavatorio, ducha),
+// ambos AF con longitud_m -- dos caminos reales e independientes hacia el
+// mismo origen, tal como los recorrería la UI para comparar terminales de
+// un mismo Local. GEOM-UX-01: la cota efectiva de cada terminal se deriva
+// de la cota de piso de la UF (0) + la altura IUAS del tipo (lavatorio
+// 0,90; ducha 2,00); las cota_m de los Nodos (3 y 8) se ignoran. Estos
+// tests comparan los dos márgenes entre sí, no contra un golden absoluto.
 function proyectoDosTerminales(): Proyecto {
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
+    cotaHidraulicaReferencia_m: 0,
     locales: [
       {
         id: 'local-1',

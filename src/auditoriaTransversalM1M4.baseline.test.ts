@@ -22,9 +22,18 @@
 // de agua mínimo efectivo que la UI (resolverEntradasDeVerificacion). El
 // fixture canónico es modo Rápido + tanque elevado simple, así que el
 // pelo de agua mínimo del balance dejó de ser el valor manual (20 m) y
-// pasa a estimarse como `desnivelConexion_m − 0,50 = −0,50 m`. Único
-// cambio del baseline: el margen del crítico de M2 pasa de +3,836 m.c.a.
-// (CUMPLE) a −16,664 m.c.a. (NO CUMPLE). M1/M3/M4 y Tabla N°1 sin cambios.
+// pasa a estimarse como `desnivelConexion_m − 0,50 = −0,50 m`. Cambio del
+// baseline por CRIT-A39: el margen del crítico de M2 pasó de +3,836
+// m.c.a. (CUMPLE) a −16,664 m.c.a. (NO CUMPLE).
+//
+// GEOM-UX-01 (D-δ.86): la cota efectiva de cada terminal se deriva ahora
+// de la cota de PISO de la UF (0 en PB) + la altura hidráulica IUAS del
+// tipo, en vez de la hipótesis geométrica uniforme de 1,00 m del modo
+// Rápido. El terminal crítico del canónico es el receptáculo de ducha
+// del baño: su cota efectiva pasó de 1,00 m a 0 + 2,00 m (IUAS ducha) =
+// 2,00 m -> está 1,00 m más alto -> 1,00 m menos de presión residual ->
+// el margen pasa de −16,664 a −17,664 m.c.a. (sigue NO CUMPLE). M1/M3/M4
+// y Tabla N°1 sin cambios (la altura sólo mueve el `z` geométrico).
 import { describe, it, expect } from 'vitest'
 import { proyectoInicial } from './interfaz/paginas/proyectoDeEjemplo'
 import type { Proyecto } from './modelo/proyecto'
@@ -247,14 +256,15 @@ describe('D-δ.70 · Baseline funcional transversal M1–M4', () => {
     expect(m4.estado).toBe('evaluado')
     expect(m4.tipo).toBe('reservaCalculada')
 
-    // D-δ.79 (CRIT-A39): el fixture es modo Rápido + tanque elevado simple,
-    // así que el balance consume el pelo de agua mínimo ESTIMADO
-    // (desnivelConexion_m − 0,50 = −0,50 m), no el valor manual (20 m). El
-    // margen del crítico histórico era +3,836 m.c.a. → CUMPLE; con el
-    // origen estimado pasa a −16,664 m.c.a. → NO CUMPLE. Único cambio
-    // numérico del baseline por CRIT-A39 (M1/M3/M4/Tabla N°1 intactos).
+    // D-δ.79 (CRIT-A39) + GEOM-UX-01 (D-δ.86): el crítico es el receptáculo
+    // de ducha del baño. Con el pelo de agua mínimo estimado
+    // (desnivelConexion_m − 0,50 = −0,50 m) el margen histórico era
+    // −16,664 m.c.a.; al derivar la cota efectiva del terminal como cota
+    // de piso de la UF (0) + altura IUAS de la ducha (2,00) en vez de la
+    // uniforme de 1,00 m, la ducha queda 1,00 m más alta y el margen pasa
+    // a −17,664 m.c.a. (sigue NO CUMPLE). M1/M3/M4/Tabla N°1 intactos.
     if (m2.estado.estado === 'completo') {
-      expect(m2.estado.terminalMasDesfavorable.margen_mca).toBeCloseTo(-16.664, 3)
+      expect(m2.estado.terminalMasDesfavorable.margen_mca).toBeCloseTo(-17.664, 3)
       expect(m2.estado.terminalMasDesfavorable.cumpleMinimo).toBe(false)
     }
   })

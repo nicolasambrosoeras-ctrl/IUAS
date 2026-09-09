@@ -56,6 +56,7 @@ import { SelectorDeModoDeTrabajo } from './SelectorDeModoDeTrabajo'
 import { proyectoInicial } from './proyectoDeEjemplo'
 import { crearProyectoVacio } from './crearProyectoVacio'
 import { DialogoDeConfirmacion } from './DialogoDeConfirmacion'
+import { conTipoDeArtefactoCambiado } from './conTipoDeArtefactoCambiado'
 
 const TIPOS_DE_LOCAL: readonly TipoDeLocal[] = [
   'bano',
@@ -478,7 +479,7 @@ function LocalFormulario({
       const proyectoConTipoYEleccion = proyectoConArtefactos(
         local.artefactos.map((a) =>
           a.id === rowId
-            ? { ...a, artefactoId: cambioDeTipo.tipoNuevo, conectividadElegida: conectividad }
+            ? conTipoDeArtefactoCambiado(a, cambioDeTipo.tipoNuevo, { conectividadElegida: conectividad })
             : a,
         ),
       )
@@ -634,12 +635,9 @@ function LocalFormulario({
                           ? l
                           : {
                               ...l,
-                              artefactos: l.artefactos.map((a) => {
-                                if (a.id !== artefacto.id) return a
-                                const copia = { ...a, artefactoId: nuevoArtefactoId }
-                                delete copia.conectividadElegida
-                                return copia
-                              }),
+                              artefactos: l.artefactos.map((a) =>
+                                a.id === artefacto.id ? conTipoDeArtefactoCambiado(a, nuevoArtefactoId) : a,
+                              ),
                             },
                       ),
                     },

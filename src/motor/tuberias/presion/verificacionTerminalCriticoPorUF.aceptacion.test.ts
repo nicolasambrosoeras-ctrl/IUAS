@@ -1,13 +1,23 @@
-// Caso de aceptación de D-δ.48 (secciones 10/11/20 del brief): un
-// proyecto con 4 UnidadesFuncionales en los niveles/cotas default
-// aprobados (PB=1, Piso1=4, Piso2=7, Piso3=10 -- z_default=1+3·nivel,
+// Caso de aceptación de D-δ.48 (secciones 10/11/20 del brief),
+// reencuadrado por GEOM-UX-01 (D-δ.86): un proyecto con 4
+// UnidadesFuncionales en los niveles default aprobados (cota de PISO
+// z_piso = 3·nivel -> PB=0, Piso1=3, Piso2=6, Piso3=9,
 // nivelUnidadFuncional.ts), alimentado por un único origen conocido
 // (tanque elevado, cota del pelo de agua mínimo=16 m), verificando:
 //
 // 1) la carga geométrica de cada terminal ANTES de pérdidas coincide
-//    exactamente con la esperada por geometría pura (15/12/9/6 m.c.a.),
-//    usando la cota de la UnidadFuncional (D-δ.46) en granularidad
-//    'simplificada' -- nunca una cota individual de Nodo;
+//    exactamente con `16 − (z_piso + alturaIUAS(tipo))`:
+//      PB   inodoroValvula (IUAS 1,00) -> efectiva 1,00 -> carga 15,00
+//      P1   lavatorio      (IUAS 0,90) -> efectiva 3,90 -> carga 12,10
+//      P2   lavatorio      (IUAS 0,90) -> efectiva 6,90 -> carga  9,10
+//      P3   maquinaLavarropas (IUAS 0,60) -> efectiva 9,60 -> carga 6,40
+//    La cota efectiva se DERIVA (piso heredado de la UF + altura IUAS del
+//    tipo) -- nunca una cota individual de Nodo. Respecto del baseline
+//    D-δ.48 (cargas 15/12/9/6), la única diferencia es que ahora cada
+//    terminal está su altura IUAS por encima del piso en vez de la
+//    hipótesis uniforme de 1,00 m: PB no cambia (1,00 = 1,00), P1/P2
+//    ganan 0,10 m de carga, P3 gana 0,40 m. Ningún terminal cambia de
+//    CUMPLE/NO CUMPLE por eso (el contraejemplo de PB se sostiene igual).
 // 2) un contraejemplo REAL (no abstracto) de que
 //    resolverTerminalMasDesfavorable elige por MARGEN y no por
 //    Presidual: el terminal de PB tiene la mayor Presidual de los
@@ -129,9 +139,14 @@ function resolver(proyecto: Proyecto, nodoId: string) {
 }
 
 describe('D-δ.48 -- caso de aceptación: niveles por UF + terminal crítico por margen', () => {
-  it('la carga geométrica de cada terminal (antes de pérdidas) coincide exactamente con 16 − cotaUF: PB=15, Piso1=12, Piso2=9, Piso3=6', () => {
+  it('la carga geométrica de cada terminal (antes de pérdidas) = 16 − (z_piso + alturaIUAS): PB=15,00, Piso1=12,10, Piso2=9,10, Piso3=6,40', () => {
     const proyecto = proyectoDeCuatroPisos()
-    const esperado: Record<string, number> = { 'terminal-uf-pb': 15, 'terminal-uf-p1': 12, 'terminal-uf-p2': 9, 'terminal-uf-p3': 6 }
+    const esperado: Record<string, number> = {
+      'terminal-uf-pb': 15,
+      'terminal-uf-p1': 12.1,
+      'terminal-uf-p2': 9.1,
+      'terminal-uf-p3': 6.4,
+    }
 
     for (const [nodoId, cargaGeometricaEsperada] of Object.entries(esperado)) {
       const resultado = resolver(proyecto, nodoId)
@@ -216,7 +231,7 @@ describe('D-δ.48 -- caso de aceptación: niveles por UF + terminal crítico por
     if (resultadoPiso2.tipo !== 'balanceCompleto' || resultadoPiso3.tipo !== 'balanceCompleto') {
       throw new Error('se esperaba balanceCompleto en Piso 2 y Piso 3')
     }
-    expect(-resultadoPiso2.desnivel_m).toBeCloseTo(9, 10)
-    expect(-resultadoPiso3.desnivel_m).toBeCloseTo(6, 10)
+    expect(-resultadoPiso2.desnivel_m).toBeCloseTo(9.1, 10)
+    expect(-resultadoPiso3.desnivel_m).toBeCloseTo(6.4, 10)
   })
 })

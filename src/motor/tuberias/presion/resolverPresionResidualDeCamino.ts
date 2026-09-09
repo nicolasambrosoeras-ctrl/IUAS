@@ -63,18 +63,20 @@
 // siendo responsabilidad de la barrera de presentacion (S2), no de este
 // orquestador por terminal.
 //
-// Cota terminal efectiva (D-delta.46): GranularidadHidraulica tambien
-// decide de donde sale la cota del terminal para Δz -- 'profesional'
-// sigue usando Nodo.cota_m (sin cambios); 'simplificada' usa
-// UnidadFuncional.cotaHidraulicaReferencia_m para TODOS los terminales
-// de esa UF (ver resolverCotaTerminalEfectiva.ts), excepto el caso
-// degenerado donde el terminal consultado es tambien la raiz del camino
-// (sin ningun tramo entrante), que conserva su propia cota_m en ambas
-// granularidades. Si la UF no tiene cotaHidraulicaReferencia_m cargada,
-// se corta con 'unidadFuncionalSinCotaDeReferencia' -- distinto de
-// 'desnivelIncompleto' (que sigue reportando la cota de la RAIZ/
-// alimentacion faltante, no afectada por esta granularidad) para que
-// resolverEstadoModulo2 pueda deduplicar por UF.
+// Cota hidraulica efectiva del terminal (GEOM-UX-01, D-delta.86): se
+// DERIVA de la jerarquia de cotas heredadas -- cota de piso efectiva del
+// Local (override Local.cotaPiso_m, o UF.cotaHidraulicaReferencia_m
+// heredada) + altura hidraulica efectiva del artefacto
+// (Artefacto.alturaHidraulicaSobrePiso_m, o Tabla IUAS del tipo). Vale
+// para AMBAS granularidades: GEOM-UX-01 sustituyo la hipotesis geometrica
+// uniforme de 1,00 m del modo rapido por esta derivacion (ver
+// resolverCotaHidraulicaDeArtefacto.ts). Se ignora el Nodo.cota_m propio
+// del terminal. Unica excepcion: el terminal degenerado que ademas es la
+// raiz del camino (sin ningun tramo entrante) conserva su propia cota_m
+// -- funciona como punto de alimentacion. Si la UF/Local no tienen cota
+// de piso resoluble se corta con 'unidadFuncionalSinCotaDeReferencia' --
+// distinto de 'desnivelIncompleto' (que reporta la cota de la RAIZ/
+// alimentacion faltante) para que resolverEstadoModulo2 deduplique por UF.
 import type { Proyecto } from '../../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../../normativa/eras-2023/catalogo-artefactos'
 import type { SistemaDeTuberiaCatalogado } from '../sistemaDeTuberia'
@@ -84,7 +86,7 @@ import {
   type CaminoHaciaOrigenNoResoluble,
 } from '../topologia/obtenerCaminoHaciaOrigen'
 import { resolverDesnivelDeCamino } from '../geometria/resolverDesnivelDeCamino'
-import { resolverCotaTerminalEfectiva } from '../geometria/resolverCotaTerminalEfectiva'
+import { resolverCotaHidraulicaEfectivaDeArtefacto } from '../geometria/resolverCotaHidraulicaDeArtefacto'
 import {
   acumularPerdidaDistribuidaDeCamino,
   type MotivoTramoSinPerdida,
@@ -255,13 +257,14 @@ export function resolverPresionResidualDeCamino(
         `Artefacto (uf="${referencia.unidadFuncionalId}", local="${referencia.localId}", artefacto="${referencia.artefactoId}")`,
     )
   }
-  if (unidadFuncional === undefined) {
+  if (unidadFuncional === undefined || local === undefined) {
     // Inalcanzable: artefactoInstancia solo resuelve si local existe, que
     // a su vez solo existe si unidadFuncional existe (ver la cadena de
     // `?.` de arriba) -- chequeo explicito unicamente para el
-    // angostamiento de tipos de TypeScript (D-delta.46, resolverCotaTerminalEfectiva
-    // necesita unidadFuncional ya angostada mas abajo).
-    throw new Error('resolverPresionResidualDeCamino: inconsistencia interna (unidadFuncional indefinida)')
+    // angostamiento de tipos de TypeScript (GEOM-UX-01,
+    // resolverCotaHidraulicaEfectivaDeArtefacto necesita UF y Local ya
+    // angostados mas abajo).
+    throw new Error('resolverPresionResidualDeCamino: inconsistencia interna (unidadFuncional/local indefinidos)')
   }
 
   const artefactoIdCatalogo = artefactoInstancia.artefactoId
@@ -277,24 +280,28 @@ export function resolverPresionResidualDeCamino(
   }
   const presionMinima_kgcm2 = artefactoNormativo.presionMinima_kgcm2
 
-  // Cota efectiva del terminal (D-delta.46): 'profesional' usa
-  // camino sin modificar (comportamiento previo, byte a byte). En
-  // 'simplificada', el terminal toma la cota de su UnidadFuncional en
-  // vez de la propia -- EXCEPTO cuando el terminal ES la raiz del
-  // camino (nodo sin ningun tramo entrante que ademas referencia un
-  // Artefacto, caso degenerado ya cubierto por un test existente): ese
-  // nodo funciona como punto de alimentacion, no como "conexion de
-  // Artefacto dentro de una UF", asi que conserva su propia cota_m
-  // igual que en profesional -- sustituirla colapsaria Δz a 0 y
-  // descartaria silenciosamente el dato de alimentacion ya cargado.
+  // Cota hidraulica efectiva del terminal (GEOM-UX-01): se DERIVA de la
+  // jerarquia de cotas heredadas -- cota de piso efectiva del Local
+  // (override del Local, o cota de la UF heredada) + altura hidraulica
+  // efectiva del artefacto (override de instancia, o Tabla IUAS del tipo).
+  // Vale para AMBAS granularidades: GEOM-UX-01 sustituyo la hipotesis
+  // geometrica uniforme del modo rapido por esta derivacion. Se ignora
+  // por completo el Nodo.cota_m propio del terminal (si lo tuviera de un
+  // relevamiento anterior -- nunca se lee ni se borra).
+  //
+  // EXCEPCION: cuando el terminal ES la raiz del camino (nodo sin ningun
+  // tramo entrante que ademas referencia un Artefacto, caso degenerado ya
+  // cubierto por tests): funciona como punto de alimentacion, no como
+  // "conexion de Artefacto dentro de una UF", asi que conserva su propia
+  // cota_m -- sustituirla colapsaria Δz a 0 y descartaria el dato de
+  // alimentacion ya cargado.
   let caminoParaDesnivel = camino
-  if (proyecto.configuracionHidraulica.granularidadHidraulica === 'simplificada' && camino.raizId !== camino.terminalId) {
-    const cotaEfectiva_m = resolverCotaTerminalEfectiva(
-      proyecto.configuracionHidraulica.granularidadHidraulica,
-      unidadFuncional,
-      nodoTerminal.cota_m,
-    )
+  if (camino.raizId !== camino.terminalId) {
+    const cotaEfectiva_m = resolverCotaHidraulicaEfectivaDeArtefacto(unidadFuncional, local, artefactoInstancia)
     if (cotaEfectiva_m === undefined) {
+      // La UF (o el Local) de este terminal no tiene cota de piso
+      // resoluble. Se deduplica por UF en resolverEstadoModulo2 -- ver
+      // comentario del tipo alla.
       return { tipo: 'unidadFuncionalSinCotaDeReferencia', unidadFuncionalId: unidadFuncional.id }
     }
     caminoParaDesnivel = {

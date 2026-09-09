@@ -1,21 +1,21 @@
 import { describe, it, expect } from 'vitest'
 import { calcularCotaHidraulicaDefaultDeNivel, nombreDeNivel } from './nivelUnidadFuncional'
 
-describe('calcularCotaHidraulicaDefaultDeNivel', () => {
-  it('PB (nivel 0) -> 1,00 m', () => {
-    expect(calcularCotaHidraulicaDefaultDeNivel(0)).toBe(1)
+describe('calcularCotaHidraulicaDefaultDeNivel (GEOM-UX-01: cota de PISO, 3·nivel)', () => {
+  it('PB (nivel 0) -> 0,00 m (el +1 m de altura de conexión lo aporta ahora la Tabla IUAS)', () => {
+    expect(calcularCotaHidraulicaDefaultDeNivel(0)).toBe(0)
   })
 
-  it('Piso 1 -> 4,00 m', () => {
-    expect(calcularCotaHidraulicaDefaultDeNivel(1)).toBe(4)
+  it('Piso 1 -> 3,00 m', () => {
+    expect(calcularCotaHidraulicaDefaultDeNivel(1)).toBe(3)
   })
 
-  it('Piso 2 -> 7,00 m', () => {
-    expect(calcularCotaHidraulicaDefaultDeNivel(2)).toBe(7)
+  it('Piso 2 -> 6,00 m', () => {
+    expect(calcularCotaHidraulicaDefaultDeNivel(2)).toBe(6)
   })
 
-  it('Piso 3 -> 10,00 m', () => {
-    expect(calcularCotaHidraulicaDefaultDeNivel(3)).toBe(10)
+  it('Piso 3 -> 9,00 m', () => {
+    expect(calcularCotaHidraulicaDefaultDeNivel(3)).toBe(9)
   })
 })
 

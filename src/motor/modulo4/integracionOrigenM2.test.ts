@@ -80,6 +80,12 @@ const RED: RedHidraulica = {
 const UF: UnidadFuncional = {
   id: 'uf-1',
   nombre: 'uf-1',
+  // GEOM-UX-01: la cota efectiva del terminal se deriva de la cota de
+  // piso de la UF + la altura IUAS del tipo (lavatorio 0,90). Se fija la
+  // cota de piso en 7,1 para que la efectiva reproduzca el `cota_m: 8`
+  // clásico del Nodo -- este archivo aísla el efecto del ORIGEN, no de
+  // la geometría del terminal, así que su balance queda byte-idéntico.
+  cotaHidraulicaReferencia_m: 7.1,
   locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', 'lavatorio')] }],
 }
 

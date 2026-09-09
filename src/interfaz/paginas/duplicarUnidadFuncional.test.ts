@@ -146,6 +146,57 @@ describe('duplicarUnidadFuncional', () => {
 
     expect(copia.nombre).toBe('Departamento 1º A (copia)')
   })
+
+  // GEOM-UX-01 §8 — duplicar conserva el DISEÑO EXPLÍCITO de cotas: los
+  // overrides se duplican, lo heredado sigue heredado, y los defaults
+  // NUNCA se materializan como overrides durante la copia.
+  it('§8: duplica el override de cota de piso del Local y el override de altura del artefacto', () => {
+    const original = ufDePrueba({
+      cotaHidraulicaReferencia_m: 9,
+      locales: [
+        {
+          id: 'local-bano',
+          tipo: 'bano',
+          regimen: 'domiciliario',
+          cotaPiso_m: 9.5,
+          artefactos: [
+            { id: 'a-lavatorio', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
+            { id: 'a-ducha', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo', alturaHidraulicaSobrePiso_m: 2.15 },
+          ],
+        },
+      ],
+    })
+
+    const copia = duplicarUnidadFuncional(original)
+
+    expect(copia.cotaHidraulicaReferencia_m).toBe(9)
+    expect(copia.locales[0]?.cotaPiso_m).toBe(9.5)
+    // Lavatorio sin override: sigue sin override (default IUAS, no materializado).
+    expect(copia.locales[0]?.artefactos[0]?.alturaHidraulicaSobrePiso_m).toBeUndefined()
+    // Ducha con override explícito: se conserva tal cual.
+    expect(copia.locales[0]?.artefactos[1]?.alturaHidraulicaSobrePiso_m).toBe(2.15)
+  })
+
+  it('§8: los valores HEREDADOS siguen heredados en la copia -- no se materializa ningún default', () => {
+    const original = ufDePrueba({
+      cotaHidraulicaReferencia_m: 6,
+      locales: [
+        {
+          id: 'local-bano',
+          tipo: 'bano',
+          regimen: 'domiciliario',
+          // sin cotaPiso_m: hereda la UF
+          artefactos: [{ id: 'a-lavatorio', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
+        },
+      ],
+    })
+
+    const copia = duplicarUnidadFuncional(original)
+
+    // El Local de la copia sigue SIN override -> sigue heredando la UF.
+    expect(copia.locales[0]).not.toHaveProperty('cotaPiso_m')
+    expect(copia.locales[0]?.artefactos[0]).not.toHaveProperty('alturaHidraulicaSobrePiso_m')
+  })
 })
 
 describe('duplicarUnidadFuncionalEnProyecto', () => {
