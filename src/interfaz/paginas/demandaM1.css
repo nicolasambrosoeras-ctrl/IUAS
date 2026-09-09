@@ -264,6 +264,44 @@
   color: var(--color-texto-3);
 }
 
+/* GEOM-UX-01 §11 -- editores compactos de cota: cota de piso del Local y
+   altura hidráulica sobre piso del artefacto. Una línea que envuelve;
+   dentro de una fila de artefacto ocupa el ancho completo de la grilla. */
+.m1-cota {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--esp-xs) var(--esp-sm);
+  font-size: var(--fs-ayuda);
+  color: var(--color-texto-2);
+}
+
+.m1-artefacto .m1-cota {
+  grid-column: 1 / -1;
+}
+
+.m1-local > .m1-cota {
+  margin: var(--esp-xs) 0 var(--esp-sm);
+}
+
+.m1-cota__marca {
+  font-size: var(--fs-meta);
+  color: var(--color-texto-3);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.m1-cota__efectiva {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-texto-3);
+}
+
+.m1-cota .ui-btn--fantasma {
+  min-height: 1.6rem;
+  padding: 0.1rem 0.5rem;
+  font-size: var(--fs-meta);
+}
+
 .m1-artefacto__conectividad .ui-segmented__opcion {
   padding: 0.1rem 0.7rem;
   font-size: var(--fs-ayuda);

@@ -50,6 +50,8 @@ import './navegacionUI.css'
 import './demandaM1.css'
 import { parsearCota } from './parsearCota'
 import { calcularCotaHidraulicaDefaultDeNivel, nombreDeNivel } from './nivelUnidadFuncional'
+import { obtenerAlturaHidraulicaIuas, AYUDA_ALTURA_HIDRAULICA_IUAS } from '../../normativa/eras-2023/catalogo-artefactos/alturasHidraulicasIuas'
+import { resolverCotaHidraulicaEfectivaDeArtefacto } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import { resumenDeUnidadFuncional } from './resumenDeUnidadFuncional'
 import { sugerirArtefactoParaLocal } from './sugerenciaDeArtefacto'
 import { SelectorDeModoDeTrabajo } from './SelectorDeModoDeTrabajo'
@@ -180,10 +182,137 @@ function EditorDeConectividad({
   )
 }
 
+// GEOM-UX-01 §6/§11 -- cota con signo explícito y 2 decimales ("+9,50").
+function formatearCotaConSigno(valor: number): string {
+  const abs = Math.abs(valor).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return `${valor < 0 ? '-' : '+'}${abs}`
+}
+
+function formatearMetros2(valor: number): string {
+  return valor.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+// GEOM-UX-01 §11 -- editor compacto de la cota de piso de un Local:
+// "hereda UF" con [Personalizar]; personalizada con input + [Restablecer].
+// Vaciar el input mientras está personalizada equivale a Restablecer.
+function EditorDeCotaPisoDeLocal({
+  cotaPiso_m,
+  cotaHeredadaUF_m,
+  onCambiar,
+}: {
+  cotaPiso_m: number | undefined
+  cotaHeredadaUF_m: number | undefined
+  onCambiar: (cotaPiso_m: number | undefined) => void
+}) {
+  if (cotaPiso_m === undefined) {
+    return (
+      <div className="m1-cota">
+        <span className="m1-cota__estado">
+          Cota de piso:{' '}
+          <strong>
+            {cotaHeredadaUF_m === undefined
+              ? 'hereda de la unidad funcional'
+              : `hereda UF: ${formatearCotaConSigno(cotaHeredadaUF_m)} m`}
+          </strong>
+        </span>
+        <button type="button" className="ui-btn--fantasma" onClick={() => onCambiar(cotaHeredadaUF_m ?? 0)}>
+          Personalizar
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div className="m1-cota">
+      <label className="m1-cota__estado">
+        Cota de piso del Local [m]:{' '}
+        <input
+          type="number"
+          step="any"
+          value={cotaPiso_m}
+          onChange={(evento) => {
+            const r = parsearCota(evento.target.value)
+            if (r === 'ignorar') return
+            onCambiar(r)
+          }}
+          style={{ width: '5rem' }}
+        />
+      </label>
+      <span className="m1-cota__marca">personalizada</span>
+      <button type="button" className="ui-btn--fantasma" onClick={() => onCambiar(undefined)}>
+        Restablecer
+      </button>
+    </div>
+  )
+}
+
+// GEOM-UX-01 §11 -- editor compacto de la altura hidráulica sobre piso de
+// un artefacto: "sugerida IUAS" con [Personalizar]; personalizada con
+// input + [Restablecer]. Muestra además la cota hidráulica efectiva
+// derivada cuando se puede calcular.
+function EditorDeAlturaHidraulica({
+  alturaOverride_m,
+  alturaSugeridaIuas_m,
+  cotaEfectiva_m,
+  onCambiar,
+}: {
+  alturaOverride_m: number | undefined
+  alturaSugeridaIuas_m: number | undefined
+  cotaEfectiva_m: number | undefined
+  onCambiar: (altura_m: number | undefined) => void
+}) {
+  const efectiva =
+    cotaEfectiva_m !== undefined ? (
+      <span className="m1-cota__efectiva">Cota hidráulica efectiva: {formatearCotaConSigno(cotaEfectiva_m)} m</span>
+    ) : null
+
+  if (alturaOverride_m === undefined) {
+    return (
+      <div className="m1-cota">
+        <span className="m1-cota__estado" title={AYUDA_ALTURA_HIDRAULICA_IUAS}>
+          Altura sobre piso:{' '}
+          <strong>{alturaSugeridaIuas_m === undefined ? '—' : `${formatearMetros2(alturaSugeridaIuas_m)} m`}</strong>
+          {alturaSugeridaIuas_m === undefined ? '' : ' · sugerida IUAS'}
+        </span>
+        {alturaSugeridaIuas_m !== undefined ? (
+          <button type="button" className="ui-btn--fantasma" onClick={() => onCambiar(alturaSugeridaIuas_m)}>
+            Personalizar
+          </button>
+        ) : null}
+        {efectiva}
+      </div>
+    )
+  }
+  return (
+    <div className="m1-cota">
+      <label className="m1-cota__estado">
+        Altura sobre piso [m]:{' '}
+        <input
+          type="number"
+          step="any"
+          min={0}
+          value={alturaOverride_m}
+          onChange={(evento) => {
+            const r = parsearCota(evento.target.value)
+            if (r === 'ignorar') return
+            onCambiar(r)
+          }}
+          style={{ width: '5rem' }}
+        />
+      </label>
+      <span className="m1-cota__marca">personalizada</span>
+      <button type="button" className="ui-btn--fantasma" onClick={() => onCambiar(undefined)}>
+        Restablecer
+      </button>
+      {efectiva}
+    </div>
+  )
+}
+
 function ArtefactoFormulario({
   artefacto,
   tipoMostrado,
   editorConectividad,
+  editorAltura,
   onCambiar,
   onCambiarTipo,
   onEliminar,
@@ -208,6 +337,15 @@ function ArtefactoFormulario({
   // AF/AC según la política del tipo nuevo. Distinto de onCambiar
   // (cantidad), que es puramente funcional.
   onCambiarTipo: (nuevoArtefactoId: string) => void
+  // GEOM-UX-01 §11: datos ya derivados por el Local (altura sugerida IUAS
+  // del tipo, cota efectiva) para el editor de altura hidráulica.
+  editorAltura?:
+    | {
+        alturaSugeridaIuas_m: number | undefined
+        cotaEfectiva_m: number | undefined
+        onCambiar: (altura_m: number | undefined) => void
+      }
+    | undefined
   onEliminar: () => void
 }) {
   const tipoEnSelect = tipoMostrado ?? artefacto.artefactoId
@@ -254,6 +392,14 @@ function ArtefactoFormulario({
           opciones={editorConectividad.opciones}
           valor={editorConectividad.valor}
           onCambiar={editorConectividad.onCambiar}
+        />
+      ) : null}
+      {editorAltura ? (
+        <EditorDeAlturaHidraulica
+          alturaOverride_m={artefacto.alturaHidraulicaSobrePiso_m}
+          alturaSugeridaIuas_m={editorAltura.alturaSugeridaIuas_m}
+          cotaEfectiva_m={editorAltura.cotaEfectiva_m}
+          onCambiar={editorAltura.onCambiar}
         />
       ) : null}
     </div>
@@ -530,6 +676,21 @@ function LocalFormulario({
   // el prefijo es redundante (ya es una card de Local).
   const tituloLocal = etiqueta.replace(/^Local:\s*/, '')
 
+  // GEOM-UX-01 §11: jerarquía de cotas. La UF aporta la cota de piso
+  // heredable; el Local puede tener override; cada artefacto deriva su
+  // cota hidráulica efectiva de la cadena.
+  const unidadFuncional = proyecto.unidadesFuncionales.find((u) => u.id === unidadFuncionalId)
+  const cotaHeredadaUF_m = unidadFuncional?.cotaHidraulicaReferencia_m
+  function cambiarCotaPisoDeLocal(cotaPiso_m: number | undefined) {
+    if (cotaPiso_m === undefined) {
+      const localSinCotaPiso: Local = { ...local }
+      delete localSinCotaPiso.cotaPiso_m
+      onCambiar(localSinCotaPiso)
+      return
+    }
+    onCambiar({ ...local, cotaPiso_m })
+  }
+
   return (
     <article className="m1-local">
       <div className="m1-local__cabecera">
@@ -576,6 +737,12 @@ function LocalFormulario({
         </label>
       </div>
 
+      <EditorDeCotaPisoDeLocal
+        cotaPiso_m={local.cotaPiso_m}
+        cotaHeredadaUF_m={cotaHeredadaUF_m}
+        onCambiar={cambiarCotaPisoDeLocal}
+      />
+
       <p className="m1-local__seccion">Artefactos</p>
       <div className="m1-artefactos">
         {local.artefactos.map((artefacto) => (
@@ -588,6 +755,30 @@ function LocalFormulario({
                 : undefined
             }
             editorConectividad={editorConectividadDeArtefacto(artefacto)}
+            editorAltura={{
+              alturaSugeridaIuas_m: obtenerAlturaHidraulicaIuas(artefacto.artefactoId),
+              cotaEfectiva_m:
+                unidadFuncional !== undefined
+                  ? resolverCotaHidraulicaEfectivaDeArtefacto(unidadFuncional, local, artefacto)
+                  : undefined,
+              onCambiar: (altura_m) => {
+                if (altura_m === undefined) {
+                  const artefactoSinAltura: Artefacto = { ...artefacto }
+                  delete artefactoSinAltura.alturaHidraulicaSobrePiso_m
+                  onCambiar({
+                    ...local,
+                    artefactos: local.artefactos.map((a) => (a.id === artefacto.id ? artefactoSinAltura : a)),
+                  })
+                  return
+                }
+                onCambiar({
+                  ...local,
+                  artefactos: local.artefactos.map((a) =>
+                    a.id === artefacto.id ? { ...a, alturaHidraulicaSobrePiso_m: altura_m } : a,
+                  ),
+                })
+              },
+            }}
             onCambiar={(artefactoActualizado) =>
               onCambiar({
                 ...local,
@@ -924,8 +1115,8 @@ function CuerpoDeUnidadFuncional({
             ))}
           </select>
         </label>
-        <label>
-          Cota hidráulica de referencia [m]:{' '}
+        <label title="Cota del piso terminado de la unidad funcional respecto de la referencia del proyecto (0 = nivel de vereda).">
+          Cota de piso de la unidad funcional [m]:{' '}
           <input
             type="number"
             step="any"
@@ -948,8 +1139,9 @@ function CuerpoDeUnidadFuncional({
       </div>
       <p className="m1-uf__ayuda">
         <small>
-          En modo rápido (granularidad simplificada), esta cota se utiliza para todos los puntos de consumo de la
-          unidad funcional.
+          Cota del piso terminado. La cota hidráulica de cada punto de consumo se deriva sumando la altura del
+          artefacto sobre el piso (valor de referencia IUAS por tipo, editable). Cada Local puede personalizar su
+          propia cota de piso.
         </small>
       </p>
 
