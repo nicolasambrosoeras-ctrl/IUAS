@@ -820,12 +820,29 @@ summary > h3 {
   flex-wrap: wrap;
   align-items: baseline;
   gap: var(--esp-sm) var(--esp-lg);
+  /* FIX-RESP-01: <fieldset> trae `min-inline-size: min-content` de UA, que
+     ignora el ancho del padre y lo empujaba fuera del viewport en móvil
+     (los <select> largos de método/granularidad marcaban el min-content).
+     `min-width: 0` deja que el grupo se comprima al ancho disponible y que
+     `flex-wrap` haga su trabajo. */
+  min-width: 0;
 }
 
 .config-hidraulica__grupo > label {
   display: inline-flex;
   align-items: baseline;
   gap: var(--esp-xs);
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Los <select> de método / granularidad / material muestran opciones
+   largas ("Detalladas (relevamiento de accesorios)"…). En pantallas
+   angostas se comprimen al contenedor (el texto de la opción cerrada se
+   trunca; la lista completa sigue disponible al abrir). */
+.config-hidraulica__grupo select {
+  max-width: 100%;
+  min-width: 0;
 }
 
 .config-hidraulica__grupo > p {

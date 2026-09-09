@@ -183,6 +183,21 @@
     gap: var(--esp-md);
   }
 
+  /* FIX-RESP-01: en desktop `.app-modo` es `flex: 0 0 auto` (a la derecha
+     del título, sin crecer). En viewports angostos eso lo dejaba tomar su
+     ancho max-content (label + segmentado + badge "Avanzado …", ~585 px) y
+     desbordar el documento en horizontal. Acá pasa a ocupar su propia
+     línea (como `.app-aviso-piloto`) y su `flex-wrap` reparte los hijos
+     dentro del viewport. */
+  .app-modo {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  .app-modo .ui-badge--muted {
+    white-space: normal;
+  }
+
   .app-nav {
     top: 0;
     z-index: 10;

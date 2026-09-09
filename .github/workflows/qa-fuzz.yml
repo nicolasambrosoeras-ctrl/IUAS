@@ -93,8 +93,8 @@ jobs:
       - name: Catálogo de conectividad
         run: npx playwright test tests/e2e/catalogo-conectividad.spec.ts --project=desktop
 
-      - name: Escenarios observados
-        run: npx playwright test tests/e2e/crash-observado.spec.ts tests/e2e/hallazgos.spec.ts
+      - name: Escenarios observados + regresión responsive
+        run: npx playwright test tests/e2e/crash-observado.spec.ts tests/e2e/hallazgos.spec.ts tests/e2e/responsive.spec.ts
 
       - name: Sequence fuzz
         run: npx playwright test tests/e2e/sequence-fuzz.spec.ts
