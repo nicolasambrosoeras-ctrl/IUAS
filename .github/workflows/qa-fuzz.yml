@@ -1,0 +1,91 @@
+# QA-FUZZ-01 (D-δ.80) — harness de testing secuencial con Playwright.
+# Ejecuta el smoke determinista, el recorrido de catálogo y el fuzz de
+# secuencias reproducible contra la beta pública (o una URL alternativa).
+#
+# NO despliega. NO toca GitHub Pages. NO usa la API de Claude (brief §33):
+# es Playwright puro sobre un runner de GitHub. Si el fuzz encuentra un bug
+# real, el job queda ROJO: eso NO significa que el harness falló
+# (brief §59/§60) — revisar los artifacts.
+name: QA Fuzz (Playwright)
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'URL objetivo (vacío = beta pública en GitHub Pages)'
+        required: false
+        default: ''
+      runs:
+        description: 'Cantidad de runs de fuzz'
+        required: false
+        default: '30'
+      steps:
+        description: 'Pasos por run'
+        required: false
+        default: '25'
+      seed:
+        description: 'Seed base (vacío = se genera y se imprime)'
+        required: false
+        default: ''
+  schedule:
+    # Nocturno, ~03:30 UTC (00:30 AR). Frecuencia baja a propósito (brief §28/§31).
+    - cron: '30 3 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-fuzz-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  qa-fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      IUAS_BASE_URL: ${{ github.event.inputs.base_url }}
+      IUAS_FUZZ_RUNS: ${{ github.event.inputs.runs || '50' }}
+      IUAS_FUZZ_STEPS: ${{ github.event.inputs.steps || '30' }}
+      IUAS_FUZZ_SEED: ${{ github.event.inputs.seed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: lts/*
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright (Chromium + deps)
+        run: npx playwright install --with-deps chromium
+
+      - name: Harness unit tests (Vitest)
+        run: npx vitest run tests/e2e/qa
+
+      - name: Smoke determinista
+        run: npx playwright test tests/e2e/smoke.spec.ts
+
+      - name: Catálogo de conectividad
+        run: npx playwright test tests/e2e/catalogo-conectividad.spec.ts --project=desktop
+
+      - name: Escenarios observados
+        run: npx playwright test tests/e2e/crash-observado.spec.ts tests/e2e/hallazgos.spec.ts
+
+      - name: Sequence fuzz
+        run: npx playwright test tests/e2e/sequence-fuzz.spec.ts
+
+      - name: Subir artifacts (siempre)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: qa-fuzz-artifacts
+          path: |
+            qa-results/
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
