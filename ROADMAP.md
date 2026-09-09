@@ -875,11 +875,29 @@ salvo bug inequívoco o decisión roja explícita.
     si no hay `seed`), la exporta a `$GITHUB_ENV` y la deja en el step
     summary; `tests/e2e/qa/seed.test.ts` (10 tests, con guarda
     anti-regresión). `fuzz sin seed` ≡ `fuzz seed=424242` (byte-idéntico).
-  - **Hallazgo surgido (APP, NO corregido): `FIX-RESP-01`** — en móvil
-    (390 px), M2 «Profesional» desborda la página en horizontal
-    (`scrollWidth 593 > 390`): `table.tabla-tecnica` del detalle sin
-    envoltura `.tabla-scroll`. Determinista, sólo mobile. Fuera de alcance
-    QA-CI-01. Ver `QA-FUZZ.md` §12.
+  - **Hallazgo surgido (APP): `FIX-RESP-01`** — en móvil, M2
+    «Detalladas/Profesional» desbordaba la página en horizontal.
+    **Resuelto en D-δ.82.**
+
+- **D-δ.82 — FIX-RESP-01: contener el overflow horizontal responsive de
+  M2.** Fix responsive puntual (NO es GEOM-UX-01, NO es rediseño). Sin
+  cambios de cálculo/dominio/cotas/textos; `v0.4.0-beta.5` sigue siendo la
+  versión funcional. Alcance: `navegacionUI.css`, `sistema-visual.css`,
+  `tests/e2e/**`, docs, workflow.
+  - **Causa raíz (sonda, no asumida):** `.app-modo` (cabecera) con
+    `flex: 0 0 auto` tomaba su ancho max-content al aparecer el badge
+    "Avanzado …" y empujaba el documento; `<fieldset>.config-hidraulica__grupo`
+    traía `min-inline-size: min-content` del UA. Las `.tabla-tecnica` ya
+    estaban contenidas por `.tabla-scroll` (no eran la causa).
+  - **Fix:** en `@media (max-width: 900px)`, `.app-modo { flex: 1 1 100%;
+    min-width: 0 }` (propia línea + `flex-wrap`) y badge `white-space:
+    normal`; `min-width: 0` / `max-width: 100%` en
+    `.config-hidraulica__grupo`, sus `> label` y sus `select`. Sin
+    `overflow-x: hidden` global ni ocultar contenido; las tablas anchas
+    scrollean dentro de `.tabla-scroll`.
+  - **Regresión:** `tests/e2e/responsive.spec.ts` (390 / 360 / 1280 px:
+    documento sin overflow + tabla con scroll interno contenido), en el
+    paso «Escenarios observados + regresión responsive» del workflow.
 
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto

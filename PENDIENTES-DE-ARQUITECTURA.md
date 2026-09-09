@@ -8929,6 +8929,98 @@ Snapshot `resguardo-documentacion/2026-09-08_pre-UI-01B/` intacto.
 **FIX-LEAK-01 / FIX-RESP-01 / FIX-CRASH-01 / CAT-CONN-01 -- NO iniciar en
 esta corrida. UX-TEST-01 -- NO iniciar. REPORT-01 -- NO iniciar.**
 
+## D-δ.82 -- FIX-RESP-01: contener el overflow horizontal responsive de M2 -- CERRADA
+
+Fix responsive puntual (NO es GEOM-UX-01 ni un rediseño). Sin cambios de
+cálculo, dominio, cotas, textos hidráulicos ni modo Profesional. Alcance:
+`src/interfaz/paginas/navegacionUI.css`,
+`src/interfaz/paginas/sistema-visual.css`, `tests/e2e/**`, documentación y
+el workflow de QA fuzz. Versión pública funcional sigue **`v0.4.0-beta.5`**
+(no se decide release por esto).
+
+### Síntoma y detección
+
+El fuzz de QA-CI-01, ya funcional en la nube, rompió de forma
+**determinista** en `run 1 · step 1 · cambiarPerdidaLocalizada=detallado`,
+proyecto **mobile**: la invariante `sin-overflow-horizontal` reportó
+`documentElement.scrollWidth > clientWidth` (cloud: 390 → +258 px;
+360 → +89 px). Local (fallback seed `424242`) reproduce +203 px a 390 px.
+Sin `pageerror` ni `console.error` ⇒ clasificación **APP / layout
+responsive**.
+
+### Causa raíz (sonda del árbol de ancestros, no asumida)
+
+1. **`.app-modo`** (cabecera global, `navegacionUI.css`) tenía
+   `flex: 0 0 auto`. Cuando la config de M2 deja el modo derivado en
+   `avanzado` (mezcla Rápido/Profesional) aparece el badge
+   *"Avanzado · combinación técnica personalizada"*; con él, `.app-modo`
+   tomaba su ancho **max-content** (≈ 585 px) y, al no poder encogerse,
+   empujaba el documento en horizontal.
+2. **`<fieldset>.config-hidraulica__grupo`** (`sistema-visual.css`) traía
+   `min-inline-size: min-content` del user-agent — los `<select>` de
+   opciones largas ("Detalladas (relevamiento de accesorios)"…) marcaban
+   ese min-content y el fieldset ignoraba el ancho del padre (+9 px).
+
+Las `table.tabla-tecnica` **ya** estaban contenidas por `.tabla-scroll`
+(scroll interno correcto): NO eran la causa. La hipótesis previa
+("tabla sin wrapper") quedó descartada por la sonda.
+
+### Fix estructural
+
+Nada de `overflow-x: hidden` global, clipping, ni ocultar contenido, ni
+reducir tipografías o columnas.
+
+- `navegacionUI.css`, dentro de `@media (max-width: 900px)`:
+  - `.app-modo { flex: 1 1 100%; min-width: 0 }` — ocupa su propia línea
+    (mismo patrón que `.app-aviso-piloto`); su `flex-wrap` reparte
+    etiqueta + segmentado + badge dentro del viewport.
+  - `.app-modo .ui-badge--muted { white-space: normal }` — el badge largo
+    puede envolver si hiciera falta.
+- `sistema-visual.css`:
+  - `.config-hidraulica__grupo { min-width: 0 }` — el fieldset se comprime
+    al ancho disponible y `flex-wrap` hace su trabajo.
+  - `.config-hidraulica__grupo > label { min-width: 0; max-width: 100% }`.
+  - `.config-hidraulica__grupo select { max-width: 100%; min-width: 0 }` —
+    el `<select>` cerrado trunca la opción larga; la lista completa sigue
+    disponible al abrir.
+
+### Regresión
+
+`tests/e2e/responsive.spec.ts` (nuevo). Para 390×844, 360×800 y 1280×900,
+tras llevar M2 a «Detalladas + Profesional» y expandir filas:
+
+- `documentElement.scrollWidth` y `body.scrollWidth` ≤ `clientWidth + 1`;
+- toda `.tabla-scroll` visible queda **dentro** del viewport;
+- en móvil, al menos una tabla técnica **scrollea dentro de su
+  contenedor** (`wrapper.scrollWidth > clientWidth`) — prueba de que el
+  ancho se **contuvo**, no se escondió;
+- la invariante genérica del harness y la vitalidad de la app
+  (`marcadorIuas`, texto útil) siguen verdes.
+
+Se agrega al paso «Escenarios observados + regresión responsive» de
+`.github/workflows/qa-fuzz.yml`.
+
+### Verificación
+
+Sonda local contra un serve estático del build (`dist` servido tal cual lo
+sirve GitHub Pages): a 390 / 360 / 1280 px, `doc = clientWidth`, tablas con
+scroll interno (`SCROLL(649/374)` …) en móvil y `flat(920/920)` en
+desktop. `responsive.spec.ts` 3/3 verde contra ese serve.
+(`vite preview` local reusaba un server viejo con `dist` stale y daba un
+falso negativo; el serve estático fresco y — tras el deploy — producción
+son la referencia.)
+
+### Estado
+
+**D-δ.82 -- CERRADA.** Baseline: Vitest **1363/1363** (CSS no toca unit
+tests); `tsc -b` verde; `npm run e2e:typecheck` verde; `npm run build`
+verde; ESLint 11 / 0 / 0 (sin regresión). Playwright: smoke / catálogo /
+escenarios / hallazgos verdes; `responsive.spec.ts` 3/3; fuzz corto
+estable. `HALLAZGOS_CONOCIDOS` intacto (FIX-RESP-01 se corrigió antes de
+agregarse). Tags sin mover; snapshot `resguardo-documentacion/` intacto.
+**FIX-LEAK-01 / FIX-CRASH-01 / CAT-CONN-01 / DEFENSE-01 / GEOM-UX-01 /
+MODE-UX-01 -- NO iniciar. UX-TEST-01 / REPORT-01 -- NO iniciar.**
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son

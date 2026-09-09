@@ -44,6 +44,7 @@ tests/e2e/
   sequence-fuzz.spec.ts        fuzz reproducible por seed
   crash-observado.spec.ts      escenarios A/B/C construidos a mano (brief §26)
   hallazgos.spec.ts            bugs de app YA encontrados (test.fail, no se corrigen)
+  responsive.spec.ts           regresión FIX-RESP-01 (sin overflow horizontal @ 390/360/desktop)
   qa/
     prng.ts        mulberry32 determinista + helpers (peso, barajar). Sin deps.
     seed.ts        resolverSeedBase(env) PURO (QA-CI-01): explícita o fallback fijo
@@ -265,7 +266,8 @@ sin deploy, sin tocar Pages.
 - Pasos: checkout → **resolver seed de QA fuzz** (una sola, a `$GITHUB_ENV`
   como `IUAS_FUZZ_SEED`; QA-CI-01) → setup-node → `npm ci` →
   `npx playwright install --with-deps chromium` → unit tests del harness →
-  smoke → catálogo → escenarios → fuzz.
+  smoke → catálogo → escenarios + **regresión responsive** (FIX-RESP-01) →
+  fuzz.
 - La seed base de la corrida queda en el *step summary*
   (`QA fuzz seed base: <valor>`) para reproducirla localmente.
 - Artifacts subidos **siempre** (`if: always()`), retención **7 días**.
@@ -344,23 +346,45 @@ artifact y el título del fallo.
   - Regresión: `qa/seed.test.ts` (passthrough, fallback estable,
     determinismo por run, guarda anti-`Date.now`/`Math.random`/`pid`…).
 
-### FIX-RESP-01 — overflow horizontal de página en móvil con M2 «Profesional»
+### FIX-RESP-01 — overflow horizontal de página en móvil con M2 «Detalladas / Profesional» — RESUELTO (D-δ.82)
 
-- **Qué:** en viewport móvil (390 px), al pasar la granularidad de M2 a
-  `profesional`, la **página** desborda en horizontal
-  (`document.documentElement.scrollWidth 593 > clientWidth 390`, `body`
-  también). Culpables medidos: `table.tabla-tecnica` del detalle Profesional
-  (`min-width: 40rem`, `overflow-x: visible` — **no** envuelta en un
-  contenedor `.tabla-scroll`), y un `<a>` de la navegación (`right ≈ 724`).
-- **Severidad:** media (responsive; no es crash ni `pageerror`; incumple la
-  regla "el body nunca hace scroll horizontal").
-- **Repro por fuzz:** sin seed ⇒ fallback `424242` ⇒ **run 1, step 1**,
-  `cambiarGranularidad=profesional`, proyecto **mobile**. 3/3 idéntico.
-  Desktop con la misma seed pasa.
-- **Estado:** hallazgo **surgido al arreglar QA-CI-01** (antes el fuzz ni
-  siquiera llegaba a ejecutarse). **No se corrige acá** (fuera de alcance
-  QA-CI-01; no se tocan invariantes ni `HALLAZGOS_CONOCIDOS`). Evidencia en
-  `qa-results/seed-424242_1-run1/`.
+- **Síntoma:** en viewport angosto (390 / 360 px), al activar en M2 las
+  pérdidas «Detalladas» y/o la granularidad «Profesional», el **documento**
+  desbordaba en horizontal (`documentElement.scrollWidth 593 > clientWidth
+  390`; `body` también). El fuzz lo encontró en `run 1 · step 1 ·
+  cambiarPerdidaLocalizada=detallado`, proyecto **mobile** (seed cloud
+  `34360767880-1`; local: fallback `424242`). Desktop no se veía afectado.
+- **Causa raíz (verificada con sonda del árbol de ancestros):**
+  1. **`.app-modo`** (cabecera) tenía `flex: 0 0 auto`. Al derivarse el
+     modo `avanzado` (mezcla Rápido/Profesional) aparece el badge
+     *"Avanzado · combinación técnica personalizada"*; con ese badge el
+     bloque tomaba su ancho **max-content** (~585 px) y, al no poder
+     encogerse, empujaba el documento.
+  2. **`<fieldset>.config-hidraulica__grupo`** traía
+     `min-inline-size: min-content` del user-agent, marcado por los
+     `<select>` de opciones largas ("Detalladas (relevamiento de
+     accesorios)"…) — el fieldset ignoraba el ancho del padre (+9 px).
+  Las `table.tabla-tecnica` **ya** estaban contenidas por `.tabla-scroll`
+  (no eran la causa; la hipótesis previa quedó descartada).
+- **Fix estructural (sin `overflow-x: hidden` global, sin ocultar
+  contenido, sin tocar tipografías/columnas):**
+  - `navegacionUI.css` — dentro de `@media (max-width: 900px)`:
+    `.app-modo { flex: 1 1 100%; min-width: 0 }` (ocupa su propia línea,
+    como `.app-aviso-piloto`; su `flex-wrap` reparte los hijos dentro del
+    viewport) y `.app-modo .ui-badge--muted { white-space: normal }`.
+  - `sistema-visual.css` — `.config-hidraulica__grupo { min-width: 0 }`,
+    `.config-hidraulica__grupo > label { min-width: 0; max-width: 100% }`,
+    `.config-hidraulica__grupo select { max-width: 100%; min-width: 0 }`
+    (el `<select>` cerrado trunca la opción larga; la lista completa sigue
+    disponible al abrir).
+- **Regresión:** `tests/e2e/responsive.spec.ts` — a 390 / 360 / 1280 px, tras
+  activar M2 «Detalladas + Profesional»: `documentElement`/`body`
+  `scrollWidth ≤ clientWidth + 1`, cada `.tabla-scroll` dentro del
+  viewport, y en móvil **alguna tabla scrollea dentro de su contenedor**
+  (prueba de que el ancho se contuvo, no se escondió). Corre en el paso
+  «Escenarios observados + regresión responsive» del workflow.
+- **No se tocó** `HALLAZGOS_CONOCIDOS` (FIX-RESP-01 nunca llegó a añadirse;
+  se corrigió antes). `FIX-LEAK-01` sigue igual.
 
 ### Pantallas blancas observadas (A/B/C)
 
@@ -375,7 +399,7 @@ handoff de D-δ.80 (ROADMAP / PENDIENTES).
 | Deuda | Qué |
 | ----- | --- |
 | `FIX-LEAK-01` | M3 muestra códigos internos de validación (este documento §12). |
-| `FIX-RESP-01` | overflow horizontal de página en móvil con M2 Profesional (§12). Al abrirlo, sumar su patrón a `HALLAZGOS_CONOCIDOS` para que el fuzz no se detenga siempre ahí. |
+| ~~`FIX-RESP-01`~~ | **RESUELTO en D-δ.82** — overflow horizontal de página en móvil con M2 Detalladas/Profesional (§12). |
 | `FIX-CRASH-01` | pantallas blancas dependientes de secuencia (si QA-FUZZ las reproduce). |
 | `CAT-CONN-01` | revisar qué artefactos *deberían* preguntar conectividad (Bañera, Válvula de mingitorio, Lavachatas…). El reporte de matriz es su evidencia. |
 | `DEFENSE-01` | ErrorBoundary con estado Proyecto preservado. Después del fix raíz. |
