@@ -8691,6 +8691,140 @@ de anchos en JS, sin masonry: orden DOM = orden hidráulico. Contenedor
 hosting; el tag apunta al commit desplegado, `beta.1`–`beta.4` no se
 mueven. **UX-TEST-01 -- NO iniciar. REPORT-01 -- NO iniciar.**
 
+## D-δ.80 -- QA-FUZZ-01: harness de testing secuencial con Playwright -- CERRADA
+
+Infraestructura **persistente** de testing E2E para detectar de forma
+sistemática crashes, pantallas blancas, estados stale y combinaciones
+inválidas de UI. **No corrige bugs de dominio**: los captura, reproduce y
+documenta. No hay versión pública nueva por sí sola: la versión funcional
+sigue siendo **`v0.4.0-beta.5`** (esta corrida sólo agrega
+tests / workflows / docs; `dist` no cambia).
+
+Documentación operativa completa: **`QA-FUZZ.md`**.
+
+### Infraestructura
+
+- **Playwright** `@playwright/test` como devDependency estándar (no había
+  E2E previo; el manifest cambió por necesidad — brief §57). Chromium.
+- `playwright.config.ts`: `baseURL` = `IUAS_BASE_URL` ?? beta pública;
+  proyectos `desktop` (1280×900) y `mobile` (Pixel 5, 390×844);
+  `trace: retain-on-failure`, `screenshot: only-on-failure`, `video: off`;
+  `workers` bajo (reproducibilidad > velocidad); `retries: 0` (fail-fast
+  por run). `IUAS_PREVIEW=1` levanta `vite preview` en `/IUAS/`.
+- `tests/e2e/` = specs; `tests/e2e/qa/` = helpers + unit tests. Los módulos
+  puros (`prng`, `tipos`, `deteccionBlanco`, `tokensProhibidos`, núcleo de
+  `generador`) no importan Playwright en runtime → sus unit tests corren en
+  Vitest. `vite.config.ts` acota `test.include` para excluir los
+  `*.spec.ts` de Playwright.
+- `tsconfig.e2e.json` + `npm run e2e:typecheck` type-checkean el harness
+  **aparte** de `tsc -b` (el baseline de build sigue siendo `src` +
+  `vite.config.ts`, intacto).
+- `eslint.config.js`: bloque nuevo para `tests/**` + `playwright.config.ts`
+  (globals node + browser; `no-empty-pattern` off por el destructuring
+  obligatorio de Playwright). Baseline de lint intacto: 11 / 0 / 0.
+- `.gitignore`: `qa-results/`, `playwright-report/`, `test-results/`,
+  `blob-report/`, `playwright/.cache/`. No se commitean resultados.
+
+### PRNG y reproducibilidad
+
+- `qa/prng.ts` — mulberry32 (dominio público), 32 bits de estado, sin
+  dependencias. Nunca `Math.random()`. Seed textual → uint32 (FNV-1a).
+- Seed de un run = `` `${seedBase}:${run}` ``. **Misma seed ⇒ misma
+  secuencia** (unit tests en `qa/prng.test.ts` y `qa/generador.test.ts`:
+  determinismo, ponderación por peso, peso 0 nunca elegido, barajado
+  estable, serialización estable).
+- Replay: `IUAS_FUZZ_SEED=<n> IUAS_FUZZ_RUNS=1 IUAS_FUZZ_STEPS=<n> npm run
+  e2e:fuzz`; `IUAS_FUZZ_MAX_STEP` para acotar por bisección.
+
+### Acciones (con precondiciones, sin `setState`)
+
+M1: irADemanda, agregar/duplicar/colapsar UF, agregar Local, cambiar
+tipo/régimen de Local, agregar/seleccionar/cambiar tipo/cambiar
+cantidad/eliminar Artefacto, eliminar Local/UF, **resolverConectividad**
+(AF / AC / AF+AC / Cancelar). M2: nav, modo Rápido/Profesional, pérdida
+distribuida (Hazen/Darcy), pérdida localizada (Estimadas/Detalladas),
+granularidad (Simplificada/Profesional), material, expandir fila, DN ↓/↑/Auto,
+editar longitud. M3: nav, **Iniciar Módulo 3**, Propiedad horizontal,
+**ACS individual/central**, excepción por UF, DN medidor ↓/↑. M4: nav,
+esquema inicial / alternar esquema, Tc (`'' / 1 / 2 / 4 / 6`), DN conexión,
+presión sobre acera (`4 / 12 / 20`), desnivel (`0 / 5 / 10 / -2`), volumen
+adoptado. GLOBAL: navegar sección, cambiar hash, cambiar viewport, recargar.
+Pesos **no uniformes**: zonas sospechosas (conectividad, ACS central,
+Iniciar M3, tipo de artefacto, modo, PH, esquema M4, duplicar UF) por
+encima de la media.
+
+### Invariantes por paso
+
+`pantalla-no-blanca` (detector puro `evaluarPantalla`), `sin-pageerror`,
+`sin-console-error` (filtra ruido conocido), `sin-request-esencial-fallido`
+(NETWORK: 4xx/5xx o `requestfailed` en documento/script/stylesheet /
+`/assets/*.js|css`), `sin-valores-rotos` (`NaN`/`Infinity`/`undefined`/
+`null`/`[object Object]` con guardas anti falso positivo),
+`sin-ids-internos-visibles` (`uf-<uuid v4>`; los ids legibles del ejemplo
+no cuentan), `sin-codigos-de-validacion-visibles` (camelCase interno),
+`sin-overflow-horizontal` (viewport actual), `demanda-sigue-viva`
+(condicional: un error downstream no apaga M1/Qc).
+
+### Specs
+
+`smoke.spec.ts` (camino feliz determinista, 5 secciones, 0 error),
+`catalogo-conectividad.spec.ts` (17 artefactos × {agregar, AF, AC, AF+AC},
+matriz → `qa-results/catalog-connectivity-report.{json,md}`),
+`sequence-fuzz.spec.ts` (fuzz reproducible; un `test()` por run para
+aislar trace/screenshot), `crash-observado.spec.ts` (escenarios A/B/C del
+brief §26), `hallazgos.spec.ts` (bugs de app ya encontrados, `test.fail`).
+
+### CI
+
+`.github/workflows/qa-fuzz.yml` — Playwright puro, **sin API de Claude, sin
+deploy, sin tocar Pages** (brief §33). `workflow_dispatch`
+(`base_url` / `runs` / `steps` / `seed`) + `schedule` nocturno
+`30 3 * * *` UTC (`runs=50 × steps=30`). Artifacts subidos siempre,
+retención 7 días. Acciones ancladas por hash. Un fallo del fuzz deja el job
+rojo: **no** significa que el harness falló (brief §59/§60); el artifact
+trae `clase` = APP / HARNESS / NETWORK.
+
+### Hallazgo — FIX-LEAK-01 (bug de app, NO corregido aquí)
+
+`src/interfaz/paginas/PanelDeMedidoresDeModulo3.tsx` (~L351), rama
+`estado === 'error'`, pinta `problema.problema.codigo` **crudo**
+(`<li>{problema.problema.codigo}</li>`) en vez de un mensaje humano — M1
+sí humaniza el mismo código. Repro determinista: iniciar M3 → Propiedad
+horizontal → ACS central → longitud de un tramo = `0` → volver a Medidores
+⇒ aparece el texto `redHidraulicaTramoLongitudNoPositiva`. Repro por fuzz:
+`IUAS_FUZZ_SEED=424242 IUAS_FUZZ_RUNS=1 IUAS_FUZZ_STEPS=12` → step 10
+(`editarLongitudTramo=0`), 3/3 replays idénticos. Severidad media (leak de
+copy interno, brief §13-H; no es crash ni pantalla blanca). Registrado en
+`tests/e2e/hallazgos.spec.ts` (`test.fail`) y en
+`qa/invariantes.ts → HALLAZGOS_CONOCIDOS` (para que el fuzzer no se detenga
+siempre en él y siga encontrando bugs nuevos; sigue loggeado como
+`hallazgo-conocido`).
+
+### Deudas registradas / reafirmadas
+
+- **FIX-LEAK-01** — M3 muestra códigos internos de validación (nuevo).
+- **FIX-CRASH-01** — pantallas blancas dependientes de secuencia (si
+  QA-FUZZ las reproduce en una corrida futura).
+- **CAT-CONN-01** — revisar qué artefactos *deberían* preguntar
+  conectividad; la matriz del catálogo es su evidencia.
+- **DEFENSE-01** — ErrorBoundary con estado Proyecto preservado (posterior
+  al fix raíz; NO implementar aquí — brief §47).
+- **GEOM-UX-01** — herencia de cotas UF → Local → terminal (NO tocar —
+  brief §49).
+- **MODE-UX-01** — preset Profesional (Hazen + Estimadas + Simplificada)
+  (NO tocar — brief §50).
+- UX-TEST-01, PERSIST-01, REPORT-01, performance frontend: sin abrir.
+
+### Estado
+
+**D-δ.80 -- CERRADA.** Sin cambios funcionales; versión pública funcional
+`v0.4.0-beta.5` intacta. Baseline: Vitest core intacto + 42 unit tests
+nuevos del harness; `tsc -b` verde; `npm run build` verde; ESLint
+11 / 0 / 0 (sin regresión). Tags sin mover. Snapshot
+`resguardo-documentacion/2026-09-08_pre-UI-01B/` intacto. **UX-TEST-01 --
+NO iniciar. REPORT-01 -- NO iniciar. FIX-LEAK-01 / FIX-CRASH-01 -- NO
+iniciar en esta corrida.**
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son

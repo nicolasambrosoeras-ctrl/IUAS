@@ -834,6 +834,30 @@ salvo bug inequívoco o decisión roja explícita.
   - **Publicación**: `v0.4.0-beta.5` sobre el mismo GitHub Pages; el tag
     apunta al commit desplegado, `beta.1`–`beta.4` no se mueven.
 
+- **D-δ.80 — QA-FUZZ-01: harness de testing secuencial (Playwright).**
+  Infraestructura persistente de E2E para detectar crashes, pantallas
+  blancas y estados inválidos por secuencia. **No corrige** bugs de
+  dominio: los captura, reproduce por seed y documenta. Sin versión pública
+  nueva (sólo tests / workflows / docs; `dist` no cambia — la versión
+  funcional sigue siendo `v0.4.0-beta.5`).
+  - `playwright.config.ts` + `tests/e2e/` (smoke · catálogo · sequence
+    fuzz · escenarios observados · hallazgos) + `tests/e2e/qa/` (PRNG
+    mulberry32 determinista, acciones M1–M4 con precondiciones, invariantes
+    por paso, detector de pantalla blanca puro, reporte de artifacts) + 42
+    unit tests nuevos en Vitest.
+  - `.github/workflows/qa-fuzz.yml`: `workflow_dispatch` + `schedule`
+    nocturno. Playwright puro, sin API de Claude, sin deploy.
+  - **Hallazgo (NO corregido, brief §39): `FIX-LEAK-01`** — el Panel de
+    Módulo 3, rama de estado "error", pinta el código interno de validación
+    (`problema.problema.codigo`) como texto de usuario. Repro determinista
+    y por seed (`IUAS_FUZZ_SEED=424242`). Documentado en
+    `tests/e2e/hallazgos.spec.ts` y `QA-FUZZ.md`.
+  - Las pantallas blancas observadas en beta.5 (Bañera AF+AC; M3/ACS
+    central) **no se reprodujeron** con los escenarios manuales A/B/C ni con
+    la matriz de catálogo contra producción; el fuzz sí encontró
+    `FIX-LEAK-01`. QA-FUZZ-01 cierra igualmente como exitosa (brief §61).
+  - Documentación operativa: **`QA-FUZZ.md`**.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
