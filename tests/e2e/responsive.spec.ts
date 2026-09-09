@@ -101,3 +101,88 @@ test.describe('FIX-RESP-01 · sin overflow horizontal de página', () => {
     })
   }
 })
+
+// FIX-RESP-02 · el <select> de "excepción de ACS por unidad funcional" de
+// M3 (opción larga "Usar el valor por defecto (Individual en cada unidad)")
+// tomaba su ancho intrínseco (min-content) y empujaba el documento fuera
+// del viewport en pantallas angostas. Fix: `select { max-width: 100%;
+// min-width: 0 }` global. El fuzz lo encontró en seed 34365102807-1, run
+// 17, step 28 (`cambiarExcepcionACSporUF=default`, mobile).
+async function activarExcepcionAcsM3(page: Page): Promise<void> {
+  // Estado mínimo: ≥2 unidades funcionales (para varias filas de excepción).
+  await page.getByRole('link', { name: /Demanda/ }).first().click()
+  await estabilizar(page)
+  for (let i = 0; i < 2; i++) {
+    await page.getByRole('button', { name: '+ Agregar unidad funcional' }).click()
+    await estabilizar(page)
+  }
+  await page.getByRole('link', { name: /Medidores/ }).first().click()
+  await estabilizar(page)
+  const iniciar = page.getByRole('button', { name: 'Iniciar Módulo 3' })
+  if (await iniciar.isVisible().catch(() => false)) {
+    await iniciar.click()
+    await estabilizar(page)
+  }
+  const ph = page.getByRole('checkbox', { name: /Propiedad horizontal/ })
+  if (!(await ph.isChecked())) {
+    await ph.click()
+    await estabilizar(page)
+  }
+  // "individual" hace que la opción "Usar el valor por defecto (…)" del
+  // <select> de excepción muestre el texto más largo.
+  await page.getByLabel('Provisión de agua caliente (por defecto):').selectOption('individual')
+  await estabilizar(page)
+  // Abrir el <details> de excepciones y tocar la primera fila (acción del fallo).
+  const resumen = page.getByText('Configurar excepciones por unidad funcional', { exact: true })
+  await resumen.click()
+  await estabilizar(page)
+  const detalleExcepciones = resumen.locator('xpath=ancestor::details[1]')
+  const selExcepcion = detalleExcepciones.locator('select').first()
+  await selExcepcion.selectOption('default')
+  await estabilizar(page)
+}
+
+// Localiza el <select> de excepción de ACS dentro de su <details>.
+function selectDeExcepcionAcs(page: Page) {
+  return page
+    .getByText('Configurar excepciones por unidad funcional', { exact: true })
+    .locator('xpath=ancestor::details[1]')
+    .locator('select')
+    .first()
+}
+
+test.describe('FIX-RESP-02 · M3 excepción de ACS por UF sin overflow', () => {
+  for (const vp of VIEWPORTS) {
+    test(`el <select> de excepción no desborda la página @ ${vp.nombre}`, async ({
+      page,
+      errores,
+      baseURLEfectiva,
+    }, testInfo) => {
+      test.skip(testInfo.project.name !== 'desktop', 'viewport fijado en el test')
+      await page.setViewportSize({ width: vp.width, height: vp.height })
+      await cargarAppLimpia(page, baseURLEfectiva)
+      await activarExcepcionAcsM3(page)
+
+      const m = await medir(page)
+      expect(m.docOverflow, `documentElement overflow @ ${vp.nombre}`).toBeLessThanOrEqual(1)
+      expect(m.bodyOverflow, `body overflow @ ${vp.nombre}`).toBeLessThanOrEqual(1)
+
+      // El control de excepción sigue visible y utilizable (no se ocultó).
+      const selExcepcion = selectDeExcepcionAcs(page)
+      await expect(selExcepcion).toBeVisible()
+      await expect(selExcepcion).toBeEnabled()
+      // Y cabe dentro del viewport.
+      const dentro = await selExcepcion.evaluate(
+        (el) => el.getBoundingClientRect().right <= window.innerWidth + 1,
+      )
+      expect(dentro, `el <select> de excepción sale del viewport @ ${vp.nombre}`).toBe(true)
+
+      const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+      expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+
+      const muestra = await tomarMuestraDom(page)
+      expect(muestra.marcadorIuas).toBe(true)
+      expect(muestra.textoUtilEnRoot).toBeGreaterThan(200)
+    })
+  }
+})

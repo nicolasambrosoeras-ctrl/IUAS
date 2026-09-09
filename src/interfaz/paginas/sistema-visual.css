@@ -254,6 +254,19 @@ input[type='number'] {
   font-variant-numeric: tabular-nums;
 }
 
+/* FIX-RESP-02: un <select> sin acotar toma como ancho intrínseco el de su
+   opción más larga. En M3 la excepción de ACS por unidad funcional ofrece
+   "Usar el valor por defecto (Individual en cada unidad)" (~50 caracteres):
+   ese min-content empujaba el documento fuera del viewport en pantallas
+   angostas. Acotar TODOS los <select> al ancho disponible resuelve la
+   clase entera de bug (el texto de la opción cerrada se trunca; la lista
+   completa sigue disponible al abrir). `min-width: 0` deja además que un
+   <select> dentro de un contenedor flex/grid pueda encogerse. */
+select {
+  max-width: 100%;
+  min-width: 0;
+}
+
 input:hover:not(:disabled),
 select:hover:not(:disabled),
 textarea:hover:not(:disabled) {
