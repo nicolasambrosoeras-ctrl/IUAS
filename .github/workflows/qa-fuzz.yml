@@ -46,10 +46,31 @@ jobs:
       IUAS_BASE_URL: ${{ github.event.inputs.base_url }}
       IUAS_FUZZ_RUNS: ${{ github.event.inputs.runs || '50' }}
       IUAS_FUZZ_STEPS: ${{ github.event.inputs.steps || '30' }}
-      IUAS_FUZZ_SEED: ${{ github.event.inputs.seed }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # QA-CI-01: resolver UNA sola seed base para todo el job y exportarla
+      # como `IUAS_FUZZ_SEED`. Todos los pasos de Playwright (coordinator +
+      # workers, procesos hijos del job) heredan exactamente esta variable,
+      # así los títulos de los tests del fuzz NO cambian entre discovery y
+      # ejecución. Con `seed` explícita del dispatch se respeta; sin ella se
+      # deriva del run de GitHub (estable dentro del job, distinto entre runs).
+      - name: Resolver seed de QA fuzz
+        env:
+          SEED_INPUT: ${{ github.event.inputs.seed }}
+        run: |
+          if [ -n "${SEED_INPUT// /}" ]; then
+            SEED="$SEED_INPUT"
+            ORIGEN="dispatch (explícita)"
+          else
+            SEED="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+            ORIGEN="run de GitHub (GITHUB_RUN_ID-GITHUB_RUN_ATTEMPT)"
+          fi
+          echo "IUAS_FUZZ_SEED=$SEED" >> "$GITHUB_ENV"
+          echo "QA fuzz seed base: $SEED  [$ORIGEN]"
+          echo "**QA fuzz seed base:** \`$SEED\` ($ORIGEN)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Reproducir localmente: \`IUAS_FUZZ_SEED=$SEED npm run e2e:fuzz\`" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7

@@ -12,6 +12,7 @@
 import { test, expect, clasificarFallo } from './qa/fixtures'
 import { cargarAppLimpia, estabilizar } from './qa/estado'
 import { crearPrng, normalizarSeed } from './qa/prng'
+import { resolverSeedBase, seedDeRun } from './qa/seed'
 import { siguientePaso } from './qa/generador'
 import { verificarInvariantes, primerFallo, tomarMuestraDom } from './qa/invariantes'
 import { escribirArtifactsDeFallo } from './qa/reporte'
@@ -23,9 +24,14 @@ const STEPS = Math.max(1, Number(process.env.IUAS_FUZZ_STEPS ?? 20))
 const MAX_STEP = process.env.IUAS_FUZZ_MAX_STEP ? Number(process.env.IUAS_FUZZ_MAX_STEP) : STEPS
 const PASOS_EFECTIVOS = Math.min(STEPS, MAX_STEP)
 
-// Seed base: explícita (reproducible) o generada (se imprime para poder
-// reproducir después). Nunca Math.random sin PRNG seedable (brief §5).
-const SEED_BASE = process.env.IUAS_FUZZ_SEED?.trim() || String((Date.now() ^ (process.pid << 16)) >>> 0)
+// Seed base: función DETERMINISTA del environment (QA-CI-01). Con
+// `IUAS_FUZZ_SEED` explícita se usa tal cual; sin ella, fallback local
+// fijo. Nunca se genera durante el import a partir de una fuente mutable
+// (`Date.now`, `pid`, random): eso rompía el discovery de Playwright en CI
+// (coordinator y worker obtenían títulos distintos). En CI sin `seed`, la
+// resuelve el workflow y la exporta como `IUAS_FUZZ_SEED` antes de correr
+// Playwright. Ver tests/e2e/qa/seed.ts.
+const SEED_BASE = resolverSeedBase(process.env.IUAS_FUZZ_SEED)
 
 test.describe('QA-FUZZ-01 · sequence fuzz', () => {
   test.describe.configure({ mode: 'serial' })
@@ -39,7 +45,7 @@ test.describe('QA-FUZZ-01 · sequence fuzz', () => {
   })
 
   for (let run = 0; run < RUNS; run++) {
-    const seedRun = `${SEED_BASE}:${run}`
+    const seedRun = seedDeRun(SEED_BASE, run)
 
     test(`run ${run} · seed ${seedRun}`, async ({ page, errores, baseURLEfectiva }, testInfo) => {
       // Cada paso hace un escaneo de precondiciones + comprobación de
