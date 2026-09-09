@@ -44,7 +44,7 @@ tests/e2e/
   sequence-fuzz.spec.ts        fuzz reproducible por seed
   crash-observado.spec.ts      escenarios A/B/C construidos a mano (brief §26)
   hallazgos.spec.ts            bugs de app YA encontrados (test.fail, no se corrigen)
-  responsive.spec.ts           regresión FIX-RESP-01 (sin overflow horizontal @ 390/360/desktop)
+  responsive.spec.ts           regresión FIX-RESP-01 / FIX-RESP-02 (sin overflow horizontal @ 390/360/desktop)
   qa/
     prng.ts        mulberry32 determinista + helpers (peso, barajar). Sin deps.
     seed.ts        resolverSeedBase(env) PURO (QA-CI-01): explícita o fallback fijo
@@ -386,6 +386,40 @@ artifact y el título del fallo.
 - **No se tocó** `HALLAZGOS_CONOCIDOS` (FIX-RESP-01 nunca llegó a añadirse;
   se corrigió antes). `FIX-LEAK-01` sigue igual.
 
+### FIX-RESP-02 — overflow horizontal de página en M3 (excepción de ACS por UF) — RESUELTO (D-δ.83)
+
+- **Síntoma:** con Módulo 3 iniciado + Propiedad horizontal + Provisión ACS
+  por defecto `individual` + varias UF, al abrir el `<details>` «Configurar
+  excepciones por unidad funcional» el `<select>` de cada fila desbordaba
+  el documento en pantallas angostas. El fuzz lo encontró en seed
+  `34365102807-1`, **run 17 · step 28** (`cambiarExcepcionACSporUF=default`,
+  mobile): cloud `scrollWidth 433 > clientWidth 390` (+43 px);
+  reproducción local determinista a **360 px** (+26 px). Desktop no
+  afectado.
+- **Causa raíz (sonda del árbol de ancestros):** el `<select>` de excepción
+  ofrece la opción **`Usar el valor por defecto (Individual en cada unidad)`**
+  (~50 caracteres). Un `<select>` sin acotar toma como ancho intrínseco el
+  de su opción más larga (min-content) y las reglas globales de controles
+  (`sistema-visual.css`) no le ponían `max-width`. Ese ancho empujaba el
+  `<label>` / `<p>` de la fila y, con ellos, el documento. La diferencia
+  cloud (+43 @ 390) vs local (+26 @ 360) es de **anchos de fuente**
+  Linux/Windows; la causa estructural es la misma.
+- **Fix estructural (una regla global, no un parche por-viewport):**
+  `sistema-visual.css` — `select { max-width: 100%; min-width: 0 }`.
+  Acota **todos** los `<select>` al ancho disponible (el texto de la opción
+  cerrada se trunca de forma nativa; la lista completa sigue al abrir) y
+  permite que un `<select>` dentro de un contenedor flex/grid se encoja.
+  Resuelve la clase entera de bug (incluida la regla scoped de M2 de
+  FIX-RESP-01, que queda redundante pero se deja por claridad local). Sin
+  `overflow-x: hidden`, sin ocultar el control.
+- **Regresión:** `tests/e2e/responsive.spec.ts` → bloque *FIX-RESP-02*.
+  Estado mínimo (2 UF extra + Iniciar M3 + PH + ACS individual + abrir el
+  `<details>` + `cambiarExcepcionACSporUF=default`) a 390 / 360 / 1280 px:
+  documento sin overflow, el `<select>` de excepción **visible, habilitado
+  y dentro del viewport**, invariante del harness y vitalidad de la app OK.
+  Falla contra la producción pre-fix a 360 px (test real).
+- **No se tocó** `HALLAZGOS_CONOCIDOS` ni `FIX-LEAK-01`.
+
 ### Pantallas blancas observadas (A/B/C)
 
 `tests/e2e/crash-observado.spec.ts` reproduce los escenarios del brief §26
@@ -400,6 +434,7 @@ handoff de D-δ.80 (ROADMAP / PENDIENTES).
 | ----- | --- |
 | `FIX-LEAK-01` | M3 muestra códigos internos de validación (este documento §12). |
 | ~~`FIX-RESP-01`~~ | **RESUELTO en D-δ.82** — overflow horizontal de página en móvil con M2 Detalladas/Profesional (§12). |
+| ~~`FIX-RESP-02`~~ | **RESUELTO en D-δ.83** — overflow horizontal de página en M3 (excepción de ACS por UF) por `<select>` sin acotar (§12). |
 | `FIX-CRASH-01` | pantallas blancas dependientes de secuencia (si QA-FUZZ las reproduce). |
 | `CAT-CONN-01` | revisar qué artefactos *deberían* preguntar conectividad (Bañera, Válvula de mingitorio, Lavachatas…). El reporte de matriz es su evidencia. |
 | `DEFENSE-01` | ErrorBoundary con estado Proyecto preservado. Después del fix raíz. |

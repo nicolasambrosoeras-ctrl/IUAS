@@ -9021,6 +9021,100 @@ agregarse). Tags sin mover; snapshot `resguardo-documentacion/` intacto.
 **FIX-LEAK-01 / FIX-CRASH-01 / CAT-CONN-01 / DEFENSE-01 / GEOM-UX-01 /
 MODE-UX-01 -- NO iniciar. UX-TEST-01 / REPORT-01 -- NO iniciar.**
 
+## D-δ.83 -- FIX-RESP-02: acotar el <select> de excepción de ACS de M3 -- CERRADA
+
+Segundo fix responsive puntual (NO GEOM-UX-01, NO rediseño). Sin cambios
+de cálculo, dominio, cotas, textos ni normativa. Alcance:
+`src/interfaz/paginas/sistema-visual.css` (una regla global),
+`tests/e2e/responsive.spec.ts`, documentación. Versión pública funcional
+sigue **`v0.4.0-beta.5`**.
+
+### Detección
+
+Fuzz de QA-CI-01, seed base `34365102807-1`, **run 17 · step 28**
+(`cambiarExcepcionACSporUF=default`, proyecto **mobile**): la invariante
+`sin-overflow-horizontal` reportó `documentElement.scrollWidth 433 >
+clientWidth 390` (+43 px). Sin `pageerror`/`console.error` ⇒ **APP /
+layout**. Reproducción local determinista a **360 px** (+26 px); a 390 px
+en Windows/Chromium no desborda (los glyphs del stack de fuente son más
+angostos que en el Linux del runner — misma causa estructural, distinto
+umbral de viewport).
+
+### Causa raíz (sonda del árbol de ancestros)
+
+El `<select>` de cada fila del `<details>` «Configurar excepciones por
+unidad funcional» de M3 ofrece la opción
+**`Usar el valor por defecto (Individual en cada unidad)`** (~50
+caracteres; el texto más largo aparece cuando la Provisión ACS por defecto
+está en `individual`). Un `<select>` sin `max-width` toma como ancho
+intrínseco el de su opción más larga (min-content); las reglas globales de
+controles de `sistema-visual.css` no lo acotaban. Ese ancho empujaba el
+`<label>` / `<p>` de la fila (elementos sin clase, sólo UA + globales) y,
+con ellos, el documento. El `<details>` cerrado no renderiza layout, por
+eso sólo se disparaba al abrirlo (acción `cambiarExcepcionACSporUF`).
+
+No es el patrón de FIX-RESP-01 (ahí eran `.app-modo` y un `<fieldset>`).
+
+### Fix estructural
+
+`sistema-visual.css`, en el bloque de controles:
+
+```
+select {
+  max-width: 100%;
+  min-width: 0;
+}
+```
+
+Acota **todos** los `<select>` de la app al ancho disponible (el texto de
+la opción cerrada se trunca de forma nativa; la lista completa sigue
+disponible al abrir) y permite que un `<select>` dentro de un contenedor
+flex/grid pueda encogerse. Resuelve la **clase entera** del bug (la regla
+scoped `.config-hidraulica__grupo select` de FIX-RESP-01 queda redundante
+pero se deja por claridad local). Sin `overflow-x: hidden` global, sin
+clipping, sin ocultar el control, sin tocar tipografías.
+
+### Regresión
+
+`tests/e2e/responsive.spec.ts` → bloque **FIX-RESP-02** (3 tests, 390 /
+360 / 1280 px). Estado mínimo construido explícitamente: 2 UF extra +
+Iniciar M3 + Propiedad horizontal + Provisión ACS `individual` + abrir el
+`<details>` + `cambiarExcepcionACSporUF=default`. Verifica: documento sin
+overflow (`≤ clientWidth + 1`), el `<select>` de excepción **visible,
+habilitado y dentro del viewport**, invariante genérica del harness y
+vitalidad de la app OK. El test **falla** contra la producción pre-fix a
+360 px (regresión real). Corre en el paso «Escenarios observados +
+regresión responsive» del workflow (`responsive.spec.ts` ya estaba
+listado).
+
+### Verificación
+
+- Sonda local (serve estático del `dist`, como GitHub Pages): 320 / 360 /
+  390 / 1280 px → documento sin overflow, `<select>` de excepción visible;
+  barrido de las 5 secciones + tipología larga → sin overflow ni regresión
+  a 360 y 1280.
+- Replay fuzz seed `34365102807-1` **run 17** (30 pasos) contra el build
+  fijo: **2/2** (desktop + mobile), sin overflow.
+- Replay seed `34360767880-1` (FIX-RESP-01) y `424242` contra producción:
+  verdes, sin cambios.
+- (Un fallo transitorio de `run 17 desktop` bajo 2 workers paralelos
+  contra el mini-servidor estático local resultó ser contención de esa
+  infra de prueba, no de la app: con `--workers=1` pasa 2/2. Idéntico
+  origen para un fallo puntual de `«Bañera» AC` en `catalogo` contra
+  GitHub Pages, verde al reintentar.)
+
+### Estado
+
+**D-δ.83 -- CERRADA.** Baseline: Vitest **1363/1363** (CSS no toca unit
+tests); `tsc -b` / `npm run e2e:typecheck` / `npm run build` verdes;
+ESLint 11 / 0 / 0 (sin regresión). Playwright: smoke / catálogo (37/37) /
+escenarios / hallazgos verdes; `responsive.spec.ts` **6/6**
+(FIX-RESP-01 + FIX-RESP-02); fuzz corto estable. `HALLAZGOS_CONOCIDOS`
+intacto; `FIX-LEAK-01` sin tocar. Tags sin mover; snapshot
+`resguardo-documentacion/` intacto. **FIX-LEAK-01 / FIX-CRASH-01 /
+CAT-CONN-01 / DEFENSE-01 / GEOM-UX-01 / MODE-UX-01 -- NO iniciar.
+UX-TEST-01 / REPORT-01 -- NO iniciar.**
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son

@@ -899,6 +899,25 @@ salvo bug inequívoco o decisión roja explícita.
     documento sin overflow + tabla con scroll interno contenido), en el
     paso «Escenarios observados + regresión responsive» del workflow.
 
+- **D-δ.83 — FIX-RESP-02: acotar el `<select>` de excepción de ACS de
+  M3.** Segundo fix responsive puntual (NO GEOM-UX-01, NO rediseño). Sin
+  cambios de cálculo/dominio/cotas/textos; `v0.4.0-beta.5` sigue vigente.
+  Alcance: `sistema-visual.css` (una regla global) + `responsive.spec.ts`
+  + docs.
+  - **Detección:** fuzz seed `34365102807-1`, run 17, step 28
+    (`cambiarExcepcionACSporUF=default`, mobile): `scrollWidth 433 > 390`.
+  - **Causa raíz (sonda):** el `<select>` de excepción de ACS ofrece la
+    opción `Usar el valor por defecto (Individual en cada unidad)` (~50
+    car.); sin `max-width` toma ese ancho min-content y empuja el
+    documento. No es el patrón de FIX-RESP-01.
+  - **Fix:** `select { max-width: 100%; min-width: 0 }` global — acota
+    todos los `<select>` al ancho disponible (opción cerrada truncada de
+    forma nativa; lista completa al abrir). Sin `overflow-x: hidden` ni
+    ocultar el control.
+  - **Regresión:** bloque *FIX-RESP-02* en `responsive.spec.ts` (390 / 360
+    / 1280 px; el `<select>` sigue visible y dentro del viewport). Falla
+    contra la producción pre-fix a 360 px.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
