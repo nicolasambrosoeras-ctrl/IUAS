@@ -1,7 +1,7 @@
 // Modelo de proyecto: lo que el usuario declara y referencia del catálogo.
 // Esta capa no calcula; solo define la estructura del dominio persistible.
 
-import type { RedHidraulica } from '../redHidraulica';
+import type { ConectividadFisica, RedHidraulica } from '../redHidraulica';
 
 export const SCHEMA_VERSION_ACTUAL = '1.0.0' as const;
 
@@ -35,6 +35,19 @@ export type Artefacto = {
   artefactoId: string;
   cantidad: number;
   origen: 'normativo' | 'usuario';
+  // CAT-CONN-01 (D-δ.84): conectividad física elegida EXPLÍCITAMENTE para
+  // esta instancia. Ausente = usar la política de conectividad del catálogo
+  // (normativa/eras-2023/catalogo-artefactos/politicaConectividad). Presente
+  // = decisión de instalación real de este artefacto concreto, tomada por
+  // el usuario (selector obligatorio de los tipos `requiereSeleccion`, o
+  // personalización de un tipo `defaultConfigurable`). NUNCA se infiere de
+  // `quFria`/`quCaliente`, del label, ni de precedentes de otros artefactos
+  // del proyecto. La topología de `Proyecto.redHidraulica` sigue siendo la
+  // fuente EFECTIVA que consume Módulo 2 (CRIT-A15); este campo sólo fija
+  // qué terminales se crean/reconcilian. Backward-compatible: un Proyecto
+  // guardado antes de CAT-CONN-01 no lo tiene y resuelve por política de
+  // catálogo, sin migración (SCHEMA_VERSION_ACTUAL no cambia).
+  conectividadElegida?: ConectividadFisica;
 };
 
 export type Local = {

@@ -1,15 +1,19 @@
-// D-δ.52 Parte B (CRIT-A15): al cambiar el tipo de catálogo de un
-// Artefacto ya existente, reconcilia su conectividad física AF/AC POR
-// CONJUNTOS -- sin desconectar y reconstruir todo. Compone primitivas ya
-// cerradas, no reimplementa ninguna regla topológica:
+// D-δ.52 Parte B (CRIT-A15) + CAT-CONN-01 (D-δ.84): al cambiar el tipo de
+// catálogo de un Artefacto ya existente, reconcilia su conectividad física
+// AF/AC POR CONJUNTOS -- sin desconectar y reconstruir todo. Compone
+// primitivas ya cerradas, no reimplementa ninguna regla topológica:
 //
 //   redesActuales = las Redes en las que la instancia tiene terminal HOY
 //                   (leído de redHidraulica).
-//   redesNuevas   = las Redes que el tipo NUEVO necesita
-//                   (determinarRedesFisicasPorPrecedente -- del PROPIO
-//                   proyecto, nunca del catálogo, CRIT-A15). Si no hay
-//                   precedente inequívoco, NO se toca la topología: solo
-//                   queda el cambio funcional (brief §23/§24).
+//   redesNuevas   = las Redes que el tipo NUEVO necesita, resueltas por
+//                   `resolverConectividadInicialDeArtefacto` (política de
+//                   conectividad del catálogo + override explícito de
+//                   instancia, CAT-CONN-01). YA NO se consulta el
+//                   precedente del propio proyecto. Si el tipo nuevo es
+//                   `requiereSeleccion` sin `conectividadElegida`, esta
+//                   función NO toca la topología -- el caller maneja el
+//                   flujo de declaración pendiente antes de aplicar el
+//                   cambio.
 //
 //   conservar (redesActuales ∩ redesNuevas): intactas -- nodos, tramos,
 //     longitud, accesorios, override manual de DN se preservan (brief §16/
@@ -18,7 +22,7 @@
 //     acotado a esa Red + podarNodosSinSalida (limpia una cabecera de
 //     bifurcación que quedó sin hijos -- brief §18/§21; la Alimentación
 //     ACS compartida sobrevive porque tiene `referencia`, brief §21).
-//   agregar   (redesNuevas − redesActuales): sincronizarConectividadFisicaDeArtefacto
+//   agregar   (redesNuevas − redesActuales): sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas
 //     (D-δ.49: bootstrap / retrofit / hermano según la topología
 //     existente -- NO un cuarto algoritmo, brief §17/§22).
 //
@@ -27,13 +31,14 @@
 // en un único updater, sin render intermedio inconsistente (brief §26).
 import type { Proyecto } from '../../modelo/proyecto'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
-import { determinarRedesFisicasPorPrecedente } from '../../motor/tuberias/topologia/determinarRedesFisicasPorPrecedente'
+import { resolverConectividadInicialDeArtefacto } from '../../motor/tuberias/topologia/resolverConectividadInicialDeArtefacto'
 import { quitarConectividadFisicaDeArtefacto } from './quitarConectividadFisicaDeArtefacto'
 import { podarNodosSinSalida } from './podarNodosSinSalida'
 import { sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas } from './sincronizarConectividadFisicaDeArtefacto'
 
 export function reconciliarConectividadFisicaPorCambioDeArtefacto(
-  // Proyecto con el nuevo `artefactoId` YA aplicado en la instancia.
+  // Proyecto con el nuevo `artefactoId` YA aplicado en la instancia (y, si
+  // corresponde, con `conectividadElegida` ya seteada o ya limpiada).
   proyecto: Proyecto,
   unidadFuncionalId: string,
   localId: string,
@@ -66,15 +71,16 @@ export function reconciliarConectividadFisicaPorCambioDeArtefacto(
     redHidraulica.tramos.filter((tramo) => idsNodosDeLaInstancia.has(tramo.nodoDestinoId)).map((tramo) => tramo.red),
   )
 
-  const precedente = determinarRedesFisicasPorPrecedente(proyecto, artefacto.artefactoId, artefactoInstanciaId)
-  if (precedente.tipo !== 'determinado') {
-    // No se puede determinar qué Redes necesita el tipo nuevo sin inferir
-    // del catálogo (CRIT-A15): se deja SOLO el cambio funcional, la
-    // topología física queda como estaba y la barrera de cobertura
-    // (S1/S2) sigue siendo la única fuente de verdad sobre qué falta.
+  const resol = resolverConectividadInicialDeArtefacto(artefacto.artefactoId, artefacto.conectividadElegida)
+  if (resol.tipo !== 'resuelta') {
+    // `requiereSeleccion` todavía sin declarar, o `tipoDesconocido`: NO se
+    // toca la topología acá. Para `requiereSeleccion` el caller no llega a
+    // invocar esta función hasta que el usuario confirma la alimentación
+    // (flujo de declaración pendiente); este early-return es la red de
+    // seguridad para cualquier otra ruta.
     return proyecto
   }
-  const redesNuevas = new Set<RedDeTramo>(precedente.redes)
+  const redesNuevas = new Set<RedDeTramo>(resol.redes)
 
   let resultado = proyecto
   let seEliminoAlgo = false
@@ -90,11 +96,9 @@ export function reconciliarConectividadFisicaPorCambioDeArtefacto(
 
   const faltaAlgunaRed = [...redesNuevas].some((red) => !redesActuales.has(red))
   if (faltaAlgunaRed) {
-    // Redes ya determinadas acá (excluyendo esta instancia del precedente):
-    // se pasan declaradas -- la variante por precedente volvería a mirar
-    // el proyecto y vería esta instancia con conectividad parcial,
-    // dándole 'inconsistente'. La función es idempotente para las Redes
-    // que ya tienen terminal (conserva su topología intacta).
+    // Se pasan las Redes ya resueltas: la sincronización es idempotente
+    // para las Redes que ya tienen terminal (conserva su topología
+    // intacta) y sólo crea las que faltan.
     const sincronizacion = sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(
       resultado,
       unidadFuncionalId,

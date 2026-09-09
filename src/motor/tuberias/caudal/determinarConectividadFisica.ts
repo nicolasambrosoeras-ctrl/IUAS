@@ -6,9 +6,17 @@
 // para esta referencia en toda la red?". Inspección estructural directa
 // (Nodo → tramo entrante → Tramo.red), sin reutilizar el traversal de
 // determinarCondicionHidraulicaDeCaudal ni el catálogo normativo.
-import type { RedDeTramo, RedHidraulica, ReferenciaDeArtefacto } from '../../../modelo/redHidraulica'
+import type {
+  ConectividadFisica,
+  RedDeTramo,
+  RedHidraulica,
+  ReferenciaDeArtefacto,
+} from '../../../modelo/redHidraulica'
 
-export type ConectividadFisica = 'soloAF' | 'soloAC' | 'ambas'
+// La definición canónica vive en modelo/redHidraulica (vocabulario de
+// dominio compartido). Se re-exporta acá para no romper los consumidores
+// históricos que la importaban de este módulo.
+export type { ConectividadFisica }
 
 function esMismaReferencia(a: ReferenciaDeArtefacto, b: ReferenciaDeArtefacto): boolean {
   return a.unidadFuncionalId === b.unidadFuncionalId && a.localId === b.localId && a.artefactoId === b.artefactoId

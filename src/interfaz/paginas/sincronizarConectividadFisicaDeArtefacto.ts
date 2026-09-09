@@ -1,12 +1,13 @@
 // Sincronización incremental Proyecto -> redHidraulica al agregar un
-// Artefacto a un Local existente (M2-D, primer slice: solo ALTA).
-// Composición pura de piezas ya cerradas -- no reimplementa ninguna
-// regla: determinarRedesFisicasPorPrecedente (qué Redes necesita el
-// artefacto, mirando el propio proyecto, nunca el catálogo) +
-// hallarNodoDeInsercionDeLocal (dónde conectarlo, derivado de la
-// topología existente, sin persistir ningún concepto nuevo de
-// "cabecera") + asegurarRaizDeRed (D-δ.49: dónde arranca esa topología
-// cuando el Local+Red todavía no tiene ningún terminal).
+// Artefacto a un Local existente (M2-D). Composición pura de piezas ya
+// cerradas -- no reimplementa ninguna regla: las Redes a conectar llegan
+// declaradas por quien llama (CAT-CONN-01: resueltas por la política de
+// conectividad del catálogo + override explícito de instancia, nunca por
+// precedente del proyecto) + hallarNodoDeInsercionDeLocal (dónde
+// conectarlo, derivado de la topología existente, sin persistir ningún
+// concepto nuevo de "cabecera") + asegurarRaizDeRed (D-δ.49: dónde
+// arranca esa topología cuando el Local+Red todavía no tiene ningún
+// terminal).
 //
 // Aditiva por defecto (D-δ.26/D-δ.f "preservación"): agregar un Nodo/Tramo
 // nuevo nunca toca longitud_m/cota_m/accesorios ya cargados en el resto de
@@ -29,7 +30,6 @@
 // esa Red se reporta en redesConectadas sin crear una conexión duplicada.
 import type { Proyecto } from '../../modelo/proyecto'
 import type { Nodo, RedDeTramo, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
-import { determinarRedesFisicasPorPrecedente } from '../../motor/tuberias/topologia/determinarRedesFisicasPorPrecedente'
 import { hallarNodoDeInsercionDeLocal } from '../../motor/tuberias/topologia/hallarNodoDeInsercionDeLocal'
 import { generarId } from './generarId'
 import { asegurarRaizAC, asegurarRaizAF, esNodoRaizCompartida } from './asegurarRaizDeRed'
@@ -42,57 +42,25 @@ export type ResultadoSincronizacionDeArtefacto =
       readonly tipo: 'artefactoInexistente'
     }
   | {
-      // No se pudo determinar qué Redes necesita este artefactoId de
-      // catálogo: sin precedente en el proyecto, o con precedentes
-      // inconsistentes entre sí. No se toca redHidraulica.
-      readonly tipo: 'redesNoDeterminables'
-      readonly motivo: 'sinPrecedente' | 'inconsistente'
-    }
-  | {
       readonly tipo: 'sincronizado'
       readonly proyecto: Proyecto
       // Redes que, al finalizar, quedan conectadas -- ya sea porque el
       // artefacto ya las tenía, o porque esta función acaba de crearlas.
       readonly redesConectadas: readonly RedDeTramo[]
-      // Redes necesarias (según el precedente) para las que no existe
-      // hoy un punto de inserción inequívoco en el Local -- quedan tal
-      // como estaban, sin conexión, explícitamente reportadas.
+      // Redes declaradas para las que no existe hoy un punto de inserción
+      // inequívoco en el Local -- quedan tal como estaban, sin conexión,
+      // explícitamente reportadas (la barrera de cobertura S1/S2 sigue
+      // siendo la única fuente de verdad sobre qué falta).
       readonly redesPendientes: readonly RedDeTramo[]
     }
 
-export function sincronizarConectividadFisicaDeArtefacto(
-  proyecto: Proyecto,
-  unidadFuncionalId: string,
-  localId: string,
-  artefactoInstanciaId: string,
-): ResultadoSincronizacionDeArtefacto {
-  const { redHidraulica } = proyecto
-  if (redHidraulica === undefined) {
-    return { tipo: 'sinRedHidraulica' }
-  }
-
-  const unidadFuncional = proyecto.unidadesFuncionales.find((uf) => uf.id === unidadFuncionalId)
-  const local = unidadFuncional?.locales.find((l) => l.id === localId)
-  const artefactoInstancia = local?.artefactos.find((a) => a.id === artefactoInstanciaId)
-  if (artefactoInstancia === undefined) {
-    return { tipo: 'artefactoInexistente' }
-  }
-
-  const precedente = determinarRedesFisicasPorPrecedente(proyecto, artefactoInstancia.artefactoId)
-  if (precedente.tipo !== 'determinado') {
-    return { tipo: 'redesNoDeterminables', motivo: precedente.tipo }
-  }
-
-  return conectarArtefactoARedes(proyecto, redHidraulica, unidadFuncionalId, localId, artefactoInstanciaId, precedente.redes)
-}
-
-// Variante para cuando no hay precedente en el proyecto (`sinPrecedente`):
-// en vez de deducir las Redes de otra instancia, las recibe declaradas
-// explicitamente por quien llama (UI: el usuario elige AF/AC/ambas). CRIT-A15
-// exige que esa conectividad sea una decision de instalacion real -- nunca
-// inferida del catalogo -- y sin precedente no hay de donde mas tomarla.
-// Misma composicion aditiva/no destructiva que la variante por precedente;
-// solo cambia el origen de `redes`.
+// Recibe las Redes a conectar declaradas por quien llama. Bajo CAT-CONN-01
+// esas Redes salen de `resolverConectividadInicialDeArtefacto` (política de
+// conectividad del catálogo + `Artefacto.conectividadElegida`), nunca de un
+// precedente del propio proyecto. Composición aditiva/no destructiva:
+// agregar un Nodo/Tramo nuevo nunca toca longitud_m/cota_m/accesorios ya
+// cargados (única excepción documentada: el "retrofit" de D-δ.49 en
+// conectarArtefactoARedes).
 export function sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(
   proyecto: Proyecto,
   unidadFuncionalId: string,

@@ -87,6 +87,15 @@ export type Nodo = {
 
 export type RedDeTramo = 'AF' | 'AC';
 
+// Conectividad física de un Artefacto respecto de las dos Redes: a qué
+// alimentaciones reales está (o estará) conectado. Vocabulario de dominio
+// compartido por el motor (que la DERIVA de la topología, ver
+// motor/tuberias/caudal/determinarConectividadFisica) y por el modelo
+// (Artefacto.conectividadElegida, override explícito de instancia). No es
+// lo mismo que `RedDeTramo` (rol de un Tramo individual): 'ambas' no es un
+// valor de Red, es "AF y AC a la vez".
+export type ConectividadFisica = 'soloAF' | 'soloAC' | 'ambas';
+
 // Subconjunto de Tabla N°7 (normativa/eras-2023/tabla-07-perdidas-localizadas,
 // CRIT-A26) cuya pérdida localizada es representable hoy de forma
 // inequívoca como accesorio de un Tramo: ocurre a lo largo de su

@@ -4,8 +4,11 @@
 // testing-library configurados, y este archivo no necesita ninguno de los
 // dos.
 import type { Artefacto, Local, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
+import type { RedDeTramo } from '../../modelo/redHidraulica'
+import { determinarConectividadFisica } from '../../motor/tuberias/caudal/determinarConectividadFisica'
+import { redesDeConectividadFisica } from '../../motor/tuberias/topologia/resolverConectividadInicialDeArtefacto'
 import { generarId } from './generarId'
-import { sincronizarConectividadFisicaDeArtefacto } from './sincronizarConectividadFisicaDeArtefacto'
+import { sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas } from './sincronizarConectividadFisicaDeArtefacto'
 import { backfillLongitudesDePredimensionamiento } from './backfillLongitudesDePredimensionamiento'
 
 // Privadas a este archivo a proposito: no son una API generica de
@@ -14,6 +17,9 @@ import { backfillLongitudesDePredimensionamiento } from './backfillLongitudesDeP
 // para Locales (eso queda para cuando exista duplicarLocal como incremento
 // propio).
 function duplicarArtefacto(artefacto: Artefacto): Artefacto {
+  // El spread copia `conectividadElegida` (CAT-CONN-01) tal cual: la copia
+  // representa el MISMO artefacto físico, con la misma decisión de
+  // alimentación que el original.
   return { ...artefacto, id: generarId('artefacto') }
 }
 
@@ -39,28 +45,68 @@ export function duplicarUnidadFuncional(unidadFuncional: UnidadFuncional): Unida
   }
 }
 
+// Conectividad física con la que hay que reproducir un artefacto clonado,
+// como conjunto de Redes. CAT-CONN-01: NO se consulta el precedente del
+// proyecto ni la política de catálogo -- duplicar debe CONSERVAR la
+// conectividad diseñada del objeto duplicado, aunque sea no estándar
+// (p. ej. un `lavavajillasIndustrial` que el usuario seleccionó AF+AC, o
+// un `maquinaLavavajillas` personalizado a AF+AC).
+//
+//   - con `conectividadElegida` explícita  -> esa, tal cual;
+//   - sin override (instancia legacy)      -> se deriva de la topología
+//     REAL del original, que en este punto sigue conectado;
+//   - original sin ningún terminal físico  -> `[]`: el clon queda sin
+//     conexión igual que el original (proyecto ya incompleto de antemano),
+//     sin fabricar una.
+function redesObjetivoParaClon(
+  proyecto: Proyecto,
+  unidadFuncionalOriginalId: string,
+  localOriginalId: string,
+  artefactoOriginal: Artefacto,
+): readonly RedDeTramo[] {
+  if (artefactoOriginal.conectividadElegida !== undefined) {
+    return redesDeConectividadFisica(artefactoOriginal.conectividadElegida)
+  }
+
+  const { redHidraulica } = proyecto
+  if (redHidraulica === undefined) {
+    return []
+  }
+  const referencia = {
+    tipo: 'artefacto' as const,
+    unidadFuncionalId: unidadFuncionalOriginalId,
+    localId: localOriginalId,
+    artefactoId: artefactoOriginal.id,
+  }
+  const tieneTerminal = redHidraulica.nodos.some(
+    (nodo) =>
+      nodo.referencia?.tipo === 'artefacto' &&
+      nodo.referencia.unidadFuncionalId === referencia.unidadFuncionalId &&
+      nodo.referencia.localId === referencia.localId &&
+      nodo.referencia.artefactoId === referencia.artefactoId,
+  )
+  if (!tieneTerminal) {
+    return []
+  }
+  return redesDeConectividadFisica(determinarConectividadFisica(redHidraulica, referencia))
+}
+
 // Inserta la copia inmediatamente despues de la UF origen dentro de
 // proyecto.unidadesFuncionales y sincroniza la conectividad fisica de sus
 // Artefactos clonados en redHidraulica.
 //
-// D-δ.50: la copia funcional por si sola deja todos los Artefactos
-// clonados sin ninguna referencia fisica en redHidraulica -- la auditoria
-// de cobertura (S1, auditarCoberturaFisica) los reportaria como
+// D-δ.50 / CAT-CONN-01: la copia funcional por si sola deja todos los
+// Artefactos clonados sin ninguna referencia fisica en redHidraulica -- la
+// auditoria de cobertura (S1, auditarCoberturaFisica) los reportaria como
 // "artefactos normativos sin conexion fisica", y el Panel de Presion de M2
 // nunca se renderizaria para la UF nueva. Se los hace pasar, uno por uno,
-// por exactamente la misma sincronizacion M2-D de ALTA que usa la UI al
-// agregar un Artefacto a mano (bootstrap / retrofit / hermano, D-δ.49):
-// la copia comparte la raiz AF/AC del proyecto y cada Local clonado
-// arranca sin terminales, asi que el primer Artefacto de cada Red hace
-// bootstrap y los siguientes retrofit/hermano. No se reimplementa ninguna
+// por la misma sincronizacion M2-D de ALTA con Redes declaradas que usa la
+// UI (bootstrap / retrofit / hermano, D-δ.49). Las Redes se toman de la
+// conectividad DISEÑADA del artefacto original (ver redesObjetivoParaClon),
+// no de precedentes ni del catalogo: duplicar conserva exactamente la
+// conectividad del objeto duplicado -- un industrial seleccionado AF+AC se
+// clona AF+AC y no vuelve a preguntar. No se reimplementa ninguna
 // primitiva topologica exclusiva de "duplicar" (brief seccion 5).
-//
-// La sincronizacion deduce AF/AC por precedente: la UF original -- que
-// sigue conectada -- siempre es precedente de cada tipo de Artefacto
-// clonado. Si algun Artefacto original no estaba conectado (proyecto ya
-// incompleto de antemano), su clon queda igualmente sin conexion, sin
-// fabricar una: mismo estado que el original, la barrera de cobertura lo
-// sigue senalando como siempre.
 export function duplicarUnidadFuncionalEnProyecto(
   proyecto: Proyecto,
   unidadFuncionalId: string,
@@ -80,19 +126,35 @@ export function duplicarUnidadFuncionalEnProyecto(
     return resultado
   }
 
-  for (const local of copia.locales) {
-    for (const artefactoClonado of local.artefactos) {
-      const sincronizacion = sincronizarConectividadFisicaDeArtefacto(
+  // `copia.locales[li].artefactos[ai]` corresponde 1:1 con
+  // `original.locales[li].artefactos[ai]` (duplicarUnidadFuncional mapea en
+  // orden, sin filtrar ni reordenar).
+  copia.locales.forEach((localCopia, li) => {
+    const localOriginal = original.locales[li]
+    if (localOriginal === undefined) {
+      return
+    }
+    localCopia.artefactos.forEach((artefactoClonado, ai) => {
+      const artefactoOriginal = localOriginal.artefactos[ai]
+      if (artefactoOriginal === undefined) {
+        return
+      }
+      const redes = redesObjetivoParaClon(proyecto, original.id, localOriginal.id, artefactoOriginal)
+      if (redes.length === 0) {
+        return
+      }
+      const sincronizacion = sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(
         resultado,
         copia.id,
-        local.id,
+        localCopia.id,
         artefactoClonado.id,
+        redes,
       )
       if (sincronizacion.tipo === 'sincronizado') {
         resultado = sincronizacion.proyecto
       }
-    }
-  }
+    })
+  })
 
   // D-δ.51: los Tramos recién creados para la copia (bootstrap/retrofit)
   // nacen sin longitud -- D-δ.50 decidió NO copiar el relevamiento físico

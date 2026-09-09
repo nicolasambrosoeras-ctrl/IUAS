@@ -126,25 +126,28 @@ function tramo(proyecto: Proyecto, id: string): Tramo | undefined {
   return proyecto.redHidraulica!.tramos.find((t) => t.id === id)
 }
 
-describe('reconciliarConectividadFisicaPorCambioDeArtefacto (D-δ.52, CRIT-A15)', () => {
-  it('A1: AF -> AF (inodoro -> canilla): topología física intacta', () => {
+describe('reconciliarConectividadFisicaPorCambioDeArtefacto (D-δ.52, CRIT-A15, CAT-CONN-01)', () => {
+  it('A1: AF -> AF (inodoro depósito -> canilla de servicio): topología física intacta', () => {
     const p = proyectoBase()
     const antesTramos = JSON.stringify(p.redHidraulica!.tramos)
     const r = reconciliarConectividadFisicaPorCambioDeArtefacto(
       conTipo(p, 'l-toi', 'art-toi-ino', 'canillaDeServicio'),
       'uf-1', 'l-toi', 'art-toi-ino',
     )
-    // canilla no tiene precedente en este proyecto -> sin reconciliación topológica.
+    // canillaDeServicio (política automatica soloAF) e inodoroDeposito
+    // (automatica soloAF) coinciden en AF -> nada que reconciliar.
     expect(JSON.stringify(r.redHidraulica!.tramos)).toBe(antesTramos)
   })
 
-  it('A2: AF+AC -> AF+AC (lavatorio -> bidet vía precedente inexistente): sin tocar topología', () => {
+  it('A2: AF+AC -> AF+AC (lavatorio -> bidet): ambas políticas son AF+AC -> sin tocar topología', () => {
     const p = proyectoBase()
     const antes = JSON.stringify(p.redHidraulica)
     const r = reconciliarConectividadFisicaPorCambioDeArtefacto(
       conTipo(p, 'l-bano', 'art-bano-lav', 'bidet'),
       'uf-1', 'l-bano', 'art-bano-lav',
     )
+    // bidet (política automatica ambas) coincide con la conectividad AF+AC
+    // que ya tenía el lavatorio -> reconciliación idempotente.
     expect(JSON.stringify(r.redHidraulica)).toBe(antes)
   })
 
@@ -212,7 +215,7 @@ describe('reconciliarConectividadFisicaPorCambioDeArtefacto (D-δ.52, CRIT-A15)'
 
   it('§27: reconciliar con el tipo YA reconciliado (idempotente) no cambia nada', () => {
     const p = proyectoBase()
-    // ya es lavatorio (AF+AC) y su topología ya coincide con el precedente.
+    // ya es lavatorio (AF+AC) y su topología ya coincide con la política del catálogo.
     const r = reconciliarConectividadFisicaPorCambioDeArtefacto(p, 'uf-1', 'l-bano', 'art-bano-lav')
     expect(r).toBe(p)
   })
