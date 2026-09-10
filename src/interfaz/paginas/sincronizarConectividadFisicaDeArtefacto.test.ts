@@ -223,6 +223,87 @@ describe('sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas', () => {
     expect(tramo.longitud_m).toBe(3)
   })
 
+  // M2-TOPO-B (§12/§38): corrección del gap registrado en D-δ.91 -- el
+  // retrofit migraba longitud_m/accesorios al Tramo troncal nuevo pero NO
+  // el override manual dnComercialAdoptado (D-δ.52), dejándolo anclado al
+  // segmento degradado a ramal, donde ya no describe el diámetro que el
+  // usuario dimensionó. Ahora las tres propiedades físicas representativas
+  // viajan juntas.
+  function proyectoConCanillaDimensionada(overrides: Partial<Tramo>): Proyecto {
+    const base = proyectoBase()
+    return {
+      ...base,
+      redHidraulica: {
+        ...base.redHidraulica!,
+        tramos: base.redHidraulica!.tramos.map((t) =>
+          t.id === 't-af-canilla' ? { ...t, ...overrides } : t,
+        ),
+      },
+    }
+  }
+
+  it('D-δ.49 / M2-TOPO-B: el retrofit migra dnComercialAdoptado junto con longitud_m y accesorios al Tramo troncal nuevo; el ramal degradado no retiene ninguna de las tres', () => {
+    const proyecto = agregarArtefactoAlLocal(
+      proyectoConCanillaDimensionada({
+        longitud_m: 4,
+        accesorios: [{ tipo: 'curva90', cantidad: 2 }],
+        dnComercialAdoptado: '32 mm',
+      }),
+      'local-patio',
+      artefacto('art-canilla-2', 'canillaDeServicio'),
+    )
+
+    const resultado = sincronizar(proyecto, 'local-patio', 'art-canilla-2', ['AF'])
+    expect(resultado.tipo).toBe('sincronizado')
+    if (resultado.tipo !== 'sincronizado') return
+    expect(validarRedHidraulica(resultado.proyecto)).toEqual([])
+
+    const redHidraulica = resultado.proyecto.redHidraulica!
+
+    // Ramal degradado: el Tramo original reenganchado a la bifurcación
+    // nueva -- sin ninguna de las propiedades representativas.
+    const ramal = redHidraulica.tramos.find((t) => t.id === 't-af-canilla')!
+    expect(ramal.nodoOrigenId).not.toBe('n0')
+    expect(ramal.longitud_m).toBeUndefined()
+    expect(ramal.accesorios).toBeUndefined()
+    expect(ramal.dnComercialAdoptado).toBeUndefined()
+
+    // Tramo troncal nuevo (n0 -> bifurcación): hereda las tres.
+    const troncal = redHidraulica.tramos.find((t) => t.nodoOrigenId === 'n0' && t.nodoDestinoId === ramal.nodoOrigenId)!
+    expect(troncal.longitud_m).toBe(4)
+    expect(troncal.accesorios).toEqual([{ tipo: 'curva90', cantidad: 2 }])
+    expect(troncal.dnComercialAdoptado).toBe('32 mm')
+
+    // Exactamente un representativo AF para (uf-1, local-patio), y es el
+    // troncal que lleva el override.
+    const representativos = identificarTramosRepresentativosDeLocales(resultado.proyecto)
+    const repsPatioAF = [...representativos.entries()].filter(
+      ([tramoId, identidad]) =>
+        identidad.localId === 'local-patio' &&
+        redHidraulica.tramos.find((t) => t.id === tramoId)?.red === 'AF',
+    )
+    expect(repsPatioAF).toHaveLength(1)
+    expect(repsPatioAF[0]![0]).toBe(troncal.id)
+  })
+
+  it('D-δ.49 / M2-TOPO-B: si el Tramo original no tiene override de DN, el retrofit no inventa uno en el troncal', () => {
+    const proyecto = agregarArtefactoAlLocal(
+      proyectoConCanillaDimensionada({ longitud_m: 4 }),
+      'local-patio',
+      artefacto('art-canilla-2', 'canillaDeServicio'),
+    )
+
+    const resultado = sincronizar(proyecto, 'local-patio', 'art-canilla-2', ['AF'])
+    expect(resultado.tipo).toBe('sincronizado')
+    if (resultado.tipo !== 'sincronizado') return
+
+    const redHidraulica = resultado.proyecto.redHidraulica!
+    const ramal = redHidraulica.tramos.find((t) => t.id === 't-af-canilla')!
+    const troncal = redHidraulica.tramos.find((t) => t.nodoOrigenId === 'n0' && t.nodoDestinoId === ramal.nodoOrigenId)!
+    expect(troncal.longitud_m).toBe(4)
+    expect('dnComercialAdoptado' in troncal).toBe(false)
+  })
+
   it('Local con patron de bifurcacion ya existente: el nuevo terminal cuelga del mismo nodo de bifurcacion', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',

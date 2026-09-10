@@ -15,9 +15,13 @@
 // conectarArtefactoARedes: el "retrofit" que ocurre al agregar el SEGUNDO
 // terminal de un Local+Red cuyo único terminal existente cuelga todavía
 // directo de una raíz compartida (D-δ.1 general/D-δ.7 ACS) -- ahí sí se
-// reescribe el `nodoOrigenId` (nunca otro campo) del Tramo existente, para
-// no dejar dos Tramos "representativos" distintos sirviendo al mismo
-// (Local, Red). Ver comentario de esa función para el detalle completo.
+// reescribe el `nodoOrigenId` (nunca otro campo) del Tramo existente, y las
+// propiedades físicas representativas ya relevadas (longitud_m, accesorios
+// y -- M2-TOPO-B, corrección del gap registrado en D-δ.91 -- el override
+// dnComercialAdoptado) viajan al Tramo troncal nuevo, para no dejar dos
+// Tramos "representativos" distintos sirviendo al mismo (Local, Red) ni
+// perder el DN manual ya adoptado. Ver comentario de esa función para el
+// detalle completo.
 // Si no se puede determinar con certeza qué Redes necesita el artefacto,
 // o el punto de inserción es ambiguo (varios orígenes distintos ya
 // conectados sin patrón único), NO fabrica una conexión: deja esa Red
@@ -159,19 +163,26 @@ function conectarUnaRed(
   // excepción al principio aditivo de este archivo, ver comentario de
   // archivo).
   //
-  // longitud_m/accesorios ya cargados viajan con el rol de "Tramo
-  // representativo", no con el id del Tramo: el Tramo NUEVO (raíz →
+  // longitud_m/accesorios/dnComercialAdoptado ya cargados viajan con el rol
+  // de "Tramo representativo", no con el id del Tramo: el Tramo NUEVO (raíz →
   // bifurcación) hereda esos valores -- es el que
   // identificarTramoRepresentativoDeLocal.ts reconocerá de ahora en más
   // como representativo de este (Local, Red), y en granularidad
   // 'simplificada' es exactamente el único dato que el usuario ve y ya
   // había cargado, así que debe seguir viéndolo ahí, no perderlo. El
-  // Tramo existente (ahora bifurcación → terminal original, degradado a
-  // ramal) queda sin esos datos: representa un segmento físicamente
-  // distinto y más corto que el medido originalmente, y no hay forma de
-  // derivar cuánto de la medición original le corresponde -- inventar un
-  // valor (copiarlo, partirlo) violaría la sección 7 del brief tanto como
-  // dejarlo con un valor que ya no describe la realidad.
+  // dnComercialAdoptado (override manual de DN, D-δ.52) se suma acá en
+  // M2-TOPO-B: el gap estaba registrado en D-δ.91 (sólo migraban
+  // longitud_m/accesorios) y dejaba el DN manual anclado al segmento
+  // degradado a ramal, donde ya no describe el diámetro del tramo que el
+  // usuario dimensionó. El Tramo existente (ahora bifurcación → terminal
+  // original, degradado a ramal) queda sin esos datos: representa un
+  // segmento físicamente distinto y más corto que el medido originalmente,
+  // y no hay forma de derivar cuánto de la medición original le corresponde
+  // -- inventar un valor (copiarlo, partirlo) violaría la sección 7 del
+  // brief tanto como dejarlo con un valor que ya no describe la realidad.
+  // El reenganche reconstruye el Tramo degradado con sólo
+  // id/nodoOrigenId/nodoDestinoId/red, así que no hay duplicación: el
+  // override no queda en los dos lados.
   // insercion.nodoId puede ser una raíz compartida con OTROS hijos ajenos
   // a este Local en la misma Red (p. ej. n0 alimentando además a otros
   // Locales, o la propia Alimentación ACS) -- filtrar también por destino
@@ -200,11 +211,12 @@ function conectarUnaRed(
 
   const nuevaBifurcacionId = generarId(`nodo-${red.toLowerCase()}`)
   const terminal = terminalDe(unidadFuncionalId, localId, artefactoInstanciaId, red)
-  const { longitud_m, accesorios } = tramoExistente
+  const { longitud_m, accesorios, dnComercialAdoptado } = tramoExistente
   const tramoNuevoTroncal: Tramo = {
     ...tramoHacia(insercion.nodoId, nuevaBifurcacionId, red),
     ...(longitud_m !== undefined ? { longitud_m } : {}),
     ...(accesorios !== undefined ? { accesorios } : {}),
+    ...(dnComercialAdoptado !== undefined ? { dnComercialAdoptado } : {}),
   }
   return {
     conectado: true,
