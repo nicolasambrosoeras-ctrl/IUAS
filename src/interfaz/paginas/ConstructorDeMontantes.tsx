@@ -21,6 +21,7 @@ import { ETIQUETA_RED } from './humanizarModulo2'
 import { BadgeDeRed } from './BadgeDeRed'
 import { TablaDimensionamientoDeModulo2, type EntradaDeTabla } from './TablaDimensionamientoDeModulo2'
 import { AccesoriosDeTramoEditor } from './AccesoriosDeTramoEditor'
+import { TeeDeNodoEditor } from './TeeDeNodoEditor'
 import { resolverFilaDeDimensionamiento } from './resolverFilaDeDimensionamiento'
 import { resolverControlDeDnDeTramo } from './resolverControlDeDnDeTramo'
 import { resolverResultadoDeTramoParaUi } from './resolverResultadoDeTramoParaUi'
@@ -29,6 +30,7 @@ import { agregarLocalAMontante, borrarMontante, quitarLocalDeMontante } from './
 import {
   conMontanteNuevo,
   conNombreDeMontante,
+  derivacionesDeMontante,
   interpretarResultadoDeMontante,
   localesOfreciblesParaMontante,
   proyectarMontante,
@@ -165,12 +167,69 @@ function MontanteCard({
         )}
       </section>
 
+      {proyecto.configuracionHidraulica.metodoPerdidaLocalizada === 'detallado' ? (
+        <DerivacionesDeMontante proyecto={proyecto} montanteId={montanteId} onCambiar={onCambiar} />
+      ) : null}
+
       {aviso !== null ? (
         <p className="montante-card__aviso ui-callout ui-callout--warn" role="alert">
           {aviso}
         </p>
       ) : null}
     </article>
+  )
+}
+
+// Derivaciones (tees) del montante -- M2-TOPO-D. Sólo en modo Detalladas:
+// la geometría de tee alimenta exclusivamente `metodoPerdidaLocalizada =
+// 'detallado'` (§8). El modo Estimadas no lee `Nodo.tee` y no debe pedir
+// estas elecciones. Cada nodo de derivación físico tiene su propia
+// `Nodo.tee` (§16): no hay una configuración global de montante.
+function DerivacionesDeMontante({
+  proyecto,
+  montanteId,
+  onCambiar,
+}: {
+  proyecto: Proyecto
+  montanteId: string
+  onCambiar: (proyecto: Proyecto) => void
+}) {
+  const derivaciones = derivacionesDeMontante(proyecto, montanteId)
+  if (derivaciones.length === 0) {
+    return null
+  }
+  return (
+    <section className="montante-card__seccion montante-card__derivaciones">
+      <h4>Derivaciones</h4>
+      {derivaciones.map((derivacion) => (
+        <div className="montante-card__derivacion" key={derivacion.nodoId}>
+          <p className="montante-card__derivacion-titulo">Derivación {derivacion.orden}</p>
+          {derivacion.tipo === 'bifurcacion' ? (
+            <TeeDeNodoEditor
+              proyecto={proyecto}
+              nodoDeBifurcacion={{
+                nodoId: derivacion.nodoId,
+                tramoEntranteId: derivacion.tramoEntranteId,
+                tramosSalientesIds: derivacion.tramosSalientesIds,
+              }}
+              etiquetasDeSalida={derivacion.etiquetasDeSalida}
+              onCambiar={onCambiar}
+            />
+          ) : (
+            <p className="montante-card__derivacion-nota">
+              Esta derivación reparte hacia {derivacion.cantidadSalidas} salidas
+              {derivacion.etiquetasDeSalida.length > 0
+                ? ` (${derivacion.etiquetasDeSalida.join(', ')})`
+                : ''}
+              . La configuración detallada de tee cubre sólo bifurcaciones de dos salidas; en una
+              derivación múltiple su pérdida localizada no se modela todavía (limitación conocida —
+              las cotas de los Locales se pueden separar para que cada nivel sea una bifurcación
+              simple).
+            </p>
+          )}
+        </div>
+      ))}
+    </section>
   )
 }
 

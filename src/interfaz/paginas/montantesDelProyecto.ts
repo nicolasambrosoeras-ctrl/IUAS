@@ -24,6 +24,8 @@ import {
 import { derivarOrdinalesDeLocal } from './identificarFilasDeModulo2'
 import { generarId } from './generarId'
 import { nombreDeMontante, nombreFallbackDeMontante } from './nombreDeMontante'
+import { obtenerArtefactosAguasAbajo } from '../../motor/tuberias/topologia/obtenerArtefactosAguasAbajo'
+import { identificarNodosDeBifurcacion } from '../../motor/tuberias/topologia/identificarNodosDeBifurcacion'
 
 // Duplicado intencional de la etiqueta homónima en
 // ResultadoHidraulicoDeTramo.tsx / MotorDemandaPantalla.tsx (mismo criterio
@@ -335,4 +337,126 @@ export function interpretarResultadoDeMontante(
       // del gate de cobertura de M2 y nunca ofrece ids inexistentes.
       return { proyecto: null, aviso: AVISO_GENERICO }
   }
+}
+
+// ------------------------------------------------------------------
+// Derivaciones (tees) del montante -- M2-TOPO-D
+// ------------------------------------------------------------------
+
+// Etiqueta HUMANA de una salida de un nodo de derivación del montante,
+// para el editor de tee (§6/§17). Prioridad:
+//   1. la salida ES el siguiente segmento del montante -> nombre del
+//      montante ("Montante AF 1" / nombre custom);
+//   2. la salida es el feed de EXACTAMENTE un Local -> etiqueta de ese
+//      Local ("Baño 1 · UF 3");
+//   3. alcanza varios Locales -> "Ramal a varios Locales";
+//   4. no alcanza ninguno -> "Salida sin destino".
+// Nunca el id técnico del Tramo/Nodo. Todo derivado de la topología.
+export function etiquetaDeSalidaDeMontante(
+  proyecto: Proyecto,
+  montanteId: string,
+  tramoSalienteId: string,
+): string {
+  const tramo = proyecto.redHidraulica?.tramos.find((candidato) => candidato.id === tramoSalienteId)
+  if (tramo === undefined) {
+    return 'Salida sin destino'
+  }
+  if (tramo.montanteId === montanteId) {
+    return nombreDeMontante(proyecto, montanteId)
+  }
+  const localesAbajo = new Map<string, LocalServido>()
+  for (const ref of obtenerArtefactosAguasAbajo(proyecto, tramoSalienteId)) {
+    localesAbajo.set(claveLocal(ref.unidadFuncionalId, ref.localId), {
+      unidadFuncionalId: ref.unidadFuncionalId,
+      localId: ref.localId,
+    })
+  }
+  const servidos = [...localesAbajo.values()]
+  if (servidos.length === 0) {
+    return 'Salida sin destino'
+  }
+  if (servidos.length === 1) {
+    const servido = servidos[0]!
+    const uf = proyecto.unidadesFuncionales.find((candidata) => candidata.id === servido.unidadFuncionalId)
+    const local = uf?.locales.find((candidato) => candidato.id === servido.localId)
+    return uf !== undefined && local !== undefined ? etiquetaHumanaDeLocal(uf, local) : 'Salida sin destino'
+  }
+  return 'Ramal a varios Locales'
+}
+
+export type DerivacionDeMontante =
+  // 1 tramo entrante + 2 salientes: tee editable con ConfiguracionDeTee
+  // (CRIT-A31), en modo Detalladas.
+  | {
+      readonly tipo: 'bifurcacion'
+      readonly nodoId: string
+      readonly tramoEntranteId: string
+      readonly tramosSalientesIds: readonly [string, string]
+      readonly etiquetasDeSalida: Readonly<Record<string, string>>
+      readonly teeConfigurada: boolean
+      // orden en la cadena origen -> punta (1-based), sólo para rotular.
+      readonly orden: number
+    }
+  // 1 tramo entrante + >=3 salientes: fan-out válido para Qc (M2-TOPO-A),
+  // pero fuera del alcance de ConfiguracionDeTee (1->2). No se ofrece un
+  // editor engañoso (§12/§40); la UI lo explica como limitación conocida.
+  | {
+      readonly tipo: 'noConfigurable'
+      readonly nodoId: string
+      readonly cantidadSalidas: number
+      readonly etiquetasDeSalida: readonly string[]
+      readonly orden: number
+    }
+
+// Derivaciones REALES del montante: los nodos que son `nodoDestinoId` de
+// algún segmento y que además bifurcan. Un nodo punta 1->1 (montante con
+// un único Local en esa cota y sin continuación) NO es una derivación y no
+// aparece (§15). READ-ONLY, todo derivado de RedHidraulica +
+// Proyecto.montantes + UF/Locales -- es también la proyección que
+// consumirán HYD-EST y VIS-TOPO (§21).
+export function derivacionesDeMontante(proyecto: Proyecto, montanteId: string): readonly DerivacionDeMontante[] {
+  const redHidraulica = proyecto.redHidraulica
+  if (redHidraulica === undefined) {
+    return []
+  }
+  const proyeccion = proyectarMontante(proyecto, montanteId)
+  if (proyeccion === undefined) {
+    return []
+  }
+  const bifurcaciones = new Map(identificarNodosDeBifurcacion(redHidraulica).map((bif) => [bif.nodoId, bif]))
+  const resultado: DerivacionDeMontante[] = []
+  proyeccion.nodosDeDerivacion.forEach((nodoId, indice) => {
+    const orden = indice + 1
+    const bif = bifurcaciones.get(nodoId)
+    if (bif !== undefined) {
+      resultado.push({
+        tipo: 'bifurcacion',
+        nodoId,
+        tramoEntranteId: bif.tramoEntranteId,
+        tramosSalientesIds: bif.tramosSalientesIds,
+        etiquetasDeSalida: Object.fromEntries(
+          bif.tramosSalientesIds.map((salienteId) => [
+            salienteId,
+            etiquetaDeSalidaDeMontante(proyecto, montanteId, salienteId),
+          ]),
+        ),
+        teeConfigurada: redHidraulica.nodos.find((nodo) => nodo.id === nodoId)?.tee !== undefined,
+        orden,
+      })
+      return
+    }
+    const salientes = redHidraulica.tramos.filter((tramo) => tramo.nodoOrigenId === nodoId)
+    const entrantes = redHidraulica.tramos.filter((tramo) => tramo.nodoDestinoId === nodoId)
+    if (entrantes.length === 1 && salientes.length >= 3) {
+      resultado.push({
+        tipo: 'noConfigurable',
+        nodoId,
+        cantidadSalidas: salientes.length,
+        etiquetasDeSalida: salientes.map((tramo) => etiquetaDeSalidaDeMontante(proyecto, montanteId, tramo.id)),
+        orden,
+      })
+    }
+    // 1->1 punta: no bifurca, no es una derivación -- no se lista.
+  })
+  return resultado
 }

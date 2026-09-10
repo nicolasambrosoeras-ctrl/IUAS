@@ -111,3 +111,71 @@
     align-items: stretch;
   }
 }
+
+/* Editor de tee de derivación (M2-TOPO-D). Se usa en la card de montante
+   (modo Detalladas) y, sin este CSS cargado, en LocalYRedCard con los
+   defaults del navegador -- el markup es semántico (<fieldset>/<label>). */
+.montante-card__derivaciones h4 {
+  margin: var(--esp-sm) 0 var(--esp-xs);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-texto-3);
+}
+
+.montante-card__derivacion {
+  margin-bottom: var(--esp-sm);
+}
+
+.montante-card__derivacion-titulo {
+  font-weight: var(--peso-semibold);
+  font-size: var(--fs-ayuda);
+}
+
+.tee-editor {
+  border: 1px solid var(--color-borde);
+  border-radius: 8px;
+  padding: var(--esp-sm) var(--esp-md);
+  margin: var(--esp-xs) 0 0;
+  min-width: 0;
+}
+
+.tee-editor legend {
+  font-size: var(--fs-meta);
+  font-weight: var(--peso-semibold);
+  padding: 0 0.35rem;
+}
+
+.tee-editor__salidas {
+  margin: 0 0 var(--esp-sm);
+}
+
+.tee-editor__grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-top: var(--esp-sm);
+}
+
+.tee-editor__grupo-titulo {
+  font-size: var(--fs-ayuda);
+  color: var(--color-texto-2);
+}
+
+.tee-editor__grupo label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.tee-editor__pendiente {
+  margin: var(--esp-sm) 0 0;
+  font-size: var(--fs-ayuda);
+  color: var(--color-texto-2);
+}
+
+.montante-card__derivacion-nota {
+  font-size: var(--fs-ayuda);
+  color: var(--color-texto-2);
+  margin: var(--esp-xs) 0 0;
+}

@@ -54,7 +54,7 @@
 //    montante. Nunca se pierde longitud/accesorios/DN manual del feed (el
 //    Tramo viaja entero, sólo cambia su `nodoOrigenId`).
 import type { Local, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
-import type { RedDeTramo, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
+import type { Nodo, RedDeTramo, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
 import { resolverCotaPisoDeLocal } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import { resolverPeloDeAguaMinimoEfectivo } from '../../motor/modulo4/resolverPeloDeAguaMinimoDeTanque'
 import { obtenerArtefactosAguasAbajo } from '../../motor/tuberias/topologia/obtenerArtefactosAguasAbajo'
@@ -754,7 +754,7 @@ export function borrarMontante(proyecto: Proyecto, montanteId: string): Resultad
 
   const proyectoSinMontante: Proyecto = {
     ...proyecto,
-    redHidraulica: rh,
+    redHidraulica: reconciliarTeesTrasCambioTopologico(rh),
     montantes: (proyecto.montantes ?? []).filter((m) => m.id !== montanteId),
   }
   return {
@@ -763,6 +763,55 @@ export function borrarMontante(proyecto: Proyecto, montanteId: string): Resultad
     localesServidos: [],
     localesSinCota: [],
   }
+}
+
+// ------------------------------------------------------------------
+// Reconciliación de `Nodo.tee` tras un cambio de topología (M2-TOPO-D §13)
+// ------------------------------------------------------------------
+
+// Alta/baja de Locales, misma cota y borrado de montante pueden cambiar el
+// fan-out de un Nodo de derivación: un 1→2 que pasa a 1→3 (un Local nuevo a
+// una cota ya servida) o a 1→1 (se quitó su única rama), o un 1→2 cuya
+// rama marcada como continuación recta dejó de salir de ese nodo. En todos
+// esos casos `Nodo.tee` (CRIT-A31, alcance exclusivo 1→2) queda inválido
+// -- `validarRedHidraulica` lo rechazaría (`redHidraulicaNodoTeeEstructuraNoSoportada`
+// / `redHidraulicaNodoTeeTramoSalidaRectaInvalido`) y
+// `resolverClasificacionDeTee` lanzaría en el balance de presión. Este
+// paso LIMPIA de forma determinista sólo la metadata que ya no puede
+// aplicarse: nunca toca `longitud_m` / `dnComercialAdoptado` / `accesorios`
+// (RD-1/RD-2 de M2-TOPO-C) ni la topología. Una configuración de tee sobre
+// un Nodo que sigue siendo exactamente 1→2 con las mismas dos salidas se
+// PRESERVA intacta. La decisión física "esta salida es la recta" no puede
+// "sobrevivir" a que el Nodo deje de ser una bifurcación 1→2: ya no
+// describe una pieza en T que exista.
+export function reconciliarTeesTrasCambioTopologico(redHidraulica: RedHidraulica): RedHidraulica {
+  let cambiado = false
+  const nodos = redHidraulica.nodos.map((nodo): Nodo => {
+    const { tee } = nodo
+    if (tee === undefined) {
+      return nodo
+    }
+    const salientes = redHidraulica.tramos.filter((tramo) => tramo.nodoOrigenId === nodo.id)
+    const entrantes = redHidraulica.tramos.filter((tramo) => tramo.nodoDestinoId === nodo.id)
+    const sigueSiendoBifurcacion = salientes.length === 2 && entrantes.length === 1
+    const rectaSigueSaliendo =
+      tee.tipo !== 'entradaPorExtremo' || salientes.some((tramo) => tramo.id === tee.tramoSalidaRectaId)
+    if (sigueSiendoBifurcacion && rectaSigueSaliendo) {
+      return nodo
+    }
+    cambiado = true
+    // Se OMITE la clave `tee` (no se asigna `undefined`), mismo criterio de
+    // omisión explícita que conTeeDeNodo / conLongitudDeTramo.
+    const nodoSinTee: Nodo = { id: nodo.id }
+    if (nodo.referencia !== undefined) {
+      nodoSinTee.referencia = nodo.referencia
+    }
+    if (nodo.cota_m !== undefined) {
+      nodoSinTee.cota_m = nodo.cota_m
+    }
+    return nodoSinTee
+  })
+  return cambiado ? { nodos, tramos: redHidraulica.tramos } : redHidraulica
 }
 
 // ------------------------------------------------------------------
@@ -775,7 +824,10 @@ function finalizar(
   montanteId: string,
   localesSinCota: readonly LocalServido[],
 ): ResultadoReconciliacionDeMontante {
-  const proyectoActualizado: Proyecto = { ...proyecto, redHidraulica }
+  const proyectoActualizado: Proyecto = {
+    ...proyecto,
+    redHidraulica: reconciliarTeesTrasCambioTopologico(redHidraulica),
+  }
   return {
     tipo: 'reconciliado',
     proyecto: proyectoActualizado,
