@@ -215,3 +215,93 @@ describe('resolverIncrementoVerticalPorNivel (D-δ.50)', () => {
     expect(resultado.nivel).toBe(2) // se expone como metadato
   })
 })
+
+// ------------------------------------------------------------------
+// M2-TOPO-C (§37-§41): un camino que atraviesa un montante explícito NO
+// recibe el +3·nivel automático de D-δ.50 -- el ascenso vertical ya lo
+// modela la longitud real de los segmentos del montante. Cierra la
+// limitación de doble conteo registrada en D-δ.92.
+// ------------------------------------------------------------------
+
+function conMontanteEn(
+  proyecto: Proyecto,
+  tramoId: string,
+  opciones: { readonly quitarLongitud?: boolean } = {},
+): Proyecto {
+  return {
+    ...proyecto,
+    montantes: [{ id: 'm-1', red: 'AF' }],
+    redHidraulica: {
+      ...proyecto.redHidraulica!,
+      tramos: proyecto.redHidraulica!.tramos.map((t) => {
+        if (t.id !== tramoId) return t
+        const base: Tramo = { ...t, montanteId: 'm-1' }
+        if (opciones.quitarLongitud === true) {
+          delete (base as { longitud_m?: number }).longitud_m
+        }
+        return base
+      }),
+    },
+  }
+}
+
+describe('resolverIncrementoVerticalPorNivel — supresión por montante explícito (M2-TOPO-C)', () => {
+  it('§37: el camino AF atraviesa un segmento con montanteId -> incremento anulado, marcado suprimidoPorMontante', () => {
+    const u = uf('uf-p2', 2)
+    const proyecto = conMontanteEn(proyectoCon([u]), 't-general')
+
+    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p2'), u)
+
+    expect(resultado.aplica).toBe(false)
+    expect(resultado.suprimidoPorMontante).toBe(true)
+    expect(resultado.incrementoPorTramoId.size).toBe(0)
+    expect(resultado.tramosConIncremento).toEqual([])
+    // deltaLVertical_m conserva el valor de referencia (lo que habría sido).
+    expect(resultado.deltaLVertical_m).toBe(6)
+  })
+
+  it('§37: también suprime el ascenso en el camino AC (que comparte t-general)', () => {
+    const u = uf('uf-p1', 1)
+    const proyecto = conMontanteEn(proyectoCon([u]), 't-general')
+
+    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAC(proyecto, 'uf-p1'), u)
+
+    expect(resultado.aplica).toBe(false)
+    expect(resultado.suprimidoPorMontante).toBe(true)
+    expect(resultado.incrementoPorTramoId.size).toBe(0)
+  })
+
+  it('§39: un segmento explícito SIN longitud NO reactiva el 3·nivel (el camino queda incompleto por otra vía)', () => {
+    const u = uf('uf-p2', 2)
+    const proyecto = conMontanteEn(proyectoCon([u]), 't-general', { quitarLongitud: true })
+
+    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p2'), u)
+
+    expect(resultado.aplica).toBe(false)
+    expect(resultado.suprimidoPorMontante).toBe(true)
+    expect(resultado.incrementoPorTramoId.size).toBe(0)
+  })
+
+  it('§38: un montante en un tramo AF que NO está en el camino consultado no suprime nada', () => {
+    const p1 = uf('uf-p1', 1)
+    const p2 = uf('uf-p2', 2)
+    // El montante cuelga del ramal terminal AF de uf-p2; el camino AF de
+    // uf-p1 no lo atraviesa.
+    const proyecto = conMontanteEn(proyectoCon([p1, p2]), 't-af-uf-p2-uf-p2-lav')
+
+    const resultadoAF = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p1'), p1)
+    expect(resultadoAF.aplica).toBe(true)
+    expect(resultadoAF.suprimidoPorMontante).toBeFalsy()
+    expect(resultadoAF.incrementoPorTramoId.size).toBeGreaterThan(0)
+  })
+
+  it('profesional + montante: sin cambios (el incremento ya era 0)', () => {
+    const u = uf('uf-p2', 2)
+    const proyecto = conMontanteEn(proyectoCon([u], 'profesional'), 't-general')
+
+    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p2'), u)
+
+    expect(resultado.aplica).toBe(false)
+    expect(resultado.deltaLVertical_m).toBe(0)
+  })
+})

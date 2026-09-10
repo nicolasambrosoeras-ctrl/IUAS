@@ -65,6 +65,18 @@ export type IncrementoVerticalPorNivel = {
     readonly rol: 'alimentacionGeneral' | 'alimentacionAcs'
     readonly incremento_m: number
   }[]
+  // M2-TOPO-C (§37): true cuando el incremento se anuló porque el camino
+  // atraviesa al menos un segmento de un montante explícito
+  // (Tramo.montanteId) -- el ascenso vertical ya está modelado por la
+  // longitud real de ese montante, así que el +3·nivel automático de
+  // D-δ.50 sería doble conteo (cierre de la limitación de D-δ.92). Se
+  // distingue de "PB / UF sin clasificar" (donde tampoco aplica pero por
+  // otro motivo) para la traza auditable. `deltaLVertical_m` conserva el
+  // valor que HABRÍA tenido, sólo como referencia -- `incrementoPorTramoId`
+  // queda vacío y `aplica` es false. Opcional: ausente equivale a `false`
+  // (mismo criterio conservador que el resto del modelo), así los fixtures
+  // previos a M2-TOPO-C no necesitan declararlo.
+  readonly suprimidoPorMontante?: boolean
 }
 
 const SIN_INCREMENTO: IncrementoVerticalPorNivel = {
@@ -73,6 +85,7 @@ const SIN_INCREMENTO: IncrementoVerticalPorNivel = {
   deltaLVertical_m: 0,
   incrementoPorTramoId: new Map(),
   tramosConIncremento: [],
+  suprimidoPorMontante: false,
 }
 
 // Clasificacion estructural de un Tramo como Distribucion general, sin
@@ -114,6 +127,20 @@ export function resolverIncrementoVerticalPorNivel(
 
   const deltaLVertical_m = ALTURA_LIBRE_TIPICA_ENTRE_PLANTAS_M * nivel
 
+  // M2-TOPO-C (§37-§39): si el camino atraviesa al menos un segmento de un
+  // montante explícito (Tramo.montanteId definido), el ascenso vertical ya
+  // está representado por la longitud REAL de ese/esos segmento(s) -- sumar
+  // además el +3·nivel automático de D-δ.50 sería doble conteo (cierra la
+  // limitación registrada en D-δ.92). La señal es exclusivamente
+  // `Tramo.montanteId`; NO se usa `esTramoDeDistribucionCompartida` (§38).
+  // Si un segmento explícito del camino no tiene longitud, el camino queda
+  // incompleto por la vía normal de hfDistribuida
+  // (acumularPerdidaDistribuidaDeCamino) -- acá NUNCA se reactiva el
+  // 3·nivel como fallback (§39).
+  if (camino.tramos.some((tramo) => tramo.montanteId !== undefined)) {
+    return { ...SIN_INCREMENTO, nivel, deltaLVertical_m, suprimidoPorMontante: true }
+  }
+
   const { redHidraulica } = proyecto
   if (redHidraulica === undefined) {
     return { ...SIN_INCREMENTO, nivel, deltaLVertical_m }
@@ -144,5 +171,6 @@ export function resolverIncrementoVerticalPorNivel(
     deltaLVertical_m,
     incrementoPorTramoId,
     tramosConIncremento,
+    suprimidoPorMontante: false,
   }
 }
