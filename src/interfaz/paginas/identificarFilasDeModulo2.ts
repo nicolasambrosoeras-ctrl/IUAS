@@ -10,6 +10,7 @@
 import type { Proyecto, Local } from '../../modelo/proyecto'
 import type { Nodo, RedDeTramo, Tramo } from '../../modelo/redHidraulica'
 import { identificarTramosRepresentativosDeLocales } from '../../motor/tuberias/topologia/identificarTramoRepresentativoDeLocal'
+import { identificarTramosDeDistribucionCompartida } from '../../motor/tuberias/topologia/identificarTramosDeDistribucionCompartida'
 
 export type FilaDistribucionGeneral = {
   readonly etiqueta: string
@@ -20,6 +21,16 @@ export type FilaDistribucionGeneral = {
 export type FilaPrincipalDeLocal = {
   readonly unidadFuncionalId: string
   readonly localId: string
+  readonly red: RedDeTramo
+  readonly tramoId: string
+}
+
+export type FilaDistribucionSecundaria = {
+  // Denominación DERIVADA y estable sólo para presentación (M2-TOPO-B §6/§26):
+  // "Distribución secundaria N", numerada por red. NO se persiste, NO es una
+  // identidad ni un rol de montante -- eso queda para M2-TOPO-C. Nunca un
+  // UUID ni el id técnico del Tramo.
+  readonly etiqueta: string
   readonly red: RedDeTramo
   readonly tramoId: string
 }
@@ -105,6 +116,36 @@ export function identificarFilasPrincipalesDeLocales(proyecto: Proyecto): readon
   }
 
   return filas
+}
+
+// Distribución secundaria (M2-TOPO-B): proyección derivada de la
+// clasificación estructural del motor -- envuelve
+// identificarTramosDeDistribucionCompartida (M2-TOPO-A) agregando `red` y
+// una denominación de presentación. NO reimplementa la regla ("un Tramo que
+// no es Alimentación general/ACS y alcanza artefactos de >1 (UF,Local)");
+// la clasificación es la del motor y es la MISMA que consumirá VIS-TOPO.
+//
+// Nomenclatura NEUTRAL igual que en el motor: "distribución secundaria" NO
+// afirma "montante". Cada fila representa UN Tramo físico real, no todo un
+// montante ni un Local: un montante segmentado aparece como varias filas
+// (una por segmento que todavía alcanza >1 Local), y cada segmento puede
+// tener su propio Qc/DN/V/longitud/hf.
+//
+// Orden: el de `redHidraulica.tramos` (el que ya devuelve
+// identificarTramosDeDistribucionCompartida; el mismo criterio que
+// identificarFilasDistribucionGeneral) -- determinista y estable. La
+// numeración "N" es POR RED, en ese mismo orden: mismo patrón que
+// derivarOrdinalesDeLocal (numera dentro de cada categoría) y coherente con
+// que la columna Red de la tabla ya desambigua AF/AC, igual que dos filas
+// "Baño 1" (una AF, otra AC). No se persiste en ningún lado -- se recalcula
+// en cada render.
+export function identificarFilasDistribucionSecundaria(proyecto: Proyecto): readonly FilaDistribucionSecundaria[] {
+  const contadorPorRed = new Map<RedDeTramo, number>()
+  return identificarTramosDeDistribucionCompartida(proyecto).map((tramo) => {
+    const ordinal = (contadorPorRed.get(tramo.red) ?? 0) + 1
+    contadorPorRed.set(tramo.red, ordinal)
+    return { etiqueta: `Distribución secundaria ${ordinal}`, red: tramo.red, tramoId: tramo.id }
+  })
 }
 
 // Ordinal de presentación por Local dentro de una Unidad Funcional, según

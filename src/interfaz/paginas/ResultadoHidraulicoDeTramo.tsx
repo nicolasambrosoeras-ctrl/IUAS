@@ -20,6 +20,7 @@ import { auditarCoberturaFisica } from '../../motor/tuberias/cobertura/auditarCo
 import {
   derivarOrdinalesDeLocal,
   identificarFilasDistribucionGeneral,
+  identificarFilasDistribucionSecundaria,
   identificarFilasPrincipalesDeLocales,
 } from './identificarFilasDeModulo2'
 import {
@@ -420,6 +421,66 @@ function DistribucionGeneral({
   )
 }
 
+// Distribución secundaria (M2-TOPO-B): filas de la tabla de
+// dimensionamiento para los Tramos que el motor clasifica como distribución
+// compartida (identificarTramosDeDistribucionCompartida vía
+// identificarFilasDistribucionSecundaria). Cada fila es UN Tramo físico
+// real -- un montante segmentado da varias filas. Reutiliza exactamente los
+// mismos componentes/resolvers que Distribución general (misma fuente de
+// verdad: resolverFilaDeDimensionamiento / resolverControlDeDnDeTramo /
+// AccesoriosDeTramoEditor); no hay cálculo propio en JSX.
+//
+// - Longitud editable siempre (§9): es una longitud FÍSICA declarada, nunca
+//   automática por nivel -- mismo criterio que Distribución general.
+// - Sin contexto (unidadFuncionalId/localId): sirve a varios Locales, así
+//   que no hay hf localizada estimada ni "N puntos" -- igual que
+//   Distribución general.
+// - Si hay 0 tramos secundarios NO se renderiza nada (§27): el proyecto de
+//   ejemplo (topología plana) no ve ninguna sección nueva.
+function DistribucionSecundaria({
+  proyecto,
+  catalogoArtefactos,
+  onCambiar,
+}: {
+  proyecto: Proyecto
+  catalogoArtefactos: readonly ArtefactoNormativo[]
+  onCambiar: (proyecto: Proyecto) => void
+}) {
+  const filas = identificarFilasDistribucionSecundaria(proyecto)
+  if (filas.length === 0) {
+    return null
+  }
+  const modoDetallado = proyecto.configuracionHidraulica.metodoPerdidaLocalizada === 'detallado'
+
+  const entradas: EntradaDeTabla[] = filas.map((fila) => ({
+    clave: fila.tramoId,
+    etiqueta: fila.etiqueta,
+    red: fila.red,
+    fila: resolverFilaDeDimensionamiento(proyecto, fila.tramoId, catalogoArtefactos),
+    longitudEditable: true,
+    onCambiarLongitud: (longitud_m) => onCambiar(conLongitudDeTramo(proyecto, fila.tramoId, longitud_m)),
+    controlDn: resolverControlDeDnDeTramo(proyecto, fila.tramoId, catalogoArtefactos),
+    onCambiarDnAdoptado: (denominacion) => onCambiar(conDnComercialAdoptadoDeTramo(proyecto, fila.tramoId, denominacion)),
+    renderDetalle: modoDetallado
+      ? () => (
+          <AccesoriosDeTramoEditor
+            proyecto={proyecto}
+            tramoId={fila.tramoId}
+            velocidadReal_mps={resolverResultadoDeTramoParaUi(proyecto, fila.tramoId, catalogoArtefactos).velocidadReal_mps}
+            onCambiar={onCambiar}
+          />
+        )
+      : undefined,
+  }))
+
+  return (
+    <section>
+      <h3>Distribución secundaria</h3>
+      <TablaDimensionamientoDeModulo2 entradas={entradas} encabezadoTramo="Tramo" />
+    </section>
+  )
+}
+
 // Sección de una Unidad Funcional: encabezado (nivel + cota) + tabla con
 // una fila por (Local, Red). Detalle expandible por fila -- en Rápido
 // artefactos + estimación localizada; en Profesional el árbol de Tramos
@@ -532,6 +593,8 @@ export function ResultadoHidraulicoDeTramo({
       ) : (
         <>
           <DistribucionGeneral proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} onCambiar={onCambiar} />
+
+          <DistribucionSecundaria proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} onCambiar={onCambiar} />
 
           {proyecto.unidadesFuncionales.map((uf) => (
             <SeccionDeUnidadFuncional

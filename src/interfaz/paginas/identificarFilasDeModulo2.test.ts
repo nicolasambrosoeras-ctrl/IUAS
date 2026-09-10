@@ -5,6 +5,7 @@ import { obtenerArtefactosAguasAbajo } from '../../motor/tuberias/topologia/obte
 import {
   derivarOrdinalesDeLocal,
   identificarFilasDistribucionGeneral,
+  identificarFilasDistribucionSecundaria,
   identificarFilasPrincipalesDeLocales,
 } from './identificarFilasDeModulo2'
 
@@ -342,5 +343,134 @@ describe('topología demo real (MotorDemandaPantalla.proyectoInicial): validaci�
     expect(tramoIds.has('t-af-lavatorio')).toBe(false)
     expect(tramoIds.has('t-ac-bidet')).toBe(false)
     expect(tramoIds.has('t-af-toilette-inodoro')).toBe(false)
+  })
+})
+
+// M2-TOPO-B: identificarFilasDistribucionSecundaria -- proyección derivada
+// (etiqueta + red) sobre identificarTramosDeDistribucionCompartida. Fixtures
+// pequeñas y locales, mismo criterio que el resto del archivo.
+describe('identificarFilasDistribucionSecundaria', () => {
+  it('topología plana (fixture del archivo y demo real): 0 filas -- no aparece ninguna sección nueva', () => {
+    expect(identificarFilasDistribucionSecundaria(proyecto)).toEqual([])
+    expect(identificarFilasDistribucionSecundaria(proyectoDemo)).toEqual([])
+  })
+
+  it('proyecto sin redHidraulica: lista vacía', () => {
+    const sinRed: Proyecto = {
+      metadatos: metadatos(),
+      parametros: parametros(),
+      unidadesFuncionales,
+      configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'detallado', granularidadHidraulica: 'profesional', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
+    }
+    expect(identificarFilasDistribucionSecundaria(sinRed)).toEqual([])
+  })
+
+  // Montante AF segmentado: raiz -> segA -> (deriv L1) -> segB -> (deriv L2)
+  // -> segC -> L3. segA alcanza L1+L2+L3, segB alcanza L2+L3 (ambos
+  // compartidos); segC alcanza solo L3 (representativo, NO compartido).
+  const montanteSegmentado: RedHidraulica = {
+    nodos: [
+      { id: 'n-raiz' },
+      { id: 'n0' },
+      { id: 'n1' },
+      { id: 'n2' },
+      { id: 'n-l1', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-m', localId: 'l1', artefactoId: 'x1' } },
+      { id: 'n-l2', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-m', localId: 'l2', artefactoId: 'x2' } },
+      { id: 'n-l3', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-m', localId: 'l3', artefactoId: 'x3' } },
+    ],
+    tramos: [
+      { id: 't-general', nodoOrigenId: 'n-raiz', nodoDestinoId: 'n0', red: 'AF' },
+      { id: 't-segA', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: 3 },
+      { id: 't-feed-l1', nodoOrigenId: 'n1', nodoDestinoId: 'n-l1', red: 'AF' },
+      { id: 't-segB', nodoOrigenId: 'n1', nodoDestinoId: 'n2', red: 'AF', longitud_m: 3 },
+      { id: 't-feed-l2', nodoOrigenId: 'n2', nodoDestinoId: 'n-l2', red: 'AF' },
+      { id: 't-segC', nodoOrigenId: 'n2', nodoDestinoId: 'n-l3', red: 'AF' },
+    ],
+  }
+  const ufMontante: UnidadFuncional = {
+    id: 'uf-m',
+    nombre: 'UF montante',
+    locales: [
+      { id: 'l1', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'x1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
+      { id: 'l2', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'x2', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
+      { id: 'l3', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'x3', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
+    ],
+  }
+  const proyectoMontante: Proyecto = {
+    metadatos: metadatos(),
+    parametros: parametros(),
+    unidadesFuncionales: [ufMontante],
+    redHidraulica: montanteSegmentado,
+    configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'detallado', granularidadHidraulica: 'profesional', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
+  }
+
+  it('montante segmentado: una fila por cada segmento que todavia alcanza >1 Local, en orden de redHidraulica.tramos', () => {
+    expect(identificarFilasDistribucionSecundaria(proyectoMontante)).toEqual([
+      { etiqueta: 'Distribución secundaria 1', red: 'AF', tramoId: 't-segA' },
+      { etiqueta: 'Distribución secundaria 2', red: 'AF', tramoId: 't-segB' },
+    ])
+  })
+
+  it('no incluye el segmento final (representativo del Local) ni la Alimentación general', () => {
+    const tramoIds = identificarFilasDistribucionSecundaria(proyectoMontante).map((f) => f.tramoId)
+    expect(tramoIds).not.toContain('t-segC')
+    expect(tramoIds).not.toContain('t-general')
+    expect(tramoIds).not.toContain('t-feed-l1')
+  })
+
+  it('no muta el Proyecto y es idempotente (§39): dos resoluciones dan el mismo resultado', () => {
+    const antes = structuredClone(proyectoMontante)
+    const r1 = identificarFilasDistribucionSecundaria(proyectoMontante)
+    const r2 = identificarFilasDistribucionSecundaria(proyectoMontante)
+    expect(r1).toEqual(r2)
+    expect(proyectoMontante).toEqual(antes)
+  })
+
+  // Montante AF+AC en paralelo: la numeracion es POR RED -- "Distribución
+  // secundaria 1 · AF" y "Distribución secundaria 1 · AC" son dos filas
+  // distintas (la columna Red las desambigua, igual que "Baño 1" AF/AC).
+  it('numeracion por red: AF y AC arrancan cada una en 1', () => {
+    const red: RedHidraulica = {
+      nodos: [
+        { id: 'n-raiz' },
+        { id: 'n0' },
+        { id: 'n-acs', referencia: { tipo: 'produccionACS' } },
+        { id: 'n-af-hub' },
+        { id: 'n-ac-hub' },
+        { id: 'n-af-l1', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-p', localId: 'l1', artefactoId: 'a1' } },
+        { id: 'n-af-l2', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-p', localId: 'l2', artefactoId: 'a2' } },
+        { id: 'n-ac-l1', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-p', localId: 'l1', artefactoId: 'a1' } },
+        { id: 'n-ac-l2', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-p', localId: 'l2', artefactoId: 'a2' } },
+      ],
+      tramos: [
+        { id: 't-general', nodoOrigenId: 'n-raiz', nodoDestinoId: 'n0', red: 'AF' },
+        { id: 't-af-acs', nodoOrigenId: 'n0', nodoDestinoId: 'n-acs', red: 'AF' },
+        { id: 't-af-montante', nodoOrigenId: 'n0', nodoDestinoId: 'n-af-hub', red: 'AF' },
+        { id: 't-af-l1', nodoOrigenId: 'n-af-hub', nodoDestinoId: 'n-af-l1', red: 'AF' },
+        { id: 't-af-l2', nodoOrigenId: 'n-af-hub', nodoDestinoId: 'n-af-l2', red: 'AF' },
+        { id: 't-ac-montante', nodoOrigenId: 'n-acs', nodoDestinoId: 'n-ac-hub', red: 'AC' },
+        { id: 't-ac-l1', nodoOrigenId: 'n-ac-hub', nodoDestinoId: 'n-ac-l1', red: 'AC' },
+        { id: 't-ac-l2', nodoOrigenId: 'n-ac-hub', nodoDestinoId: 'n-ac-l2', red: 'AC' },
+      ],
+    }
+    const uf: UnidadFuncional = {
+      id: 'uf-p',
+      nombre: 'UF paralela',
+      locales: [
+        { id: 'l1', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
+        { id: 'l2', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'a2', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
+      ],
+    }
+    const proyectoParalelo: Proyecto = {
+      metadatos: metadatos(),
+      parametros: parametros(),
+      unidadesFuncionales: [uf],
+      redHidraulica: red,
+      configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'detallado', granularidadHidraulica: 'profesional', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
+    }
+    expect(identificarFilasDistribucionSecundaria(proyectoParalelo)).toEqual([
+      { etiqueta: 'Distribución secundaria 1', red: 'AF', tramoId: 't-af-montante' },
+      { etiqueta: 'Distribución secundaria 1', red: 'AC', tramoId: 't-ac-montante' },
+    ])
   })
 })
