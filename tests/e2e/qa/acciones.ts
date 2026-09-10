@@ -436,7 +436,118 @@ const accionesM2: Accion[] = [
       return { tipo: 'editarLongitudTramo', modulo: 'M2', valor }
     },
   },
+  // --- M2-TOPO-C · constructor de montantes ---------------------------
+  ...montanteAcciones('AF', 'Agua fría'),
+  ...montanteAcciones('AC', 'Agua caliente'),
+  {
+    tipo: 'agregarLocalAMontante',
+    modulo: 'M2',
+    peso: 3,
+    aplicable: async (page) => (await selectsDeAltaDeMontanteConOpciones(page)) > 0,
+    ejecutar: async ({ page, prng }) => {
+      const selects = page.getByRole('combobox', { name: /^Agregar Local al Montante / })
+      const total = await selects.filter({ visible: true }).count()
+      const select = selects.filter({ visible: true }).nth(prng.enteroHasta(Math.max(1, total)))
+      const valores = await select
+        .locator('option')
+        .evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value).filter((v) => v !== ''))
+      if (valores.length === 0) {
+        return { tipo: 'agregarLocalAMontante', modulo: 'M2', valor: '(sin opciones)' }
+      }
+      const valor = valores[prng.enteroHasta(valores.length)] ?? valores[0]!
+      await select.selectOption(valor)
+      return { tipo: 'agregarLocalAMontante', modulo: 'M2' }
+    },
+  },
+  {
+    tipo: 'quitarLocalDeMontante',
+    modulo: 'M2',
+    peso: 2,
+    aplicable: async (page) =>
+      (await cuentaVisible(page.locator('.montante-card__locales').getByRole('button', { name: 'Quitar' }))) > 0,
+    ejecutar: async ({ page, prng }) => {
+      const boton = await elegirVisible(
+        page.locator('.montante-card__locales').getByRole('button', { name: 'Quitar' }),
+        prng,
+      )
+      await boton?.click()
+      return { tipo: 'quitarLocalDeMontante', modulo: 'M2' }
+    },
+  },
+  {
+    tipo: 'borrarMontante',
+    modulo: 'M2',
+    peso: 1,
+    aplicable: async (page) => (await cuentaVisible(page.getByRole('button', { name: 'Borrar montante' }))) > 0,
+    ejecutar: async ({ page, prng }) => {
+      const boton = await elegirVisible(page.getByRole('button', { name: 'Borrar montante' }), prng)
+      await boton?.click()
+      return { tipo: 'borrarMontante', modulo: 'M2' }
+    },
+  },
+  {
+    tipo: 'editarNombreDeMontante',
+    modulo: 'M2',
+    peso: 1,
+    aplicable: async (page) =>
+      (await cuentaVisible(page.getByRole('textbox', { name: /^Nombre del Montante / }))) > 0,
+    ejecutar: async ({ page, prng }) => {
+      const input = await elegirVisible(page.getByRole('textbox', { name: /^Nombre del Montante / }), prng)
+      const valor = prng.elegir(['', 'Montante norte', 'Montante dormitorios', 'Sanitarios PB'])
+      await input?.fill(valor)
+      await input?.blur().catch(() => {})
+      return { tipo: 'editarNombreDeMontante', modulo: 'M2', valor: valor === '' ? '(a fallback)' : valor }
+    },
+  },
 ]
+
+// Crea/agrega un montante de una red. Dos acciones (`crearMontanteAF` /
+// `crearMontanteAC`) comparten el flujo: "+ Agregar montante" abre la
+// elección de red; el botón de la red la confirma. Si la elección ya está
+// abierta (un paso anterior la dejó así), sólo se confirma.
+function montanteAcciones(red: 'AF' | 'AC', etiqueta: string): Accion[] {
+  const seccion = (page: Page): Locator => page.locator('section.constructor-montantes')
+  return [
+    {
+      tipo: red === 'AF' ? 'crearMontanteAF' : 'crearMontanteAC',
+      modulo: 'M2',
+      peso: 2,
+      aplicable: async (page) => {
+        const s = seccion(page)
+        const abrir = s.getByRole('button', { name: '+ Agregar montante' })
+        const grupo = s.getByRole('group', { name: 'Red del montante nuevo' })
+        return (await visibleYHabilitado(abrir)) || (await visibleYHabilitado(grupo))
+      },
+      ejecutar: async ({ page }) => {
+        const s = seccion(page)
+        const grupo = s.getByRole('group', { name: 'Red del montante nuevo' })
+        if (!(await grupo.isVisible().catch(() => false))) {
+          await s.getByRole('button', { name: '+ Agregar montante' }).click()
+        }
+        await grupo.getByRole('button', { name: etiqueta, exact: true }).click()
+        return { tipo: red === 'AF' ? 'crearMontanteAF' : 'crearMontanteAC', modulo: 'M2', valor: red }
+      },
+    },
+  ]
+}
+
+// Cantidad de <select> "Agregar Local al Montante…" VISIBLES que tienen al
+// menos una opción real (más allá del placeholder): sólo entonces
+// `agregarLocalAMontante` puede hacer algo.
+async function selectsDeAltaDeMontanteConOpciones(page: Page): Promise<number> {
+  const selects = page.getByRole('combobox', { name: /^Agregar Local al Montante / }).filter({ visible: true })
+  const total = await selects.count().catch(() => 0)
+  let conOpciones = 0
+  for (let i = 0; i < total; i += 1) {
+    const reales = await selects
+      .nth(i)
+      .locator('option')
+      .evaluateAll((os) => os.filter((o) => (o as HTMLOptionElement).value !== '').length)
+      .catch(() => 0)
+    if (reales > 0) conOpciones += 1
+  }
+  return conOpciones
+}
 
 // =======================================================================
 //  M3 -- MEDIDORES

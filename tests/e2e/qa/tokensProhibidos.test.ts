@@ -37,6 +37,11 @@ describe('buscarIdsInternos', () => {
     expect(buscarIdsInternos('Unidad funcional uf-1f0a2b3c-4d5e-6f70-8a90-b1c2d3e4f506 · PB')).toHaveLength(1)
     expect(buscarIdsInternos('artefacto-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')).toHaveLength(1)
   })
+  it('detecta las identidades y segmentos de montante de M2-TOPO-C', () => {
+    expect(buscarIdsInternos('Montante montante-1f0a2b3c-4d5e-6f70-8a90-b1c2d3e4f506')).toHaveLength(1)
+    expect(buscarIdsInternos('nodo-montante-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')).toHaveLength(1)
+    expect(buscarIdsInternos('tramo-montante-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')).toHaveLength(1)
+  })
   it('NO marca los ids legibles del proyecto de ejemplo (local-bano, artefacto-1)', () => {
     expect(buscarIdsInternos('local-bano / artefacto-1 / artefacto-12')).toHaveLength(0)
   })

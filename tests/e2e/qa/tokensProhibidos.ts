@@ -49,8 +49,11 @@ export function buscarValoresRotos(texto: string): HallazgoDeToken[] {
 // `uf-<uuid v4>`; idem `local-<uuid>` y `artefacto-<uuid>`. El proyecto de
 // ejemplo trae ids legibles (`local-bano`, `artefacto-1`) que NO son UUID
 // y no deben marcarse. Solo se marca el prefijo + UUID completo.
+// M2-TOPO-C sumó `montante-<uuid>` (identidad semántica) y los segmentos
+// `nodo-montante-<uuid>` / `tramo-montante-<uuid>` del constructor: ninguno
+// debe filtrarse a la UI.
 const RE_ID_INTERNO =
-  /\b(uf|local|artefacto|nodo|tramo)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i
+  /\b(uf|local|artefacto|nodo|tramo|montante)-(?:montante-)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i
 
 export function buscarIdsInternos(texto: string): HallazgoDeToken[] {
   const m = RE_ID_INTERNO.exec(texto)
