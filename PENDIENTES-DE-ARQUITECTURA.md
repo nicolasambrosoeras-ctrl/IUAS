@@ -11222,6 +11222,193 @@ M2-TOPO-01, después del próximo QA Fuzz cloud verde.
 **Siguiente:** nuevo **QA Fuzz cloud 20×30 seed vacía** sobre `main`; si
 queda verde, iniciar **PERF-SCALE-01**.
 
+## D-δ.97 -- PERF-SCALE-01A: motor de resolución a escala -- reutilización del traversal de condición hidráulica -- CERRADO
+
+Primer slice de `PERF-SCALE-01` (P1). Objetivo acotado: **eliminar el costo
+algorítmico redundante** que volvía prácticamente inutilizable la app con
+proyectos de escala real, **preservando EXACTAMENTE los resultados
+hidráulicos**. No agrega features, no toca fórmulas, no cambia criterios
+normativos, no reabre M2-TOPO-01, no toca React.
+
+### Caso real
+
+~14 UF / ~238 terminales. Editar un input que dispara la verificación de
+presión ("Pelo de agua mínimo", "Desnivel del punto de alimentación...")
+tardaba muchos segundos a minutos en reflejar una tecla; el main thread
+saturado por cálculo JS (la página seguía scrolleable).
+
+### Perfil original + reproducción
+
+Perfil Chrome de producción: muestra ~19,7 s, **~15,2 s de scripting**,
+~14,9 s en el main thread. Hotspot minificado `Vt` ~98% inclusive de una
+ventana de ~10 s; dentro, `determinarCondicionHidraulicaDeCaudal` **~6,4 s
+SELF (~64%)** y un segundo hotspot `Xe` **~2,5 s SELF (~25%)** sin
+identificar.
+
+Se reprodujo el caso sin armar 14 UF a mano: `generarProyectoDeEscala`
+(`src/pruebas/escala/`) emite un `Proyecto` válido y **`M2` completo** con
+la misma topología que el proyecto de ejemplo replicada por UF/Local.
+Tamaño **M** = 14 UF × 3 baños = **294 terminales, 394 nodos, 393 tramos**
+(bracketea el caso real). Baseline medido (una `resolverEstadoModulo2`
+sobre M, misma máquina): **16,5 s en frío / mediana warm ~27 s** (min 19 s,
+max 49 s) -- coherente con el perfil real.
+
+### Causa raíz
+
+`determinarCondicionHidraulicaDeCaudal(red, tramoId, artefacto)` clasifica
+la condición topológica ('total' | 'aguaFria' | 'aguaCaliente') de UN par
+(Tramo, Artefacto), y **por cada llamada** reconstruía `red.tramos.find`,
+un `Map` de nodos (`new Map(nodos.map(...))`), un `Map` de salientes
+(`tramos.forEach`) y un DFS aguas abajo. Los consumidores del motor
+(`filtrarArtefactosHidraulicamenteActivos` y `resolverAportesHidraulicosDeTramo`,
+vía `resolverQuEfectivoParaTramo`) la llamaban **una vez por cada artefacto
+aguas abajo del Tramo**. En la resolución de M2 del fixture M eso son
+**105.840 llamadas** -- 105.840 reconstrucciones de índice + 105.840 DFS
+sobre la **misma** subred para obtener las ~51 condiciones distintas de
+cada Tramo, repetido en cada reentrada del pipeline. Costo ≈
+O(tramos · artefactos_aguas_abajo · red): superlineal, cercano a cúbico en
+el tamaño del proyecto.
+
+**`Xe`:** no hay sourcemap del bundle desplegado ni acceso al archivo de
+perfil, así que se identifica **por correlación, no por sourcemap**: `Xe`
+está dentro del subárbol de `determinarCondicionHidraulicaDeCaudal` (el
+perfil lo ubica dentro de `Vt`, junto al clasificador), es SELF time (bucle
+apretado), y los únicos bucles apretados de esa función además del DFS son
+las dos pasadas de **reconstrucción de índice** (`new Map(nodos.map)` +
+`tramos.forEach`) -- ~787 iteraciones × 105.840 llamadas ≈ **83 M
+iteraciones** sólo para armar índices. `Xe` es esa reconstrucción por
+llamada, mismo origen y misma corrección que el hotspot principal: post-fix
+ambos colapsan juntos (eran la misma función). Queda **identificado con
+evidencia circunstancial fuerte, no confirmado por sourcemap**.
+
+### Solución -- arquitectura
+
+Cálculo puro + índice/traversal **local a la resolución, reutilizado**; sin
+cache global, sin `WeakMap`, sin singleton, sin estado stale (el índice es
+de sólo lectura y se descarta con la resolución).
+
+- **`crearIndiceTopologico(red)`** (`motor/tuberias/topologia/indiceTopologico.ts`):
+  materializa UNA vez `nodosPorId` / `tramosPorId` / `tramosSalientesPorNodo`
+  (adyacencia aguas abajo, **preservando el orden de declaración** que los
+  DFS necesitan). O(nodos + tramos). No es una segunda topología:
+  `RedHidraulica` sigue siendo la única fuente física (M2-TOPO-01).
+- **`resolverCondicionesHidraulicasDeCaudalAguasAbajo(indice, tramoId)`**
+  (`motor/tuberias/caudal/`): el **mismo** DFS con estado compuesto
+  `(nodoId, pasoPorACS)` y la misma deduplicación que el clasificador
+  puntual, pero en **un solo traversal** registra, para CADA artefacto
+  terminal aguas abajo, por qué rutas se lo alcanzó (con/sin ACS). Devuelve
+  `Map<claveArtefacto, condición>`. El mapeo ruta → condición es idéntico
+  (ambas rutas → 'total'; sólo sin ACS → 'aguaFria'; sólo con ACS →
+  'aguaCaliente'). Tramo `red === 'AC'`: se siembra la pila con
+  `pasoPorACS=true` → todo aguas abajo 'aguaCaliente', igual que el retorno
+  temprano del clasificador.
+- **`determinarCondicionHidraulicaDeCaudal`** pasa a ser un **wrapper fino**:
+  misma firma, mismos textos de error, mismo atajo de tramo AC; construye
+  el índice, llama al traversal en lote y devuelve la condición del
+  artefacto pedido (o lanza "no está aguas abajo"). Sus 14 tests siguen
+  verdes sin cambios.
+- **`resolverHidraulicaDeTramo`** construye el índice y el `Map` de
+  condiciones **una vez por Tramo** y lo comparte con
+  `filtrarArtefactosHidraulicamenteActivos` y
+  `resolverAportesHidraulicosDeTramo` (nuevo parámetro opcional
+  `condiciones`; sin él, comportamiento previo byte a byte para todos los
+  call sites/tests históricos). `resolverQuEfectivoParaTramo` acepta una
+  `condicionPrecalculada` opcional; ausente ⇒ resuelve con el clasificador
+  puntual como antes.
+- `determinarConectividadFisica` (traversal global, no relativo al Tramo,
+  sólo para artefactos AF/AC de catálogo no desagregado -- §2.9.1.3) **no
+  se tocó**: no aparece en la ruta caliente medida (el caso real es
+  doméstico). Queda como micro-redundancia menor, no bloqueante.
+
+### Complejidad estructural -- antes / después
+
+| | por `resolverHidraulicaDeTramo(tramo)` | por resolución de M2 |
+| --- | --- | --- |
+| **ANTES** | por cada uno de ~D artefactos: índice O(N) + DFS O(N) ⇒ **O(D·N)** | **O(Σ D·N)** ≈ cúbico en escala |
+| **DESPUÉS** | 1 índice O(N) + 1 DFS O(subárbol) para TODOS ⇒ **O(N)** | **O(T·N)** ≈ cuadrático |
+
+Invariante estructural en CI (`escalaDelMotor.regresion.test.ts`, sin
+milisegundos): los índices topológicos por resolución crecen con los
+**tramos** (medido ~5·tramos), nunca con artefactos×tramos; el ratio
+índices/tramo **no crece** al escalar S→M; la ruta caliente de M2 **no
+llama** al wrapper puntual.
+
+### Equivalencia hidráulica -- demostración
+
+- `resolverCondicionesHidraulicasAguasAbajo.equivalencia.test.ts` conserva
+  el clasificador **pre-slice verbatim** (`clasificadorLegacy`, brief §15)
+  y verifica, para **todo** par (Tramo × artefacto) sobre 6 topologías
+  diversas (AF directa, AC, producción ACS, mixtos, ramales, reconvergencia
+  directa+ACS, ciclo, dos UF misma id) + el fixture de escala de 5 UF
+  completo: **wrapper ≡ legacy** y **Map del lote ≡ legacy** para todo
+  artefacto aguas abajo.
+- Pipeline completo: **`npx vitest run` 1623 / 1623** (1611 previos + 12
+  nuevos). **Goldens sin rebaseline** (ningún archivo golden tocado). El
+  fixture M resuelve `M2` **completo** antes y después con el mismo terminal
+  crítico / margen.
+
+### Benchmark -- mediana de varias corridas (máquina local, no CI)
+
+| Fixture | terminales / tramos | `resolverEstadoModulo2` ANTES | DESPUÉS | índices/traversals (una resolución) |
+| --- | --- | --- | --- | --- |
+| **S** | 14 / 20 | ~21 ms | **~4 ms** | 98 / 98 |
+| **M** | 294 / 393 | **~16,5 s frío** · mediana warm ~27 s | **~1,1 s frío** · **mediana warm ~0,82 s** | 2058 / 2058 |
+
+Mejora **≈ 15× en frío, ≈ 33× en mediana warm** sobre el fixture que
+reproduce el caso real; el proyecto pequeño **no se degrada** (mejora
+~5×). Benchmark reproducible: `npm run perf` (`vitest.perf.config.ts`,
+**excluido de CI**, `PERF_NIVELES` / `PERF_REPS`).
+
+### Hotspot dominante DESPUÉS + decisión 01A/01B
+
+`determinarCondicionHidraulicaDeCaudal` y `Xe` dejan de aparecer. El nuevo
+dominante es **cross-camino / cross-etapa**: `resolverHidraulicaDeTramo` /
+`resolverDiametroComercialDeTramo` se ejecutan **2058 veces para 393 tramos
+distintos** (~**5,2×** de redundancia) -- el mismo Tramo se recalcula desde
+cero una vez por cada camino de terminal que lo incluye y una vez por etapa
+del pipeline (distribuida / localizada estimada / diámetro). Es costo
+algorítmico redundante, no React.
+
+**PERF-SCALE-01 NO se cierra.** Se abre explícitamente:
+
+**`PERF-SCALE-01B` -- P1: memoización de `resolverHidraulicaDeTramo` /
+`resolverDiametroComercialDeTramo` local a la resolución.** Contexto puro
+(`Map<tramoId, resultado>`, sin invalidación: vive una resolución)
+threadeado desde `resolverEstadoModulo2` por el árbol de presión de camino
+(`resolverPresionResidualDeCamino` → `acumularPerdida{Distribuida,Localizada}DeCamino`
+→ `resolverPerdidaLocalizadaEstimadaDeLocal` → `resolverPerdidaDistribuidaDeTramo`
+→ `resolverDiametroComercialDeTramo` → `resolverHidraulicaDeTramo`; ~7
+firmas, sin tocar contratos M3/M4). Colapsa 2058 → 393; estimado adicional
+~4×. Evidencia cuantificada arriba; el benchmark ya la imprime
+(`índices topológicos construidos` vs `distintos tramos`).
+
+### Estado
+
+**D-δ.97 / PERF-SCALE-01A -- CERRADO.** Código nuevo en `src/`:
+`motor/tuberias/topologia/indiceTopologico.ts`,
+`motor/tuberias/topologia/instrumentacionTopologica.ts` (seam inerte por
+defecto: sólo el benchmark y la regresión estructural lo activan),
+`motor/tuberias/caudal/resolverCondicionesHidraulicasAguasAbajo.ts`,
+`pruebas/escala/generarProyectoDeEscala.ts`. Modificados:
+`motor/tuberias/caudal/determinarCondicionHidraulicaDeCaudal.ts` (wrapper),
+`motor/tuberias/caudal/resolverQuEfectivoParaTramo.ts`,
+`motor/tuberias/participacion/filtrarArtefactosHidraulicamenteActivos.ts`,
+`motor/tuberias/aporte/resolverAportesHidraulicosDeTramo.ts`,
+`motor/tuberias/resolverHidraulicaDeTramo.ts`. Infra: `scripts/perf/`,
+`vitest.perf.config.ts`, `package.json` (`perf`), `eslint.config.js`
+(bloque `scripts/**`, Node globals -- no participa de `tsc -b`). Tests
+nuevos: `resolverCondicionesHidraulicasAguasAbajo.equivalencia.test.ts`,
+`escalaDelMotor.regresion.test.ts`. Baseline: **Vitest 1623 / 1623**,
+`tsc -b` / `npm run e2e:typecheck` / `npm run build` verdes, **ESLint
+11 / 0 / 0** (baseline sin cambios). Fuzz local en serie (no concurrente,
+contra `npm run dev`): `424242` 3×30, `34493241441-1:15` desktop+mobile,
+`34411681277-1:0`, `34398035608-1` runs 0–12, `m7` / `m42` / `m99`.
+`v0.4.0-beta.5` sin mover; sin `beta.6`. Snapshot
+`resguardo-documentacion/` intacto.
+
+**Siguiente:** **QA Fuzz cloud 20×30 seed vacía** sobre `main`; si queda
+verde, iniciar **PERF-SCALE-01B** en chat nuevo.
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son

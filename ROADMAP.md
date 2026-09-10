@@ -1348,6 +1348,36 @@ salvo bug inequívoco o decisión roja explícita.
   - **Siguiente:** nuevo QA Fuzz cloud 20×30 (seed vacía); si queda verde,
     **PERF-SCALE-01** (P1).
 
+- **D-δ.97 — PERF-SCALE-01A: motor de resolución a escala.** Primer slice
+  del P1 `PERF-SCALE-01`. Caso real ~14 UF / ~238 terminales: editar un
+  input de verificación de presión tardaba segundos a minutos por tecla
+  (perfil Chrome: ~15,2 s de scripting; hotspot
+  `determinarCondicionHidraulicaDeCaudal` ~6,4 s SELF + `Xe` ~2,5 s SELF).
+  **Causa:** el clasificador de condición hidráulica del par (Tramo,
+  Artefacto) reconstruía índices de red + DFS **en cada llamada**, y se lo
+  llamaba **una vez por artefacto aguas abajo de cada Tramo** — 105.840
+  llamadas para una resolución de M2 del fixture de escala. **Fix
+  (algorítmico, sin tocar fórmulas ni React):** `crearIndiceTopologico`
+  (mapas nodos/tramos/salientes, una vez) + `resolverCondicionesHidraulicasDeCaudalAguasAbajo`
+  (**un** DFS que resuelve la condición de **todos** los artefactos aguas
+  abajo del Tramo, reutilizado por `resolverHidraulicaDeTramo`);
+  `determinarCondicionHidraulicaDeCaudal` queda como wrapper fino (firma y
+  14 tests intactos). `Xe` = la reconstrucción de índice por llamada
+  (identificada por correlación, sin sourcemap); colapsa con el fix.
+  **Equivalencia:** clasificador pre-slice conservado verbatim en test y
+  comparado par a par sobre topologías diversas + fixture de escala; goldens
+  **sin rebaseline**. **Benchmark** (`npm run perf`, fuera de CI): fixture
+  M (294 terminales) `resolverEstadoModulo2` **~16,5 s → ~1,1 s** (≈15× en
+  frío, ≈33× mediana warm); proyecto chico no se degrada. Regresión
+  **estructural** en CI (no milisegundos): índices/resolución ~5·tramos,
+  nunca artefactos×tramos. **Hotspot restante:** `resolverHidraulicaDeTramo`
+  se recalcula 2058× para 393 tramos distintos (cross-camino/cross-etapa)
+  → se abre **`PERF-SCALE-01B`** (P1). Vitest **1623 / 1623**; `tsc` /
+  `e2e:typecheck` / `build` verdes; ESLint 11/0/0. `v0.4.0-beta.5` sin
+  mover. **PERF-SCALE-01: NO cerrado (01A hecho, 01B pendiente).**
+  - **Siguiente:** QA Fuzz cloud 20×30 (seed vacía); si queda verde,
+    **PERF-SCALE-01B** en chat nuevo.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
