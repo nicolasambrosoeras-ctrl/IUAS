@@ -45,6 +45,10 @@ export const MENSAJES_DE_VALIDACION: Readonly<Record<CodigoValidacion, string>> 
     'Un nodo con configuración de tee no tiene exactamente 1 tramo entrante y 2 tramos salientes.',
   redHidraulicaNodoTeeTramoSalidaRectaInvalido:
     'La salida recta declarada de una tee no es ninguno de los dos tramos salientes reales del nodo.',
+  redHidraulicaNodoMultiplesTramosEntrantes:
+    'Un punto de la red hidráulica recibe agua por más de un tramo a la vez. El cálculo admite una única alimentación por punto.',
+  redHidraulicaCicloDirigido:
+    'La red hidráulica tiene un recorrido que se cierra sobre sí mismo. Revise la dirección de los tramos para que el agua fluya siempre hacia los artefactos.',
   configuracionHidraulicaSistemaDeTuberiaIdInexistente:
     'El sistema de tubería seleccionado no existe en el catálogo de sistemas comerciales vigente.',
   configuracionHidraulicaSistemaMaterialIncompatible:

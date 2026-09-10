@@ -21,6 +21,8 @@ export type CodigoValidacion =
   | 'redHidraulicaTramoAccesorioCantidadNoPositiva'
   | 'redHidraulicaNodoTeeEstructuraNoSoportada'
   | 'redHidraulicaNodoTeeTramoSalidaRectaInvalido'
+  | 'redHidraulicaNodoMultiplesTramosEntrantes'
+  | 'redHidraulicaCicloDirigido'
   | 'configuracionHidraulicaSistemaDeTuberiaIdInexistente'
   | 'configuracionHidraulicaSistemaMaterialIncompatible'
   | 'configuracionMedidoresUnidadFuncionalInexistente'
@@ -70,6 +72,8 @@ const ALCANCE_POR_CODIGO: Readonly<Record<CodigoValidacion, AlcanceValidacion>> 
   redHidraulicaTramoAccesorioCantidadNoPositiva: 'tuberias',
   redHidraulicaNodoTeeEstructuraNoSoportada: 'tuberias',
   redHidraulicaNodoTeeTramoSalidaRectaInvalido: 'tuberias',
+  redHidraulicaNodoMultiplesTramosEntrantes: 'tuberias',
+  redHidraulicaCicloDirigido: 'tuberias',
   configuracionHidraulicaSistemaDeTuberiaIdInexistente: 'tuberias',
   configuracionHidraulicaSistemaMaterialIncompatible: 'tuberias',
   configuracionMedidoresUnidadFuncionalInexistente: 'medidores',
@@ -164,6 +168,16 @@ export const codigosValidacion: Readonly<Record<CodigoValidacion, DescripcionCod
     severidad: 'error',
     descripcion:
       'tramoSalidaRectaId de una configuración de tee (entradaPorExtremo) no es ninguno de los dos tramos salientes reales del Nodo (CRIT-A31).',
+  },
+  redHidraulicaNodoMultiplesTramosEntrantes: {
+    severidad: 'error',
+    descripcion:
+      'Un Nodo tiene dos o más tramos entrantes. El alcance hidráulico de Módulo 2 es una arborescencia (CRIT-A27 / D-δ.37): cada Nodo debe tener a lo sumo un tramo entrante. Convergencias 2→1, tramos paralelos y mallas quedan fuera de alcance (recirculación de ACS sigue diferida, D-δ.15).',
+  },
+  redHidraulicaCicloDirigido: {
+    severidad: 'error',
+    descripcion:
+      'La red hidráulica contiene un ciclo dirigido (siguiendo nodoOrigenId → nodoDestinoId se vuelve a un Nodo ya recorrido). El alcance hidráulico de Módulo 2 es una arborescencia acíclica (CRIT-A27): ningún camino de terminal hacia el origen podría resolverse.',
   },
   configuracionHidraulicaSistemaDeTuberiaIdInexistente: {
     severidad: 'error',

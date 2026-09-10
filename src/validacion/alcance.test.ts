@@ -34,6 +34,8 @@ const TODOS: readonly CodigoValidacion[] = [
   'redHidraulicaTramoAccesorioCantidadNoPositiva',
   'redHidraulicaNodoTeeEstructuraNoSoportada',
   'redHidraulicaNodoTeeTramoSalidaRectaInvalido',
+  'redHidraulicaNodoMultiplesTramosEntrantes',
+  'redHidraulicaCicloDirigido',
   'configuracionHidraulicaSistemaDeTuberiaIdInexistente',
   'configuracionHidraulicaSistemaMaterialIncompatible',
   'configuracionMedidoresUnidadFuncionalInexistente',

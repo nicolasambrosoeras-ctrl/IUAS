@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { Proyecto, UnidadFuncional } from '../../modelo/proyecto'
 import type { AccesorioDeTramo, Nodo, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
 import { validarRedHidraulica } from './index'
+import { proyectoInicial } from '../../interfaz/paginas/proyectoDeEjemplo'
 
 function proyectoBase(
   unidadesFuncionales: readonly UnidadFuncional[],
@@ -422,5 +423,155 @@ describe('validarRedHidraulica', () => {
         valorRecibido: 'tramo-inexistente',
       },
     ])
+  })
+
+  // --- M2-TOPO-A: invariantes de arborescencia (CRIT-A27 / D-δ.37) ---
+
+  it('red vacía ({nodos:[], tramos:[]}) es válida -- Módulo 2 recién iniciado, nunca "raíz ausente"', () => {
+    const proyecto = proyectoBase(unidadesFuncionalesDeEjemplo, { nodos: [], tramos: [] })
+    expect(validarRedHidraulica(proyecto)).toEqual([])
+  })
+
+  it('el proyecto de ejemplo (topología plana actual) no dispara ninguna invariante nueva', () => {
+    // Backward compatibility: la red del demo sigue siendo válida byte a byte.
+    expect(validarRedHidraulica(proyectoInicial)).toEqual([])
+  })
+
+  it('árbol profundo válido (raíz -> A -> B -> C -> terminal, con ramas laterales) no falla', () => {
+    const red: RedHidraulica = {
+      nodos: [
+        { id: 'raiz' },
+        { id: 'a' },
+        { id: 'b' },
+        { id: 'c' },
+        { id: 't-1', referencia: referenciaDucha() },
+        { id: 't-2', referencia: referenciaDucha() },
+      ],
+      tramos: [
+        { id: 'r-a', nodoOrigenId: 'raiz', nodoDestinoId: 'a', red: 'AF' },
+        { id: 'a-b', nodoOrigenId: 'a', nodoDestinoId: 'b', red: 'AF' },
+        { id: 'a-t1', nodoOrigenId: 'a', nodoDestinoId: 't-1', red: 'AF' },
+        { id: 'b-c', nodoOrigenId: 'b', nodoDestinoId: 'c', red: 'AF' },
+        { id: 'c-t2', nodoOrigenId: 'c', nodoDestinoId: 't-2', red: 'AF' },
+      ],
+    }
+    expect(validarRedHidraulica(proyectoBase(unidadesFuncionalesDeEjemplo, red))).toEqual([])
+  })
+
+  it('un nodo con 3 tramos salientes (fan-out 1→3) NO es un problema estructural: la invariante mira los entrantes', () => {
+    const red: RedHidraulica = {
+      nodos: [
+        { id: 'n0' },
+        { id: 'manifold' },
+        { id: 't-1', referencia: referenciaDucha() },
+        { id: 't-2', referencia: referenciaDucha() },
+        { id: 't-3', referencia: referenciaDucha() },
+      ],
+      tramos: [
+        { id: 't-in', nodoOrigenId: 'n0', nodoDestinoId: 'manifold', red: 'AF' },
+        { id: 't-a', nodoOrigenId: 'manifold', nodoDestinoId: 't-1', red: 'AF' },
+        { id: 't-b', nodoOrigenId: 'manifold', nodoDestinoId: 't-2', red: 'AF' },
+        { id: 't-c', nodoOrigenId: 'manifold', nodoDestinoId: 't-3', red: 'AF' },
+      ],
+    }
+    expect(validarRedHidraulica(proyectoBase(unidadesFuncionalesDeEjemplo, red))).toEqual([])
+  })
+
+  it('un nodo con dos tramos entrantes falla (convergencia 2→1)', () => {
+    const red: RedHidraulica = {
+      nodos: [{ id: 'raiz-a' }, { id: 'raiz-b' }, { id: 'union' }, { id: 'term', referencia: referenciaDucha() }],
+      tramos: [
+        { id: 'a-u', nodoOrigenId: 'raiz-a', nodoDestinoId: 'union', red: 'AF' },
+        { id: 'b-u', nodoOrigenId: 'raiz-b', nodoDestinoId: 'union', red: 'AF' },
+        { id: 'u-t', nodoOrigenId: 'union', nodoDestinoId: 'term', red: 'AF' },
+      ],
+    }
+    const problemas = validarRedHidraulica(proyectoBase(unidadesFuncionalesDeEjemplo, red))
+    expect(
+      problemas.some(
+        (p) => p.codigo === 'redHidraulicaNodoMultiplesTramosEntrantes' && p.campo === 'redHidraulica.nodos[2]',
+      ),
+    ).toBe(true)
+    const problema = problemas.find((p) => p.codigo === 'redHidraulicaNodoMultiplesTramosEntrantes')
+    expect(problema?.severidad).toBe('error')
+    expect(problema?.alcance).toBe('tuberias')
+    expect(problema?.valorRecibido).toBe('union')
+    expect(problema?.limite).toBe(2)
+  })
+
+  it('tramos paralelos (dos tramos distintos entre los mismos nodos) también fallan como múltiples entrantes', () => {
+    const red: RedHidraulica = {
+      nodos: [{ id: 'n0' }, { id: 'n1' }, { id: 'term', referencia: referenciaDucha() }],
+      tramos: [
+        { id: 'p1', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF' },
+        { id: 'p2', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF' },
+        { id: 'n1-t', nodoOrigenId: 'n1', nodoDestinoId: 'term', red: 'AF' },
+      ],
+    }
+    const codigos = validarRedHidraulica(proyectoBase(unidadesFuncionalesDeEjemplo, red)).map((p) => p.codigo)
+    expect(codigos).toContain('redHidraulicaNodoMultiplesTramosEntrantes')
+  })
+
+  it('un ciclo dirigido (A → B → C → A) falla sin loop infinito', () => {
+    const red: RedHidraulica = {
+      nodos: [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
+      tramos: [
+        { id: 'a-b', nodoOrigenId: 'a', nodoDestinoId: 'b', red: 'AF' },
+        { id: 'b-c', nodoOrigenId: 'b', nodoDestinoId: 'c', red: 'AF' },
+        { id: 'c-a', nodoOrigenId: 'c', nodoDestinoId: 'a', red: 'AF' },
+      ],
+    }
+    const problemas = validarRedHidraulica(proyectoBase(unidadesFuncionalesDeEjemplo, red))
+    const ciclo = problemas.filter((p) => p.codigo === 'redHidraulicaCicloDirigido')
+    expect(ciclo.length).toBeGreaterThan(0)
+    expect(ciclo[0]?.severidad).toBe('error')
+    expect(ciclo[0]?.alcance).toBe('tuberias')
+  })
+
+  it('un DAG con reconvergencia (diamante A→B, A→C, B→D, C→D) NO se marca como ciclo -- sí como múltiples entrantes en D', () => {
+    const red: RedHidraulica = {
+      nodos: [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }],
+      tramos: [
+        { id: 'a-b', nodoOrigenId: 'a', nodoDestinoId: 'b', red: 'AF' },
+        { id: 'a-c', nodoOrigenId: 'a', nodoDestinoId: 'c', red: 'AF' },
+        { id: 'b-d', nodoOrigenId: 'b', nodoDestinoId: 'd', red: 'AF' },
+        { id: 'c-d', nodoOrigenId: 'c', nodoDestinoId: 'd', red: 'AF' },
+      ],
+    }
+    const codigos = validarRedHidraulica(proyectoBase(unidadesFuncionalesDeEjemplo, red)).map((p) => p.codigo)
+    expect(codigos).toContain('redHidraulicaNodoMultiplesTramosEntrantes')
+    expect(codigos).not.toContain('redHidraulicaCicloDirigido')
+  })
+
+  it('un ciclo aislado no impide reportar el resto de la red (no corta el pipeline)', () => {
+    const red: RedHidraulica = {
+      nodos: [{ id: 'x' }, { id: 'y' }, { id: 'n0' }, { id: 'term', referencia: referenciaDucha() }],
+      tramos: [
+        { id: 'x-y', nodoOrigenId: 'x', nodoDestinoId: 'y', red: 'AF' },
+        { id: 'y-x', nodoOrigenId: 'y', nodoDestinoId: 'x', red: 'AF' },
+        // Otra parte de la red, con longitud inválida: debe seguir reportándose.
+        { id: 'n0-term', nodoOrigenId: 'n0', nodoDestinoId: 'term', red: 'AF', longitud_m: 0 },
+      ],
+    }
+    const codigos = validarRedHidraulica(proyectoBase(unidadesFuncionalesDeEjemplo, red)).map((p) => p.codigo)
+    expect(codigos).toContain('redHidraulicaCicloDirigido')
+    expect(codigos).toContain('redHidraulicaTramoLongitudNoPositiva')
+  })
+
+  it('tramo con nodo inexistente: no lanza en la detección de ciclo / múltiples entrantes (arista ignorada)', () => {
+    const red: RedHidraulica = {
+      nodos: [{ id: 'n0' }],
+      tramos: [
+        { id: 't-a', nodoOrigenId: 'n0', nodoDestinoId: 'fantasma', red: 'AF' },
+        { id: 't-b', nodoOrigenId: 'fantasma', nodoDestinoId: 'n0', red: 'AF' },
+      ],
+    }
+    const problemas = validarRedHidraulica(proyectoBase(unidadesFuncionalesDeEjemplo, red))
+    const codigos = problemas.map((p) => p.codigo)
+    // Se reporta la referencia rota, y NO se inventa un ciclo/múltiple-entrante
+    // sobre el nodo inexistente.
+    expect(codigos).toContain('redHidraulicaTramoNodoInexistente')
+    expect(codigos).not.toContain('redHidraulicaCicloDirigido')
+    expect(codigos).not.toContain('redHidraulicaNodoMultiplesTramosEntrantes')
   })
 })
