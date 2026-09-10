@@ -217,6 +217,22 @@ export type MaterialTuberiaId =
   | 'aceroGalvanizado'
   | 'aceroCarbono';
 
+// MODE-UX-01 (D-δ.89): "Modo de trabajo" GLOBAL del proyecto. Es una
+// decisión de PRODUCTO/UX explícita del usuario, NO una inferencia a partir
+// de la combinación de parámetros hidráulicos (así lo hacía D-δ.51 hasta
+// este slice):
+//   'rapido'      -- menos decisiones, interfaz reducida, defaults seguros.
+//   'profesional' -- controles avanzados de cálculo DISPONIBLES para
+//                    personalizar. NO significa "máximo detalle obligatorio":
+//                    Profesional arranca en el mismo preset de ejes que
+//                    Rápido (Hazen + Estimadas + Simplificada) y una misma
+//                    combinación hidráulica puede vivir en cualquiera de los
+//                    dos modos.
+// El modo NO decide el resultado hidráulico -- ese sale íntegro de
+// `configuracionHidraulica`. El modo sólo decide la experiencia, qué
+// controles se ofrecen y qué preset se aplica al CAMBIAR de modo.
+export type ModoDeTrabajo = 'rapido' | 'profesional';
+
 export type ConfiguracionHidraulica = {
   metodoPerdidaDistribuida: MetodoPerdidaDistribuida;
   // Obligatorio, mismo criterio que metodoPerdidaDistribuida: una vez que
@@ -359,4 +375,20 @@ export type Proyecto = {
   // M4 existiera sigue siendo válido y resuelve EstadoModulo4 'noIniciado'
   // sin migración. La ausencia NO se interpreta como 'directa'.
   configuracionAbastecimiento?: ConfiguracionDeAbastecimiento;
+  // MODE-UX-01 (D-δ.89): modo de trabajo EXPLÍCITO. Optativo y
+  // backward-compatible (SCHEMA_VERSION_ACTUAL NO cambia, sin migración):
+  // un Proyecto guardado antes de MODE-UX-01 no lo trae y su modo se
+  // resuelve UNA vez por semántica histórica (interfaz/paginas/modoDeTrabajo
+  // → inferirModoDeTrabajoLegacy). Un Proyecto nuevo SIEMPRE lo declara
+  // explícitamente (crearProyectoVacio, proyectoInicial, aplicarModo*): la
+  // inferencia legacy NO es la semántica normal.
+  modoTrabajo?: ModoDeTrabajo;
+  // MODE-UX-01 (D-δ.89): SNAPSHOT de la última `configuracionHidraulica`
+  // usada mientras el modo era 'profesional'. Se escribe al SALIR de
+  // Profesional y se lee al VOLVER, para no destruir las decisiones del
+  // proyectista por probar Rápido un momento (§9 Caso E). Es SÓLO memoria
+  // de restauración: NUNCA es fuente de cálculo -- el motor lee
+  // exclusivamente `configuracionHidraulica`, que es la config ACTIVA.
+  // Optativo/backward-compatible; "Reiniciar cálculo" lo deja ausente.
+  ultimaConfiguracionProfesional?: ConfiguracionHidraulica;
 };

@@ -416,12 +416,18 @@ describe('CabeceraDeModulo2 -- toggle de modo de trabajo (D-δ.51)', () => {
     }
   }
 
-  // UX-02 / UI-01E (brief §47-50): el selector Rápido/Profesional se movió
-  // a la cabecera GLOBAL de la app (SelectorDeModoDeTrabajo). En M2 queda
-  // sólo la explicación del modo activo + "Configuración avanzada".
-  it('en Rápido: explicación del modo Rápido y config avanzada colapsada; SIN selector de modo en M2', () => {
+  // UX-02 / UI-01E + MODE-UX-01 (D-δ.89): el selector Rápido/Profesional
+  // vive en la cabecera GLOBAL de la app (SelectorDeModoDeTrabajo). En M2
+  // queda sólo la explicación del modo activo + "Configuración avanzada".
+  // El modo se lee de `Proyecto.modoTrabajo` (o inferencia legacy si falta),
+  // NO de la combinación hidráulica.
+  it('en Rápido (modoTrabajo explícito): explicación del modo Rápido y config avanzada colapsada; SIN selector de modo en M2', () => {
     const html = renderToStaticMarkup(
-      createElement(ResultadoHidraulicoDeTramo, { proyecto: proyectoRapido(), catalogoArtefactos, onCambiar: () => {} }),
+      createElement(ResultadoHidraulicoDeTramo, {
+        proyecto: { ...proyectoRapido(), modoTrabajo: 'rapido' },
+        catalogoArtefactos,
+        onCambiar: () => {},
+      }),
     )
     expect(html).not.toContain('Modo de trabajo:')
     expect(html).not.toMatch(/<button[^>]*aria-pressed[^>]*>(Rápido|Profesional)<\/button>/)
@@ -431,7 +437,21 @@ describe('CabeceraDeModulo2 -- toggle de modo de trabajo (D-δ.51)', () => {
     expect(html).toMatch(/<details><summary>Configuración avanzada<\/summary>/)
   })
 
-  it('en Profesional: explicación del modo Profesional y config avanzada abierta', () => {
+  it('en Profesional con la MISMA config que Rápido (H/E/S): controles avanzados disponibles y config avanzada abierta', () => {
+    // INVARIANTE CENTRAL MODE-UX-01: modoTrabajo=profesional con
+    // Hazen + Estimadas + Simplificada -> experiencia Profesional, sin
+    // que nada lo reclasifique como Rápido.
+    const proyecto: Proyecto = { ...proyectoRapido(), modoTrabajo: 'profesional' }
+    const html = renderToStaticMarkup(
+      createElement(ResultadoHidraulicoDeTramo, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
+    )
+    expect(html).not.toMatch(/<button[^>]*aria-pressed[^>]*>(Rápido|Profesional)<\/button>/)
+    expect(html).toContain('Tenés disponibles los controles avanzados de cálculo')
+    expect(html).not.toContain('IUAS calcula primero con hipótesis típicas')
+    expect(html).toMatch(/<details open=""><summary>Configuración avanzada/)
+  })
+
+  it('proyecto legacy SIN modoTrabajo: se infiere del histórico (profesional + detalladas -> experiencia Profesional)', () => {
     const proyecto: Proyecto = {
       ...proyectoRapido(),
       configuracionHidraulica: { ...proyectoRapido().configuracionHidraulica, granularidadHidraulica: 'profesional', metodoPerdidaLocalizada: 'detallado' },
@@ -439,8 +459,7 @@ describe('CabeceraDeModulo2 -- toggle de modo de trabajo (D-δ.51)', () => {
     const html = renderToStaticMarkup(
       createElement(ResultadoHidraulicoDeTramo, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
     )
-    expect(html).not.toMatch(/<button[^>]*aria-pressed[^>]*>(Rápido|Profesional)<\/button>/)
-    expect(html).toContain('El proyectista declara la geometría física')
+    expect(html).toContain('Tenés disponibles los controles avanzados de cálculo')
     expect(html).toMatch(/<details open=""><summary>Configuración avanzada/)
   })
 })

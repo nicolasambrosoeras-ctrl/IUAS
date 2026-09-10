@@ -1,17 +1,13 @@
-// UX-02 / UI-01E (brief §47-52): "Modo de trabajo" (Rápido / Profesional)
-// es CONFIGURACIÓN GLOBAL DEL PROYECTO -- un único control, en la cabecera
-// global. No introduce estado nuevo (UI-CRIT-11): el modo se DERIVA de
-// `configuracionHidraulica` (granularidad + método de pérdida localizada)
-// vía `resolverModoDeTrabajo`, y los botones aplican `aplicarModoRapido` /
-// `aplicarModoProfesional` -- exactamente los mismos updaters que ya usaba
-// M2. M1 / M2 / M4 siguen consumiendo el modo igual que antes.
+// MODE-UX-01 (D-δ.89): "Modo de trabajo" (Rápido / Profesional) es
+// CONFIGURACIÓN GLOBAL EXPLÍCITA DEL PROYECTO -- un único control, en la
+// cabecera global. El estado visual activo proviene de
+// `Proyecto.modoTrabajo` (vía `resolverModoDeTrabajo`, que además cubre la
+// compatibilidad legacy), NUNCA de comparar la configuración hidráulica.
+// Los botones aplican `aplicarModoRapido` / `aplicarModoProfesional`, que
+// fijan el campo y aplican/restauran el preset del modo -- cambiar luego un
+// control hidráulico NO altera el modo.
 import type { Proyecto } from '../../modelo/proyecto'
-import {
-  aplicarModoProfesional,
-  aplicarModoRapido,
-  ETIQUETA_MODO_DE_TRABAJO,
-  resolverModoDeTrabajo,
-} from './modoDeTrabajo'
+import { aplicarModoProfesional, aplicarModoRapido, resolverModoDeTrabajo } from './modoDeTrabajo'
 
 export function SelectorDeModoDeTrabajo({
   proyecto,
@@ -20,7 +16,7 @@ export function SelectorDeModoDeTrabajo({
   proyecto: Proyecto
   onCambiar: (proyecto: Proyecto) => void
 }) {
-  const modo = resolverModoDeTrabajo(proyecto.configuracionHidraulica)
+  const modo = resolverModoDeTrabajo(proyecto)
   return (
     <div className="app-modo">
       <span className="app-modo__etiqueta" id="app-modo-etiqueta">
@@ -44,11 +40,6 @@ export function SelectorDeModoDeTrabajo({
           Profesional
         </button>
       </span>
-      {modo === 'avanzado' ? (
-        <span className="ui-badge ui-badge--muted">
-          {ETIQUETA_MODO_DE_TRABAJO.avanzado} · combinación técnica personalizada
-        </span>
-      ) : null}
     </div>
   )
 }

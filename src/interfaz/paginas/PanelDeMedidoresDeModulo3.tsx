@@ -10,10 +10,11 @@
 // HIDRÁULICAMENTE EFECTIVO (D-δ.57): al pulsar ↑/↓ cambia el DN, y con él
 // C y hf; "Auto" vuelve al recomendado.
 //
-// Rápido / Profesional se deriva del modo de trabajo ya existente
-// (resolverModoDeTrabajo, D-δ.51). Profesional agrega detalle técnico. Los
-// controles ↓/DN/↑/Auto se muestran en ambos modos (coherencia con el
-// control de DN de tuberías de D-δ.52).
+// Rápido / Profesional se lee del modo de trabajo EXPLÍCITO del proyecto
+// (resolverModoDeTrabajo, MODE-UX-01 / D-δ.89), no de la configuración
+// hidráulica. Profesional agrega detalle técnico. Los controles ↓/DN/↑/Auto
+// se muestran en ambos modos (coherencia con el control de DN de tuberías
+// de D-δ.52).
 //
 // La integración de estas pérdidas al balance de presión de M2 ya está
 // hecha (M3-E, D-δ.58): la resuelve resolverPerdidasDeMedidoresParaTerminal,
@@ -303,7 +304,7 @@ export function PanelDeMedidoresDeModulo3({
   onCambiar: (proyecto: Proyecto) => void
 }) {
   const estado = resolverEstadoModulo3(proyecto, catalogoArtefactos, coeficientesMayoracion)
-  const esProfesional = resolverModoDeTrabajo(proyecto.configuracionHidraulica) !== 'rapido'
+  const esProfesional = resolverModoDeTrabajo(proyecto) === 'profesional'
 
   return (
     <details open>

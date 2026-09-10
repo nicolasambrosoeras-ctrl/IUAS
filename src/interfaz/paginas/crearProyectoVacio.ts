@@ -14,9 +14,13 @@
 // Conserva únicamente lo que hace al Proyecto estructuralmente válido y
 // es del PRODUCTO, no del proyecto físico anterior:
 //   - schemaVersion / versión normativa;
-//   - `configuracionHidraulica` (obligatoria en el modelo) con el modo
-//     técnico de arranque del producto -- Rápido (simplificada +
-//     estimadas + Hazen-Williams), mismo default que un proyecto nuevo;
+//   - `modoTrabajo: 'rapido'` EXPLÍCITO (MODE-UX-01 / D-δ.89): "Reiniciar
+//     cálculo" vuelve siempre a Rápido, sin arrastrar la memoria
+//     Profesional de la sesión anterior (`ultimaConfiguracionProfesional`
+//     queda ausente);
+//   - `configuracionHidraulica` (obligatoria en el modelo) con el preset
+//     inicial -- Hazen-Williams + Estimadas + Simplificada, mismo default
+//     que un proyecto nuevo;
 //   - parámetros obligatorios en su valor neutro "todavía sin declarar"
 //     (0), nunca los valores físicos del ejemplo.
 import type { Proyecto } from '../../modelo/proyecto'
@@ -41,6 +45,10 @@ export function crearProyectoVacio(): Proyecto {
       alturaArtefactoMasDesfavorable_m: 0,
     },
     unidadesFuncionales: [],
+    // MODE-UX-01 (D-δ.89): modo de trabajo EXPLÍCITO. "Reiniciar cálculo"
+    // deja siempre Rápido y SIN `ultimaConfiguracionProfesional` (no se
+    // arrastra la memoria Profesional de la sesión anterior).
+    modoTrabajo: 'rapido',
     configuracionHidraulica: {
       metodoPerdidaDistribuida: 'hazenWilliams',
       metodoPerdidaLocalizada: 'estimado',

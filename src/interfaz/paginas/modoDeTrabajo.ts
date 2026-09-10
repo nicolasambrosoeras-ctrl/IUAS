@@ -1,26 +1,26 @@
-// D-δ.51: "Modo de trabajo" de Módulo 2 -- concepto de PRODUCTO, NO una
-// entidad nueva del dominio. Se DERIVA de dos ejes ortogonales que ya
-// existen en ConfiguracionHidraulica (granularidad + metodoPerdidaLocalizada);
-// no se persiste ningún campo nuevo, no hay migración de esquema.
+// MODE-UX-01 (D-δ.89): "Modo de trabajo" (Rápido / Profesional) es una
+// decisión de PRODUCTO/UX EXPLÍCITA del usuario -- `Proyecto.modoTrabajo`.
 //
-//   RÁPIDO       -- simplificada + estimadas: IUAS asume por el usuario
-//                   (longitudes típicas, pérdidas localizadas estimadas
-//                   D-δ.45, longitud vertical automática D-δ.50).
-//   PROFESIONAL  -- profesional + detalladas: el proyectista declara la
-//                   geometría física real (longitudes por Tramo, accesorios
-//                   relevados, tees CRIT-A31, sin +3 m/piso automático).
-//   AVANZADO     -- cualquier otra combinación de los ejes (p. ej.
-//                   simplificada + detalladas): combinación técnica menos
-//                   habitual, sigue soportada por el motor (D-δ.47), se
-//                   controla desde "Configuración avanzada".
+// Hasta D-δ.51 el modo se DERIVABA de dos ejes de `ConfiguracionHidraulica`
+// (granularidad + metodoPerdidaLocalizada): sólo `simplificada + estimado`
+// era "Rápido", sólo `profesional + detallado` era "Profesional", el resto
+// "Avanzado". Eso acoplaba el modo al detalle de cálculo: un proyectista en
+// Profesional que elegía Hazen + Estimadas + Simplificada era reclasificado
+// como Rápido. MODE-UX-01 rompe ese acople:
 //
-// Aplicar un modo NO resetea datos (brief §17): solo fija los dos ejes que
-// definen el modo y precarga longitudes todavía `undefined`
-// (backfillLongitudesDePredimensionamiento). Longitudes ya cargadas,
-// accesorios y tees relevados se conservan; al volver a Rápido las
-// pérdidas detalladas simplemente dejan de participar del cálculo activo
-// (D-δ.40), sin contaminación ni doble conteo.
-import type { ConfiguracionHidraulica, Proyecto } from '../../modelo/proyecto'
+//   RÁPIDO       -- menos decisiones, interfaz reducida, preset seguro.
+//   PROFESIONAL  -- controles avanzados DISPONIBLES. NO implica "máximo
+//                   detalle": Profesional arranca en el MISMO preset de
+//                   ejes que Rápido (Hazen + Estimadas + Simplificada) y una
+//                   misma combinación hidráulica puede vivir en cualquiera
+//                   de los dos modos. Cambiar un control hidráulico estando
+//                   en Profesional NO vuelve a tocar el modo.
+//
+// El modo NO decide ningún resultado hidráulico -- eso sale íntegro de
+// `configuracionHidraulica` (fuente de verdad de la config ACTIVA). El modo
+// sólo decide la experiencia, qué controles se ofrecen, y qué preset se
+// aplica AL CAMBIAR de modo.
+import type { ConfiguracionHidraulica, ModoDeTrabajo, Proyecto } from '../../modelo/proyecto'
 import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia'
 import {
   conGranularidadHidraulica,
@@ -29,23 +29,34 @@ import {
 } from './actualizarConfiguracionHidraulica'
 import { backfillLongitudesDePredimensionamiento } from './backfillLongitudesDePredimensionamiento'
 
-export type ModoDeTrabajo = 'rapido' | 'profesional' | 'avanzado'
+export type { ModoDeTrabajo }
 
-export function resolverModoDeTrabajo(configuracion: ConfiguracionHidraulica): ModoDeTrabajo {
+// SÓLO compatibilidad legacy: un Proyecto guardado ANTES de MODE-UX-01 no
+// tiene `modoTrabajo`. Se resuelve una única vez por la semántica histórica
+// de D-δ.51, colapsada a dos estados: el par exacto Rápido (simplificada +
+// estimadas) -> 'rapido'; cualquier otra cosa (incluido el antiguo
+// 'avanzado', que siempre tenía controles avanzados en juego) ->
+// 'profesional'. Ambigüedad ACEPTADA (§8): un proyecto legacy con
+// Hazen + Estimadas + Simplificada se clasifica 'rapido' aunque el
+// proyectista lo considerara Profesional -- ese proyecto no guardó esa
+// intención. Desde MODE-UX-01, todo proyecto nuevo la guarda explícita.
+export function inferirModoDeTrabajoLegacy(configuracion: ConfiguracionHidraulica): ModoDeTrabajo {
   const { granularidadHidraulica, metodoPerdidaLocalizada } = configuracion
-  if (granularidadHidraulica === 'simplificada' && metodoPerdidaLocalizada === 'estimado') {
-    return 'rapido'
-  }
-  if (granularidadHidraulica === 'profesional' && metodoPerdidaLocalizada === 'detallado') {
-    return 'profesional'
-  }
-  return 'avanzado'
+  return granularidadHidraulica === 'simplificada' && metodoPerdidaLocalizada === 'estimado'
+    ? 'rapido'
+    : 'profesional'
+}
+
+// Fuente de verdad del modo efectivo del proyecto: el campo EXPLÍCITO si
+// existe; si no (sólo proyectos legacy), la inferencia histórica una vez.
+// Nunca infiere para proyectos nuevos -- todos traen `modoTrabajo`.
+export function resolverModoDeTrabajo(proyecto: Proyecto): ModoDeTrabajo {
+  return proyecto.modoTrabajo ?? inferirModoDeTrabajoLegacy(proyecto.configuracionHidraulica)
 }
 
 export const ETIQUETA_MODO_DE_TRABAJO: Readonly<Record<ModoDeTrabajo, string>> = {
   rapido: 'Rápido',
   profesional: 'Profesional',
-  avanzado: 'Avanzado',
 }
 
 // Sistema PPR por defecto: el catálogo comercial tiene hoy un único
@@ -55,24 +66,65 @@ function sistemaPprPorDefecto(): string | undefined {
   return catalogoSistemasDeTuberia.find((sistema) => sistema.materialTuberiaId === 'ppr')?.id
 }
 
-// Rápido: fija los ejes del modo + Hazen-Williams ("cálculo habitual").
-// Material/sistema se dejan como estén salvo que no haya ninguno PPR
-// coherente todavía (proyecto viejo). No toca longitudes ya cargadas.
-export function aplicarModoRapido(proyecto: Proyecto): Proyecto {
-  let resultado = conGranularidadHidraulica(proyecto, 'simplificada')
-  resultado = conMetodoPerdidaLocalizada(resultado, 'estimado')
-  resultado = conMetodoPerdidaDistribuida(resultado, 'hazenWilliams')
-  return backfillLongitudesDePredimensionamiento(resultado)
+// Los TRES ejes de cálculo del preset inicial -- compartidos por Rápido y
+// por el ARRANQUE de Profesional (§12/§13, DECISIÓN CERRADA:
+// Hazen-Williams + Estimadas + Simplificada). Que Rápido y el arranque de
+// Profesional coincidan en v1 NO significa que modo y configuración sean lo
+// mismo: el modo es explícito y una misma combinación puede vivir en
+// ambos. `materialTuberiaId` / `sistemaDeTuberiaId` NO están acá -- son
+// ortogonales al modo y se preservan tal cual.
+type EjesInicialesDeConfiguracion = Pick<
+  ConfiguracionHidraulica,
+  'metodoPerdidaDistribuida' | 'metodoPerdidaLocalizada' | 'granularidadHidraulica'
+>
+
+export const PRESET_EJES_INICIALES: Readonly<EjesInicialesDeConfiguracion> = {
+  metodoPerdidaDistribuida: 'hazenWilliams',
+  metodoPerdidaLocalizada: 'estimado',
+  granularidadHidraulica: 'simplificada',
 }
 
-// Profesional: fija los ejes del modo. NO fuerza Hazen (un proyectista que
-// venía trabajando con Darcy lo conserva, brief §41); NO precarga
-// accesorios (decisión roja D-δ.51 -> alternativa A). Sí precarga
-// longitudes `undefined` (todas las que el motor profesional itera).
+// Aplica los tres ejes del preset inicial sobre la config activa, sin tocar
+// material/sistema ni ningún otro campo del Proyecto.
+function conEjesInicialesDeConfiguracion(proyecto: Proyecto): Proyecto {
+  let resultado = conMetodoPerdidaDistribuida(proyecto, PRESET_EJES_INICIALES.metodoPerdidaDistribuida)
+  resultado = conMetodoPerdidaLocalizada(resultado, PRESET_EJES_INICIALES.metodoPerdidaLocalizada)
+  resultado = conGranularidadHidraulica(resultado, PRESET_EJES_INICIALES.granularidadHidraulica)
+  return resultado
+}
+
+// Rápido: si VENÍAMOS de Profesional, guarda un SNAPSHOT de la config
+// activa en `ultimaConfiguracionProfesional` para poder restaurarla al
+// volver (§9 Caso E, §11). Fija `modoTrabajo = 'rapido'` y aplica el preset
+// de ejes seguros. NO toca material/sistema. Backfill NO destructivo de
+// longitudes `undefined` (una longitud ya cargada se respeta).
+export function aplicarModoRapido(proyecto: Proyecto): Proyecto {
+  const veniaDeProfesional = resolverModoDeTrabajo(proyecto) === 'profesional'
+  const conSnapshot: Proyecto = veniaDeProfesional
+    ? { ...proyecto, ultimaConfiguracionProfesional: proyecto.configuracionHidraulica }
+    : proyecto
+  const conModo: Proyecto = { ...conSnapshot, modoTrabajo: 'rapido' }
+  return backfillLongitudesDePredimensionamiento(conEjesInicialesDeConfiguracion(conModo))
+}
+
+// Profesional: fija `modoTrabajo = 'profesional'`.
+//  - Si YA estábamos en Profesional (clic idempotente / re-entrada): sólo
+//    asegura el campo, NO re-restaura el snapshot sobre ediciones vivas.
+//  - Si entramos DESDE Rápido y hay snapshot de una sesión Profesional
+//    previa: lo RESTAURA como config activa (§9 Caso E).
+//  - Si entramos desde Rápido sin snapshot: arranca en el preset inicial
+//    aprobado (§12). El resultado hidráulico inicial puede ser IDÉNTICO al
+//    de Rápido -- la diferencia es la disponibilidad de controles.
+// Backfill NO destructivo.
 export function aplicarModoProfesional(proyecto: Proyecto): Proyecto {
-  let resultado = conGranularidadHidraulica(proyecto, 'profesional')
-  resultado = conMetodoPerdidaLocalizada(resultado, 'detallado')
-  return backfillLongitudesDePredimensionamiento(resultado)
+  if (resolverModoDeTrabajo(proyecto) === 'profesional') {
+    return proyecto.modoTrabajo === 'profesional' ? proyecto : { ...proyecto, modoTrabajo: 'profesional' }
+  }
+  const conModo: Proyecto = { ...proyecto, modoTrabajo: 'profesional' }
+  const conConfig: Proyecto = conModo.ultimaConfiguracionProfesional
+    ? { ...conModo, configuracionHidraulica: conModo.ultimaConfiguracionProfesional }
+    : conEjesInicialesDeConfiguracion(conModo)
+  return backfillLongitudesDePredimensionamiento(conConfig)
 }
 
 // Se exporta para el punto de creación del proyecto (proyectoInicial) y

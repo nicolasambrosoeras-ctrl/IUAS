@@ -105,13 +105,17 @@ function opcionesDeMaterial(materialActual: MaterialTuberiaId): readonly Materia
   return actual === undefined ? conSistemaCompatible : [...conSistemaCompatible, actual]
 }
 
-// D-δ.51: cabecera de Módulo 2. Reemplaza la exposición simultánea de los
-// 5 selectores técnicos + párrafo largo por un toggle de MODO DE TRABAJO
-// (Rápido / Profesional -- concepto de producto derivado, ver
-// modoDeTrabajo.ts) + una línea de resumen. La configuración técnica
-// completa sigue disponible, sin perder ninguna capacidad del motor
-// (D-δ.47), dentro de "Configuración avanzada" (abierta por defecto en
-// Profesional/Avanzado, colapsada en Rápido).
+// D-δ.51 / MODE-UX-01 (D-δ.89): cabecera de Módulo 2. El toggle
+// Rápido/Profesional vive en la cabecera GLOBAL de la app
+// (SelectorDeModoDeTrabajo) -- acá queda sólo la explicación del modo
+// activo y la configuración propia de M2 en "Configuración avanzada". El
+// modo se lee de `Proyecto.modoTrabajo` (vía resolverModoDeTrabajo), NO se
+// infiere de la configuración: en Profesional los controles avanzados
+// están DISPONIBLES aunque la config activa sea el preset simple
+// (Hazen + Estimadas + Simplificada). La configuración técnica completa
+// sigue disponible sin perder capacidad del motor (D-δ.47): abierta por
+// defecto en Profesional, colapsada en Rápido (experiencia reducida, pero
+// alcanzable).
 function CabeceraDeModulo2({
   proyecto,
   onCambiar,
@@ -119,14 +123,10 @@ function CabeceraDeModulo2({
   proyecto: Proyecto
   onCambiar: (proyecto: Proyecto) => void
 }) {
-  const modo = resolverModoDeTrabajo(proyecto.configuracionHidraulica)
+  const modo = resolverModoDeTrabajo(proyecto)
 
   return (
     <section className="ui-stack--sm">
-      {/* UX-02 / UI-01E (brief §47-50): el selector Rápido/Profesional es
-          ahora un control GLOBAL en la cabecera de la app -- acá queda
-          sólo la explicación del modo activo y la configuración propia de
-          M2 (material, método, geometría) en "Configuración avanzada". */}
       {modo === 'rapido' ? (
         <p>
           <small>
@@ -138,13 +138,14 @@ function CabeceraDeModulo2({
       ) : (
         <p>
           <small>
-            El proyectista declara la geometría física: longitudes por Tramo, accesorios relevados, tees (CRIT-A31),
-            cotas. Sin longitud vertical automática. Longitudes iniciales propuestas (10&nbsp;m alimentación,
-            5&nbsp;m por Tramo) sólo donde faltaban.
+            Tenés disponibles los controles avanzados de cálculo: método de pérdidas (Hazen-Williams o
+            Darcy-Weisbach), pérdidas localizadas estimadas o detalladas por accesorio y tee, y granularidad del
+            relevamiento. Empezás en la misma configuración simple que Rápido; cambiar cualquiera de estos controles
+            no altera el modo de trabajo.
           </small>
         </p>
       )}
-      <details open={modo !== 'rapido'}>
+      <details open={modo === 'profesional'}>
         <summary>Configuración avanzada</summary>
         <ConfiguracionHidraulicaFormulario proyecto={proyecto} onCambiar={onCambiar} />
       </details>

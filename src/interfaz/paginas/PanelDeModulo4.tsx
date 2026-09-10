@@ -7,8 +7,9 @@
 //
 // Todo lo que se edita se persiste vía updaters puros existentes; ningún
 // resultado se persiste (se recalcula en cada render). Rápido / Profesional
-// se deriva del modo de trabajo transversal (resolverModoDeTrabajo, D-δ.51),
-// sin eje nuevo. Este panel no importa código de M2; la única superficie
+// se lee del modo de trabajo EXPLÍCITO del proyecto (resolverModoDeTrabajo,
+// MODE-UX-01 / D-δ.89), no de la configuración hidráulica. Este panel no
+// importa código de M2; la única superficie
 // compartida es que el esquema de abastecimiento y la presión sobre acera
 // que se editan acá los consume después el Panel de Presión de M2 (D-δ.68).
 import { useId } from 'react'
@@ -705,7 +706,7 @@ function CuerpoDelPanel({
 
 export function PanelDeModulo4({ proyecto, onCambiar }: { proyecto: Proyecto; onCambiar: OnCambiar }) {
   const estado = resolverEstadoModulo4({ proyecto, catalogoArtefactos, coeficientesMayoracion })
-  const esProfesional = resolverModoDeTrabajo(proyecto.configuracionHidraulica) !== 'rapido'
+  const esProfesional = resolverModoDeTrabajo(proyecto) === 'profesional'
 
   return (
     <details open>

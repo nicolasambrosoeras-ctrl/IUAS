@@ -1,20 +1,38 @@
-// D-δ.51 (§1-§3/§10-§11/§15-§17, tests R5/R10-R12, P1/P9): el "modo de
-// trabajo" se DERIVA de granularidad + metodoPerdidaLocalizada; aplicarlo
-// fija esos ejes y precarga longitudes undefined, sin resetear datos.
+// MODE-UX-01 (D-δ.89): el modo de trabajo es un campo EXPLÍCITO del
+// Proyecto (`modoTrabajo`), desacoplado de `configuracionHidraulica`.
+// `resolverModoDeTrabajo` lee el campo (o infiere por compatibilidad legacy
+// si falta); `aplicarModoRapido` / `aplicarModoProfesional` fijan el campo,
+// aplican/restauran el preset del modo y snapshotean la config Profesional.
 import { describe, it, expect } from 'vitest'
-import type { MetadatosProyecto, ParametrosProyecto, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
+import type {
+  ConfiguracionHidraulica,
+  MetadatosProyecto,
+  ModoDeTrabajo,
+  ParametrosProyecto,
+  Proyecto,
+  UnidadFuncional,
+} from '../../modelo/proyecto'
 import type { GranularidadHidraulica, MetodoPerdidaDistribuida, MetodoPerdidaLocalizada } from '../../modelo/proyecto'
 import type { Nodo, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
-import { aplicarModoProfesional, aplicarModoRapido, resolverModoDeTrabajo } from './modoDeTrabajo'
+import {
+  aplicarModoProfesional,
+  aplicarModoRapido,
+  inferirModoDeTrabajoLegacy,
+  PRESET_EJES_INICIALES,
+  resolverModoDeTrabajo,
+} from './modoDeTrabajo'
 
 function proyecto(cfg: {
+  modoTrabajo?: ModoDeTrabajo
   granularidadHidraulica: GranularidadHidraulica
   metodoPerdidaLocalizada: MetodoPerdidaLocalizada
   metodoPerdidaDistribuida?: MetodoPerdidaDistribuida
+  materialTuberiaId?: ConfiguracionHidraulica['materialTuberiaId']
   longGeneral?: number
+  ultimaConfiguracionProfesional?: ConfiguracionHidraulica
 }): Proyecto {
   const metadatos: MetadatosProyecto = {
-    nombre: 'P', obra: 'O', comitente: 'C', fecha: '2026-09-07', schemaVersion: '1.0.0', versionNormativa: 'eras-2023',
+    nombre: 'P', obra: 'O', comitente: 'C', fecha: '2026-09-09', schemaVersion: '1.0.0', versionNormativa: 'eras-2023',
   }
   const parametros: ParametrosProyecto = { tipoDeProyecto: 'viviendaIndividual', presionSobreAcera_m: 0, alturaArtefactoMasDesfavorable_m: 0 }
   const uf: UnidadFuncional = {
@@ -43,70 +61,216 @@ function proyecto(cfg: {
     parametros,
     unidadesFuncionales: [uf],
     redHidraulica,
+    ...(cfg.modoTrabajo !== undefined ? { modoTrabajo: cfg.modoTrabajo } : {}),
+    ...(cfg.ultimaConfiguracionProfesional !== undefined
+      ? { ultimaConfiguracionProfesional: cfg.ultimaConfiguracionProfesional }
+      : {}),
     configuracionHidraulica: {
       metodoPerdidaDistribuida: cfg.metodoPerdidaDistribuida ?? 'hazenWilliams',
       metodoPerdidaLocalizada: cfg.metodoPerdidaLocalizada,
       granularidadHidraulica: cfg.granularidadHidraulica,
-      materialTuberiaId: 'ppr',
+      materialTuberiaId: cfg.materialTuberiaId ?? 'ppr',
       sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
     },
   }
 }
 
-describe('resolverModoDeTrabajo', () => {
-  it('simplificada + estimadas -> rapido', () => {
-    expect(resolverModoDeTrabajo(proyecto({ granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado' }).configuracionHidraulica)).toBe('rapido')
+const CONFIG_PROFESIONAL_CUSTOM: ConfiguracionHidraulica = {
+  metodoPerdidaDistribuida: 'darcyWeisbach',
+  metodoPerdidaLocalizada: 'detallado',
+  granularidadHidraulica: 'profesional',
+  materialTuberiaId: 'cobre',
+  sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
+}
+
+describe('resolverModoDeTrabajo — campo explícito primero (MODE-UX-01)', () => {
+  it('INVARIANTE CENTRAL: modoTrabajo=profesional + config Hazen/Estimadas/Simplificada -> Profesional, nunca Rápido', () => {
+    const p = proyecto({
+      modoTrabajo: 'profesional',
+      granularidadHidraulica: 'simplificada',
+      metodoPerdidaLocalizada: 'estimado',
+      metodoPerdidaDistribuida: 'hazenWilliams',
+    })
+    expect(resolverModoDeTrabajo(p)).toBe('profesional')
   })
-  it('profesional + detalladas -> profesional', () => {
-    expect(resolverModoDeTrabajo(proyecto({ granularidadHidraulica: 'profesional', metodoPerdidaLocalizada: 'detallado' }).configuracionHidraulica)).toBe('profesional')
-  })
-  it('cualquier otra combinación -> avanzado', () => {
-    expect(resolverModoDeTrabajo(proyecto({ granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'detallado' }).configuracionHidraulica)).toBe('avanzado')
-    expect(resolverModoDeTrabajo(proyecto({ granularidadHidraulica: 'profesional', metodoPerdidaLocalizada: 'estimado' }).configuracionHidraulica)).toBe('avanzado')
+
+  it('el campo explícito gana aunque la config sea la del otro modo', () => {
+    const rapidoConConfigProfesional = proyecto({
+      modoTrabajo: 'rapido',
+      granularidadHidraulica: 'profesional',
+      metodoPerdidaLocalizada: 'detallado',
+    })
+    expect(resolverModoDeTrabajo(rapidoConConfigProfesional)).toBe('rapido')
   })
 })
 
-describe('aplicarModoRapido (D-δ.51)', () => {
-  it('R10/R11/R12: fija simplificada + estimadas + Hazen-Williams', () => {
-    const p = aplicarModoRapido(proyecto({ granularidadHidraulica: 'profesional', metodoPerdidaLocalizada: 'detallado', metodoPerdidaDistribuida: 'darcyWeisbach' }))
-    expect(p.configuracionHidraulica.granularidadHidraulica).toBe('simplificada')
-    expect(p.configuracionHidraulica.metodoPerdidaLocalizada).toBe('estimado')
+describe('inferirModoDeTrabajoLegacy — sólo proyectos sin modoTrabajo', () => {
+  it('config histórica Rápida (simplificada + estimadas) -> rapido', () => {
+    const legacy = proyecto({ granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado' })
+    expect(legacy.modoTrabajo).toBeUndefined()
+    expect(resolverModoDeTrabajo(legacy)).toBe('rapido')
+    expect(inferirModoDeTrabajoLegacy(legacy.configuracionHidraulica)).toBe('rapido')
+  })
+
+  it('config histórica Profesional (profesional + detalladas) -> profesional', () => {
+    const legacy = proyecto({ granularidadHidraulica: 'profesional', metodoPerdidaLocalizada: 'detallado' })
+    expect(resolverModoDeTrabajo(legacy)).toBe('profesional')
+  })
+
+  it('el antiguo "avanzado" (cualquier otra combinación) colapsa a profesional', () => {
+    expect(
+      inferirModoDeTrabajoLegacy(
+        proyecto({ granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'detallado' }).configuracionHidraulica,
+      ),
+    ).toBe('profesional')
+    expect(
+      inferirModoDeTrabajoLegacy(
+        proyecto({ granularidadHidraulica: 'profesional', metodoPerdidaLocalizada: 'estimado' }).configuracionHidraulica,
+      ),
+    ).toBe('profesional')
+  })
+})
+
+describe('aplicarModoProfesional', () => {
+  it('Caso A: Rápido -> Profesional por primera vez arranca en Hazen + Estimadas + Simplificada (no salta a Detalladas/Profesional)', () => {
+    const p = aplicarModoProfesional(proyecto({ modoTrabajo: 'rapido', granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado' }))
+    expect(p.modoTrabajo).toBe('profesional')
     expect(p.configuracionHidraulica.metodoPerdidaDistribuida).toBe('hazenWilliams')
-    expect(resolverModoDeTrabajo(p.configuracionHidraulica)).toBe('rapido')
+    expect(p.configuracionHidraulica.metodoPerdidaLocalizada).toBe('estimado')
+    expect(p.configuracionHidraulica.granularidadHidraulica).toBe('simplificada')
+    expect(resolverModoDeTrabajo(p)).toBe('profesional')
   })
 
-  it('precarga la longitud de Distribución general (10 m) al entrar', () => {
-    const p = aplicarModoRapido(proyecto({ granularidadHidraulica: 'profesional', metodoPerdidaLocalizada: 'detallado' }))
+  it('el preset inicial de Profesional coincide con PRESET_EJES_INICIALES', () => {
+    const p = aplicarModoProfesional(proyecto({ modoTrabajo: 'rapido', granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado' }))
+    expect(p.configuracionHidraulica).toMatchObject(PRESET_EJES_INICIALES)
+  })
+
+  it('Caso E: si hay ultimaConfiguracionProfesional, se restaura como config activa', () => {
+    const p = aplicarModoProfesional(
+      proyecto({
+        modoTrabajo: 'rapido',
+        granularidadHidraulica: 'simplificada',
+        metodoPerdidaLocalizada: 'estimado',
+        ultimaConfiguracionProfesional: CONFIG_PROFESIONAL_CUSTOM,
+      }),
+    )
+    expect(p.modoTrabajo).toBe('profesional')
+    expect(p.configuracionHidraulica).toEqual(CONFIG_PROFESIONAL_CUSTOM)
+  })
+
+  it('clic idempotente estando ya en Profesional: NO re-restaura el snapshot sobre ediciones vivas', () => {
+    const yaProfesionalEditado = proyecto({
+      modoTrabajo: 'profesional',
+      granularidadHidraulica: 'profesional',
+      metodoPerdidaLocalizada: 'detallado',
+      metodoPerdidaDistribuida: 'darcyWeisbach',
+      ultimaConfiguracionProfesional: {
+        metodoPerdidaDistribuida: 'hazenWilliams',
+        metodoPerdidaLocalizada: 'estimado',
+        granularidadHidraulica: 'simplificada',
+        materialTuberiaId: 'ppr',
+        sistemaDeTuberiaId: 'acquaSystemMagnumPn20',
+      },
+    })
+    const p = aplicarModoProfesional(yaProfesionalEditado)
+    expect(p.configuracionHidraulica).toEqual(yaProfesionalEditado.configuracionHidraulica)
+  })
+
+  it('precarga longitudes undefined al entrar (backfill no destructivo)', () => {
+    const p = aplicarModoProfesional(proyecto({ modoTrabajo: 'rapido', granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado' }))
     expect(p.redHidraulica!.tramos.find((t) => t.id === 't-general')!.longitud_m).toBe(10)
   })
+})
 
-  it('§15/§17: no sobreescribe una longitud ya cargada al cambiar de modo', () => {
-    const p = aplicarModoRapido(proyecto({ granularidadHidraulica: 'profesional', metodoPerdidaLocalizada: 'detallado', longGeneral: 7 }))
+describe('aplicarModoRapido', () => {
+  it('Caso D: Profesional personalizado -> Rápido aplica el preset seguro y fija modoTrabajo', () => {
+    const p = aplicarModoRapido(
+      proyecto({
+        modoTrabajo: 'profesional',
+        granularidadHidraulica: 'profesional',
+        metodoPerdidaLocalizada: 'detallado',
+        metodoPerdidaDistribuida: 'darcyWeisbach',
+      }),
+    )
+    expect(p.modoTrabajo).toBe('rapido')
+    expect(p.configuracionHidraulica.metodoPerdidaDistribuida).toBe('hazenWilliams')
+    expect(p.configuracionHidraulica.metodoPerdidaLocalizada).toBe('estimado')
+    expect(p.configuracionHidraulica.granularidadHidraulica).toBe('simplificada')
+    expect(resolverModoDeTrabajo(p)).toBe('rapido')
+  })
+
+  it('Caso D/E: al salir de Profesional guarda un snapshot de la config activa', () => {
+    const p = aplicarModoRapido(
+      proyecto({
+        modoTrabajo: 'profesional',
+        granularidadHidraulica: CONFIG_PROFESIONAL_CUSTOM.granularidadHidraulica,
+        metodoPerdidaLocalizada: CONFIG_PROFESIONAL_CUSTOM.metodoPerdidaLocalizada,
+        metodoPerdidaDistribuida: CONFIG_PROFESIONAL_CUSTOM.metodoPerdidaDistribuida,
+        materialTuberiaId: CONFIG_PROFESIONAL_CUSTOM.materialTuberiaId,
+      }),
+    )
+    expect(p.ultimaConfiguracionProfesional).toEqual(CONFIG_PROFESIONAL_CUSTOM)
+  })
+
+  it('viniendo de Rápido NO pisa un snapshot Profesional previo', () => {
+    const p = aplicarModoRapido(
+      proyecto({
+        modoTrabajo: 'rapido',
+        granularidadHidraulica: 'simplificada',
+        metodoPerdidaLocalizada: 'estimado',
+        ultimaConfiguracionProfesional: CONFIG_PROFESIONAL_CUSTOM,
+      }),
+    )
+    expect(p.ultimaConfiguracionProfesional).toEqual(CONFIG_PROFESIONAL_CUSTOM)
+  })
+
+  it('round-trip Caso E: P(custom) -> R -> P restaura la custom', () => {
+    const profesionalCustom = proyecto({
+      modoTrabajo: 'profesional',
+      granularidadHidraulica: CONFIG_PROFESIONAL_CUSTOM.granularidadHidraulica,
+      metodoPerdidaLocalizada: CONFIG_PROFESIONAL_CUSTOM.metodoPerdidaLocalizada,
+      metodoPerdidaDistribuida: CONFIG_PROFESIONAL_CUSTOM.metodoPerdidaDistribuida,
+      materialTuberiaId: CONFIG_PROFESIONAL_CUSTOM.materialTuberiaId,
+    })
+    const enRapido = aplicarModoRapido(profesionalCustom)
+    expect(resolverModoDeTrabajo(enRapido)).toBe('rapido')
+    const deVuelta = aplicarModoProfesional(enRapido)
+    expect(resolverModoDeTrabajo(deVuelta)).toBe('profesional')
+    expect(deVuelta.configuracionHidraulica).toEqual(CONFIG_PROFESIONAL_CUSTOM)
+  })
+
+  it('no sobreescribe una longitud ya cargada al cambiar de modo', () => {
+    const p = aplicarModoRapido(proyecto({ modoTrabajo: 'profesional', granularidadHidraulica: 'profesional', metodoPerdidaLocalizada: 'detallado', longGeneral: 7 }))
     expect(p.redHidraulica!.tramos.find((t) => t.id === 't-general')!.longitud_m).toBe(7)
   })
 })
 
-describe('aplicarModoProfesional (D-δ.51)', () => {
-  it('P1/P9: fija profesional + detalladas, NO fuerza Hazen (conserva Darcy del proyectista)', () => {
-    const p = aplicarModoProfesional(proyecto({ granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado', metodoPerdidaDistribuida: 'darcyWeisbach' }))
-    expect(p.configuracionHidraulica.granularidadHidraulica).toBe('profesional')
-    expect(p.configuracionHidraulica.metodoPerdidaLocalizada).toBe('detallado')
-    expect(p.configuracionHidraulica.metodoPerdidaDistribuida).toBe('darcyWeisbach')
-    expect(resolverModoDeTrabajo(p.configuracionHidraulica)).toBe('profesional')
-  })
-
-  it('P2: precarga longitudes undefined (todas las que el motor profesional itera), sin tocar accesorios', () => {
-    const p = aplicarModoProfesional(proyecto({ granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado' }))
-    expect(p.redHidraulica!.tramos.find((t) => t.id === 't-general')!.longitud_m).toBe(10)
-    expect(p.redHidraulica!.tramos.find((t) => t.id === 't-af')!.longitud_m).toBe(5)
-    // decisión roja A: accesorios NUNCA se precargan
-    for (const t of p.redHidraulica!.tramos) {
-      expect(t.accesorios).toBeUndefined()
+describe('Caso B/C: cambiar controles hidráulicos en Profesional NO cambia el modo', () => {
+  // Los updaters de configuracionHidraulica (conMetodoPerdidaLocalizada,
+  // conGranularidadHidraulica, ...) preservan el resto del Proyecto por
+  // spread, incluido `modoTrabajo`. resolverModoDeTrabajo sigue devolviendo
+  // 'profesional' porque lee el campo, no la combinación.
+  it('Caso B: Profesional + pasar Estimadas -> Detalladas sigue Profesional', () => {
+    const base = proyecto({ modoTrabajo: 'profesional', granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado' })
+    const editado: Proyecto = {
+      ...base,
+      configuracionHidraulica: { ...base.configuracionHidraulica, metodoPerdidaLocalizada: 'detallado' },
     }
+    expect(resolverModoDeTrabajo(editado)).toBe('profesional')
   })
 
-  it('P1: no pierde una longitud editada al cambiar Rápido -> Profesional', () => {
-    const p = aplicarModoProfesional(proyecto({ granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado', longGeneral: 7 }))
-    expect(p.redHidraulica!.tramos.find((t) => t.id === 't-general')!.longitud_m).toBe(7)
+  it('Caso C: Profesional con exactamente la combinación de Rápido sigue Profesional', () => {
+    const base = proyecto({ modoTrabajo: 'profesional', granularidadHidraulica: 'profesional', metodoPerdidaLocalizada: 'detallado', metodoPerdidaDistribuida: 'darcyWeisbach' })
+    const vueltaAHES: Proyecto = {
+      ...base,
+      configuracionHidraulica: {
+        ...base.configuracionHidraulica,
+        metodoPerdidaDistribuida: 'hazenWilliams',
+        metodoPerdidaLocalizada: 'estimado',
+        granularidadHidraulica: 'simplificada',
+      },
+    }
+    expect(resolverModoDeTrabajo(vueltaAHES)).toBe('profesional')
   })
 })

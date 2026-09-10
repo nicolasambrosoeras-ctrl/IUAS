@@ -2,7 +2,8 @@
 // que se carga al abrir la app (estado inicial de `MotorDemandaPantalla`) y
 // que la baseline funcional transversal M1–M4 (D-δ.70) usa como fixture.
 // Datos puros: 1 UF, 5 Locales, 11 artefactos, red AF+AC con producción de
-// ACS y configuración hidráulica en modo Rápido (simplificada + estimadas).
+// ACS, `modoTrabajo: 'rapido'` explícito (MODE-UX-01 / D-δ.89) y
+// configuración hidráulica en el preset inicial (simplificada + estimadas).
 //
 // Extraído de MotorDemandaPantalla.tsx sin cambios de contenido: se movió a
 // su propio módulo para poder compartirlo con los tests sin arrastrar el
@@ -23,6 +24,9 @@ export const proyectoInicial: Proyecto = {
     presionSobreAcera_m: 2,
     alturaArtefactoMasDesfavorable_m: 3,
   },
+  // MODE-UX-01 (D-δ.89): el modo de trabajo es una decisión EXPLÍCITA, no
+  // se infiere de la combinación hidráulica. El demo arranca en Rápido.
+  modoTrabajo: 'rapido',
   unidadesFuncionales: [
     {
       id: 'uf-1',
