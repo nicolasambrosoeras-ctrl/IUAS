@@ -10770,15 +10770,173 @@ mover; sin `beta.6`. Snapshot `resguardo-documentacion/` intacto.
 
 **Pendientes conocidos preservados (sin abrir en este hotfix):**
 `FIX-LEAK-M3-01` P2 (`humanizarModulo3.ts` `medidorIndividualFueraDeTabla06`
-interpola el id crudo de UF -- de D-δ.56, ver D-δ.93); `PERF-SCALE-01` P1 y
-`UI-M2-GROUP-01` (hallazgos del mismo QA cloud, registrados por el usuario,
-fuera del alcance de este crash); quirk de `vite preview` (sirve en `/`,
-no `/IUAS/`, con `command === 'serve'`; el E2E local corre contra
-`npm run dev`).
+interpola el id crudo de UF -- de D-δ.56, ver D-δ.93); quirk de
+`vite preview` (sirve en `/`, no `/IUAS/`, con `command === 'serve'`; el
+E2E local corre contra `npm run dev`).
+
+> **Corrección de trazabilidad (preflight de M2-TOPO-D).** Una versión
+> anterior de este bloque listaba también `PERF-SCALE-01` (P1) y
+> `UI-M2-GROUP-01` como "pendientes del QA cloud". El preflight de
+> M2-TOPO-D no encontró para ninguno de los dos **ninguna definición
+> sustanciada** en el repo, la documentación, `QA-FUZZ.md` §13,
+> `HALLAZGOS_CONOCIDOS`, el historial de git ni los artifacts disponibles
+> (sin síntoma, reproducción, pantalla/acción, tamaño de proyecto,
+> métrica, umbral, impacto ni criterio de aceptación). El usuario confirmó
+> que son **referencias huérfanas / error de trazabilidad, no deudas
+> activas**: `PERF-SCALE-01` **no** es un P1 vigente y **no** bloquea
+> M2-TOPO-D; `UI-M2-GROUP-01` no tiene definición canónica y **no** se
+> absorbe automáticamente en ningún slice. Si en QA futuro aparece un
+> problema real de escala/rendimiento o de agrupación visual, se registra
+> como hallazgo **nuevo** con reproducción, tamaño de proyecto, acción,
+> métrica, impacto, prioridad y criterio de aceptación -- sin atribuirlo
+> retroactivamente a estos identificadores.
 
 **HYD-EST-01 / VIS-TOPO-01 / M2-TOPO-D / PERSIST-01 / REPORT-01 /
 UX-TEST-01 / DEFENSE-01 -- NO iniciar.** Siguiente: **M2-TOPO-D -- UI y
 edición fina de tees**, sólo tras un nuevo QA Fuzz cloud 20×30 verde.
+
+## D-δ.95 -- M2-TOPO-D: edición fina de tees de las derivaciones de montante + reconciliación de `Nodo.tee` -- CERRADO
+
+Cuarto slice de la serie M2-TOPO-01 (A identificación, B enumeración, C
+constructor + identidad, D edición fina de tees). Cierra la brecha de
+M2-TOPO-C: las bifurcaciones sobre la espina de un montante quedaban
+**huérfanas de toda UI** (no aparecían en el árbol de `LocalYRedCard`
+porque están aguas ARRIBA del feed de cada Local), y en modo Detalladas
+dejaban la verificación de presión **incompleta** (`teeSinConfigurar`) sin
+forma de resolverlo. **No** reabre el motor, **no** crea entidad nueva,
+**no** toca HYD-EST ni VIS-TOPO.
+
+### Modelo -- `Nodo.tee` sigue siendo la fuente canónica
+
+`ConfiguracionDeTee` (CRIT-A31, D-δ.33) intacta: alcance exclusivo 1
+entrante + 2 salientes; `entradaPorExtremo { tramoSalidaRectaId }` o
+`entradaCentral`. La tee es propiedad **nodal**, NUNCA un accesorio de
+`Tramo` (no entra al picker de accesorios; CRIT-A30/A31 sin cambios). Sin
+`Nodo.tee` = "no relevada" (no "sin tee"). La geometría la declara SIEMPRE
+el proyectista: **cero heurística** recto/lateral (ni por orden del array
+`tramosSalientesIds`, ni por DN, ni por cantidad de terminales, ni por si
+la rama es el montante) -- test §29 en `resolverClasificacionDeTee.test.ts`.
+
+### UI -- editor reutilizado, en la card del montante, sólo Detalladas
+
+- `TeeDeNodoEditor.tsx` **refactorizado** (un solo editor, sin fork
+  `...DeMontante`): de botones a **radios** con `<fieldset>/<legend>`,
+  `role="radiogroup"`, labels, `name` de grupo **opaco** (`useId()`, nunca
+  el id del Nodo). Dos grupos: "la cañería entra por… un extremo / el
+  centro" y, si por extremo, "continúa recta hacia… {salida A} / {salida
+  B}". Estado transitorio "por extremo sin recta elegida" vive sólo en el
+  render (`useState`), nunca en el Proyecto (§14). Cambiar a "central"
+  descarta `tramoSalidaRectaId` (el modelo reemplaza la config completa).
+  Sin `Nodo.tee`: nada preseleccionado + aviso "Falta definir la
+  configuración de la derivación — en Detalladas la verificación de
+  presión queda incompleta hasta elegirla" (§25). Fallback de etiqueta
+  ausente = texto neutro, **nunca** el `tramoId` (FIX-LEAK / §34).
+- `ConstructorDeMontantes.tsx`: nueva sección **"Derivaciones"** en la card
+  del montante, visible sólo con `metodoPerdidaLocalizada === 'detallado'`
+  (§8; MODE sigue desacoplado). Una entrada por nodo de derivación real;
+  cada nodo físico tiene su propia `Nodo.tee` (§16), no hay config global
+  de montante. Montante con 0/1 Local o punta 1→1: **no** se muestra editor
+  fantasma (§15/§39).
+- `montantesDelProyecto.ts`: `derivacionesDeMontante(proyecto, montanteId)`
+  (proyección READ-ONLY: por nodo `nodoDestinoId` de un segmento, clasifica
+  `bifurcacion` 1→2 editable | `noConfigurable` 1→N) y
+  `etiquetaDeSalidaDeMontante` (§6/§17: continuación del montante → su
+  nombre; feed de exactamente un Local → su etiqueta; varios → "Ramal a
+  varios Locales"; ninguno → "Salida sin destino"; nunca un id). Es también
+  la proyección graph-ready para HYD-EST/VIS-TOPO (§21): nodo de
+  derivación, montante, tramo entrante, salientes, destino humano, red,
+  config si existe -- todo derivado de `RedHidraulica` + `Proyecto.montantes`
+  + UF/Locales, **sin nada gráfico persistido**.
+
+### Reconciliación de `Nodo.tee` -- `reconciliarTeesTrasCambioTopologico`
+
+Alta/baja de Locales, misma cota y borrado de montante cambian el fan-out
+de un nodo de derivación: 1→2 → 1→3 (Local nuevo a una cota ya servida),
+1→2 → 1→1 (se quitó su única rama), o la salida marcada como recta dejó de
+salir de ese nodo. En todos esos casos `Nodo.tee` queda inválido
+(`validarRedHidraulica` lo rechazaría; `resolverClasificacionDeTee`
+lanzaría en el balance de presión -- riesgo de WHITE_SCREEN en
+`PanelDePresionDeModulo2`). El nuevo paso, aplicado al final de cada
+comando del reconciliador de montantes
+(`agregarLocalAMontante` / `quitarLocalDeMontante` / `borrarMontante`),
+**limpia de forma determinista** sólo la metadata que ya no puede
+aplicarse: preserva `Nodo.tee` intacta si el nodo sigue siendo exactamente
+1→2 con las mismas dos salidas; nunca toca `longitud_m` /
+`dnComercialAdoptado` / `accesorios` (RD-1/RD-2 de M2-TOPO-C) ni la
+topología (§13/§19/§20). La decisión "esta salida es la recta" no puede
+"sobrevivir" a que el nodo deje de ser una pieza en T de dos salidas.
+
+### Efecto hidráulico -- sin fórmula nueva
+
+En Detalladas, `resolverClasificacionDeTee` → `teePasoRecto` /
+`teeSalidaLateral` / `teeEntradaCentralSalidasLaterales` (Ks ya conocidos
+de Tabla N°7). Configurar la tee de un nodo antes `teeSinConfigurar` pasa
+a acumular una contribución de tee > 0 (test integración
+`montanteTees.integracion.test.ts`, fixture de 3 Locales a cotas 2/5/8, 2
+derivaciones en cadena). **Estimadas intactas (§37):**
+`resolverPerdidaLocalizadaEstimadaDeLocal` NO lee `Nodo.tee` --
+`conTeeDeNodo` no cambia el modelo agregado (n−1 tees @ Ks 3,00 + codo90 +
+llave, Vref); test byte-equivalente antes/después. El demo y todo proyecto
+sin montantes/tees: sin cambios (no hay rebaseline de goldens).
+
+### Fan-out 1→N (N≥3) -- LIMITACIÓN CONOCIDA, no decisión roja
+
+M2-TOPO-C produce nodos 1→N cuando ≥2 Locales comparten cota y el montante
+continúa (o ≥3 en la punta). `ConfiguracionDeTee` sólo representa 1→2.
+Comportamiento **verificado** (`montanteTees.integracion.test.ts`, fixture
+3 Locales a cota 4/4/4):
+
+- la topología 1→3 es **válida para Qc** (M2-TOPO-A, §12) y
+  `validarRedHidraulica` no la rechaza;
+- en Detalladas, `resolverClasificacionDeTee` → `noEsBifurcacionDeTee` →
+  el nodo contribuye **0** a la pérdida localizada, **sin** reportar
+  `teeSinConfigurar` (no bloquea el balance): la pérdida real de la
+  derivación múltiple **no se modela** -- subestimación silenciosa del
+  orden de una a dos Ks de tee (~0,2–0,6 m.c.a. por junta omitida);
+- **NO es nuevo de D**: es el alcance de CRIT-A31 desde D-δ.33 y aplica a
+  cualquier nodo 1→N (cabeceras de Local con ≥3 artefactos incluidas). D
+  **no lo empeora**; hace la UI **honesta** (`noConfigurable` con copy que
+  explica la limitación y sugiere separar las cotas para que cada nivel
+  sea una bifurcación simple), en vez de un editor 1→2 engañoso (§12/§40).
+
+Resolverlo requeriría **elegir entre geometrías físicas no equivalentes**
+(modelar el cruce como cadena de tees: orden de Locales, cuál es recto,
+longitudes de nodos intermedios ficticios) -- **explícitamente prohibido
+por §11**. Queda como pendiente para **HYD-EST** (política path-aware) o
+**M2-TOPO-E** (cierre arquitectónico). **No** se toma una decisión física
+por conveniencia de implementación en este slice.
+
+### Estado
+
+**D-δ.95 / M2-TOPO-D -- CERRADO** (con la limitación 1→N documentada
+arriba). Cambios de código en `src/`:
+`interfaz/paginas/TeeDeNodoEditor.tsx` (refactor a radios + `useId`),
+`interfaz/paginas/reconciliarMontante.ts`
+(+`reconciliarTeesTrasCambioTopologico`, aplicado en `finalizar` y
+`borrarMontante`), `interfaz/paginas/montantesDelProyecto.ts`
+(+`derivacionesDeMontante` / `etiquetaDeSalidaDeMontante`),
+`interfaz/paginas/ConstructorDeMontantes.tsx` (+sección "Derivaciones"),
+`interfaz/paginas/constructorDeMontantes.css` (estilos del editor).
+`Nodo.tee` / `ConfiguracionDeTee` / `resolverClasificacionDeTee` /
+`acumularPerdidaLocalizadaDeCamino` / `validarRedHidraulica`: **sin
+cambios**. Tests: `TeeDeNodoEditor.test.ts` (reescrito, 7),
+`montantesDelProyecto.test.ts` (+~9),
+`resolverClasificacionDeTee.test.ts` (+2, §29/§35),
+`montanteTees.integracion.test.ts` (nuevo, 6; §36/§37/§40),
+`ResultadoHidraulicoDeTramo.test.ts` (copy actualizado). Baseline: Vitest
+**1606 / 1606**, `tsc -b` / `e2e:typecheck` / `build` verdes, ESLint
+**11 / 0 / 0** (sin errores nuevos). E2E `montantes.spec.ts` (+1 caso de
+tee, verde desktop). `v0.4.0-beta.5` sin mover; sin `beta.6`. Snapshot
+`resguardo-documentacion/` intacto. `FIX-LEAK-M3-01` P2 sigue fuera de
+alcance. `PERF-SCALE-01` / `UI-M2-GROUP-01`: referencias huérfanas
+(preflight de D), no bloqueantes -- ver corrección de trazabilidad en
+D-δ.94.
+
+**HYD-EST-01 / VIS-TOPO-01 / PERSIST-01 / REPORT-01 / UX-TEST-01 /
+DEFENSE-01 -- NO iniciar.** Siguiente: **M2-TOPO-E -- cierre
+arquitectónico de la serie de topología** (ADR si corresponde; decidir el
+desbloqueo formal de HYD-EST / VIS-TOPO; y la pérdida localizada de las
+derivaciones 1→N), sólo tras un nuevo QA Fuzz cloud 20×30 verde.
 
 ## Regla — `resguardo-documentacion/` es inmutable
 

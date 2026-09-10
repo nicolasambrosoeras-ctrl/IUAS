@@ -259,7 +259,10 @@ la alimentación. Ver `CRITERIOS.md` → CAT-CONN-01.
   "diferir deduplicación vertical", D-δ.92 CERRADO; C: identidad semántica
   de montante (`Proyecto.montantes`) + constructor en M2 (alta/baja de
   Locales, RD-1/RD-2, supresión dirigida de D-δ.50), D-δ.93 CERRADO;
-  D: UI/edición fina de tees; E: integración presión/tees + ADR).
+  D: edición fina de tees de las derivaciones de montante + reconciliación
+  de `Nodo.tee` tras cambios de topología, D-δ.95 CERRADO (con la pérdida
+  localizada de las derivaciones 1→N documentada como limitación conocida);
+  E: cierre arquitectónico + ADR + política 1→N + desbloqueo HYD-EST/VIS-TOPO).
 
 #### Documentación / exportación
 
@@ -1288,6 +1291,32 @@ salvo bug inequívoco o decisión roja explícita.
   históricas. Sin tocar hidráulica, CAT-CONN, montantes ni `ErrorBoundary`.
   - **Siguiente:** nuevo QA Fuzz cloud 20×30 (seed vacía); si queda verde,
     M2-TOPO-D.
+
+- **D-δ.95 — M2-TOPO-D: edición fina de tees de las derivaciones de
+  montante + reconciliación de `Nodo.tee`.** Cierra la brecha de M2-TOPO-C:
+  las bifurcaciones sobre la espina de un montante no tenían UI y dejaban
+  Detalladas incompleta sin forma de resolverlo. `Nodo.tee`
+  (`ConfiguracionDeTee`, CRIT-A31) sigue siendo la única fuente; NO entra
+  al picker de accesorios de Tramo; **cero heurística** recto/lateral. UI:
+  sección "Derivaciones" en la card del montante (sólo `metodoPerdidaLocalizada
+  = 'detallado'`, MODE desacoplado), reutilizando `TeeDeNodoEditor`
+  refactorizado a radios (`<fieldset>` + `role="radiogroup"` + `useId()`
+  opaco, sin ids técnicos). `reconciliarTeesTrasCambioTopologico` limpia de
+  forma determinista una `Nodo.tee` que quedó inválida (nodo dejó de ser
+  1→2, o la recta ya no sale de él) tras alta/baja de Local o borrado de
+  montante — sin tocar longitudes/DN/accesorios. **Estimadas intactas**
+  (`resolverPerdidaLocalizadaEstimadaDeLocal` no lee `Nodo.tee`; test
+  byte-equivalente). **Fan-out 1→N (N≥3): limitación conocida** — la
+  topología es válida para Qc, pero en Detalladas el nodo contribuye 0 a la
+  pérdida localizada (CRIT-A31 sólo cubre 1→2, comportamiento pre-existente
+  desde D-δ.33); la UI lo explica en vez de mostrar un editor engañoso.
+  Resolverlo exige elegir entre geometrías no equivalentes (prohibido por
+  el brief) → queda para HYD-EST / M2-TOPO-E. Vitest **1606 / 1606**;
+  `tsc` / `e2e:typecheck` / `build` verdes; ESLint 11/0/0. E2E
+  `montantes.spec.ts` +1 caso de tee. `v0.4.0-beta.5` sin mover.
+  - **Siguiente:** nuevo QA Fuzz cloud 20×30 (seed vacía); si queda verde,
+    **M2-TOPO-E** (cierre arquitectónico + ADR + política 1→N + desbloqueo
+    HYD-EST/VIS-TOPO).
 
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto

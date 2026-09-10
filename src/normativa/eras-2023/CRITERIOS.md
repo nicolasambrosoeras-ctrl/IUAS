@@ -1948,6 +1948,26 @@ pura) y `motor/tuberias/presion/acumularPerdidaLocalizadaDeCamino.ts`
 (integración). Cierra D-δ.33 para el alcance 1→2 declarado. Ver D-δ.33
 en `PENDIENTES-DE-ARQUITECTURA.md`.
 
+**M2-TOPO-D (D-δ.95) -- superficie de edición y límite 1→N.** El
+constructor de montantes de M2 expone `Nodo.tee` de cada nodo de
+derivación 1→2 de la espina de un montante (sección "Derivaciones",
+sólo con `metodoPerdidaLocalizada = 'detallado'`), reutilizando el mismo
+`TeeDeNodoEditor` y `conTeeDeNodo` -- sin nueva fórmula, sin heurística
+recto/lateral, sin config global de montante. Alta/baja de Locales y
+borrado de montante pueden dejar una `Nodo.tee` inválida (nodo fuera de
+1→2, o `tramoSalidaRectaId` que ya no sale del nodo);
+`reconciliarTeesTrasCambioTopologico` (`interfaz/paginas/reconciliarMontante.ts`)
+la limpia de forma determinista sin tocar longitudes/DN/accesorios ni la
+topología. **Límite 1→N (N≥3):** una derivación con ≥3 salidas es válida
+para Qc (M2-TOPO-A) pero queda fuera del alcance de `ConfiguracionDeTee`
+(1→2); `resolverClasificacionDeTee` devuelve `noEsBifurcacionDeTee` y el
+nodo contribuye **0** a la pérdida localizada en Detalladas, **sin**
+reportar incompletitud -- subestimación conocida de la pérdida de la
+derivación múltiple, ya presente desde D-δ.33. Modelar esa pérdida
+requeriría elegir entre geometrías físicas no equivalentes y queda
+diferido a HYD-EST / M2-TOPO-E. El modo **Estimadas no cambia**:
+`resolverPerdidaLocalizadaEstimadaDeLocal` no lee `Nodo.tee`.
+
 ## CRIT-A32 — Tabla N°6: selección del medidor general por caudal de cálculo, e inconsistencia del ejemplo oficial
 
 **Artículo:** ERAS-2023 §2.12 y Tabla N°6.
