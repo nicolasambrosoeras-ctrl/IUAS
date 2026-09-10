@@ -366,12 +366,15 @@ siendo una card. El `<select>` de artefacto ya no lleva "(qu=…)" en cada
 opción — `qu` va a `.m1-artefacto__qu` (segunda línea, `--fs-meta`,
 `--color-texto-3`), siempre visible, leído del catálogo.
 
-**Modo de trabajo global (D-δ.78, UI-CRIT-11).** El segmented control
-"Rápido / Profesional" (`SelectorDeModoDeTrabajo`, `.app-modo` en
-`.app-header`) es el ÚNICO control del modo, en la cabecera de la app —
-ya no está en la etapa 02. Desktop: a la derecha del título; móvil:
-apilado (la cabecera envuelve). No introduce estado: el modo se deriva de
-`configuracionHidraulica`.
+**Modo de trabajo global (D-δ.78; explícito desde MODE-UX-01 / D-δ.89).**
+El segmented control "Rápido / Profesional" (`SelectorDeModoDeTrabajo`,
+`.app-modo` en `.app-header`) es el ÚNICO control del modo, en la cabecera
+de la app — ya no está en la etapa 02. Desktop: a la derecha del título;
+móvil: apilado (la cabecera envuelve). El estado activo (`aria-pressed`)
+sale de `Proyecto.modoTrabajo` (campo EXPLÍCITO; los proyectos legacy sin
+él lo infieren una vez), NO de comparar `configuracionHidraulica`. Ya no
+hay tercer estado "Avanzado" ni badge: cambiar un control hidráulico no
+altera el modo.
 
 **Ids internos nunca visibles (D-δ.78).** Ninguna superficie de usuario
 muestra `uf-<uuid>` / ids de nodo / códigos de validación:

@@ -586,8 +586,8 @@ seed.
 | ~~`FIX-CRASH-01`~~ | **RESUELTO en D-δ.88** — `resolverPerdidaDistribuidaDeTramo` no trataba `longitud_m <= 0` como `sinLongitud`; el throw de `calcularPerdidaCargaHazenWilliams` propagaba por el render de `PanelDePresionDeModulo2` y desmontaba la app. Seed canónica `34411681277-1:0` step 19 (§12). |
 | ~~`CAT-CONN-01`~~ | **RESUELTO en D-δ.84** — la conectividad física inicial pasó a resolverse por política de catálogo (`politicaConectividad.ts`), no por precedentes del proyecto. Matriz objetivo: sólo `lavavajillasIndustrial` y `lavarropasIndustrial` piden selección (14 no); `catalogo-conectividad.spec.ts` la asevera. |
 | `DEFENSE-01` | ErrorBoundary con estado Proyecto preservado. Después del fix raíz. |
-| `GEOM-UX-01` | herencia de cotas UF → Local → terminal. |
-| `MODE-UX-01` | preset Profesional (Hazen + Estimadas + Simplificada). |
+| ~~`GEOM-UX-01`~~ | **RESUELTO en D-δ.86** — herencia de cotas UF → Local → terminal + Tabla IUAS v1 + Reiniciar cálculo + layout M2 Profesional. |
+| ~~`MODE-UX-01`~~ | **RESUELTO en D-δ.89** — el modo Rápido/Profesional pasó a ser un campo EXPLÍCITO del Proyecto (`modoTrabajo`), desacoplado de la combinación hidráulica; Profesional = controles avanzados disponibles, no "máximo detalle". Preset inicial de Profesional = Hazen + Estimadas + Simplificada. |
 
 ---
 

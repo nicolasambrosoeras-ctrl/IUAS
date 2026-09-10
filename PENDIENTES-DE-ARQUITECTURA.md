@@ -9791,6 +9791,167 @@ cloud 20×30 con seed vacía contra producción como checkpoint previo a
 MODE-UX-01. **MODE-UX-01 / HYD-EST-01 / M2-TOPO-01 / VIS-TOPO-01 /
 PERSIST-01 / REPORT-01 / UX-TEST-01 / DEFENSE-01 -- NO iniciar.**
 
+## D-δ.89 -- MODE-UX-01: desacoplar el modo de trabajo de la configuración hidráulica -- CERRADA
+
+Incremento de PRODUCTO/UX. Corrige una ambigüedad conceptual: hasta D-δ.51
+el modo Rápido/Profesional se **derivaba** de la combinación
+`(granularidadHidraulica, metodoPerdidaLocalizada)`. Desde MODE-UX-01 es
+una **decisión explícita** del usuario -- `Proyecto.modoTrabajo`.
+Profesional pasa a significar **"controles avanzados disponibles"**, NO
+"máximo detalle obligatorio". Ninguna fórmula, criterio normativo, golden
+de cálculo ni comportamiento hidráulico modificado. Alcance:
+`src/modelo/proyecto/index.ts` (2 campos optativos), `modoDeTrabajo.ts`
+(+`.test.ts`), `SelectorDeModoDeTrabajo.tsx`, `ResultadoHidraulicoDeTramo.tsx`
+(+`.test.ts`), `PanelDeMedidoresDeModulo3.tsx`, `PanelDeModulo4.tsx`,
+`crearProyectoVacio.ts`, `proyectoDeEjemplo.ts`,
+`tests/e2e/modo-de-trabajo.spec.ts` (nuevo), documentación. Versión
+pública funcional sigue **`v0.4.0-beta.5`**.
+
+### Problema raíz
+
+`resolverModoDeTrabajo(configuracion)` (D-δ.51) mapeaba dos ejes de
+`ConfiguracionHidraulica` a un modo: sólo `(profesional, detallado)` →
+`'profesional'`, sólo `(simplificada, estimado)` → `'rapido'`, el resto →
+`'avanzado'`. Consecuencias: (a) un proyectista en Profesional que elegía
+Hazen + Estimadas + Simplificada era reclasificado a Rápido -- el modo no
+podía sostenerse independiente del detalle de cálculo; (b)
+`aplicarModoProfesional` **forzaba** `(profesional, detallado)` al entrar,
+así que "entrar a Profesional" era siempre "subir al máximo detalle";
+(c) el badge "Avanzado · combinación técnica personalizada" del selector
+global era el síntoma visible de ese acople.
+
+### Arquitectura implementada
+
+- **Fuente de verdad del modo:** `Proyecto.modoTrabajo?: 'rapido' |
+  'profesional'`. Optativo y **backward-compatible** --
+  `SCHEMA_VERSION_ACTUAL` NO cambia, sin migración (mismo patrón que
+  `configuracionMedidores?` / `configuracionAbastecimiento?`). Todo
+  proyecto nuevo lo declara explícitamente (`crearProyectoVacio`,
+  `proyectoInicial`, `aplicarModoRapido`, `aplicarModoProfesional`).
+- **Fuente de verdad de la config ACTIVA de cálculo:**
+  `configuracionHidraulica`, sin cambios. El motor la lee directo; nada
+  más alimenta el cálculo.
+- **`resolverModoDeTrabajo(proyecto)`:** devuelve `proyecto.modoTrabajo`
+  si está; si no (sólo proyectos legacy -- no hay import UI todavía),
+  `inferirModoDeTrabajoLegacy(configuracion)` **una vez**: histórico
+  colapsado a 2 estados -- `(simplificada, estimado)` → `'rapido'`,
+  cualquier otra cosa (incluido el viejo `'avanzado'`) → `'profesional'`.
+  §34: la inferencia queda **cuarentenada** en una función de nombre
+  explícito; `resolverModoDeTrabajo` NO infiere para proyectos nuevos.
+- **Ambigüedad legacy (§8):** un proyecto guardado sin `modoTrabajo` con
+  Hazen + Estimadas + Simplificada se clasifica `'rapido'` aunque el
+  proyectista lo considerara Profesional -- ese proyecto no guardó la
+  intención. Aceptado y documentado; desde MODE-UX-01 la intención se
+  guarda siempre.
+
+### Memoria de configuración Profesional (§10 -- Alternativa 1)
+
+`Proyecto.ultimaConfiguracionProfesional?: ConfiguracionHidraulica` --
+SNAPSHOT de restauración, campo optativo. `aplicarModoRapido` lo **escribe**
+(con la config activa) sólo si veníamos de Profesional;
+`aplicarModoProfesional` lo **restaura** como config activa al entrar
+DESDE Rápido. NUNCA es fuente de cálculo -- el motor sólo lee
+`configuracionHidraulica` (§35, una sola fuente de verdad activa).
+"Reiniciar cálculo" (`crearProyectoVacio`) lo deja **ausente**.
+
+Guardas de la máquina de estados:
+- `aplicarModoProfesional` estando **ya** en Profesional: sólo asegura el
+  campo, NO re-restaura el snapshot sobre ediciones vivas.
+- `aplicarModoRapido` estando ya en Rápido: no re-snapshotea (no pisa un
+  snapshot Profesional previo con una config Rápida).
+
+### Presets
+
+`PRESET_EJES_INICIALES = { metodoPerdidaDistribuida: 'hazenWilliams',
+metodoPerdidaLocalizada: 'estimado', granularidadHidraulica:
+'simplificada' }` -- los tres ejes compartidos por Rápido y por el
+ARRANQUE de Profesional (§12/§13, DECISIÓN CERRADA). `materialTuberiaId` /
+`sistemaDeTuberiaId` NO están en el preset (ortogonales al modo, se
+preservan). Que Rápido y el arranque de Profesional coincidan en v1 NO
+significa que modo y configuración sean lo mismo -- una misma combinación
+puede vivir en ambos modos y el `modoDeTrabajo.test.ts` lo asevera.
+
+### Transiciones (§9)
+
+- **A -- R → P primera vez:** `modoTrabajo='profesional'`, config queda en
+  el preset inicial (Hazen + Estimadas + Simplificada). NO salta a
+  Detalladas/Profesional.
+- **B -- P + cambiar Estimadas→Detalladas:** los updaters de
+  `configuracionHidraulica` preservan `modoTrabajo` por spread →
+  `resolverModoDeTrabajo` sigue `'profesional'`.
+- **C -- P con exactamente H/E/S (la combinación de Rápido):** sigue
+  `'profesional'`. **Obligatorio** -- es la invariante central del slice.
+- **D -- P personalizado → R:** snapshot de la config activa, preset
+  Rápido seguro activo, `modoTrabajo='rapido'`.
+- **E -- R → P con custom previo:** restaura el snapshot como config
+  activa. Round-trip `P(custom) → R → P` devuelve la custom.
+- **Reset:** `crearProyectoVacio` → `modoTrabajo='rapido'`, preset Rápido,
+  sin `ultimaConfiguracionProfesional`.
+
+### UI
+
+- **Selector global** (`SelectorDeModoDeTrabajo`, cabecera): pierde el
+  badge "Avanzado"; `aria-pressed` sale de `modoTrabajo` (vía
+  `resolverModoDeTrabajo`), no de comparar configuraciones. Sigue GLOBAL,
+  sin router, sin duplicado en M2.
+- **M2** (`CabeceraDeModulo2`): en Profesional "Configuración avanzada"
+  abierta y los controles disponibles aunque la config sea el preset
+  simple; en Rápido colapsada pero alcanzable (experiencia reducida
+  EXISTENTE, §16). Copy de Profesional reescrita: "controles avanzados
+  disponibles… cambiarlos no altera el modo" (§17, sin "Profesional =
+  detalladas").
+- **M3 / M4:** `esProfesional = resolverModoDeTrabajo(proyecto) ===
+  'profesional'` -- leen el modo explícito, ya no la config.
+
+### Hidráulica -- cero cambios para configuración equivalente (§22)
+
+El modo es presentación pura: ningún módulo de `motor/` importa
+`modoDeTrabajo`. Para un proyecto nuevo, `aplicarModoProfesional` deja la
+config en Hazen + Estimadas + Simplificada -- **idéntica** a la de Rápido
+→ Qc / DN / V / hf distribuida / hf localizada / presión / M3 / M4
+idénticos. Vitest **1441 → 1450** (sin rebaseline de ningún golden de
+cálculo; +9 son unit tests nuevos de `modoDeTrabajo` y `ResultadoHidraulicoDeTramo`).
+
+### Regresión
+
+- **Unit** (`modoDeTrabajo.test.ts`, reescrito): invariante central
+  (P + H/E/S → Profesional, nunca Rápido); campo explícito gana sobre la
+  config; `inferirModoDeTrabajoLegacy` (Rápida→rapido, Profesional→profesional,
+  "avanzado"→profesional); Casos A–E de transición; guarda idempotente de
+  `aplicarModoProfesional`; snapshot no pisado viniendo de Rápido;
+  round-trip Caso E; backfill no destructivo.
+- **Unit** (`ResultadoHidraulicoDeTramo.test.ts`): Profesional con la
+  MISMA config que Rápido → controles disponibles + `<details open>`;
+  proyecto legacy sin `modoTrabajo` → inferencia histórica.
+- **E2E** (`tests/e2e/modo-de-trabajo.spec.ts`, nuevo): Casos 1–5 (arranque
+  Rápido; cambiar controles en Profesional no cambia el modo; volver a
+  H/E/S sigue Profesional; P custom → R → P restaura; Reiniciar → Rápido
+  limpio) + no-overflow del selector a 360/390/1280.
+
+### Verificación
+
+Vitest **1450 / 1450**; `tsc -b` / `npm run e2e:typecheck` / `npm run
+build` verdes; ESLint **11 / 0 / 0** (sin regresión). Playwright contra
+`vite` dev (`IUAS_BASE_URL=http://localhost:5173/` -- `IUAS_PREVIEW=1`
+sigue roto, nota infra de D-δ.86): `modo-de-trabajo` (11 pasan / 1 skip),
+`smoke`, `hallazgos` (FIX-LEAK-01/02 + FIX-CRASH-01), `crash-observado`,
+`catalogo` (CAT-CONN), `responsive` (FIX-RESP-01/02), `reiniciar-calculo`,
+`cotas-heredadas` -- 0 fallos. Fuzz local: FIX-CRASH canónica
+`34411681277-1:0` **30/30**; seed cloud FIX-LEAK `34398035608-1` runs
+0–12 **13/13**; baseline `424242` **3×25** sin regresión lateral.
+
+### Estado
+
+**D-δ.89 -- CERRADA.** El modo de trabajo es ahora estado explícito del
+Proyecto; "Estimadas" deja de implicar "Rápido" (habilita `HYD-EST-01`
+sin mezclar detalle hidráulico con experiencia). Ninguna regla
+hidráulica, fórmula, K, Vmax, Pmin, CRIT-A29/A35/A37/A39, Tabla IUAS ni
+CAT-CONN modificada. Tags sin mover (`v0.4.0-beta.5` en `1476c19`); sin
+`beta.6`. Snapshot `resguardo-documentacion/` intacto. Siguiente paso:
+QA Fuzz cloud 20×30 con seed vacía contra producción como checkpoint
+posterior a MODE-UX-01. **HYD-EST-01 / M2-TOPO-01 / VIS-TOPO-01 /
+PERSIST-01 / REPORT-01 / UX-TEST-01 / DEFENSE-01 -- NO iniciar.**
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son

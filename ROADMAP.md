@@ -1077,7 +1077,56 @@ salvo bug inequívoco o decisión roja explícita.
     baseline `424242` sin regresión.
   - La corrida cloud que generó `34411681277-1` **no** es checkpoint
     verde (2 failed / 38 did not run). El checkpoint previo a MODE-UX-01
-    es la próxima QA Fuzz cloud 20×30 con seed vacía contra producción.
+    fue la QA Fuzz cloud 20×30 con seed vacía contra producción — **TODO
+    VERDE** (reportado por el usuario).
+
+- **D-δ.89 — MODE-UX-01: desacoplar el modo de trabajo de la configuración
+  hidráulica.** Incremento de PRODUCTO/UX. El modo Rápido/Profesional pasa
+  a ser un campo EXPLÍCITO del Proyecto (`modoTrabajo`), no una inferencia
+  de la combinación `(granularidad, metodoPerdidaLocalizada)` como en
+  D-δ.51. **Sin cambios de fórmula / hidráulica / normativa / goldens**;
+  `v0.4.0-beta.5` sigue vigente (`1476c19`, sin mover).
+  - **Problema raíz:** `resolverModoDeTrabajo(config)` sólo devolvía
+    `'profesional'` para el par exacto `(profesional, detallado)`;
+    `(simplificada, estimado)` → `'rapido'`; el resto → `'avanzado'`. Un
+    proyectista en Profesional que elegía Hazen + Estimadas + Simplificada
+    era reclasificado a Rápido, y `aplicarModoProfesional` **forzaba**
+    `(profesional, detallado)` — Profesional era sinónimo de "máximo
+    detalle".
+  - **Arquitectura:** `Proyecto.modoTrabajo?: 'rapido' | 'profesional'`
+    (optativo/backward-compatible, SCHEMA_VERSION_ACTUAL sin cambio, sin
+    migración — mismo patrón que `configuracionMedidores?`). Fuente de
+    verdad única del modo. `resolverModoDeTrabajo(proyecto)` lee el campo;
+    si falta (sólo proyectos legacy, no hay import UI todavía) infiere una
+    vez con `inferirModoDeTrabajoLegacy` (histórico colapsado a 2 estados;
+    el viejo `'avanzado'` → `'profesional'`). Ambigüedad legacy aceptada
+    (§8). `configuracionHidraulica` sigue siendo la única fuente de la
+    config ACTIVA de cálculo.
+  - **Memoria Profesional:** `Proyecto.ultimaConfiguracionProfesional?:
+    ConfiguracionHidraulica` — SNAPSHOT que `aplicarModoRapido` escribe al
+    salir de Profesional y `aplicarModoProfesional` restaura al volver
+    (§9 Caso E). NUNCA es fuente de cálculo. "Reiniciar cálculo" lo deja
+    ausente.
+  - **Presets:** Rápido y el ARRANQUE de Profesional comparten los tres
+    ejes iniciales (Hazen-Williams + Estimadas + Simplificada,
+    `PRESET_EJES_INICIALES`). Que coincidan en v1 no los hace lo mismo:
+    una misma combinación puede vivir en ambos modos. Cambiar un control
+    hidráulico NO altera `modoTrabajo`.
+  - **UI:** el selector global (`SelectorDeModoDeTrabajo`, cabecera)
+    pierde el badge "Avanzado" (era el síntoma visible del acople); su
+    estado activo sale de `modoTrabajo`. En Profesional los controles
+    avanzados de M2 quedan disponibles aunque la config sea el preset
+    simple; en Rápido "Configuración avanzada" sigue colapsada pero
+    alcanzable (experiencia reducida existente, §16). M3/M4 leen el modo
+    explícito para su detalle técnico.
+  - **Verificación:** Vitest **1441 → 1450**; `tsc` / `e2e:typecheck` /
+    `build` verdes; ESLint 11 / 0 / 0. E2E: nuevo
+    `modo-de-trabajo.spec.ts` (Casos 1–5 + responsive) +
+    `smoke`/`hallazgos` (LEAK-01/02 + CRASH-01)/`crash-observado`/
+    `catalogo`/`responsive`/`reiniciar-calculo`/`cotas-heredadas` sin
+    fallos. Fuzz local: canónica FIX-CRASH `34411681277-1:0` 30/30, seed
+    cloud FIX-LEAK `34398035608-1` runs 0–12 13/13, baseline `424242`
+    3×25 sin regresión.
 
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
