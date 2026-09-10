@@ -10,6 +10,10 @@ import type { ArtefactoNormativo } from '../../../normativa/eras-2023/catalogo-a
 import type { RedHidraulica } from '../../../modelo/redHidraulica'
 import type { ArtefactoResuelto } from '../topologia/resolverArtefactosReferenciados'
 import { resolverQuEfectivoParaTramo } from '../caudal/resolverQuEfectivoParaTramo'
+import {
+  claveDeReferenciaDeArtefacto,
+  type CondicionesHidraulicasAguasAbajo,
+} from '../caudal/resolverCondicionesHidraulicasAguasAbajo'
 import type { CondicionHidraulicaDeCaudal } from '../caudal/resolverQuEfectivo'
 
 export interface AporteHidraulicoDeTramo {
@@ -24,6 +28,9 @@ export function resolverAportesHidraulicosDeTramo(
   redHidraulica: RedHidraulica,
   tramoId: string,
   catalogoArtefactos: readonly ArtefactoNormativo[],
+  // PERF-SCALE-01A: ver comentario homólogo en
+  // filtrarArtefactosHidraulicamenteActivos.
+  condiciones?: CondicionesHidraulicasAguasAbajo,
 ): readonly AporteHidraulicoDeTramo[] {
   return artefactos.map((artefactoResuelto) => {
     const artefactoId = artefactoResuelto.artefacto.artefactoId
@@ -43,6 +50,7 @@ export function resolverAportesHidraulicosDeTramo(
       tramoId,
       artefactoResuelto.referencia,
       artefactoNormativo,
+      condiciones?.get(claveDeReferenciaDeArtefacto(artefactoResuelto.referencia)),
     )
 
     return {

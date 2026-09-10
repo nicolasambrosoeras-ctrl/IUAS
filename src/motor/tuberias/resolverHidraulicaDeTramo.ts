@@ -12,6 +12,8 @@ import { filtrarArtefactosComputables } from './computabilidad/filtrarArtefactos
 import { filtrarArtefactosHidraulicamenteActivos } from './participacion/filtrarArtefactosHidraulicamenteActivos'
 import { aplicarParticipacionCritA8 } from './participacion/aplicarParticipacionCritA8'
 import { resolverAportesHidraulicosDeTramo } from './aporte/resolverAportesHidraulicosDeTramo'
+import { crearIndiceTopologico } from './topologia/indiceTopologico'
+import { resolverCondicionesHidraulicasDeCaudalAguasAbajo } from './caudal/resolverCondicionesHidraulicasAguasAbajo'
 import { resolverSimultaneidadHidraulicaDeTramo } from './simultaneidad/resolverSimultaneidadHidraulicaDeTramo'
 import type { ResultadoSimultaneidadHidraulicaDeTramo } from './simultaneidad/resolverSimultaneidadHidraulicaDeTramo'
 import { calcularPredimensionamientoDeTramo } from './predimensionamiento/calcularPredimensionamientoDeTramo'
@@ -47,7 +49,24 @@ export function resolverHidraulicaDeTramo(
     throw new Error('resolverHidraulicaDeTramo requiere un proyecto con redHidraulica definida')
   }
 
-  const activos = filtrarArtefactosHidraulicamenteActivos(computables, redHidraulica, tramoId, catalogoArtefactos)
+  // PERF-SCALE-01A: la condición hidráulica topológica de CADA artefacto
+  // aguas abajo de `tramoId` se resuelve UNA vez, en un solo traversal DFS
+  // sobre un índice construido acá -- no una vez por artefacto (con
+  // reconstrucción de índice + DFS propio) dentro de
+  // filtrarArtefactosHidraulicamenteActivos y de
+  // resolverAportesHidraulicosDeTramo, que era el hotspot medido. El Map se
+  // comparte entre ambas etapas; el resultado es idéntico al del
+  // clasificador puntual por construcción.
+  const indiceTopologico = crearIndiceTopologico(redHidraulica)
+  const condicionesAguasAbajo = resolverCondicionesHidraulicasDeCaudalAguasAbajo(indiceTopologico, tramoId)
+
+  const activos = filtrarArtefactosHidraulicamenteActivos(
+    computables,
+    redHidraulica,
+    tramoId,
+    catalogoArtefactos,
+    condicionesAguasAbajo,
+  )
 
   // CRIT-A13 revisado: CRIT-A8 opera sobre el subconjunto hidraulicamente
   // activo de la condicion evaluada, no sobre el conjunto computable crudo.
@@ -57,7 +76,13 @@ export function resolverHidraulicaDeTramo(
     return { tipo: 'sinDemanda', qc_lps: 0 }
   }
 
-  const aportes = resolverAportesHidraulicosDeTramo(participantes, redHidraulica, tramoId, catalogoArtefactos)
+  const aportes = resolverAportesHidraulicosDeTramo(
+    participantes,
+    redHidraulica,
+    tramoId,
+    catalogoArtefactos,
+    condicionesAguasAbajo,
+  )
   const simultaneidad = resolverSimultaneidadHidraulicaDeTramo(proyecto.parametros.tipoDeProyecto, aportes)
   const predimensionamiento = calcularPredimensionamientoDeTramo(simultaneidad.qc_lps)
 

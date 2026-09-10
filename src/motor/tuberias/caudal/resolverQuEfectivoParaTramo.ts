@@ -21,8 +21,17 @@ export function resolverQuEfectivoParaTramo(
   tramoId: string,
   referencia: ReferenciaDeArtefacto,
   artefactoNormativo: ArtefactoNormativo,
+  // PERF-SCALE-01A: condición hidráulica del par (Tramo, referencia) ya
+  // resuelta por el traversal en lote del llamador
+  // (resolverCondicionesHidraulicasDeCaudalAguasAbajo). `undefined` = el
+  // llamador no la precalculó -> se resuelve acá con el clasificador
+  // puntual, exactamente como antes de este slice. El valor precalculado y
+  // el puntual son el mismo por construcción (ver
+  // resolverCondicionesHidraulicasAguasAbajo).
+  condicionPrecalculada?: CondicionHidraulicaDeCaudal,
 ): QuEfectivoParaTramo {
-  const condicion = determinarCondicionHidraulicaDeCaudal(redHidraulica, tramoId, referencia)
+  const condicion =
+    condicionPrecalculada ?? determinarCondicionHidraulicaDeCaudal(redHidraulica, tramoId, referencia)
 
   // CRIT-A15 y su ampliacion para catalogo sin desagregar: la conectividad
   // fisica se resuelve ANTES de seleccionar el qu desagregado. Consultar

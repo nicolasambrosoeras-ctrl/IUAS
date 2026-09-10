@@ -11,12 +11,21 @@ import type { ArtefactoNormativo } from '../../../normativa/eras-2023/catalogo-a
 import type { RedHidraulica } from '../../../modelo/redHidraulica'
 import type { ArtefactoResuelto } from '../topologia/resolverArtefactosReferenciados'
 import { resolverQuEfectivoParaTramo } from '../caudal/resolverQuEfectivoParaTramo'
+import {
+  claveDeReferenciaDeArtefacto,
+  type CondicionesHidraulicasAguasAbajo,
+} from '../caudal/resolverCondicionesHidraulicasAguasAbajo'
 
 export function filtrarArtefactosHidraulicamenteActivos(
   artefactos: readonly ArtefactoResuelto[],
   redHidraulica: RedHidraulica,
   tramoId: string,
   catalogoArtefactos: readonly ArtefactoNormativo[],
+  // PERF-SCALE-01A: condiciones hidráulicas de todos los artefactos aguas
+  // abajo de `tramoId`, ya resueltas por el traversal en lote del llamador
+  // (resolverHidraulicaDeTramo). `undefined` = se resuelve por artefacto
+  // con el clasificador puntual, como antes de este slice.
+  condiciones?: CondicionesHidraulicasAguasAbajo,
 ): readonly ArtefactoResuelto[] {
   return artefactos.filter((artefactoResuelto) => {
     const artefactoId = artefactoResuelto.artefacto.artefactoId
@@ -36,6 +45,7 @@ export function filtrarArtefactosHidraulicamenteActivos(
       tramoId,
       artefactoResuelto.referencia,
       artefactoNormativo,
+      condiciones?.get(claveDeReferenciaDeArtefacto(artefactoResuelto.referencia)),
     )
 
     return qu_lps > 0
