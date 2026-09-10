@@ -255,8 +255,11 @@ la alimentación. Ver `CRITERIOS.md` → CAT-CONN-01.
 - navegación de instalación (montantes, agrupación por Local/UF) —
   encarada por la serie **M2-TOPO-01** (A: identificación estructural +
   invariantes de arborescencia, D-δ.91 CERRADO; B: enumeración/edición de
-  distribución secundaria; C: creación de montantes y asignación de
-  Locales; D: UI/edición fina; E: integración presión/tees).
+  distribución secundaria + fix retrofit DN D-δ.49 + D-δ.50 resuelto como
+  "diferir deduplicación vertical", D-δ.92 CERRADO; C: creación de
+  montantes, asignación de Locales e identidad persistida — desbloquea la
+  deduplicación vertical de D-δ.50; D: UI/edición fina de tees; E:
+  integración presión/tees).
 
 #### Documentación / exportación
 
@@ -1168,6 +1171,46 @@ salvo bug inequívoco o decisión roja explícita.
     baseline `424242` 1×20 y canónica FIX-CRASH `34411681277-1:0` 30/30.
   - **Siguiente:** M2-TOPO-B — enumeración y edición de tramos de
     distribución secundaria.
+
+- **D-δ.92 — M2-TOPO-B: enumeración y edición de distribución secundaria +
+  integración hidráulica de montantes existentes.** Segundo slice de
+  **M2-TOPO-01**. Hace **visible y editable** en M2 la topología que el
+  motor ya sabe calcular (Golden 4). Sin entidad `Montante`, sin
+  identidad/nombre/rol persistido, sin constructor `+ Agregar montante`
+  (M2-TOPO-C), sin cambio de fórmula. `v0.4.0-beta.5` sigue vigente.
+  - **Enumeración:** `identificarFilasDistribucionSecundaria` (UI) —
+    proyección derivada sobre la primitiva del motor, agrega `red` +
+    denominación de presentación `"Distribución secundaria N"` (numerada
+    por red, **no persistida**). Cada fila es UN `Tramo` real: un montante
+    segmentado da varias filas. Orden = el de `redHidraulica.tramos`
+    (determinista).
+  - **UI:** sección "Distribución secundaria" en `ResultadoHidraulicoDeTramo`,
+    entre Distribución general y las UF, reutilizando los mismos
+    resolvers/componentes (Qc/DN auto/DN manual por segmento, V, hf, tee y
+    accesorios en Detalladas, estado). Con 0 tramos secundarios **no se
+    renderiza nada** — el proyecto de ejemplo se ve y calcula igual,
+    byte-equivalente.
+  - **Fix D-δ.49:** el retrofit de bifurcación ahora migra también
+    `dnComercialAdoptado` (junto con `longitud_m`/`accesorios`) al Tramo
+    troncal representativo; el ramal degradado no retiene ninguno. Gap
+    registrado en D-δ.91.
+  - **D-δ.50 (decisión roja — Alternativa A, confirmada por el usuario):**
+    NO se toca `resolverIncrementoVerticalPorNivel`. En `profesional` no
+    hay doble conteo (las longitudes explícitas se acumulan directamente e
+    incremento = 0). En `simplificada` D-δ.50 se conserva sin cambios —
+    **limitación temporal conocida**: con montante explícito puede
+    sobreestimar hf distribuida (doble conteo del ascenso). La
+    deduplicación vertical se difiere a **M2-TOPO-C**, junto con la
+    identidad persistida y la decisión de cómo representar el aporte
+    vertical (no se pre-elige `orientacion` ni `aporteVertical_m`).
+    Backward-compat total: proyectos actuales = `simplificada` con 0
+    tramos compartidos.
+  - **Verificación:** Vitest **1473 → 1498** (+25, +2 archivos); `tsc` /
+    `e2e:typecheck` / `build` verdes; ESLint 11 / 0 / 0 (sin errores
+    nuevos).
+  - **Siguiente:** M2-TOPO-C — constructor y asignación de Locales, con la
+    decisión previa de identidad persistida del montante (que desbloquea la
+    deduplicación vertical de D-δ.50).
 
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto

@@ -10210,6 +10210,184 @@ PERSIST-01 / REPORT-01 / UX-TEST-01 / DEFENSE-01 -- NO iniciar.**
 Siguiente: **M2-TOPO-B -- enumeración y edición de tramos de distribución
 secundaria**.
 
+## D-δ.92 -- M2-TOPO-B: enumeración y edición de distribución secundaria + integración hidráulica de montantes existentes
+
+Segundo slice de implementación de **M2-TOPO-01**. M2-TOPO-A (D-δ.91) cerró
+la clasificación estructural (`identificarTramosDeDistribucionCompartida`)
+y las invariantes de arborescencia. Este slice **hace visible y editable**
+en Módulo 2 la topología que el motor ya sabe calcular (Golden 4,
+"montante segmentada"), corrige el gap de retrofit de DN de D-δ.49, y
+resuelve el conflicto D-δ.50 registrado en D-δ.91. **No** introduce
+entidad `Montante`, identidad/nombre/rol persistido, constructor
+`+ Agregar montante` (todo eso es M2-TOPO-C), ni cambia ninguna fórmula.
+
+### Parte A -- enumeración: sección "Distribución secundaria" en M2
+
+`identificarFilasDistribucionSecundaria(proyecto)` (nuevo, en
+`interfaz/paginas/identificarFilasDeModulo2.ts`) es una **proyección
+derivada**: envuelve `identificarTramosDeDistribucionCompartida` (motor,
+M2-TOPO-A) agregando `red` y una **denominación de presentación**
+(`"Distribución secundaria N"`, numerada **por red**). No reimplementa la
+regla de clasificación; consume la misma señal estructural que consumirá
+VIS-TOPO. La denominación **no se persiste**, no es identidad ni rol de
+montante, nunca es un UUID ni el id técnico del Tramo -- se recalcula en
+cada render, mismo patrón que `derivarOrdinalesDeLocal` /
+`etiquetasDeLocales`.
+
+- **Cada fila = UN `Tramo` físico real.** Un montante segmentado aparece
+  como **varias filas** (una por segmento que todavía alcanza >1 Local);
+  el último segmento, que ya sólo alimenta un Local, es feed de ese Local
+  y **no** aparece acá (lo reconoce
+  `identificarTramoRepresentativoDeLocal.ts`). Cada segmento puede tener su
+  propio Qc / DN / V / longitud / hf.
+- **Orden**: el de `redHidraulica.tramos` (determinista y estable; el
+  mismo que ya devuelve la primitiva del motor y que usa
+  `identificarFilasDistribucionGeneral`). No se diseñó un orden de
+  presentación nuevo. La numeración `N` es **por red**, en ese mismo
+  orden -- la columna Red de la tabla desambigua AF/AC, igual que dos
+  filas "Baño 1" (una AF, otra AC).
+- **UI** (`ResultadoHidraulicoDeTramo.tsx`, componente `DistribucionSecundaria`):
+  sección propia entre "Distribución general" y las Unidades Funcionales,
+  dentro de la arquitectura one-page actual (sin router, sin pantalla
+  aparte, sin árbol gráfico). Reutiliza **exactamente** los mismos
+  componentes/resolvers que "Distribución general":
+  `resolverFilaDeDimensionamiento` (view-model: Qc/DN/V/hf/estado),
+  `resolverControlDeDnDeTramo` (control ↓/DN/↑/Auto),
+  `AccesoriosDeTramoEditor` (en Detalladas), `TablaDimensionamientoDeModulo2`.
+  No hay cálculo en JSX. Longitud editable siempre (es una longitud
+  **física declarada**, nunca automática por nivel). Sin contexto
+  `(UF, Local)` -- sirve a varios Locales, así que no hay hf localizada
+  estimada ni "N puntos", igual que Distribución general.
+- **Si hay 0 tramos secundarios, no se renderiza nada.** El proyecto de
+  ejemplo (topología plana) se ve y calcula **exactamente igual** que
+  antes -- ninguna sección nueva, resultados byte-equivalentes.
+
+### Parte B -- fix D-δ.49: `dnComercialAdoptado` viaja en el retrofit
+
+Gap registrado en D-δ.91: cuando un Local con 1 terminal pasa a 2 y el
+retrofit de D-δ.49 inserta una bifurcación dedicada, `longitud_m` y
+`accesorios` migraban al Tramo troncal nuevo (representativo) pero
+**`dnComercialAdoptado` (D-δ.52) no**, quedando anclado al segmento
+degradado a ramal, donde ya no describe el diámetro que el usuario
+dimensionó. Corregido en `sincronizarConectividadFisicaDeArtefacto.ts`
+(`conectarUnaRed`): las **tres** propiedades físicas representativas
+viajan juntas al troncal nuevo. El ramal degradado se reconstruye con
+sólo `id`/`nodoOrigenId`/`nodoDestinoId`/`red`, así que **no hay
+duplicación**. Sin override previo, el retrofit **no inventa** uno. Tests
+de regresión dedicados en `sincronizarConectividadFisicaDeArtefacto.test.ts`.
+
+### Parte C -- D-δ.50: resolución adoptada (Alternativa A)
+
+`resolverIncrementoVerticalPorNivel` (D-δ.50) suma, **sólo en
+`granularidadHidraulica = 'simplificada'`**, una longitud vertical típica
+implícita (`3 m · nivel`) a la longitud efectiva del Tramo de Alimentación
+general del camino de cada UF. Con un montante explícito relevado (tramos
+de distribución compartida con `longitud_m` real), esos metros ya están
+representados físicamente y, en `simplificada`,
+`seleccionarTramosDeAcumulacion` **ya los incluye** en `tramosRelevables`
+(están aguas arriba del Tramo representativo del Local) -- de modo que un
+camino que atraviesa un montante explícito contaría el ascenso dos veces.
+
+**No hay forma inequívoca, con los datos que el modelo tiene hoy, de
+determinar qué parte de ese ascenso implícito ya está representada
+explícitamente.** "Distribución compartida" es deliberadamente neutral
+(M2-TOPO-A): puede ser un montante vertical, un colector horizontal o
+cualquier tronco que sirva a varios Locales. `Tramo` no tiene orientación
+ni marca de rol; `Nodo.cota_m` es opcional y las cotas de los nodos
+intermedios de un montante no las solicita ninguna UI actual. Suprimir el
+incremento cada vez que hay un tramo compartido con `longitud_m` en el
+camino sería incorrecto cuando ese tramo es horizontal. Distinguir el
+componente vertical exigiría **semántica persistida de montante**, que es
+alcance de **M2-TOPO-C**.
+
+**Decisión roja planteada al usuario y confirmada -- Alternativa A:**
+cerrar M2-TOPO-B **sin tocar D-δ.50**. La deduplicación del ascenso
+vertical implícito (y por tanto la corrección plena en `simplificada`)
+queda **diferida a M2-TOPO-C**, junto con la decisión de identidad y de
+cómo representar el aporte vertical (orientación del tramo, aporte vertical
+explícito, cotas de nodos, rol de montante o alguna combinación -- se llega
+a C con esa decisión **abierta**: para D-δ.50 lo que hará falta saber es
+*cuánto ascenso vertical ya está representado*, no si un caño "es
+vertical"; un tramo diagonal de 12 m con 8 m de componente vertical rompe
+la abstracción "orientación").
+
+Precisiones de redacción (pedidas por el usuario, para no institucionalizar
+el doble conteo como comportamiento deseado):
+
+- **Profesional**: no se afirma "exactitud hidráulica" en absoluto. Lo que
+  se afirma es que **no existe el doble conteo introducido por D-δ.50**,
+  porque las longitudes explícitas del camino se acumulan directamente
+  (`resolverIncrementoVerticalPorNivel` devuelve incremento 0 en
+  `profesional`). El resto del cálculo conserva las aproximaciones propias
+  de su método (Estimadas, etc.).
+- **Simplificada**: con distribución secundaria explícita, la granularidad
+  Simplificada conserva **provisionalmente** D-δ.50 sin modificaciones. Por
+  ello, cuando los tramos explícitos representan total o parcialmente el
+  ascenso vertical, puede existir **sobreestimación de hf distribuida**.
+  Es una **limitación temporal conocida, no una decisión hidráulica
+  aceptada**. La deduplicación queda diferida a M2-TOPO-C, cuando exista
+  semántica suficiente para identificar el aporte vertical explícito sin
+  heurísticas.
+
+**Backward compatibility**: el proyecto de ejemplo y todos los proyectos
+actuales son `simplificada` con **0 tramos compartidos** (M2-TOPO-A), así
+que el comportamiento de D-δ.50 es **byte-idéntico** para ellos bajo
+cualquier decisión. El conflicto sólo es alcanzable con `simplificada` +
+una topología compartida construida manualmente.
+
+### Detalladas / Estimadas / M3 / M4
+
+- **Detalladas**: los accesorios explícitos de un tramo secundario y la
+  tee nodal se acumulan normalmente si el tramo está en el camino (ya
+  funcionaba; verificado por test). CRIT-A30/A31 sin cambios. La edición
+  fina de tees de montante queda para M2-TOPO-D.
+- **Estimadas**: el modelo agregado por `(Local, Red)` permanece intacto
+  (`n−1` tees @ 3,00; 1 codo90 @ 1,35; 1 llave @ 9,18; Vref actual). La
+  **hf distribuida** del montante sí entra en el balance; la **hf
+  localizada path-aware** del montante **todavía no** -- `HYD-EST-01`
+  sigue **BLOQUEADO**. No se aplican 1,62/1,00 por derivación, +0,75 por
+  transición ni 0,17 por aislamiento.
+- **M3 / M4 / CAT-CONN / MODE-UX / GEOM-UX**: sin cambios. La profundidad
+  topológica no cambia scopes ni conectividad. La enumeración depende de
+  **topología**, nunca de `modoTrabajo`; la acumulación depende de
+  `granularidadHidraulica`.
+
+### Estado
+
+**D-δ.92 / M2-TOPO-B -- CERRADO.**
+
+- **Distribución secundaria ya visible y editable** en M2, con las mismas
+  capacidades hidráulicas que cualquier tramo físico (longitud, DN
+  automático/manual por segmento, Qc, V, hf distribuida, accesorios en
+  Detalladas, estado/validaciones).
+- Sigue siendo **clasificación derivada** -- sin identidad, nombre ni rol
+  persistido.
+- Motor hidráulico **sin nueva fórmula**: Qc de cada segmento se recalcula
+  por simultaneidad sobre su propio conjunto aguas abajo (regresión
+  Golden 4), nunca por suma de Qc parciales. DN por segmento.
+- **D-δ.49** corregido (`dnComercialAdoptado` en el retrofit).
+- **D-δ.50** resuelto como **Alternativa A** (diferir la deduplicación
+  vertical a M2-TOPO-C); sin cambios de código en `resolverIncrementoVerticalPorNivel`.
+- **HYD-EST-01 sigue bloqueado**; el **constructor** de montantes queda
+  para **M2-TOPO-C**; la edición fina de tees para **M2-TOPO-D**;
+  VIS-TOPO-01 fuera de alcance.
+
+Cambios de código en `src/`: `interfaz/paginas/identificarFilasDeModulo2.ts`
+(+`identificarFilasDistribucionSecundaria`), `interfaz/paginas/ResultadoHidraulicoDeTramo.tsx`
+(+componente `DistribucionSecundaria`), `interfaz/paginas/sincronizarConectividadFisicaDeArtefacto.ts`
+(fix D-δ.49). Tests: `identificarFilasDeModulo2.test.ts` (+7),
+`sincronizarConectividadFisicaDeArtefacto.test.ts` (+2),
+`distribucionSecundaria.integracion.test.ts` (nuevo, motor+presión),
+`DistribucionSecundaria.componente.test.ts` (nuevo, render SSR). Baseline:
+Vitest **1498 / 1498** (+25, +2 archivos), `tsc -b` / `npm run e2e:typecheck`
+/ `npm run build` verdes, ESLint **11 / 0 / 0** (sin errores nuevos).
+`HALLAZGOS_CONOCIDOS` sigue vacío. Tags sin mover (`v0.4.0-beta.5` en
+`1476c19`); sin `beta.6`. Snapshot `resguardo-documentacion/` intacto.
+**HYD-EST-01 / VIS-TOPO-01 / PERSIST-01 / REPORT-01 / UX-TEST-01 /
+DEFENSE-01 -- NO iniciar.** Siguiente: **M2-TOPO-C -- constructor y
+asignación de Locales, resolviendo antes la decisión de identidad
+persistida del montante (y con ella la deduplicación vertical de D-δ.50)**.
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son
