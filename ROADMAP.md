@@ -252,7 +252,11 @@ la alimentación. Ver `CRITERIOS.md` → CAT-CONN-01.
 - presentación definitiva de resultados (la tabla actual es
   explícitamente transitoria);
 - diagnósticos, errores y advertencias con mejor trazabilidad;
-- navegación de instalación (montantes, agrupación por Local/UF).
+- navegación de instalación (montantes, agrupación por Local/UF) —
+  encarada por la serie **M2-TOPO-01** (A: identificación estructural +
+  invariantes de arborescencia, D-δ.91 CERRADO; B: enumeración/edición de
+  distribución secundaria; C: creación de montantes y asignación de
+  Locales; D: UI/edición fina; E: integración presión/tees).
 
 #### Documentación / exportación
 
@@ -1127,6 +1131,43 @@ salvo bug inequívoco o decisión roja explícita.
     fallos. Fuzz local: canónica FIX-CRASH `34411681277-1:0` 30/30, seed
     cloud FIX-LEAK `34398035608-1` runs 0–12 13/13, baseline `424242`
     3×25 sin regresión.
+
+- **D-δ.91 — M2-TOPO-A: identificación estructural de distribución
+  compartida + invariantes de arborescencia.** Primer slice de
+  **M2-TOPO-01** (montantes / ramales secundarios / tramos intermedios).
+  **Aditivo y backward-compatible**: sin cambios de hidráulica, de la
+  enumeración de filas de la UI de M2, de la reconciliación M1→M2 ni del
+  modelo persistido. `v0.4.0-beta.5` sigue vigente (`1476c19`, sin mover).
+  - **Parte A:** nueva primitiva pura
+    `motor/tuberias/topologia/identificarTramosDeDistribucionCompartida.ts`
+    (`esTramoDeDistribucionCompartida` + `identificarTramosDeDistribucionCompartida`).
+    Un Tramo es "distribución compartida" cuando NO es Alimentación
+    general (raíz) ni Alimentación ACS y su conjunto aguas abajo alcanza
+    **más de un Local** (`(unidadFuncionalId, localId)` deduplicado).
+    Nomenclatura neutral a propósito — "distribución compartida" ≠
+    "montante"; identidad/rol/denominación persistida se difieren a
+    M2-TOPO-C. El proyecto de ejemplo clasifica 0 tramos compartidos. La
+    función todavía NO participa de ningún cálculo ni de la UI (eso es
+    M2-TOPO-B).
+  - **Parte B:** `validarRedHidraulica` gana dos códigos `error` de
+    alcance `'tuberias'` — `redHidraulicaNodoMultiplesTramosEntrantes`
+    (Nodo con ≥2 tramos entrantes; el fan-out 1→N NO es problema) y
+    `redHidraulicaCicloDirigido` (ciclo dirigido; DFS iterativo, sin loop
+    infinito; un DAG con reconvergencia NO se marca). Ambas ya eran
+    precondición de `obtenerCaminoHaciaOrigen` (CRIT-A27 / D-δ.37): el
+    estado de M2 para una red así ya era `'error'`, sólo cambia el
+    diagnóstico y el momento. El *tipo* `RedHidraulica` sigue general
+    (recirculación ACS conceptualmente permitida, D-δ.15). "Nodo
+    huérfano" y "raíz ausente" NO se validan a propósito; una red vacía
+    es válida. CRIT-A27 actualizado.
+  - **Verificación:** Vitest **1450 → 1473** (+23, +1 archivo); `tsc` /
+    `e2e:typecheck` / `build` verdes; ESLint 11 / 0 / 0 (sin errores
+    nuevos). E2E: `smoke` / `hallazgos` (LEAK-01/02 + CRASH-01) /
+    `crash-observado` / `modo-de-trabajo` / `catalogo` / `responsive` /
+    `reiniciar-calculo` / `cotas-heredadas` sin fallos. Fuzz local:
+    baseline `424242` 1×20 y canónica FIX-CRASH `34411681277-1:0` 30/30.
+  - **Siguiente:** M2-TOPO-B — enumeración y edición de tramos de
+    distribución secundaria.
 
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto

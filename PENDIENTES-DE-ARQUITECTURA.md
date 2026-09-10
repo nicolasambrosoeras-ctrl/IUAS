@@ -10069,6 +10069,147 @@ D-δ.40 y D-δ.45 firmes y sin recalibrar. Tags sin mover
 VIS-TOPO-01 / PERSIST-01 / REPORT-01 / UX-TEST-01 / DEFENSE-01 -- NO
 iniciar.**
 
+## D-δ.91 -- M2-TOPO-A: identificación estructural de distribución compartida + invariantes de arborescencia en `validarRedHidraulica`
+
+Primer slice de implementación de **M2-TOPO-01** (montantes, ramales
+secundarios, tramos intermedios). Incremento **aditivo y
+backward-compatible**: no toca hidráulica, ni la enumeración de filas de
+la UI de Módulo 2, ni la reconciliación M1→M2, ni el modelo persistido.
+La arqueología previa (M2-TOPO-01) ya había confirmado que el motor
+hidráulico soporta topología ramificada arbitraria dentro del alcance
+CRIT-A27 sin cambios (Golden 4 -- "montante segmentada"). Este slice sólo
+agrega (1) un clasificador de dominio y (2) dos validaciones estructurales
+que hacen falta antes de habilitar la construcción de montantes en la UI.
+
+### Parte A -- `identificarTramosDeDistribucionCompartida`
+
+Nuevo módulo `motor/tuberias/topologia/identificarTramosDeDistribucionCompartida.ts`
+(primitiva pura de dominio, sin dependencias de UI). Exporta:
+
+- `esTramoDeDistribucionCompartida(proyecto, tramoId): boolean`;
+- `identificarTramosDeDistribucionCompartida(proyecto): readonly Tramo[]`
+  -- todos los tramos compartidos de la red, en el orden de
+  `redHidraulica.tramos` (determinista y estable; este slice **no**
+  diseña todavía un orden de presentación).
+
+Un Tramo es de **distribución compartida** cuando cumple las tres
+condiciones:
+
+1. **no** es Alimentación general -- su `nodoOrigenId` sí aparece como
+   `nodoDestinoId` de otro Tramo (no es la raíz de toda la topología);
+2. **no** es Alimentación ACS -- su `nodoDestinoId` no referencia
+   `produccionACS`;
+3. su conjunto de artefactos aguas abajo (`obtenerArtefactosAguasAbajo`,
+   traversal ya cerrado) pertenece a **más de un Local**, con identidad
+   de Local `(unidadFuncionalId, localId)` deduplicada -- `localId` solo
+   no es único entre UF (UF1/Baño y UF2/Baño son Locales distintos).
+
+La señal estructural "Alimentación general / ACS" se re-deriva localmente
+(unas pocas líneas), mismo patrón que ya usa
+`identificarTramoRepresentativoDeLocal.ts` -- sin extraer todavía una
+infraestructura compartida cuyo contrato aún está en formación.
+
+**Nomenclatura deliberadamente neutral.** "Distribución compartida" **no**
+es sinónimo de "montante": puede ser un montante vertical, un colector,
+un ramal común horizontal o cualquier tronco que sirva a varios Locales.
+Un montante **segmentado** produce **varios** Tramos compartidos (uno por
+segmento que todavía alcanza >1 Local); el último segmento, que ya sólo
+alimenta un Local, deja de ser compartido y pasa a ser feed de ese Local.
+La identidad física ("esto es el Montante AF 1"), su denominación y
+cualquier **rol persistido** quedan diferidos a **M2-TOPO-C**.
+
+Esta función **todavía no participa de ningún cálculo** ni de la
+enumeración de filas de la UI (eso es M2-TOPO-B). El proyecto de ejemplo
+(topología plana: Alimentación general + Alimentación ACS + un feed por
+`(Local, red)`) clasifica **0 tramos** como distribución compartida --
+backward compatibility comprobada por test.
+
+### Parte B -- invariantes de arborescencia en `validarRedHidraulica`
+
+Dos códigos de validación nuevos, ambos `severidad: 'error'`,
+`alcance: 'tuberias'` (nunca bloquean Módulo 1):
+
+- **`redHidraulicaNodoMultiplesTramosEntrantes`** -- un Nodo con dos o más
+  tramos entrantes (convergencia 2→1, tramos paralelos, malla). Mira los
+  **entrantes**, nunca los salientes: un fan-out 1→N (manifold plano) NO
+  es un problema.
+- **`redHidraulicaCicloDirigido`** -- un ciclo dirigido siguiendo
+  `nodoOrigenId → nodoDestinoId`. DFS iterativo con marca de tres estados
+  (no visitado / en el descenso actual / cerrado): nunca lanza ni entra
+  en loop infinito ante cualquier topología; sólo recorre aristas entre
+  Nodos existentes; determinista. Un DAG con reconvergencia (diamante) NO
+  se marca como ciclo.
+
+Ambas invariantes ya eran precondición de `obtenerCaminoHaciaOrigen`
+(CRIT-A27 / D-δ.37), que devuelve `multiplesTramosEntrantes` / `ciclo`
+por terminal. La diferencia de este slice: `resolverEstadoModulo2` las
+detecta **antes**, en la etapa de integridad estructural, en vez de
+llegar por terminal a `topologiaNoResoluble`. **El estado de Módulo 2
+para una red así ya era `'error'`; sigue siéndolo** -- no cambia el
+comportamiento visible, sólo el diagnóstico y el momento. El modelo
+`RedHidraulica` (la capa `modelo/`) **no se toca**: sigue siendo un grafo
+dirigido genérico y la recirculación de ACS sigue conceptualmente
+permitida (D-δ.15) -- cuando se aborde, relajará estas validaciones con
+su propio modelo hidráulico.
+
+Copy humano en `mensajesDeValidacion.ts` (FIX-LEAK-01: nunca se muestra el
+identificador técnico). CRIT-A27 en `CRITERIOS.md` actualizado: la frase
+"`validarRedHidraulica` conserva su generalidad deliberada" se reencuadra
+-- el **tipo** sigue general, pero la validación estructural ahora **sí**
+rechaza multi-padre y ciclos como error de alcance `'tuberias'`.
+
+### Qué NO se valida todavía (gaps registrados)
+
+- **"Nodo huérfano"** (nodo aislado sin tramos): NO se valida. La
+  reconciliación incremental atraviesa estados de edición donde un nodo
+  topológico puede quedar transitoriamente sin conexión; `podarNodosSinSalida`
+  ya gestiona parte de eso. Definir una política requeriría decidir qué
+  estados transitorios son legítimos -- fuera de alcance de A.
+- **"Raíz ausente"**: NO se valida. Una red vacía (`{nodos:[], tramos:[]}`)
+  es **válida** -- representa un Módulo 2 recién iniciado. No se exige una
+  raíz universal para todo el `Proyecto` (CRIT-A27 admite subredes
+  independientes).
+- **"Terminal sin camino a raíz"**: cubierto **transitivamente** -- dentro
+  de una arborescencia sin ciclos y sin multi-padre, todo Nodo alcanza su
+  raíz; un terminal aislado es su propia raíz (caso degenerado ya
+  contemplado por `resolverPresionResidualDeCamino`). No necesita código
+  propio.
+- **Tee de 3+ salidas**: un fan-out 1→N con N≥3 sigue siendo válido para
+  caudal aunque no tenga modelo de tee detallada (`ConfiguracionDeTee`
+  sólo cubre 1→2). No se convierte en error estructural.
+
+### Pendientes que este slice NO aborda (para B / C)
+
+- **`dnComercialAdoptado` no migra en el retrofit D-δ.49** (sólo migran
+  `longitud_m`/`accesorios`). Confirmado como riesgo; su corrección es
+  para **M2-TOPO-B** o un mini-fix previo, no se mezcla acá.
+- **`resolverIncrementoVerticalPorNivel` (D-δ.50)** haría doble conteo del
+  caño vertical si un camino atraviesa un montante explícito con
+  `longitud_m` real en granularidad `simplificada`. Se aborda en
+  **M2-TOPO-B**, cuando esos tramos entren en enumeración/UI/presión de
+  extremo a extremo.
+- **Identidad / rol / denominación persistida de montante**: **M2-TOPO-C**.
+
+### Estado
+
+**D-δ.91 / M2-TOPO-A -- CERRADO.** Cambios de código en `src/`:
+`motor/tuberias/topologia/identificarTramosDeDistribucionCompartida.ts`
+(nuevo), `validacion/codigos/index.ts`, `validacion/redHidraulica/index.ts`,
+`interfaz/paginas/mensajesDeValidacion.ts`, `validacion/alcance.test.ts`,
+y dos suites de tests (nueva `identificarTramosDeDistribucionCompartida.test.ts`
++ ampliación de `validacion/redHidraulica/index.test.ts`). Docs:
+`CRITERIOS.md` (CRIT-A27), `ROADMAP.md`, este documento. Baseline:
+Vitest **1473 / 1473** (+23, +1 archivo), `tsc -b` / `npm run e2e:typecheck`
+/ `npm run build` verdes, ESLint **11 / 0 / 0** (sin errores nuevos).
+E2E: smoke / hallazgos (FIX-LEAK-01/02, FIX-CRASH-01) / crash-observado /
+modo-de-trabajo / CAT-CONN / responsive / reiniciar-calculo /
+cotas-heredadas verdes. Fuzz: `424242` 1×20 y `34411681277-1:0` 30 pasos
+OK. Tags sin mover (`v0.4.0-beta.5` en `1476c19`); sin `beta.6`. Snapshot
+`resguardo-documentacion/` intacto. **HYD-EST-01 / VIS-TOPO-01 /
+PERSIST-01 / REPORT-01 / UX-TEST-01 / DEFENSE-01 -- NO iniciar.**
+Siguiente: **M2-TOPO-B -- enumeración y edición de tramos de distribución
+secundaria**.
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son

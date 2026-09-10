@@ -1475,18 +1475,28 @@ caudal por tramo ya dependía implícitamente desde CRIT-A11.
 
 **Alcance — qué NO afirma este criterio:**
 
-- **No restringe el modelo `RedHidraulica` a un árbol.**
-  `RedHidraulica` y `validarRedHidraulica` conservan su generalidad
-  deliberada: una red estructuralmente válida (integridad referencial —
-  ids únicos, nodos existentes, `origen≠destino`, geometría CRIT-A20)
-  puede contener ciclos, convergencias o alimentaciones paralelas sin
-  ser rechazada por la validación estructural básica. La distinción es
-  explícita:
+- **No restringe el *tipo* `RedHidraulica` a un árbol.** La capa
+  `modelo/` conserva su generalidad deliberada: `RedHidraulica` sigue
+  siendo un grafo dirigido genérico y la recirculación de ACS (D-δ.15)
+  sigue conceptualmente permitida a nivel de modelo. Lo que **sí** exige
+  este criterio, desde **M2-TOPO-A (D-δ.91)**, es que `validarRedHidraulica`
+  rechace como **error de alcance `'tuberias'`** las dos violaciones de
+  arborescencia — un Nodo con más de un tramo entrante
+  (`redHidraulicaNodoMultiplesTramosEntrantes`) y un ciclo dirigido
+  (`redHidraulicaCicloDirigido`) —, además de la integridad referencial
+  ya vigente (ids únicos, nodos existentes, `origen≠destino`, geometría
+  CRIT-A20). Un fan-out 1→N (manifold plano) NO es un problema: la
+  invariante mira los entrantes, no los salientes. La distinción sigue
+  siendo:
 
   ```text
-  red válida como estructura   ≠   red resoluble por los motores
-                                    hidráulicos actuales de Módulo 2
+  tipo RedHidraulica válido como grafo   ≠   red aceptada por
+                                             validarRedHidraulica
+                                             (arborescencia, alcance M2)
   ```
+
+  Cuando se aborde la recirculación de ACS, relajará estas dos
+  validaciones con su propio modelo hidráulico.
 
 - **No prohíbe la recirculación de ACS.** Sigue diferida (D-δ.15) y el
   modelo base no debe prohibirla conceptualmente. Cuando se aborde,
@@ -1504,11 +1514,19 @@ caudal por tramo ya dependía implícitamente desde CRIT-A11.
   bombeo), que sigue como D-δ.36.
 
 **Estado:** Firme como criterio operativo / de alcance IUAS.
-Implementado como precondición de `obtenerCaminoHaciaOrigen`
+Implementado en dos capas complementarias: (1) precondición de
+`obtenerCaminoHaciaOrigen`
 (`motor/tuberias/topologia/obtenerCaminoHaciaOrigen.ts`), que representa
 explícitamente los estados de topología no resoluble
-(`multiplesTramosEntrantes`, `ciclo`) en vez de fabricar un camino o
-elegir un predecesor. Ver D-δ.37 en `PENDIENTES-DE-ARQUITECTURA.md`.
+(`multiplesTramosEntrantes`, `ciclo`) por terminal, en vez de fabricar un
+camino o elegir un predecesor; y (2) desde **M2-TOPO-A (D-δ.91)**,
+`validarRedHidraulica` rechaza multi-padre y ciclos como error estructural
+de alcance `'tuberias'` — `resolverEstadoModulo2` los diagnostica en la
+etapa de integridad estructural, antes de recorrer camino por terminal (el
+estado de M2 para una red así ya era y sigue siendo `'error'`). "Nodo
+huérfano" y "raíz ausente" siguen sin validarse a propósito (una red vacía
+es válida — M2 recién iniciado). Ver D-δ.37 y D-δ.91 en
+`PENDIENTES-DE-ARQUITECTURA.md`.
 
 ## CRIT-A28 — Subconjunto de pérdidas localizadas representable sobre `Tramo` (M2-C slice A)
 
