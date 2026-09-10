@@ -9952,6 +9952,123 @@ QA Fuzz cloud 20×30 con seed vacía contra producción como checkpoint
 posterior a MODE-UX-01. **HYD-EST-01 / M2-TOPO-01 / VIS-TOPO-01 /
 PERSIST-01 / REPORT-01 / UX-TEST-01 / DEFENSE-01 -- NO iniciar.**
 
+## D-δ.90 -- HYD-EST-01: modelo path-aware de pérdidas localizadas estimadas -- DIFERIDA a M2-TOPO-01 (sin cambios de código)
+
+Incremento **documental**. Se pidió implementar en `metodoPerdidaLocalizada
+= 'estimado'` un modelo derivado **por camino**: por cada bifurcación
+recorrida, `Ks` tee recta `1,00` vs. salida lateral `1,62`
+(`teePasoRecto` / `teeSalidaLateral`, Tabla N°7); `+0,75` por transición
+de DN recorrida (`reducciones`); `0,17` por rama de distribución/colector
+recorrida (`valvulaEsclusa`, como "válvula de aislamiento de distribución
+-- equivalente conservador IUAS"); `9,18` por `(Local, red)` (`llaveDePaso`).
+La arqueología del motor concluyó que el pedido **no es un agregado sobre
+el modo Estimadas actual sino un rediseño** que colisiona con criterios ya
+cerrados y exige topología que el modelo no tiene hoy. **Ningún archivo de
+código, test ni golden fue modificado.**
+
+### Estado actual del modo Estimadas (intacto, NO se recalibra)
+
+`resolverPerdidaLocalizadaEstimadaDeLocal` (`motor/tuberias/presion/`) es
+una **plantilla agregada por `(Local, red)`**, no una derivación por
+camino. Con `n = contarTerminalesFisicosDeLocal`:
+
+```text
+N_tees_estimadas       = max(0, n-1)   Ks = 3,00  (teeEntradaCentralSalidasLaterales, D-δ.40)
+N_singularidadTerminal = n>=1 ? 1 : 0  Ks = 1,35  (codo90, D-δ.45 -- decisión roja resuelta por el usuario)
+N_llaveDePaso          = n>=1 ? 1 : 0  Ks = 9,18  (llaveDePaso, D-δ.45 -- decisión roja resuelta por el usuario)
+V_ref = MAX velocidadReal entre los tramos que alimentan directamente
+        cada terminal físico del Local+red -- un único hf por (Local, red).
+```
+
+`resolverPresionResidualDeCamino` elige un modo u otro según
+`metodoPerdidaLocalizada` y **nunca los mezcla**; el modo estimado no
+recorre `camino.tramos` para pérdida localizada. `resolverClasificacionDeTee`
+(recta/lateral) y `acumularPerdidaLocalizadaDeCamino` (tees nodales +
+`Tramo.accesorios`) son **exclusivos del modo Detalladas** (CRIT-A31,
+D-δ.33).
+
+### Bloqueadores -- por qué HYD-EST-01 no puede aplicarse sobre la topología actual
+
+1. **Contradice D-δ.40.** `Ks_estimado_tee = 3,00` se cerró como *"el
+   MAYOR de las 3 variantes, adopción deliberadamente conservadora ante
+   geometría no relevada, para no subestimar"*, contado como `n-1` **sin
+   clasificar recta/lateral**. Pasar a `1,62`/`1,00` clasificado por
+   camino invierte esa decisión y vuelve la estimación menos conservadora.
+2. **Elimina la decisión roja 1 de D-δ.45.** El usuario eligió `codo90`
+   (Ks `1,35`), *"la opción más conservadora"*, 1 por `(Local, red)`. La
+   lista de HYD-EST-01 no incluye "singularidad terminal": implementarla
+   tal cual borra un elemento aprobado explícitamente.
+3. **La topología no distingue recta vs. lateral en Estimadas.**
+   `resolverClasificacionDeTee` requiere `Nodo.tee` declarado, que solo
+   escribe `TeeDeNodoEditor.tsx` (modo Detalladas) con una elección
+   manual. En Estimadas `Nodo.tee` es siempre `undefined` →
+   `'sinConfigurar'`. Una bifurcación 1→2 no tiene dato de orientación y
+   **no hay default inequívoco** (cualquier regla -- "más terminales
+   aguas abajo = recta", "misma DN = recta" -- inventa un criterio
+   topológico que D-δ.40 dijo que el modelo no tiene).
+4. **No existe "rama de distribución/colector".** `RedHidraulica` =
+   `{nodos, tramos}` con `Tramo.red` fría/caliente; sin concepto de
+   colector ni feed único por Local. El `Ks = 0,17` por rama recorrida no
+   tiene dónde anclarse.
+5. **Per-camino vs. per-`(Local, red)` es refactor fuerte.** Reemplazar
+   el agregado por una derivación por traza toca
+   `resolverPerdidaLocalizadaEstimadaDeLocal`, su integración en
+   `resolverPresionResidualDeCamino` / `resolverBalanceDePresion`, la UI
+   (`ResumenEstimadoDeLocal`, `LocalYRedCard`) y **todos los goldens de
+   presión en Estimadas**.
+6. **Convención de velocidad para `Ks` sumados.** CRIT-A30 fija que el
+   `0,75` de reducción va sobre la velocidad del lado menor/aguas abajo;
+   CRIT-A31, que el `Ks` de tee va sobre la del tramo saliente recorrido.
+   Colapsar `1,62 + 0,75` y `1,00 + 0,75` en un único `Ks` sobre `V_ref`
+   (máx) requiere una decisión de convención que no está tomada.
+
+### Decisión del usuario
+
+**Opción B.** No modificar HYD-EST-01 ni recalibrar D-δ.40 / D-δ.45. El
+modelo Estimadas actual queda **intacto**: `n-1` tees con `Ks` conservador
+`3,00`, una singularidad terminal `codo90` `Ks 1,35` y una llave de paso
+`Ks 9,18` por `(Local, red)`. El modelo path-aware (tee recta/lateral,
+transición DN, válvula de aislamiento) se **difiere hasta M2-TOPO-01**,
+cuando exista topología suficiente (montantes, ramas de distribución,
+orientación de bifurcación). Sin cambios de código en este slice.
+
+### Dependencia registrada
+
+`HYD-EST-01` **BLOQUEADO-POR** `M2-TOPO-01`. Matiz sobre el cierre de
+D-δ.89: *"habilita HYD-EST-01"* significa que el eje de modo
+(Rápido/Profesional) ya no lo bloquea -- **no** que la topología actual
+alcance para derivar los `Ks` por camino. Los tres elementos nuevos (tee
+recta/lateral, `0,17` por rama, `+0,75` por transición recorrida) siguen
+sin base topológica hasta M2-TOPO-01.
+
+### Qué SÍ admite el modelo agregado actual sin esperar a M2-TOPO-01
+
+La plantilla por `(Local, red)` de D-δ.40 / D-δ.45 es extensible a
+**futuras reglas estadísticas por `(Local, red)`** -- una cantidad
+inferida de `n` (terminales físicos de esa red en ese Local) por un `Ks`
+de Tabla N°7, compuesta con la misma `V_ref` y el mismo
+`calcularPerdidaCargaLocalizada`, sin fórmula nueva ni contrato nuevo
+(D-δ.40: *"se agrega como una magnitud más al mismo mecanismo"*). Ejemplos
+candidatos: codos adicionales de recorrido o una curva de sobrepasaje por
+`(Local, red)`. Lo que **NO está decidido** es su **cantidad** (cómo se
+infiere de `n` o de la conectividad) ni su **`Ks`** -- son decisiones de
+producto todavía sin abrir, y cada una sería su propia decisión roja
+(igual que las dos de D-δ.45). Esto es independiente de M2-TOPO-01: no
+requiere topología path-aware. Lo que sí requiere M2-TOPO-01 es el modelo
+**path-aware** (tee recta/lateral, transición DN recorrida, válvula de
+aislamiento de rama/montante, velocidad propia por elemento).
+
+### Estado
+
+**D-δ.90 -- CERRADA (análisis).** Cero cambios de código, test, golden ni
+criterio normativo. Baseline sin tocar: Vitest **1450 / 1450**, `tsc -b` /
+`npm run e2e:typecheck` / `npm run build` verdes, ESLint **11 / 0 / 0**.
+D-δ.40 y D-δ.45 firmes y sin recalibrar. Tags sin mover
+(`v0.4.0-beta.5` en `1476c19`); sin `beta.6`. Snapshot
+`resguardo-documentacion/` intacto. **HYD-EST-01 / M2-TOPO-01 /
+VIS-TOPO-01 / PERSIST-01 / REPORT-01 / UX-TEST-01 / DEFENSE-01 -- NO
+iniciar.**
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son
