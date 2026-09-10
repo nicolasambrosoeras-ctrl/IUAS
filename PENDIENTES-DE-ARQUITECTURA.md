@@ -10649,6 +10649,137 @@ montante. Pendiente de un incremento propio de humanización de M3.
 UX-TEST-01 / DEFENSE-01 -- NO iniciar.** Siguiente: **M2-TOPO-D -- UI y
 edición fina de tees**.
 
+## D-δ.94 -- FIX-CRASH-M3-INDUSTRIAL-01: ACS central + artefacto industrial AF+AC desmontaba la app -- RESUELTO
+
+Hotfix P0 detectado por el gate de **QA Fuzz cloud 20×30** posterior a
+M2-TOPO-C (seed generada `34493241441-1`, **run 15**, `WHITE_SCREEN` en
+desktop y mobile, step 28 · `cambiarTipoArtefacto=piletaDeCocinaIndustrial`).
+En ese gate el incidente se rotuló provisionalmente
+`FIX-CRASH-MONTANTE-CATCONN-01`; como **la causa raíz no tiene que ver con
+montantes ni con CAT-CONN** y **pre-existe a M2-TOPO-C**, se renombró a
+`FIX-CRASH-M3-INDUSTRIAL-01` antes del commit (el delta `D-δ.94` se
+conserva).
+
+### Causa raíz
+
+`contribucionesCentral` en
+`src/motor/medidores/resolverAlcancesDeMedidoresIndividuales.ts` (M3-B2b,
+D-δ.54). Con **propiedad horizontal** + **provisión de ACS `central`**, un
+artefacto industrial de §2.9.1.3 conectado a **AF y AC a la vez**
+(`piletaDeCocinaIndustrial`, política `automatica`/referencia `'ambas'`;
+también `lavavajillasIndustrial`/`lavarropasIndustrial` con selección
+`'ambas'`) entraba a la rama `'ambas'`, que pedía
+`resolverQuEfectivo(artefacto, 'aguaFría')` sobre un `quFria_lps` = `null`
+-- el catálogo **no desagrega** AF/AC para estos tipos (ERAS no publica
+columnas qu(A.Fría)/qu(A.Cal.) para los no domiciliarios de §2.9.1.3) --
+y `resolverQuEfectivo` **lanza** por contrato ante un `null`.
+`resolverAlcancesDeMedidoresIndividuales` se ejecuta en el render de
+`MotorDemandaPantalla` (vía `resolverResumenDeProyecto` →
+`resolverEntradasDeVerificacion` → `resolverEstadoModulo3`), sin barrera
+estructural, así que la excepción propagaba por React y **desmontaba la
+app** (`#root` vacío → `WHITE_SCREEN`).
+
+- **Operación que crea el estado inválido:** `cambiarTipoArtefacto` a un
+  industrial `'ambas'` mientras PH=on y ACS=central. El estado resultante
+  es **válido** (una pileta de cocina industrial conectada AF+AC en
+  propiedad horizontal con ACS central es un proyecto legítimo); el
+  resolver debía manejarlo, no un estado prohibido.
+- **Operación que lo hace visible:** el mismo render inmediato posterior
+  (recálculo del resumen/sidebar).
+- **Relación con M2-TOPO-C:** ninguna. La MISMA suposición ("todo mixto
+  tiene desagregación de catálogo") ya se había corregido en M2 con
+  `resolverQuEfectivoParaTramo` (ampliación de CRIT-A15, D-δ.79 -- el
+  comentario de ese archivo nombra explícitamente "pileta de cocina
+  industrial"); la copia de M3 en `contribucionesCentral` nunca se
+  actualizó. La acción de fuzz `crearMontanteAF` (nueva en M2-TOPO-C) sólo
+  cambió la mezcla de acciones y llevó esa seed a la combinación --
+  reproducido con una secuencia mínima de **7 acciones sin ningún
+  montante**.
+
+### Fix
+
+`contribucionesCentral`, rama `'ambas'`, guarda previa: si
+`quFria_lps === null || quCaliente_lps === null` (catálogo sin
+desagregar), cada ramal común (AF y AC) con su medidor se dimensiona para
+el `quTotal_lps` del artefacto -- misma ampliación de CRIT-A15 (D-δ.79)
+que aplica `resolverQuEfectivoParaTramo` en M2, y coherente con las ramas
+`soloAF`/`soloAC` de la misma función, que ya devuelven `quTotal`. El
+medidor **general** sigue viendo `quTotal` una sola vez (no participa de
+esta función), sin doble conteo (D-δ.8).
+
+- **No** se tocó ninguna fórmula hidráulica, ni CAT-CONN, ni la política
+  de conectividad, ni el motor de montantes (`reconciliarMontante.ts`,
+  `montantesDelProyecto.ts`), ni la reconciliación M1→M2, ni
+  `podarNodosSinSalida`.
+- **No** se agregó `try/catch` ni `ErrorBoundary` que oculte la
+  excepción: se corrigió el `caller` (DEFENSE-01 sigue pendiente para su
+  propio slice).
+- **No** se relajó el fuzz: `cambiarTipoArtefacto` y
+  `piletaDeCocinaIndustrial` siguen habilitados; la invariante
+  `pantalla-no-blanca` sigue estricta; la misma seed debe pasar tras el
+  fix.
+
+### CAT-CONN / montantes / M3 -- antes/después
+
+- **CAT-CONN:** sin cambios. `piletaDeCocinaIndustrial` sigue con política
+  `automatica`/referencia `'ambas'` y crea terminales AF y AC.
+- **Montantes:** no implicados. La proyección y el motor no se tocan.
+- **M3:** único módulo implicado. `contribucionesCentral` antes lanzaba
+  para (industrial `'ambas'`, ACS central); después devuelve
+  `{ af_lps: quTotal, ac_lps: quTotal }`. Los demás casos de
+  `resolverAlcancesDeMedidoresIndividuales` (mixto con desagregación,
+  `soloAF`, `soloAC`, ACS individual) intactos -- 11 tests previos verdes.
+
+### Regresión
+
+- `src/motor/medidores/resolverAlcancesDeMedidoresIndividuales.test.ts`
+  (+1): ACS central + `piletaDeCocinaIndustrial` conectada AF+AC -> no
+  lanza, cada medidor ve `quTotal` (0,50 l/s), y B2a
+  (`seleccionarMedidorIndividual`) produce una selección válida.
+- `tests/e2e/hallazgos.spec.ts` (**test normal**, no `test.fail`):
+  secuencia mínima de 7 acciones (Medidores → Iniciar M3 → PH on → ACS
+  central → Demanda → tipo de artefacto = `piletaDeCocinaIndustrial`) ->
+  app viva, sin el `pageerror` de `resolverQuEfectivo`, sin
+  `console.error`, `#root` con contenido. Falla `WHITE_SCREEN` desktop +
+  mobile contra el código pre-fix (verificado con `git stash`).
+- **Gate local completo:** seed base `34493241441-1`, corrida equivalente
+  al workflow (`runs 0–19`, `steps=30`), **desktop + mobile**, contra
+  `vite` dev con el fix -- **20/20 runs verdes**. El run 15 (el que
+  fallaba, step 28) pasa 30/30 en ambos proyectos. Los runs 16–19 (que en
+  la nube quedaron sin ejecutar porque Playwright cortó tras el fallo del
+  run 15) se ejecutaron con la facilidad nueva `IUAS_FUZZ_START_RUN`
+  (acota sólo el bucle; misma seed `${base}:${run}`, determinista).
+  Documentada en `QA-FUZZ.md` como *FIX-CRASH-M3-INDUSTRIAL-01 canonical
+  regression seed*; **NO** se agrega a `HALLAZGOS_CONOCIDOS`.
+
+### Estado
+
+**D-δ.94 / FIX-CRASH-M3-INDUSTRIAL-01 -- CERRADO.** Cambio de código:
+`src/motor/medidores/resolverAlcancesDeMedidoresIndividuales.ts` (guarda
+en `contribucionesCentral`, y `export` de la función para el test
+directo). Facilidad de harness: `tests/e2e/sequence-fuzz.spec.ts`
+(`IUAS_FUZZ_START_RUN`, acota el bucle sin tocar la derivación de seed).
+Tests: `resolverAlcancesDeMedidoresIndividuales.test.ts` (+4 -- 3 sobre
+`contribucionesCentral` directo + 1 integración con catálogo real),
+`tests/e2e/hallazgos.spec.ts` (+1). Baseline: Vitest **1589 / 1589**,
+`tsc -b` / `e2e:typecheck` / `build` verdes, ESLint **11 / 0 / 0** (sin
+errores nuevos). Fuzz: seed canónica `34493241441-1` runs **0–19**
+desktop+mobile 20/20; baseline `424242` 3×30, `34411681277-1:0` 30/30,
+`34398035608-1` runs 0–12 13/13 -- sin regresión. `v0.4.0-beta.5` sin
+mover; sin `beta.6`. Snapshot `resguardo-documentacion/` intacto.
+
+**Pendientes conocidos preservados (sin abrir en este hotfix):**
+`FIX-LEAK-M3-01` P2 (`humanizarModulo3.ts` `medidorIndividualFueraDeTabla06`
+interpola el id crudo de UF -- de D-δ.56, ver D-δ.93); `PERF-SCALE-01` P1 y
+`UI-M2-GROUP-01` (hallazgos del mismo QA cloud, registrados por el usuario,
+fuera del alcance de este crash); quirk de `vite preview` (sirve en `/`,
+no `/IUAS/`, con `command === 'serve'`; el E2E local corre contra
+`npm run dev`).
+
+**HYD-EST-01 / VIS-TOPO-01 / M2-TOPO-D / PERSIST-01 / REPORT-01 /
+UX-TEST-01 / DEFENSE-01 -- NO iniciar.** Siguiente: **M2-TOPO-D -- UI y
+edición fina de tees**, sólo tras un nuevo QA Fuzz cloud 20×30 verde.
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son

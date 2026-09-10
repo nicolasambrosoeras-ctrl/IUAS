@@ -89,8 +89,11 @@ type ConsumoConContexto = {
   readonly conectividad: ConectividadFisica
 }
 
-// Contribución de un artefacto a cada red en el caso 'central'.
-function contribucionesCentral(
+// Contribución de un artefacto a cada red en el caso 'central'. Exportada
+// para poder testear directamente la política conservadora del catálogo
+// sin desagregar (FIX-CRASH-M3-INDUSTRIAL-01), sin depender de qué
+// artefactos concretos trae el catálogo real.
+export function contribucionesCentral(
   artefactoNormativo: ArtefactoNormativo,
   conectividad: ConectividadFisica,
 ): { readonly af_lps: number; readonly ac_lps: number } {
@@ -100,7 +103,28 @@ function contribucionesCentral(
   if (conectividad === 'soloAC') {
     return { af_lps: 0, ac_lps: resolverQuEfectivo(artefactoNormativo, 'total') }
   }
-  // 'ambas' (mixto): reparto fría/caliente del catálogo, que suma quTotal.
+  // 'ambas' (mixto).
+  //
+  // Catálogo que NO desagrega AF/AC (`quFria_lps`/`quCaliente_lps` = null):
+  // los no domiciliarios de §2.9.1.3 -- pileta de cocina industrial,
+  // lavavajillas/lavarropas industrial, lavachatas, válvula de mingitorio.
+  // ERAS no publica columnas qu(A.Fría)/qu(A.Cal.) para ellos, así que no
+  // existe fracción de mezcla ni base para partir `quTotal_lps` entre las
+  // dos ramas. Misma ampliación de CRIT-A15 (decisión del usuario, D-δ.79
+  // -- no norma ERAS) que ya aplica `resolverQuEfectivoParaTramo` en M2: la
+  // cañería de cada rama (aquí, cada ramal común con su medidor) se
+  // dimensiona para el caudal TOTAL declarado del artefacto, tanto si es la
+  // única conexión física como si está conectado a AF y AC a la vez. Sin
+  // esta guarda `resolverQuEfectivo(_, 'aguaFría')` lanzaba sobre el `null`
+  // y el `throw` desmontaba la app durante el render de Módulo 3
+  // (FIX-CRASH-M3-INDUSTRIAL-01). El medidor GENERAL sigue viendo
+  // `quTotal` una sola vez (no participa de esta función), sin doble conteo.
+  if (artefactoNormativo.quFria_lps === null || artefactoNormativo.quCaliente_lps === null) {
+    const total = resolverQuEfectivo(artefactoNormativo, 'total')
+    return { af_lps: total, ac_lps: total }
+  }
+  // Catálogo que sí desagrega: reparto fría/caliente del catálogo, que
+  // suma quTotal.
   return {
     af_lps: resolverQuEfectivo(artefactoNormativo, 'aguaFria'),
     ac_lps: resolverQuEfectivo(artefactoNormativo, 'aguaCaliente'),

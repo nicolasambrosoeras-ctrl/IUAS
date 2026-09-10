@@ -23,6 +23,13 @@ const RUNS = Math.max(1, Number(process.env.IUAS_FUZZ_RUNS ?? 10))
 const STEPS = Math.max(1, Number(process.env.IUAS_FUZZ_STEPS ?? 20))
 const MAX_STEP = process.env.IUAS_FUZZ_MAX_STEP ? Number(process.env.IUAS_FUZZ_MAX_STEP) : STEPS
 const PASOS_EFECTIVOS = Math.min(STEPS, MAX_STEP)
+// `IUAS_FUZZ_START_RUN` (default 0): primer índice de run a ejecutar. Sólo
+// acota el bucle -- la seed de cada run sigue siendo `${seedBase}:${run}`,
+// determinista, así que `START_RUN=16 RUNS=20` ejecuta exactamente los
+// mismos runs 16..19 que una corrida `RUNS=20` completa (útil para
+// terminar un gate que Playwright cortó tras un fallo, sin repetir 0..K).
+// Sigue siendo una función determinista del environment (QA-CI-01).
+const START_RUN = Math.max(0, Number(process.env.IUAS_FUZZ_START_RUN ?? 0))
 
 // Seed base: función DETERMINISTA del environment (QA-CI-01). Con
 // `IUAS_FUZZ_SEED` explícita se usa tal cual; sin ella, fallback local
@@ -39,12 +46,12 @@ test.describe('QA-FUZZ-01 · sequence fuzz', () => {
   test.beforeAll(() => {
     // Único bloque ruidoso: los parámetros de la corrida (brief §41).
     console.log(
-      `\nQA-FUZZ-01  seedBase=${SEED_BASE}  runs=${RUNS}  steps=${PASOS_EFECTIVOS}` +
+      `\nQA-FUZZ-01  seedBase=${SEED_BASE}  runs=${START_RUN}..${RUNS - 1}  steps=${PASOS_EFECTIVOS}` +
         `  (IUAS_FUZZ_SEED=${SEED_BASE} para reproducir)\n`,
     )
   })
 
-  for (let run = 0; run < RUNS; run++) {
+  for (let run = START_RUN; run < RUNS; run++) {
     const seedRun = seedDeRun(SEED_BASE, run)
 
     test(`run ${run} · seed ${seedRun}`, async ({ page, errores, baseURLEfectiva }, testInfo) => {

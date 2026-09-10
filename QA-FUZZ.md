@@ -121,6 +121,7 @@ npm run e2e:typecheck          # type-check del harness (no entra en `tsc -b`)
 | `IUAS_FUZZ_RUNS`    | `10`                                      | Cantidad de runs (cada uno parte de app limpia). |
 | `IUAS_FUZZ_STEPS`   | `20`                                      | Pasos por run. |
 | `IUAS_FUZZ_MAX_STEP`| `= STEPS`                                 | Acota los pasos (para acotar un fallo por bisección). |
+| `IUAS_FUZZ_START_RUN`| `0`                                      | Primer índice de run a ejecutar. Sólo acota el bucle; la seed de cada run sigue siendo `${seedBase}:${run}`, así que `START_RUN=16 RUNS=20` ejecuta exactamente los runs 16..19 de una corrida `RUNS=20`. Para terminar localmente un gate que Playwright cortó tras un fallo (p. ej. correr 16–19 después de que 0–15 quedaron verdes) sin repetir 0..K. |
 
 ---
 
@@ -565,6 +566,78 @@ artifact y el título del fallo.
 - **`HALLAZGOS_CONOCIDOS`:** **sigue vacío**; la invariante
   `pantalla-no-blanca` sigue estricta.
 
+### FIX-CRASH-M3-INDUSTRIAL-01 — ACS central + artefacto industrial AF+AC desmontaba la app — RESUELTO
+
+- **Origen y rename:** lo detectó el *gate de QA Fuzz cloud* posterior a
+  M2-TOPO-C, donde el incidente se rotuló provisionalmente
+  `FIX-CRASH-MONTANTE-CATCONN-01`. La causa raíz **no tiene que ver con
+  montantes ni con CAT-CONN** — es de Módulo 3 (medición individual) y
+  **pre-existe a M2-TOPO-C** (D-δ.54) — por eso se renombró a
+  `FIX-CRASH-M3-INDUSTRIAL-01` antes del commit. La acción nueva
+  `crearMontanteAF` del fuzz sólo cambió la mezcla de acciones y llevó esa
+  seed a la combinación.
+- **Qué:** con **propiedad horizontal** + **provisión de ACS `central`**,
+  un artefacto industrial de §2.9.1.3 conectado a **AF y AC a la vez**
+  (`piletaDeCocinaIndustrial` — política `automatica` / referencia
+  `'ambas'`; también `lavavajillasIndustrial` / `lavarropasIndustrial` si
+  el usuario elige `'ambas'`) llegaba a `contribucionesCentral`
+  (`src/motor/medidores/resolverAlcancesDeMedidoresIndividuales.ts`), cuya
+  rama `'ambas'` pedía `resolverQuEfectivo(_, 'aguaFría')` sobre un
+  `quFria_lps` = `null` (el catálogo no desagrega AF/AC para estos tipos)
+  y **lanzaba**. `resolverAlcancesDeMedidoresIndividuales` corre en el
+  render de `MotorDemandaPantalla` (`resolverResumenDeProyecto` →
+  `resolverEntradasDeVerificacion` → `resolverEstadoModulo3`), sin barrera
+  estructural, así que la excepción propagaba por React y **desmontaba la
+  app** (`#root` vacío → `WHITE_SCREEN`).
+- **Repro por fuzz:** **seed cloud** `34493241441-1:15` (QA Fuzz cloud
+  20×30 posterior a M2-TOPO-C, seed generada `34493241441-1`, run 15),
+  **step 28** · `cambiarTipoArtefacto=piletaDeCocinaIndustrial [M1]` —
+  `WHITE_SCREEN` idéntico en **desktop y mobile**.
+- **Secuencia mínima (7 acciones):** demo → Medidores → *Iniciar Módulo
+  3* → *Propiedad horizontal* on → *Provisión de ACS* = `central` →
+  Demanda → cambiar el tipo de un artefacto a `piletaDeCocinaIndustrial`.
+  Sin montante, sin M4, sin cambio de modo/Darcy/DN, sin
+  duplicar/eliminar UF (verificado por reducción: los 21 pasos restantes
+  de la seed no son necesarios).
+- **Severidad:** **P0** — desmontaje total de la app.
+- **Preexistencia:** `contribucionesCentral` es de M3-B2b (D-δ.54). La
+  MISMA suposición ("todo mixto tiene desagregación de catálogo") ya se
+  había corregido en M2 con `resolverQuEfectivoParaTramo` (ampliación de
+  CRIT-A15, D-δ.79) — la copia de M3 nunca se actualizó.
+- **Fix:** `contribucionesCentral`, rama `'ambas'`, guarda previa: si
+  `quFria_lps === null || quCaliente_lps === null` (catálogo sin
+  desagregar) → cada ramal común (AF y AC) se dimensiona para el
+  `quTotal_lps` — misma ampliación de CRIT-A15 (D-δ.79) que aplica
+  `resolverQuEfectivoParaTramo`. Coherente con las ramas `soloAF`/`soloAC`
+  de la misma función, que ya devuelven `quTotal`. El medidor **general**
+  sigue viendo `quTotal` una sola vez (no participa de esta función). **No**
+  se tocó hidráulica, ni CAT-CONN, ni el motor de montantes, ni se agregó
+  `ErrorBoundary` (DEFENSE-01 sigue pendiente).
+- **Regresión:**
+  `src/motor/medidores/resolverAlcancesDeMedidoresIndividuales.test.ts`
+  (+4): **3 sobre `contribucionesCentral` directo** (exportada) con un
+  `ArtefactoNormativo` sintético que aísla la condición
+  `conectividad 'ambas' + quFria/quCaliente = null + quTotal definido` →
+  no lanza y `{ af, ac } = quTotal`; el caso `'ambas'` con catálogo que sí
+  desagrega y los `soloAF`/`soloAC` no cambian; **+1 de integración** por
+  `resolverAlcancesDeMedidoresIndividuales` con el catálogo real
+  (`piletaDeCocinaIndustrial`) → B2a produce selección válida. Segunda
+  barrera: `tests/e2e/hallazgos.spec.ts` (**test normal**, secuencia
+  mínima de 7 acciones: app viva, sin el `pageerror` de
+  `resolverQuEfectivo`, sin `console.error`, `#root` con contenido; falla
+  `WHITE_SCREEN` desktop + mobile contra el código pre-fix, verificado con
+  `git stash`).
+- **Gate local completo:** seed base `34493241441-1`, corrida equivalente
+  al workflow (`runs 0–19`, `steps=30`), **desktop + mobile**, contra
+  `vite` dev con el fix -- **20/20 runs verdes** (0–15 en una corrida
+  `RUNS=16`, 16–19 en otra con `IUAS_FUZZ_START_RUN=16 RUNS=20`, mismas
+  seeds `${base}:${run}`). El run 15 (el que fallaba, step 28) pasa 30/30
+  en ambos proyectos. Documentada como *FIX-CRASH-M3-INDUSTRIAL-01
+  canonical regression seed*. **NO** se agrega a `HALLAZGOS_CONOCIDOS`.
+- **Fuzz lateral:** baseline `424242` 3×30, `34411681277-1:0` 30/30,
+  `34398035608-1` runs 0–12 13/13 — sin regresión.
+- **`HALLAZGOS_CONOCIDOS`:** sigue vacío; `pantalla-no-blanca` estricta.
+
 ### Pantallas blancas observadas (A/B/C)
 
 `tests/e2e/crash-observado.spec.ts` reproduce los escenarios del brief §26
@@ -584,6 +657,7 @@ seed.
 | ~~`FIX-RESP-01`~~ | **RESUELTO en D-δ.82** — overflow horizontal de página en móvil con M2 Detalladas/Profesional (§12). |
 | ~~`FIX-RESP-02`~~ | **RESUELTO en D-δ.83** — overflow horizontal de página en M3 (excepción de ACS por UF) por `<select>` sin acotar (§12). |
 | ~~`FIX-CRASH-01`~~ | **RESUELTO en D-δ.88** — `resolverPerdidaDistribuidaDeTramo` no trataba `longitud_m <= 0` como `sinLongitud`; el throw de `calcularPerdidaCargaHazenWilliams` propagaba por el render de `PanelDePresionDeModulo2` y desmontaba la app. Seed canónica `34411681277-1:0` step 19 (§12). |
+| ~~`FIX-CRASH-M3-INDUSTRIAL-01`~~ | **RESUELTO** — M3 medición individual: `contribucionesCentral` (ACS `central`) asumía que todo artefacto mixto tiene desagregación AF/AC de catálogo; un industrial de §2.9.1.3 conectado `'ambas'` (`quFria_lps` = null) hacía lanzar `resolverQuEfectivo` y el throw desmontaba la app en el render de M3. Fix: cada ramal común se dimensiona para `quTotal` (ampliación de CRIT-A15 / D-δ.79, ya vigente en M2). Causa **ajena a montantes / CAT-CONN**, pre-existe a M2-TOPO-C. Seed canónica `34493241441-1:15` step 28 (§12). |
 | ~~`CAT-CONN-01`~~ | **RESUELTO en D-δ.84** — la conectividad física inicial pasó a resolverse por política de catálogo (`politicaConectividad.ts`), no por precedentes del proyecto. Matriz objetivo: sólo `lavavajillasIndustrial` y `lavarropasIndustrial` piden selección (14 no); `catalogo-conectividad.spec.ts` la asevera. |
 | `DEFENSE-01` | ErrorBoundary con estado Proyecto preservado. Después del fix raíz. |
 | ~~`GEOM-UX-01`~~ | **RESUELTO en D-δ.86** — herencia de cotas UF → Local → terminal + Tabla IUAS v1 + Reiniciar cálculo + layout M2 Profesional. |

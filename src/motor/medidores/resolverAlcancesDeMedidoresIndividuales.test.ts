@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest'
 import type { MetadatosProyecto, ParametrosProyecto, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
 import type { Nodo, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
+import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import {
+  contribucionesCentral,
   resolverAlcancesDeMedidoresIndividuales,
   type ConfiguracionDeMedicionIndividual,
 } from './resolverAlcancesDeMedidoresIndividuales'
@@ -287,5 +289,95 @@ describe('resolverAlcancesDeMedidoresIndividuales (M3-B2b, CRIT-A34)', () => {
     expect(() => resolverAlcancesDeMedidoresIndividuales(proyecto, catalogoArtefactos, PH_INDIVIDUAL(['uf-1']))).toThrow(
       /se requiere redHidraulica/,
     )
+  })
+
+  // FIX-CRASH-M3-INDUSTRIAL-01 — cobertura directa sobre `contribucionesCentral`
+  // (la función donde estaba el bug), con un ArtefactoNormativo sintético
+  // que aísla la condición exacta: conectividad 'ambas' + quFria/quCaliente
+  // = null + quTotal definido. Antes lanzaba desde
+  // `resolverQuEfectivo(_, 'aguaFría')`; ahora cada rama recibe `quTotal`
+  // (ampliación de CRIT-A15 / D-δ.79). El caso 'ambas' con catálogo que SÍ
+  // desagrega, y los casos soloAF/soloAC, no cambian.
+  describe('FIX-CRASH-M3-INDUSTRIAL-01 · contribucionesCentral con catálogo sin desagregar AF/AC', () => {
+    const base = {
+      id: 'sintetico',
+      nombre: 'Sintético',
+      regimen: 'noDomiciliario' as const,
+      presionMinima_kgcm2: null,
+      limpiezaConValvulaAutomatica: false,
+      origen: 'normativo' as const,
+      referenciaArticulo: 'test',
+    }
+    const sinDesagregar: ArtefactoNormativo = { ...base, quTotal_lps: 0.5, quFria_lps: null, quCaliente_lps: null }
+    const desagregado: ArtefactoNormativo = { ...base, quTotal_lps: 0.2, quFria_lps: 0.08, quCaliente_lps: 0.12 }
+
+    it("conectividad 'ambas' + quFria/quCaliente = null + quTotal definido: NO lanza y cada rama recibe quTotal", () => {
+      let r: { af_lps: number; ac_lps: number } | undefined
+      expect(() => {
+        r = contribucionesCentral(sinDesagregar, 'ambas')
+      }).not.toThrow()
+      expect(r).toEqual({ af_lps: 0.5, ac_lps: 0.5 })
+    })
+
+    it("conectividad 'ambas' con catálogo que SÍ desagrega: reparto fría/caliente, sin cambio", () => {
+      expect(contribucionesCentral(desagregado, 'ambas')).toEqual({ af_lps: 0.08, ac_lps: 0.12 })
+    })
+
+    it("soloAF / soloAC del artefacto sin desagregar: quTotal en la rama conectada, 0 en la otra", () => {
+      expect(contribucionesCentral(sinDesagregar, 'soloAF')).toEqual({ af_lps: 0.5, ac_lps: 0 })
+      expect(contribucionesCentral(sinDesagregar, 'soloAC')).toEqual({ af_lps: 0, ac_lps: 0.5 })
+    })
+  })
+
+  // Segunda barrera de integración: el mismo caso a través de
+  // `resolverAlcancesDeMedidoresIndividuales` con el catálogo REAL
+  // (`piletaDeCocinaIndustrial`, política 'automatica' / referencia 'ambas').
+  it('FIX-CRASH-M3-INDUSTRIAL-01 · ACS central + piletaDeCocinaIndustrial AF+AC: no lanza, cada medidor ve quTotal, B2a válido', () => {
+    const ufId = 'uf-ind'
+    const uf: UnidadFuncional = {
+      id: ufId,
+      nombre: ufId,
+      locales: [
+        {
+          id: 'local-cocina',
+          tipo: 'cocina',
+          regimen: 'noDomiciliario',
+          artefactos: [{ id: `${ufId}-pci`, artefactoId: 'piletaDeCocinaIndustrial', cantidad: 1, origen: 'normativo' }],
+        },
+      ],
+    }
+    const ref = { tipo: 'artefacto' as const, unidadFuncionalId: ufId, localId: 'local-cocina', artefactoId: `${ufId}-pci` }
+    const nodos: Nodo[] = [
+      { id: 'n-af' },
+      { id: 'n-af-pci', referencia: ref },
+      { id: 'n-acs', referencia: { tipo: 'produccionACS' } },
+      { id: 'n-ac-pci', referencia: ref },
+    ]
+    const tramos: Tramo[] = [
+      { id: 't-af', nodoOrigenId: 'n-0', nodoDestinoId: 'n-af', red: 'AF' },
+      { id: 't-af-pci', nodoOrigenId: 'n-af', nodoDestinoId: 'n-af-pci', red: 'AF' },
+      { id: 't-af-acs', nodoOrigenId: 'n-0', nodoDestinoId: 'n-acs', red: 'AF' },
+      { id: 't-ac-pci', nodoOrigenId: 'n-acs', nodoDestinoId: 'n-ac-pci', red: 'AC' },
+    ]
+    const proyecto = proyectoCon([uf], redDe({ nodos, tramos }))
+
+    let alcances: ReturnType<typeof resolverAlcancesDeMedidoresIndividuales> = []
+    expect(() => {
+      alcances = resolverAlcancesDeMedidoresIndividuales(proyecto, catalogoArtefactos, PH_CENTRAL([ufId]))
+    }).not.toThrow()
+
+    const af = alcances.find((a) => a.servicioMedido === 'aguaFria')!
+    const ac = alcances.find((a) => a.servicioMedido === 'aguaCaliente')!
+    expect(af).toBeDefined()
+    expect(ac).toBeDefined()
+    // Cada ramal común se dimensiona para el caudal total (0,50 l/s), sin
+    // partir una mezcla que ERAS no publica.
+    expect(af.consumos[0]!.qu_lps).toBe(qu('piletaDeCocinaIndustrial').quTotal_lps)
+    expect(ac.consumos[0]!.qu_lps).toBe(qu('piletaDeCocinaIndustrial').quTotal_lps)
+
+    // El pipeline aguas abajo (B2a) sigue produciendo una selección válida.
+    for (const alcance of alcances) {
+      expect(seleccionarMedidorIndividual(alcance).tipo).toBe('seleccionado')
+    }
   })
 })

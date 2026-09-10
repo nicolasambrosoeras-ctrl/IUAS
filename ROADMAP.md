@@ -1266,6 +1266,29 @@ salvo bug inequívoco o decisión roja explícita.
     acción de montante.
   - **Siguiente:** M2-TOPO-D — UI y edición fina de tees.
 
+- **D-δ.94 — FIX-CRASH-M3-INDUSTRIAL-01 (hotfix P0).** El gate de QA
+  Fuzz cloud 20×30 posterior a M2-TOPO-C falló: `WHITE_SCREEN` determinista
+  en la seed `34493241441-1:15` (step 28,
+  `cambiarTipoArtefacto=piletaDeCocinaIndustrial`), desktop y mobile.
+  **Causa raíz ajena a montantes / CAT-CONN y pre-existente a M2-TOPO-C**
+  (D-δ.54): con propiedad horizontal + ACS `central`, `contribucionesCentral`
+  (`resolverAlcancesDeMedidoresIndividuales.ts`) asumía que todo artefacto
+  mixto tiene desagregación AF/AC de catálogo; un industrial de §2.9.1.3
+  conectado `'ambas'` (`quFria_lps` = null) hacía lanzar `resolverQuEfectivo`
+  y el throw desmontaba la app en el render de M3. Fix: cada ramal común se
+  dimensiona para el `quTotal` — misma ampliación de CRIT-A15 (D-δ.79) que
+  M2 ya aplicaba en `resolverQuEfectivoParaTramo`. Secuencia mínima: 7
+  acciones, sin ningún montante. Regresión: 4 unit en
+  `resolverAlcancesDeMedidoresIndividuales.test.ts` (3 sobre
+  `contribucionesCentral` directo + 1 integración con catálogo real) + E2E
+  en `hallazgos.spec.ts` (verificado con `git stash`). Vitest
+  **1589 / 1589**; gate local completo `34493241441-1` runs **0–19**
+  desktop+mobile 20/20 (los 16–19 con la facilidad nueva
+  `IUAS_FUZZ_START_RUN`, que sólo acota el bucle); sin regresión en seeds
+  históricas. Sin tocar hidráulica, CAT-CONN, montantes ni `ErrorBoundary`.
+  - **Siguiente:** nuevo QA Fuzz cloud 20×30 (seed vacía); si queda verde,
+    M2-TOPO-D.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /

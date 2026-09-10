@@ -35,6 +35,26 @@
 // `undefined` → `sinLongitud` → toda la cadena de presión degrada a
 // "incompleto". `desnivelConexion = -2` NO era el bug (CRIT-A37: es un
 // desnivel firmado válido) y se conserva sin clamp.
+//
+// FIX-CRASH-M3-INDUSTRIAL-01 — RESUELTO. Surgió del gate de QA Fuzz cloud
+// posterior a M2-TOPO-C (donde el incidente se rotuló provisionalmente
+// "MONTANTE-CATCONN"); la causa raíz NO tiene que ver con montantes ni con
+// CAT-CONN — de ahí el rename. Con propiedad horizontal + ACS **central**,
+// un artefacto industrial de §2.9.1.3 conectado a AF y AC a la vez
+// (`piletaDeCocinaIndustrial`, `lavavajillasIndustrial`,
+// `lavarropasIndustrial`) llegaba a `contribucionesCentral`
+// (`resolverAlcancesDeMedidoresIndividuales.ts`, M3-B2b / D-δ.54), cuya
+// rama `'ambas'` pedía `resolverQuEfectivo(_, 'aguaFría')` sobre un
+// `quFria_lps` = null y lanzaba. La excepción se propagaba por
+// `resolverEstadoModulo3` → `resolverResumenDeProyecto` durante el render
+// de `MotorDemandaPantalla` y DESMONTABA la app (WHITE_SCREEN).
+// Reproducido por el fuzz cloud: seed `34493241441-1:15`, step 28 ·
+// `cambiarTipoArtefacto=piletaDeCocinaIndustrial [M1]` — desktop y mobile.
+// Fix: `contribucionesCentral` aplica la misma ampliación de CRIT-A15
+// (D-δ.79) que `resolverQuEfectivoParaTramo` en M2 — catálogo sin
+// desagregar AF/AC → cada ramal común se dimensiona para el `quTotal`. El
+// bug pre-existe a M2-TOPO-C (D-δ.54); la acción `crearMontanteAF` del
+// fuzz sólo cambió la mezcla que llevó esa seed a la combinación.
 import { test, expect } from './qa/fixtures'
 import { cargarAppLimpia, estabilizar } from './qa/estado'
 import { verificarInvariantes, primerFallo } from './qa/invariantes'
@@ -194,5 +214,44 @@ test.describe('QA-FUZZ-01 · regresiones de hallazgos', () => {
     // 5. CRIT-A37: el valor firmado se conserva tal cual, sin clamp a 0 ni
     //    Math.abs.
     await expect(desnivel).toHaveValue('-2')
+  })
+
+  test('FIX-CRASH-M3-INDUSTRIAL-01 · PH + ACS central + artefacto industrial AF+AC no desmonta la app', async ({
+    page,
+    errores,
+    baseURLEfectiva,
+  }) => {
+    await cargarAppLimpia(page, baseURLEfectiva)
+
+    // Secuencia MÍNIMA (7 acciones) — sin montante, sin M4, sin cambio de
+    // modo/Darcy/DN, sin duplicar/eliminar UF: sólo PH + ACS central + un
+    // artefacto que pasa a industrial conectado a AF y AC a la vez.
+    await page.getByRole('link', { name: /Medidores/ }).first().click()
+    await estabilizar(page)
+    const iniciar = page.getByRole('button', { name: 'Iniciar Módulo 3' })
+    if (await iniciar.isVisible().catch(() => false)) {
+      await iniciar.click()
+      await estabilizar(page)
+    }
+    await page.getByRole('checkbox', { name: /Propiedad horizontal/ }).click()
+    await estabilizar(page)
+    await page.getByLabel('Provisión de agua caliente (por defecto):').selectOption('central')
+    await estabilizar(page)
+
+    // M1: cambiar el tipo de un artefacto a piletaDeCocinaIndustrial
+    // (política 'automatica' / referencia 'ambas' → terminales AF y AC).
+    await page.getByRole('link', { name: /Demanda/ }).first().click()
+    await estabilizar(page)
+    await page.getByRole('combobox', { name: 'Artefacto', exact: true }).first().selectOption('piletaDeCocinaIndustrial')
+    await estabilizar(page)
+
+    // La app sigue montada: sin WHITE_SCREEN, sin el pageerror de
+    // `resolverQuEfectivo`, sin console.error, sin id técnico visible.
+    const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+    const texto = await page.locator('#root').innerText()
+    expect(texto.length).toBeGreaterThan(40)
+    expect(texto).not.toContain('resolverQuEfectivo')
+    expect(texto).not.toContain('quFria_lps')
   })
 })

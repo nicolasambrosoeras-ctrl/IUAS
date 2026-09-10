@@ -2181,9 +2181,20 @@ reconstruidas desde fuentes oficiales / AySA — ver D-δ.54 en
   medidor de AC** (no existe un ramal común de AC entrando a la UF).
   ⇒ **1 alcance por UF**, `servicioMedido = 'aguaFria'`.
 - **Caso `central`** (producción de ACS común): AF y AC llegan a la UF por
-  ramales comunes distintos, cada uno con su medidor. Artefacto mixto:
-  `quFría` al medidor de AF y `quCaliente` al de AC (suman `quTotal`, sin
-  doble conteo). Artefacto de una sola red: su `quTotal` a esa red.
+  ramales comunes distintos, cada uno con su medidor. Artefacto mixto con
+  catálogo que **desagrega** AF/AC: `quFría` al medidor de AF y
+  `quCaliente` al de AC (suman `quTotal`, sin doble conteo). Artefacto de
+  una sola red: su `quTotal` a esa red. Artefacto mixto cuyo catálogo
+  **NO desagrega** AF/AC (`quFria_lps`/`quCaliente_lps` = `null` — los no
+  domiciliarios de §2.9.1.3: pileta de cocina industrial,
+  lavavajillas/lavarropas industrial, lavachatas, válvula de mingitorio):
+  **cada ramal común se dimensiona para el `quTotal`** — misma ampliación
+  de CRIT-A15 (decisión del usuario, D-δ.79 — no norma ERAS) que aplica
+  `resolverQuEfectivoParaTramo` en M2, porque ERAS no publica fracción de
+  mezcla y no hay base para partir `quTotal`. El medidor **general** sigue
+  viendo `quTotal` una sola vez. Antes de D-δ.94 esta rama pedía la
+  fracción desagregada y **lanzaba** sobre el `null`, desmontando la app
+  en el render de M3 (FIX-CRASH-M3-INDUSTRIAL-01).
   ⇒ **alcance de AF** siempre (si la UF tiene algún consumo conectado);
   **alcance de AC** sólo si hay consumo de AC — **nunca un medidor de AC
   vacío**.
