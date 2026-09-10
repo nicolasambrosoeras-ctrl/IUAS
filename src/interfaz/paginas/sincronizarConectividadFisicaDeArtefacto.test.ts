@@ -286,6 +286,37 @@ describe('sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas', () => {
     expect(repsPatioAF[0]![0]).toBe(troncal.id)
   })
 
+  it('M2-TOPO-C: la procedencia de la longitud viaja al troncal; el ramal degradado no la retiene', () => {
+    const proyecto = agregarArtefactoAlLocal(
+      proyectoConCanillaDimensionada({ longitud_m: 4, longitudEsSugerida: true }),
+      'local-patio',
+      artefacto('art-canilla-2', 'canillaDeServicio'),
+    )
+    const resultado = sincronizar(proyecto, 'local-patio', 'art-canilla-2', ['AF'])
+    if (resultado.tipo !== 'sincronizado') throw new Error('se esperaba sincronizado')
+    const redHidraulica = resultado.proyecto.redHidraulica!
+    const ramal = redHidraulica.tramos.find((t) => t.id === 't-af-canilla')!
+    const troncal = redHidraulica.tramos.find((t) => t.nodoOrigenId === 'n0' && t.nodoDestinoId === ramal.nodoOrigenId)!
+    expect(troncal.longitud_m).toBe(4)
+    expect(troncal.longitudEsSugerida).toBe(true)
+    expect('longitudEsSugerida' in (ramal as object)).toBe(false)
+  })
+
+  it('M2-TOPO-C: una longitud personalizada (sin flag) no gana un flag de sugerida al migrar', () => {
+    const proyecto = agregarArtefactoAlLocal(
+      proyectoConCanillaDimensionada({ longitud_m: 7.3 }),
+      'local-patio',
+      artefacto('art-canilla-2', 'canillaDeServicio'),
+    )
+    const resultado = sincronizar(proyecto, 'local-patio', 'art-canilla-2', ['AF'])
+    if (resultado.tipo !== 'sincronizado') throw new Error('se esperaba sincronizado')
+    const redHidraulica = resultado.proyecto.redHidraulica!
+    const ramal = redHidraulica.tramos.find((t) => t.id === 't-af-canilla')!
+    const troncal = redHidraulica.tramos.find((t) => t.nodoOrigenId === 'n0' && t.nodoDestinoId === ramal.nodoOrigenId)!
+    expect(troncal.longitud_m).toBe(7.3)
+    expect('longitudEsSugerida' in (troncal as object)).toBe(false)
+  })
+
   it('D-δ.49 / M2-TOPO-B: si el Tramo original no tiene override de DN, el retrofit no inventa uno en el troncal', () => {
     const proyecto = agregarArtefactoAlLocal(
       proyectoConCanillaDimensionada({ longitud_m: 4 }),

@@ -162,4 +162,29 @@ describe('backfillLongitudesDePredimensionamiento (D-δ.51)', () => {
     }
     expect(backfillLongitudesDePredimensionamiento(sinRed)).toBe(sinRed)
   })
+
+  // M2-TOPO-C: procedencia de la longitud precargada.
+  it('marca longitudEsSugerida:true en cada longitud que completa', () => {
+    const resultado = backfillLongitudesDePredimensionamiento(proyecto('simplificada'))
+    const flagDe = (id: string): boolean | undefined =>
+      resultado.redHidraulica!.tramos.find((tr) => tr.id === id)?.longitudEsSugerida
+    expect(flagDe('t-general')).toBe(true)
+    expect(flagDe('t-af-acs')).toBe(true)
+    expect(flagDe('t-af-bano')).toBe(true)
+  })
+
+  it('NO marca longitudEsSugerida en un Tramo cuya longitud ya estaba cargada', () => {
+    const resultado = backfillLongitudesDePredimensionamiento(
+      proyecto('simplificada', { 't-general': 7.35 }),
+    )
+    const tGeneral = resultado.redHidraulica!.tramos.find((tr) => tr.id === 't-general')
+    expect(tGeneral?.longitud_m).toBe(7.35)
+    expect(tGeneral?.longitudEsSugerida).toBeUndefined()
+  })
+
+  it('no re-marca ni muta un Tramo que ya quedó con longitudEsSugerida:true (idempotente)', () => {
+    const una = backfillLongitudesDePredimensionamiento(proyecto('simplificada'))
+    const dos = backfillLongitudesDePredimensionamiento(una)
+    expect(dos).toBe(una)
+  })
 })

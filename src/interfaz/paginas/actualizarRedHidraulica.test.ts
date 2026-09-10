@@ -116,6 +116,49 @@ describe('conLongitudDeTramo', () => {
     expect(actualizado).toBe(original)
     expect(actualizado.redHidraulica).toBeUndefined()
   })
+
+  // M2-TOPO-C: editar el input de longitud siempre convierte la longitud en
+  // PERSONALIZADA -> se elimina longitudEsSugerida (aunque el número coincida
+  // con el sugerido: la procedencia nunca se infiere comparando valores).
+  it('L1-F: editar la longitud elimina longitudEsSugerida', () => {
+    const red = redDeDosTramos()
+    const conFlag: RedHidraulica = {
+      ...red,
+      tramos: red.tramos.map((t) => (t.id === 't1' ? { ...t, longitud_m: 5, longitudEsSugerida: true } : t)),
+    }
+    const original = proyectoDePrueba(conFlag)
+
+    const actualizado = conLongitudDeTramo(original, 't1', 8)
+
+    const t1 = actualizado.redHidraulica?.tramos.find((t) => t.id === 't1')
+    expect(t1?.longitud_m).toBe(8)
+    expect(t1?.longitudEsSugerida).toBeUndefined()
+    expect('longitudEsSugerida' in (t1 as object)).toBe(false)
+  })
+
+  it('L1-G: teclear exactamente el valor sugerido igual lo vuelve personalizado', () => {
+    const red = redDeDosTramos()
+    const conFlag: RedHidraulica = {
+      ...red,
+      tramos: red.tramos.map((t) => (t.id === 't1' ? { ...t, longitud_m: 5, longitudEsSugerida: true } : t)),
+    }
+    const actualizado = conLongitudDeTramo(proyectoDePrueba(conFlag), 't1', 5)
+    const t1 = actualizado.redHidraulica?.tramos.find((t) => t.id === 't1')
+    expect(t1?.longitud_m).toBe(5)
+    expect(t1?.longitudEsSugerida).toBeUndefined()
+  })
+
+  it('L1-H: vaciar la longitud también elimina longitudEsSugerida', () => {
+    const red = redDeDosTramos()
+    const conFlag: RedHidraulica = {
+      ...red,
+      tramos: red.tramos.map((t) => (t.id === 't1' ? { ...t, longitud_m: 5, longitudEsSugerida: true } : t)),
+    }
+    const actualizado = conLongitudDeTramo(proyectoDePrueba(conFlag), 't1', undefined)
+    const t1 = actualizado.redHidraulica?.tramos.find((t) => t.id === 't1')
+    expect('longitud_m' in (t1 as object)).toBe(false)
+    expect('longitudEsSugerida' in (t1 as object)).toBe(false)
+  })
 })
 
 describe('conAccesoriosDeTramo', () => {

@@ -24,15 +24,22 @@ export function conLongitudDeTramo(proyecto: Proyecto, tramoId: string, longitud
     if (tramo.id !== tramoId) {
       return tramo
     }
+    // M2-TOPO-C: cualquier escritura por esta vía es una edición del
+    // proyectista sobre el input de longitud -> la longitud pasa a
+    // PERSONALIZADA. Se elimina `longitudEsSugerida` aunque el número
+    // tecleado coincida con el sugerido (la procedencia nunca se infiere
+    // comparando valores). Al vaciar el campo tampoco tiene sentido el
+    // flag. Copia fresca + `delete` (nunca muta el input), mismo criterio
+    // que conDnComercialAdoptadoDeTramo.
     if (longitud_m === undefined) {
-      // Omision explicita de la clave, no `longitud_m: undefined` -- mismo
-      // criterio ya usado para vaciar Local.regimen en MotorDemandaPantalla.tsx:
-      // ausencia real de la propiedad opcional, nunca un valor undefined
-      // asignado.
       const { longitud_m: _longitudAnterior, ...tramoSinLongitud } = tramo
-      return tramoSinLongitud
+      const resultado = { ...tramoSinLongitud }
+      delete resultado.longitudEsSugerida
+      return resultado
     }
-    return { ...tramo, longitud_m }
+    const conLongitud = { ...tramo, longitud_m }
+    delete conLongitud.longitudEsSugerida
+    return conLongitud
   })
 
   return { ...proyecto, redHidraulica: { ...redHidraulica, tramos } }

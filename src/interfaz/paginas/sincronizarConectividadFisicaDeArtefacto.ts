@@ -211,10 +211,15 @@ function conectarUnaRed(
 
   const nuevaBifurcacionId = generarId(`nodo-${red.toLowerCase()}`)
   const terminal = terminalDe(unidadFuncionalId, localId, artefactoInstanciaId, red)
-  const { longitud_m, accesorios, dnComercialAdoptado } = tramoExistente
+  const { longitud_m, accesorios, dnComercialAdoptado, longitudEsSugerida } = tramoExistente
   const tramoNuevoTroncal: Tramo = {
     ...tramoHacia(insercion.nodoId, nuevaBifurcacionId, red),
     ...(longitud_m !== undefined ? { longitud_m } : {}),
+    // M2-TOPO-C: la procedencia viaja con la longitud representativa hacia
+    // el troncal nuevo -- si era sugerida, sigue siéndolo; si era
+    // personalizada, no aparece el flag. El ramal degradado se reconstruye
+    // desnudo (ver abajo), así que el flag no queda duplicado.
+    ...(longitud_m !== undefined && longitudEsSugerida === true ? { longitudEsSugerida: true } : {}),
     ...(accesorios !== undefined ? { accesorios } : {}),
     ...(dnComercialAdoptado !== undefined ? { dnComercialAdoptado } : {}),
   }

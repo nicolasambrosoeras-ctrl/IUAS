@@ -182,6 +182,24 @@ export type Tramo = {
   // cambio de diámetro es dato hidráulico, no prueba de que exista
   // físicamente el accesorio.
   accesorios?: readonly AccesorioDeTramo[];
+  // M2-TOPO-C: PROCEDENCIA de `longitud_m` -- metadata de política de
+  // edición, NUNCA una segunda longitud ni una segunda ruta de cálculo (el
+  // motor sigue consumiendo exclusivamente `longitud_m`).
+  //   true       -> `longitud_m` fue PRECARGADA por IUAS (backfill de
+  //                 predimensionamiento D-δ.51, o precarga por cotas del
+  //                 constructor de montantes) y TODAVÍA puede recalcularse /
+  //                 re-segmentarse automáticamente.
+  //   false / ausente -> tratar `longitud_m` como ASUMIDA / PERSONALIZADA
+  //                 por el proyectista: NO modificarla ni re-segmentar el
+  //                 Tramo automáticamente. La interpretación conservadora de
+  //                 la ausencia es deliberada y backward-compatible: un
+  //                 Tramo guardado antes de M2-TOPO-C con `longitud_m` no
+  //                 pasa a considerarse editable/re-segmentable.
+  // Cuando el usuario edita el input de longitud, este flag se ELIMINA
+  // (pasa a personalizada) aunque el número tecleado coincida con el
+  // sugerido -- la procedencia NUNCA se infiere comparando valores. Con
+  // `longitud_m` ausente este flag no tiene sentido y también se omite.
+  longitudEsSugerida?: boolean;
   // Override manual del diámetro comercial adoptado para este Tramo
   // (D-δ.52): `denominacionComercial` de una entrada del sistema de
   // tubería vigente (p. ej. "25 mm", "32 mm") -- NO un DN numérico

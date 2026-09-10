@@ -29,6 +29,14 @@
 // Los accesorios NO se precargan en ningún modo (decisión roja de D-δ.51
 // resuelta -- alternativa A: `accesorios === undefined` significa "no
 // relevado", convertirlo en `[]` afirmaría un relevamiento inexistente).
+//
+// M2-TOPO-C: cada longitud que este backfill completa se marca
+// `longitudEsSugerida: true` -- es una precarga de IUAS, no un dato del
+// proyectista, y puede recalcularse/re-segmentarse automáticamente más
+// adelante. Al editar el input de longitud (conLongitudDeTramo) el flag se
+// elimina y la longitud pasa a personalizada. No toca los Tramos que ya
+// tenían `longitud_m` (siguen sin flag = personalizadas, criterio
+// conservador).
 import type { Proyecto } from '../../modelo/proyecto'
 import type { Tramo } from '../../modelo/redHidraulica'
 import { identificarTramosRepresentativosDeLocales } from '../../motor/tuberias/topologia/identificarTramoRepresentativoDeLocal'
@@ -64,7 +72,7 @@ export function backfillLongitudesDePredimensionamiento(proyecto: Proyecto): Pro
       return tramo
     }
     cambiado = true
-    return { ...tramo, longitud_m: inicial }
+    return { ...tramo, longitud_m: inicial, longitudEsSugerida: true }
   })
 
   if (!cambiado) {
