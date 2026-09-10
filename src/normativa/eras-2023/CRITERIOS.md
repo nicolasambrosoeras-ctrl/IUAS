@@ -1528,6 +1528,25 @@ huérfano" y "raíz ausente" siguen sin validarse a propósito (una red vacía
 es válida — M2 recién iniciado). Ver D-δ.37 y D-δ.91 en
 `PENDIENTES-DE-ARQUITECTURA.md`.
 
+**M2-TOPO-C (D-δ.93) — identidad semántica de montante, sin nueva
+topología.** `Proyecto.montantes` (`{ id; red; nombre? }`) agrega una capa
+de *identidad* de montante; `RedHidraulica` sigue siendo la **única
+fuente de verdad física** y la membresía montante↔segmento es
+`Tramo.montanteId`. No se relaja la arborescencia ni cambia la definición
+de Qc por tramo (CRIT-A11): el constructor de M2 crea los segmentos como
+una **cadena lineal** de `Tramo` reales y `validarRedHidraulica` exige que
+todo `Tramo.montanteId` apunte a una identidad existente de red coherente
+(`redHidraulicaMontanteIdDuplicado` / `redHidraulicaMontanteRedInvalida` /
+`redHidraulicaTramoMontanteInexistente` /
+`redHidraulicaTramoMontanteRedIncoherente`). La resegmentación es **no
+destructiva** (RD-1): un `Tramo` con longitud, accesorios no vacíos o DN
+adoptado a mano nunca se parte ni se reparte automáticamente. La
+procedencia de `longitud_m` la lleva `Tramo.longitudEsSugerida` (RD-2) y
+nunca se infiere comparando valores. El ascenso vertical implícito D-δ.50
+se **suprime** sólo para los caminos que atraviesan un `Tramo` con
+`montanteId` (la distribución compartida genérica lo conserva). Ver D-δ.93
+en `PENDIENTES-DE-ARQUITECTURA.md`.
+
 ## CRIT-A28 — Subconjunto de pérdidas localizadas representable sobre `Tramo` (M2-C slice A)
 
 **Artículo:** sin artículo ERAS directo. CRIT-A26 ya transcribe firme la

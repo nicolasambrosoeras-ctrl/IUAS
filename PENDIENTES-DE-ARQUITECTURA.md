@@ -10388,6 +10388,267 @@ DEFENSE-01 -- NO iniciar.** Siguiente: **M2-TOPO-C -- constructor y
 asignación de Locales, resolviendo antes la decisión de identidad
 persistida del montante (y con ella la deduplicación vertical de D-δ.50)**.
 
+## D-δ.93 -- M2-TOPO-C: identidad semántica de montante + constructor en M2 + supresión dirigida del ascenso D-δ.50 -- CERRADO
+
+Tercer y último slice de construcción de **M2-TOPO-01** (identificación
+D-δ.91, enumeración/edición D-δ.92, constructor D-δ.93). Convierte la
+"distribución secundaria" -- hasta ahora una clasificación **derivada** y
+anónima -- en un **montante con identidad**, y da al proyectista la UI
+para crearlo, nombrarlo, asignarle/quitarle Locales y borrarlo. No
+introduce una segunda topología ni una segunda fuente de verdad, no
+cambia ninguna fórmula hidráulica y no toca HYD-EST-01, VIS-TOPO-01 ni
+M2-TOPO-D.
+
+### Modelo -- identidad semántica persistida, membresía derivada
+
+- **`Proyecto.montantes?: readonly Montante[]`** con
+  `Montante = { id; red: 'AF' | 'AC'; nombre? }` y **nada más**. Guarda
+  *identidad* (qué montantes existen, de qué red, cómo se llaman), nunca
+  estructura física: sin `tramosIds[]`, sin `localesIds[]`, sin caminos,
+  sin árboles paralelos, sin resultados, sin coordenadas.
+- **`RedHidraulica` sigue siendo la ÚNICA fuente de verdad física.** Un
+  segmento pertenece al montante vía **`Tramo.montanteId`** (referencia
+  del `Tramo` a la identidad). Los **Locales servidos** se **derivan**
+  siempre de la topología aguas abajo (`derivarLocalesServidos`,
+  `obtenerArtefactosAguasAbajo`), nunca de una lista.
+- Backward-compatible sin migración: `SCHEMA_VERSION_ACTUAL` no cambia;
+  un Proyecto guardado antes de M2-TOPO-C no trae `montantes` ni
+  `montanteId` y se comporta **byte-idéntico**. Ausente y `[]` son
+  equivalentes.
+- Un **montante vacío es válido**: puede existir con 0 segmentos y 0
+  Locales (identidad recién creada). `validarRedHidraulica` exige: ids
+  de montante únicos, `red` válida, y que todo `Tramo.montanteId` apunte
+  a una identidad existente y de red coherente
+  (`redHidraulicaMontanteIdDuplicado` / `...MontanteRedInvalida` /
+  `...TramoMontanteInexistente` / `...TramoMontanteRedIncoherente`).
+
+### Motor de reconciliación -- `interfaz/paginas/reconciliarMontante.ts`
+
+Traduce comandos transitorios del constructor
+(`agregarLocalAMontante` / `quitarLocalDeMontante` / `borrarMontante`)
+en mutaciones **mínimas y no destructivas** de `RedHidraulica`. Resultado
+discriminado (`reconciliado` | `bloqueadoPorDatoFisicoManual` |
+`bloqueadoPorDatoFisicoManualEnBorrado` | `origenIntermedioNoSoportado` |
+`localSinFeedConectable` | `localNoServido` | `localInexistente` |
+`montanteInexistente` | `sinRedHidraulica`). Comportamiento cerrado:
+
+- **Orden por cota de piso efectiva** del Local (`resolverCotaPisoDeLocal`,
+  GEOM-COTA-01), nunca por orden de clic ni por cota hidráulica del
+  artefacto. Origen por encima -> cadena descendente; origen por debajo o
+  desconocido -> ascendente.
+- **Misma cota** -> reutilización del nodo de derivación existente, sin
+  fabricar un tramo de longitud 0 (CRIT-A20).
+- **Longitud sugerida** inicial de cada segmento = `|Δz|` entre las cotas
+  de sus extremos, con `longitudEsSugerida: true`. `|Δz| = 0` o
+  indeterminado -> segmento **sin** longitud precargada, nunca 0.
+- **IDs estables**: agregar/quitar un Local crea o modifica sólo lo
+  imprescindible. El feed del Local viaja **entero** (sólo cambia su
+  `nodoOrigenId`): su longitud/accesorios/DN manual nunca se tocan.
+- **Quitar un Local NO fusiona segmentos** (RD-1): se conserva el nodo
+  intermedio y ambos segmentos con sus datos; sólo se poda una punta sin
+  derivación cuyo segmento entrante es íntegramente sugerido. Nunca se
+  elige arbitrariamente "gana upstream" ni "gana downstream".
+- **Origen canónico**: AF `directa` -> raíz a cota 0; AF con tanque ->
+  pelo de agua mínimo canónico (`resolverPeloDeAguaMinimoEfectivo`, sin
+  duplicar CRIT-A39); AC -> `cota_m` del nodo `produccionACS` si el
+  proyectista lo declaró -- nunca se extrapola el pelo del tanque a AC.
+- **`borrarMontante`** conserva Locales y artefactos: reengancha los
+  feeds a la raíz canónica y elimina la identidad; si algún segmento
+  tiene dato físico manual, **bloquea** (`bloqueadoPorDatoFisicoManualEnBorrado`)
+  y no muta.
+
+### DECISIÓN ROJA RD-1 -- resegmentación no destructiva -- CERRADA
+
+Nunca se reparte, interpola, escala, traslada ni borra: una **longitud
+manual**, unos **accesorios no vacíos** (`accesorios: []` NO bloquea --
+es "relevado, sin accesorios"), ni un **DN comercial adoptado a mano**.
+Un segmento es libremente resegmentable **sólo** si su longitud es
+sugerida (`longitudEsSugerida === true` o ausente), no tiene accesorios
+no vacíos y no tiene `dnComercialAdoptado`. Si agregar un Local exige
+partir un segmento personalizado, se **bloquea ANTES de mutar** y se
+devuelve `bloqueadoPorDatoFisicoManual` con `COPY_BLOQUEO_SPLIT_DATO_MANUAL`.
+La UI muestra ese copy humano y no cambia la topología ni deja el Local
+parcialmente asignado.
+
+### DECISIÓN ROJA RD-2 -- procedencia de la longitud -- CERRADA e implementada
+
+**`Tramo.longitudEsSugerida?: boolean`** es metadata de *política de
+edición*, nunca una segunda longitud ni una segunda ruta de cálculo (el
+motor sigue consumiendo sólo `longitud_m`):
+
+- `true` -> `longitud_m` fue **precargada por IUAS** (backfill de
+  predimensionamiento D-δ.51, o precarga por cotas del constructor de
+  montantes) y todavía puede recalcularse / re-segmentarse.
+- `false` / ausente -> tratar `longitud_m` como **personalizada**: no
+  modificarla ni re-segmentar automáticamente. La lectura conservadora de
+  la ausencia es deliberada y backward-compatible.
+
+`conLongitudDeTramo` **elimina el flag** cuando el usuario escribe el
+input, aunque el número tecleado coincida con el sugerido: la procedencia
+**nunca** se infiere comparando valores numéricos.
+
+### D-δ.50 -- supresión del ascenso implícito SÓLO por montante explícito
+
+`resolverIncrementoVerticalPorNivel` (D-δ.50) sumaba, en Simplificada,
+`3·nivel` al recorrido de todo camino que atraviesa distribución
+compartida. Desde M2-TOPO-C, si el camino contiene **≥ 1 `Tramo` con
+`montanteId`**, ese incremento vertical implícito se **suprime**
+(`D-δ.50 = 0`) -- el recorrido vertical real ya está modelado como los
+segmentos del montante, con su longitud editable. Campo de resultado
+nuevo `suprimidoPorMontante?: boolean`. Lo que **no** cambia:
+
+- **distribución compartida genérica sin montante** -> D-δ.50 histórico
+  **sigue vigente** (Alternativa A de D-δ.92);
+- **NO** se usa `esTramoDeDistribucionCompartida` como señal de supresión
+  -- sólo la pertenencia explícita a un montante;
+- **NO** se reactiva `3·nivel` como fallback si el segmento del montante
+  todavía no tiene longitud (el camino queda incompleto, como cualquier
+  tramo sin longitud);
+- **Profesional** sigue con incremento vertical 0, como antes;
+- el proyecto de ejemplo y todo proyecto sin montantes: D-δ.50, Estimadas
+  y golden **byte-idénticos**.
+
+### `origenIntermedioNoSoportado` -- LIMITACIÓN TEMPORAL conocida
+
+Cuando el origen del montante cae **estrictamente entre** las cotas de
+los Locales ya servidos, la forma física de la topología no es inequívoca
+(cadena única vs. bifurcación bidireccional). El motor devuelve
+`origenIntermedioNoSoportado` **sin mutar** y la UI muestra un aviso
+humano ("IUAS no puede ubicar automáticamente este Local...; cargá o
+ajustá las cotas de piso, o conectá el Local por fuera del montante"),
+nunca el enum ni un id. **No se inventa topología.** Es una limitación
+temporal (no un comportamiento aceptado): se retomará cuando M2-TOPO
+aborde bifurcaciones bidireccionales de montante.
+
+### Constructor -- `interfaz/paginas/ConstructorDeMontantes.tsx`
+
+Vive en M2 junto a "Distribución secundaria". Shell delgado sobre
+funciones puras (`montantesDelProyecto.ts`): la interacción real la
+cubren el E2E (`tests/e2e/montantes.spec.ts`) y el fuzz.
+
+- **`+ Agregar montante`** -> elegir AF o AC -> crea la identidad
+  (`conMontanteNuevo`, id con el generador existente, `nombre` ausente ->
+  fallback derivado por red `Montante AF 1` / `Montante AC 1` vía
+  `nombreDeMontante.ts`).
+- **Card por montante**: nombre editable (vacío -> se elimina el custom y
+  vuelve al fallback; nunca se muestra el id técnico), badge de red,
+  "Locales alimentados" (lista humana `Baño 1 · UF 1` + "Quitar", o "Sin
+  Locales asignados" si tiene 0), "+ Agregar local" (sólo Locales
+  **existentes** -- no se crean desde M2), "Segmentos" (misma tabla y
+  mismos resolvers que Distribución general/secundaria:
+  `resolverFilaDeDimensionamiento` / `resolverControlDeDnDeTramo` /
+  `AccesoriosDeTramoEditor`; longitud editable, DN ↓/↑/Auto), "Borrar
+  montante".
+- **Recálculo inmediato** (§12): cada alta/baja reconcilia -> nuevo
+  `Proyecto` -> `onCambiar` -> render -> Qc/DN/V/J/hf/presión, sin botón
+  Calcular. El Qc de cada segmento sale del pipeline normal
+  (simultaneidad sobre todo el conjunto aguas abajo), **nunca** de una
+  suma de Qc de Locales.
+- **Mapeo de resultados** (`interpretarResultadoDeMontante`): `reconciliado`
+  -> aplicar; bloqueos -> mostrar `copyHumano` sin mutar;
+  `origenIntermedioNoSoportado` / `localSinFeedConectable` -> aviso
+  humano; `localNoServido` -> no-op silencioso; bordes defensivos ->
+  aviso genérico. Nunca un enum ni un id interno (FIX-LEAK-01/02).
+
+### CAT-CONN + deduplicación del offering
+
+- **CAT-CONN (§10)**: un montante AF ofrece sólo Locales con conectividad
+  física **AF real** en `RedHidraulica` (terminal de artefacto + tramo
+  entrante -> `Tramo.red`), idem AC. **No** por nombre/tipo de artefacto
+  ni por `conectividadElegida`; industriales configurables respetan su
+  selección real (misma señal que `determinarConectividadFisica`,
+  re-derivada para todo el Local).
+- **Deduplicación firme (§11)**: un `(UF, Local, Red)` pertenece a **un
+  solo** montante de esa red. La UI no ofrece un Local ya servido por
+  este ni por otro montante de la misma red, y nunca crea multi-padre.
+  **AF y AC son independientes**: el mismo Local puede estar en un
+  montante AF y en uno AC.
+- **Enumeración (§17)**: un segmento con `montanteId` se muestra bajo la
+  card de su montante, no como fila "Distribución secundaria N"
+  (`identificarFilasDistribucionSecundaria` lo filtra, sin cambiar la
+  clasificación estructural del motor -- que sigue siendo la fuente de
+  VIS-TOPO). Un tramo compartido genérico sin montante sigue como
+  "Distribución secundaria N".
+
+### Graph-ready -- proyectabilidad VIS-TOPO demostrada
+
+`proyectarMontante` (en `montantesDelProyecto.ts`) es una proyección
+**READ-ONLY** que deriva enteramente de `RedHidraulica` +
+`Proyecto.montantes` + UF/Locales: id, nombre resuelto, red, segmentos
+ordenados origen->punta con su `orden`, nodos de derivación, Locales
+servidos etiquetados, nodo de origen. `montantesDelProyecto.visTopo.test.ts`
+(§30) prueba con un fixture de 3 Locales que un resolver READ-ONLY futuro
+obtiene id / nombre / red / origen / y por nivel (nodo de derivación,
+Local servido, orden, longitud, DN) usando **sólo** esa proyección +
+`resolverFilaDeDimensionamiento` (resultados). Si hiciera falta un
+`localesIds[]`, un `tramosIds[]` o datos gráficos paralelos, ese test
+dejaría de pasar. **No se persiste nada gráfico.**
+
+### Fuera de alcance (sin cambios)
+
+- **HYD-EST-01** sigue bloqueado: el modelo agregado actual de pérdidas
+  localizadas estimadas (n-1 tees @ 3,00 + 1 codo90 @ 1,35 + 1 llave @
+  9,18 por `(Local, Red)`) no cambia; sin K tee recta/lateral, sin
+  transición DN, sin K 0,17, sin pérdidas localizadas de montante
+  estimadas.
+- **VIS-TOPO-01**: sin SVG / React Flow / Dagre / ELK / Cytoscape /
+  pan-zoom / layout -- sólo la prueba de proyectabilidad.
+- **M2-TOPO-D**: edición fina de tees.
+- Sin ADR (queda para **M2-TOPO-E**).
+
+### Estado
+
+**D-δ.93 / M2-TOPO-C -- CERRADO.**
+
+- Identidad semántica de montante **persistida** (`Proyecto.montantes`),
+  membresía **derivada** (`Tramo.montanteId` + topología aguas abajo),
+  `RedHidraulica` única fuente física.
+- **Constructor** en M2: alta/baja de Locales existentes, orden por cota,
+  reutilización de nodo a misma cota, longitud sugerida `|Δz|`,
+  renombrar/borrar, recálculo inmediato.
+- **RD-1** (resegmentación no destructiva) y **RD-2**
+  (`longitudEsSugerida`) cerradas; **D-δ.50** suprimido **sólo** por
+  montante explícito (`suprimidoPorMontante`), distribución compartida
+  genérica sin cambios.
+- `origenIntermedioNoSoportado` documentado como **limitación temporal**.
+- **Graph-ready**: proyección READ-ONLY probada; nada gráfico persistido.
+
+Cambios de código en `src/` (esta serie de commits, previa a este
+incremento documental): `modelo/proyecto` (`Montante`,
+`Proyecto.montantes`), `modelo/redHidraulica` (`Tramo.montanteId`,
+`Tramo.longitudEsSugerida`), `validacion/redHidraulica` (4 códigos),
+`interfaz/paginas/nombreDeMontante.ts`,
+`interfaz/paginas/reconciliarMontante.ts` (motor + `derivarLocalesServidos`
+/ `reconstruirCadena` exportados), `interfaz/paginas/montantesDelProyecto.ts`
+(identidad + offering + proyección + interpretación de resultado),
+`interfaz/paginas/ConstructorDeMontantes.tsx` (+ CSS),
+`interfaz/paginas/identificarFilasDeModulo2.ts` (dedup §17),
+`interfaz/paginas/ResultadoHidraulicoDeTramo.tsx` (montaje),
+`interfaz/paginas/conLongitudDeTramo` (limpieza del flag, RD-2), motor de
+pérdida vertical (`suprimidoPorMontante`). Tests: `reconciliarMontante.test.ts`
+(25), `nombreDeMontante.test.ts`, `montantesDelProyecto.test.ts` (18),
+`ConstructorDeMontantes.componente.test.ts` (4),
+`montantesDelProyecto.visTopo.test.ts` (3), `identificarFilasDeModulo2.test.ts`
+(+1), `tokensProhibidos.test.ts` (+1), E2E `tests/e2e/montantes.spec.ts`
+(3), acciones de fuzz de montante. Baseline: Vitest **1585 / 1585**,
+`tsc -b` / `npm run e2e:typecheck` / `npm run build` verdes, ESLint
+**11 / 0 / 0** (sin errores nuevos). Fuzz local (dev): baseline 424242
+3×30, FIX-CRASH `34411681277-1:0` 30 pasos, FIX-LEAK `34398035608-1`
+runs 0–12 -- todos verdes; seeds que ejercen acciones de montante:
+`m7`, `m42`, `m99`. Tags sin mover (`v0.4.0-beta.5` en `1476c19`); sin
+`beta.6`. Snapshot `resguardo-documentacion/` intacto.
+
+**Hallazgo (fuera de M2-TOPO-C, no bloqueante):** con carga extrema de
+artefactos, `describirMotivoIncompletitudModulo3` (caso
+`medidorIndividualFueraDeTabla06`, `humanizarModulo3.ts`, de D-δ.56)
+interpola el **id crudo de la UF** en el texto al usuario en vez del
+nombre humano. Pre-existe a M2-TOPO-C y no lo dispara ninguna acción de
+montante. Pendiente de un incremento propio de humanización de M3.
+
+**HYD-EST-01 / VIS-TOPO-01 / M2-TOPO-D / PERSIST-01 / REPORT-01 /
+UX-TEST-01 / DEFENSE-01 -- NO iniciar.** Siguiente: **M2-TOPO-D -- UI y
+edición fina de tees**.
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son

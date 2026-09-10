@@ -256,10 +256,10 @@ la alimentación. Ver `CRITERIOS.md` → CAT-CONN-01.
   encarada por la serie **M2-TOPO-01** (A: identificación estructural +
   invariantes de arborescencia, D-δ.91 CERRADO; B: enumeración/edición de
   distribución secundaria + fix retrofit DN D-δ.49 + D-δ.50 resuelto como
-  "diferir deduplicación vertical", D-δ.92 CERRADO; C: creación de
-  montantes, asignación de Locales e identidad persistida — desbloquea la
-  deduplicación vertical de D-δ.50; D: UI/edición fina de tees; E:
-  integración presión/tees).
+  "diferir deduplicación vertical", D-δ.92 CERRADO; C: identidad semántica
+  de montante (`Proyecto.montantes`) + constructor en M2 (alta/baja de
+  Locales, RD-1/RD-2, supresión dirigida de D-δ.50), D-δ.93 CERRADO;
+  D: UI/edición fina de tees; E: integración presión/tees + ADR).
 
 #### Documentación / exportación
 
@@ -1211,6 +1211,60 @@ salvo bug inequívoco o decisión roja explícita.
   - **Siguiente:** M2-TOPO-C — constructor y asignación de Locales, con la
     decisión previa de identidad persistida del montante (que desbloquea la
     deduplicación vertical de D-δ.50).
+
+- **D-δ.93 — M2-TOPO-C: identidad semántica de montante + constructor en
+  M2 + supresión dirigida del ascenso D-δ.50.** Tercer y último slice de
+  construcción de **M2-TOPO-01**. `Proyecto.montantes` guarda **sólo**
+  identidad (`id` / `red` / `nombre?`); `RedHidraulica` sigue siendo la
+  única fuente física y la membresía montante↔segmento es `Tramo.montanteId`;
+  los Locales servidos se **derivan** de la topología aguas abajo. Sin
+  segunda topología, sin lista paralela, sin cambio de fórmula.
+  - **Constructor** en M2 junto a "Distribución secundaria": `+ Agregar
+    montante` (elegir AF/AC), card por montante con nombre editable
+    (vacío → fallback `Montante AF 1`; nunca el id), alta/baja de Locales
+    **existentes**, tabla de segmentos con los mismos resolvers que
+    Distribución general/secundaria, borrar. **Recálculo inmediato** por
+    `onCambiar`; el Qc de cada segmento sale del pipeline de simultaneidad,
+    nunca de una suma de Qc de Locales.
+  - **Motor** `reconciliarMontante.ts`: orden por cota de piso efectiva,
+    reutilización de nodo a misma cota (sin tramo 0), longitud sugerida
+    `|Δz|` (`longitudEsSugerida: true`), IDs estables, feed que viaja
+    entero. Resultado discriminado; los bloqueos muestran copy humano y
+    **no mutan**.
+  - **RD-1 (decisión roja, cerrada):** una longitud manual / accesorios
+    no vacíos / DN adoptado a mano nunca se reparten ni se borran; si un
+    alta exige partir un segmento personalizado se **bloquea antes de
+    mutar** (`COPY_BLOQUEO_SPLIT_DATO_MANUAL`). Quitar un Local **no**
+    fusiona segmentos.
+  - **RD-2 (decisión roja, cerrada e implementada):** `Tramo.longitudEsSugerida`
+    distingue longitud precargada por IUAS (re-segmentable) de
+    personalizada (intocable); `conLongitudDeTramo` elimina el flag al
+    editar; la procedencia **nunca** se infiere comparando valores.
+  - **D-δ.50 — deduplicación vertical resuelta:** si el camino contiene
+    ≥ 1 `Tramo` con `montanteId`, el ascenso implícito D-δ.50 se **suprime**
+    (`suprimidoPorMontante`). Distribución compartida **genérica sin
+    montante** conserva D-δ.50 (Alternativa A de D-δ.92); no se usa
+    `esTramoDeDistribucionCompartida` como señal; no se reactiva `3·nivel`
+    como fallback; Profesional sin cambios.
+  - `origenIntermedioNoSoportado`: **limitación temporal conocida** (el
+    origen entre cotas servidas deja la forma física ambigua) — aviso
+    humano, sin inventar topología.
+  - **Graph-ready:** `proyectarMontante` (READ-ONLY) + prueba de
+    proyectabilidad con fixture de 3 Locales — un resolver VIS-TOPO futuro
+    deriva id/nombre/red/origen/niveles (nodo, Local, orden, longitud, DN)
+    de `RedHidraulica` + `Proyecto.montantes` + UF/Locales + resultados.
+    **Nada gráfico persistido.**
+  - **Fuera de alcance:** HYD-EST-01, VIS-TOPO-01, M2-TOPO-D (tees). Sin
+    ADR (M2-TOPO-E).
+  - **Verificación:** Vitest **1585 / 1585**; `tsc` / `e2e:typecheck` /
+    `build` verdes; ESLint 11 / 0 / 0. E2E `montantes.spec.ts` y acciones
+    de fuzz de montante; fuzz local baseline + FIX-CRASH + FIX-LEAK
+    verdes. `v0.4.0-beta.5` sigue vigente; sin `beta.6`.
+  - **Hallazgo (fuera de alcance):** `humanizarModulo3.ts`
+    (`medidorIndividualFueraDeTabla06`, D-δ.56) muestra el id crudo de la
+    UF con carga extrema de artefactos — pre-existe, no lo dispara ninguna
+    acción de montante.
+  - **Siguiente:** M2-TOPO-D — UI y edición fina de tees.
 
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
