@@ -575,3 +575,106 @@ describe('validarRedHidraulica', () => {
     expect(codigos).not.toContain('redHidraulicaNodoMultiplesTramosEntrantes')
   })
 })
+
+// M2-TOPO-C: integridad referencial de la identidad semántica de montantes
+// (Proyecto.montantes) y de las referencias Tramo.montanteId.
+describe('validarRedHidraulica · identidad de montantes (M2-TOPO-C)', () => {
+  function conMontantes(
+    montantes: NonNullable<Proyecto['montantes']>,
+    tramos?: readonly Tramo[],
+  ): Proyecto {
+    const red = redMinimaValida()
+    const base = proyectoBase(
+      unidadesFuncionalesDeEjemplo,
+      tramos === undefined ? red : { ...red, tramos },
+    )
+    return { ...base, montantes }
+  }
+
+  it('proyecto sin campo `montantes`: backward-compatible, sin problemas nuevos', () => {
+    const codigos = validarRedHidraulica(proyectoBase(unidadesFuncionalesDeEjemplo, redMinimaValida())).map(
+      (p) => p.codigo,
+    )
+    expect(codigos).not.toContain('redHidraulicaMontanteIdDuplicado')
+    expect(codigos).not.toContain('redHidraulicaTramoMontanteInexistente')
+    expect(proyectoInicial.montantes).toBeUndefined()
+  })
+
+  it('montante explícito bien formado (0 segmentos): válido', () => {
+    const problemas = validarRedHidraulica(conMontantes([{ id: 'm-af-1', red: 'AF' }]))
+    expect(problemas).toEqual([])
+  })
+
+  it('montante con nombre personalizado y montante AC: ambos válidos', () => {
+    const problemas = validarRedHidraulica(
+      conMontantes([
+        { id: 'm-af-1', red: 'AF', nombre: 'Montante AF dormitorios' },
+        { id: 'm-ac-1', red: 'AC' },
+      ]),
+    )
+    expect(problemas).toEqual([])
+  })
+
+  it('dos montantes con el mismo id: redHidraulicaMontanteIdDuplicado', () => {
+    const codigos = validarRedHidraulica(
+      conMontantes([
+        { id: 'm-1', red: 'AF' },
+        { id: 'm-1', red: 'AC' },
+      ]),
+    ).map((p) => p.codigo)
+    expect(codigos).toContain('redHidraulicaMontanteIdDuplicado')
+  })
+
+  it('montante con red que no es AF ni AC: redHidraulicaMontanteRedInvalida', () => {
+    const codigos = validarRedHidraulica(
+      conMontantes([{ id: 'm-1', red: 'caliente' as never }]),
+    ).map((p) => p.codigo)
+    expect(codigos).toContain('redHidraulicaMontanteRedInvalida')
+  })
+
+  it('Tramo.montanteId que no corresponde a ningún montante: redHidraulicaTramoMontanteInexistente', () => {
+    const red = redMinimaValida()
+    const tramos = red.tramos.map((t) => (t.id === 't1' ? { ...t, montanteId: 'm-inexistente' } : t))
+    const codigos = validarRedHidraulica(conMontantes([{ id: 'm-otro', red: 'AF' }], tramos)).map((p) => p.codigo)
+    expect(codigos).toContain('redHidraulicaTramoMontanteInexistente')
+  })
+
+  it('Tramo AF apuntando a un montante AC: redHidraulicaTramoMontanteRedIncoherente', () => {
+    const red = redMinimaValida()
+    const tramos = red.tramos.map((t) => (t.id === 't2' ? { ...t, montanteId: 'm-ac' } : t))
+    const problemas = validarRedHidraulica(conMontantes([{ id: 'm-ac', red: 'AC' }], tramos))
+    const codigos = problemas.map((p) => p.codigo)
+    expect(codigos).toContain('redHidraulicaTramoMontanteRedIncoherente')
+    expect(codigos).not.toContain('redHidraulicaTramoMontanteInexistente')
+  })
+
+  it('Tramo AC apuntando a un montante AC coherente: válido', () => {
+    const red = redMinimaValida()
+    const tramos = red.tramos.map((t) => (t.id === 't4' ? { ...t, montanteId: 'm-ac' } : t))
+    expect(validarRedHidraulica(conMontantes([{ id: 'm-ac', red: 'AC' }], tramos))).toEqual([])
+  })
+
+  it('montante con red inválida referenciado por un Tramo: un solo reporte (sobre el montante)', () => {
+    const red = redMinimaValida()
+    const tramos = red.tramos.map((t) => (t.id === 't1' ? { ...t, montanteId: 'm-roto' } : t))
+    const codigos = validarRedHidraulica(
+      conMontantes([{ id: 'm-roto', red: 'tibia' as never }], tramos),
+    ).map((p) => p.codigo)
+    expect(codigos).toContain('redHidraulicaMontanteRedInvalida')
+    expect(codigos).not.toContain('redHidraulicaTramoMontanteInexistente')
+    expect(codigos).not.toContain('redHidraulicaTramoMontanteRedIncoherente')
+  })
+
+  it('montantes sin redHidraulica: se validan igual las identidades', () => {
+    const base = proyectoBase(unidadesFuncionalesDeEjemplo)
+    const proyecto: Proyecto = {
+      ...base,
+      montantes: [
+        { id: 'm-1', red: 'AF' },
+        { id: 'm-1', red: 'AF' },
+      ],
+    }
+    const codigos = validarRedHidraulica(proyecto).map((p) => p.codigo)
+    expect(codigos).toContain('redHidraulicaMontanteIdDuplicado')
+  })
+})

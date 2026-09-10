@@ -195,6 +195,21 @@ export type Tramo = {
   // vuelve a automático -- la capa de UI puede además limpiar el campo
   // (normalizarOverridesDeDnSegunSistema).
   dnComercialAdoptado?: string;
+  // M2-TOPO-C: referencia SEMÁNTICA de este segmento físico a la identidad
+  // de un montante explícito (`Proyecto.montantes[].id`). Es la ÚNICA forma
+  // de pertenencia montante↔segmento -- no existe un `tramosIds[]` en el
+  // Montante (evitar una segunda fuente de verdad). `undefined` = el Tramo
+  // no pertenece a ningún montante explícito (sigue pudiendo ser
+  // distribución compartida genérica de M2-TOPO-A/B, o feed de Local, o
+  // alimentación general). Presente = el constructor de montantes de M2
+  // creó/reconcilió este segmento como parte de ese montante. La realidad
+  // hidráulica del Tramo (Qc/DN/V/hf) NO cambia por este campo: sólo agrupa
+  // y habilita la supresión del incremento vertical implícito D-δ.50 para
+  // los caminos que lo atraviesan (M2-TOPO-C §37-§41). `red` del Tramo debe
+  // coincidir con `red` del Montante referenciado (validarRedHidraulica).
+  // Opcional y backward-compatible: sin migración, SCHEMA_VERSION_ACTUAL no
+  // cambia.
+  montanteId?: string;
 };
 
 // Una sola topología física para AF y AC (D-δ.2): no existen redes

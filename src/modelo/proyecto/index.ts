@@ -1,7 +1,7 @@
 // Modelo de proyecto: lo que el usuario declara y referencia del catálogo.
 // Esta capa no calcula; solo define la estructura del dominio persistible.
 
-import type { ConectividadFisica, RedHidraulica } from '../redHidraulica';
+import type { ConectividadFisica, RedDeTramo, RedHidraulica } from '../redHidraulica';
 
 export const SCHEMA_VERSION_ACTUAL = '1.0.0' as const;
 
@@ -355,12 +355,52 @@ export type ConfiguracionDeAbastecimiento = {
   readonly volumenTanqueBombeoAdoptado_m3?: number;
 };
 
+// M2-TOPO-C: IDENTIDAD SEMÁNTICA de un montante explícito creado por el
+// proyectista en Módulo 2. Es SÓLO identidad -- NO es una segunda topología
+// ni una segunda fuente de verdad hidráulica (D-δ.23 sigue firme: un
+// montante hidráulico es, y sigue siendo, una cadena real de Nodos/Tramos
+// de `RedHidraulica`). La estructura física del montante (sus segmentos,
+// sus nodos de derivación, sus feeds de Local, su Qc/DN/V/hf, su orden por
+// cota, los Locales que sirve) se RECONSTRUYE siempre desde
+// `RedHidraulica` -- nunca se persiste acá.
+//
+// Persiste deliberadamente lo MÍNIMO:
+//   - `id`      estable: existe para el modelo y para el futuro grafo
+//               (VIS-TOPO); nunca se muestra al usuario.
+//   - `red`     'AF' | 'AC' (RedDeTramo): todos los Tramos con
+//               `montanteId` apuntando a este Montante deben ser de esta
+//               misma red (validarRedHidraulica lo exige). Un montante
+//               NUNCA mezcla AF y AC.
+//   - `nombre?` etiqueta HUMANA editable ("Montante AF dormitorios").
+//               Ausente = usar el fallback derivado y numerado por red
+//               ("Montante AF 1", ver interfaz/paginas/nombreDeMontante).
+//
+// NO persiste (a propósito, para no crear una segunda fuente de verdad):
+// lista de Locales servidos, lista de Tramos/segmentos, caminos, Qc, DN,
+// V, hf, geometría, coordenadas, grafo, longitud total. La pertenencia de
+// un segmento físico al montante se expresa con `Tramo.montanteId` (una
+// referencia semántica desde el Tramo hacia acá), nunca con un
+// `tramosIds[]` acá. Un montante puede existir con 0, 1 o N Locales.
+export type Montante = {
+  readonly id: string;
+  readonly red: RedDeTramo;
+  readonly nombre?: string;
+};
+
 export type Proyecto = {
   metadatos: MetadatosProyecto;
   parametros: ParametrosProyecto;
   unidadesFuncionales: readonly UnidadFuncional[];
   // Ausente = proyecto sin red topológica modelada todavía (D-δ).
   redHidraulica?: RedHidraulica;
+  // M2-TOPO-C: identidades semánticas de los montantes explícitos creados
+  // por el proyectista en Módulo 2. Optativo y backward-compatible
+  // (SCHEMA_VERSION_ACTUAL NO cambia, sin migración): un Proyecto guardado
+  // antes de M2-TOPO-C no lo trae y se comporta EXACTAMENTE igual --
+  // ausente y `[]` son equivalentes ("no hay montantes explícitos"). El
+  // proyecto de ejemplo y el proyecto vacío no declaran montantes. Ver
+  // `Montante` para por qué esta lista NO contiene topología física.
+  montantes?: readonly Montante[];
   // Obligatoria: a diferencia de redHidraulica, el método de pérdida
   // distribuida es una configuración que el Proyecto siempre debe declarar
   // explícitamente una vez que este concepto existe en el modelo -- no hay

@@ -49,6 +49,13 @@ export const MENSAJES_DE_VALIDACION: Readonly<Record<CodigoValidacion, string>> 
     'Un punto de la red hidráulica recibe agua por más de un tramo a la vez. El cálculo admite una única alimentación por punto.',
   redHidraulicaCicloDirigido:
     'La red hidráulica tiene un recorrido que se cierra sobre sí mismo. Revise la dirección de los tramos para que el agua fluya siempre hacia los artefactos.',
+  redHidraulicaMontanteIdDuplicado: 'Hay dos montantes con el mismo identificador interno.',
+  redHidraulicaMontanteRedInvalida:
+    'Un montante quedó asociado a una red que no es agua fría ni agua caliente. Vuelva a crearlo eligiendo la red.',
+  redHidraulicaTramoMontanteInexistente:
+    'Un tramo quedó asociado a un montante que ya no existe. Reinicie el cálculo de Módulo 2 o vuelva a armar el montante.',
+  redHidraulicaTramoMontanteRedIncoherente:
+    'Un tramo pertenece a un montante de otra red. Un montante de agua fría no puede contener tramos de agua caliente ni al revés.',
   configuracionHidraulicaSistemaDeTuberiaIdInexistente:
     'El sistema de tubería seleccionado no existe en el catálogo de sistemas comerciales vigente.',
   configuracionHidraulicaSistemaMaterialIncompatible:

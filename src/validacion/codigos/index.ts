@@ -23,6 +23,10 @@ export type CodigoValidacion =
   | 'redHidraulicaNodoTeeTramoSalidaRectaInvalido'
   | 'redHidraulicaNodoMultiplesTramosEntrantes'
   | 'redHidraulicaCicloDirigido'
+  | 'redHidraulicaMontanteIdDuplicado'
+  | 'redHidraulicaMontanteRedInvalida'
+  | 'redHidraulicaTramoMontanteInexistente'
+  | 'redHidraulicaTramoMontanteRedIncoherente'
   | 'configuracionHidraulicaSistemaDeTuberiaIdInexistente'
   | 'configuracionHidraulicaSistemaMaterialIncompatible'
   | 'configuracionMedidoresUnidadFuncionalInexistente'
@@ -74,6 +78,10 @@ const ALCANCE_POR_CODIGO: Readonly<Record<CodigoValidacion, AlcanceValidacion>> 
   redHidraulicaNodoTeeTramoSalidaRectaInvalido: 'tuberias',
   redHidraulicaNodoMultiplesTramosEntrantes: 'tuberias',
   redHidraulicaCicloDirigido: 'tuberias',
+  redHidraulicaMontanteIdDuplicado: 'tuberias',
+  redHidraulicaMontanteRedInvalida: 'tuberias',
+  redHidraulicaTramoMontanteInexistente: 'tuberias',
+  redHidraulicaTramoMontanteRedIncoherente: 'tuberias',
   configuracionHidraulicaSistemaDeTuberiaIdInexistente: 'tuberias',
   configuracionHidraulicaSistemaMaterialIncompatible: 'tuberias',
   configuracionMedidoresUnidadFuncionalInexistente: 'medidores',
@@ -178,6 +186,25 @@ export const codigosValidacion: Readonly<Record<CodigoValidacion, DescripcionCod
     severidad: 'error',
     descripcion:
       'La red hidráulica contiene un ciclo dirigido (siguiendo nodoOrigenId → nodoDestinoId se vuelve a un Nodo ya recorrido). El alcance hidráulico de Módulo 2 es una arborescencia acíclica (CRIT-A27): ningún camino de terminal hacia el origen podría resolverse.',
+  },
+  redHidraulicaMontanteIdDuplicado: {
+    severidad: 'error',
+    descripcion: 'Dos o más montantes explícitos (Proyecto.montantes) comparten el mismo id.',
+  },
+  redHidraulicaMontanteRedInvalida: {
+    severidad: 'error',
+    descripcion:
+      'Un montante explícito (Proyecto.montantes) declara una red que no es "AF" ni "AC". Un montante pertenece siempre a una única red física (M2-TOPO-C §36).',
+  },
+  redHidraulicaTramoMontanteInexistente: {
+    severidad: 'error',
+    descripcion:
+      'Un Tramo referencia un montanteId que no corresponde a ningún montante explícito de Proyecto.montantes.',
+  },
+  redHidraulicaTramoMontanteRedIncoherente: {
+    severidad: 'error',
+    descripcion:
+      'Un Tramo pertenece a un montante explícito (Tramo.montanteId) cuya red difiere de la red del propio Tramo. Todos los segmentos de un montante son de su misma red (M2-TOPO-C §36).',
   },
   configuracionHidraulicaSistemaDeTuberiaIdInexistente: {
     severidad: 'error',

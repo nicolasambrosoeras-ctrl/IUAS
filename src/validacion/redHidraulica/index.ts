@@ -16,14 +16,58 @@ import { crearProblema, type ProblemaValidacion } from '../codigos';
 import { calcularDiferenciaDeCota } from '../../motor/tuberias/geometria/calcularDiferenciaDeCota';
 import { esLongitudGeometricamenteValida } from '../../motor/tuberias/geometria/esLongitudGeometricamenteValida';
 
+// M2-TOPO-C: integridad referencial de las identidades semánticas de
+// montante (Proyecto.montantes) y de las referencias `Tramo.montanteId`.
+// SÓLO shape / integridad referencial: la coherencia topológica más
+// profunda (un mismo (Local,Red) servido por >1 montante, un montante con
+// topología no resoluble) se valida donde vive la reconciliación, no acá.
+// `redPorMontanteId` es undefined para un id de montante inválido (red no
+// 'AF'/'AC'): en ese caso no se emite además el problema de coherencia de
+// red por Tramo -- un solo reporte por dato roto.
+function validarMontantes(proyecto: Proyecto): {
+  readonly problemas: readonly ProblemaValidacion[];
+  readonly redPorMontanteId: ReadonlyMap<string, 'AF' | 'AC'>;
+} {
+  const problemas: ProblemaValidacion[] = [];
+  const montantes = proyecto.montantes ?? [];
+
+  const idsVistos = new Set<string>();
+  const redPorMontanteId = new Map<string, 'AF' | 'AC'>();
+
+  montantes.forEach((montante, indice) => {
+    if (idsVistos.has(montante.id)) {
+      problemas.push(
+        crearProblema('redHidraulicaMontanteIdDuplicado', `montantes[${indice}].id`, montante.id),
+      );
+    }
+    idsVistos.add(montante.id);
+
+    if (montante.red !== 'AF' && montante.red !== 'AC') {
+      problemas.push(
+        crearProblema('redHidraulicaMontanteRedInvalida', `montantes[${indice}].red`, montante.red),
+      );
+      return;
+    }
+    // Con id duplicado se conserva la red del primero: alcanza para no
+    // emitir falsos positivos de coherencia; el id duplicado ya se reportó.
+    if (!redPorMontanteId.has(montante.id)) {
+      redPorMontanteId.set(montante.id, montante.red);
+    }
+  });
+
+  return { problemas, redPorMontanteId };
+}
+
 export function validarRedHidraulica(proyecto: Proyecto): readonly ProblemaValidacion[] {
   const { redHidraulica } = proyecto;
 
+  const { problemas: problemasDeMontantes, redPorMontanteId } = validarMontantes(proyecto);
+
   if (redHidraulica === undefined) {
-    return [];
+    return problemasDeMontantes;
   }
 
-  const problemas: ProblemaValidacion[] = [];
+  const problemas: ProblemaValidacion[] = [...problemasDeMontantes];
   const { nodos, tramos } = redHidraulica;
 
   const idsDeNodoVistos = new Set<string>();
@@ -123,6 +167,38 @@ export function validarRedHidraulica(proyecto: Proyecto): readonly ProblemaValid
           );
         }
       });
+    }
+
+    // M2-TOPO-C: pertenencia semántica a un montante explícito. `undefined`
+    // no se valida (el Tramo simplemente no pertenece a ningún montante).
+    if (tramo.montanteId !== undefined) {
+      const redDelMontante = redPorMontanteId.get(tramo.montanteId);
+      if (redDelMontante === undefined) {
+        // No existe (o su red era inválida y ya se reportó): en ambos casos
+        // no hay una identidad de montante válida a la que este Tramo pueda
+        // pertenecer.
+        if ((proyecto.montantes ?? []).some((montante) => montante.id === tramo.montanteId)) {
+          // Existe pero con red inválida -> ya hay un problema sobre el
+          // montante; no se duplica acá.
+        } else {
+          problemas.push(
+            crearProblema(
+              'redHidraulicaTramoMontanteInexistente',
+              `${campoTramo}.montanteId`,
+              tramo.montanteId,
+            ),
+          );
+        }
+      } else if (redDelMontante !== tramo.red) {
+        problemas.push(
+          crearProblema(
+            'redHidraulicaTramoMontanteRedIncoherente',
+            `${campoTramo}.montanteId`,
+            tramo.montanteId,
+            redDelMontante,
+          ),
+        );
+      }
     }
 
     const nodoOrigen = nodosPorId.get(tramo.nodoOrigenId);
