@@ -58,7 +58,7 @@ describe('resolverClasificacionDeTee', () => {
     expect(resolverClasificacionDeTee(red, 'n-tee', 't-lateral')).toEqual({ tipo: 'sinConfigurar' })
   })
 
-  it('Nodo sin exactamente 1 entrante + 2 salientes -> noEsBifurcacionDeTee (fuera de alcance, no incompletitud)', () => {
+  it('Nodo que no bifurca (1->1) -> noEsBifurcacionDeTee (contribución 0 genuina, no incompletitud)', () => {
     const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n-simple' }, { id: 'n1' }]
     const tramos: Tramo[] = [
       { id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n-simple', red: 'AF' },
@@ -67,6 +67,31 @@ describe('resolverClasificacionDeTee', () => {
     const red: RedHidraulica = { nodos, tramos }
 
     expect(resolverClasificacionDeTee(red, 'n-simple', 't1')).toEqual({ tipo: 'noEsBifurcacionDeTee' })
+  })
+
+  // M2-TOPO-E §8: 1 entrante + >2 salientes NO es "no aplica" -- es una
+  // singularidad real cuya pérdida localizada el modelo actual no puede
+  // representar (fuera del alcance 1->2 de ConfiguracionDeTee). Se
+  // distingue con su propio `tipo` para que acumularPerdidaLocalizadaDeCamino
+  // marque el camino como incompleto en vez de sumar un 0 silencioso.
+  it('§8: fan-out 1->3 -> derivacionMultipleNoModelada con cantidadSalidas, nunca noEsBifurcacionDeTee', () => {
+    const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n-fan' }, { id: 'n1' }, { id: 'n2' }, { id: 'n3' }]
+    const tramos: Tramo[] = [
+      { id: 't-in', nodoOrigenId: 'n0', nodoDestinoId: 'n-fan', red: 'AF' },
+      { id: 't-a', nodoOrigenId: 'n-fan', nodoDestinoId: 'n1', red: 'AF' },
+      { id: 't-b', nodoOrigenId: 'n-fan', nodoDestinoId: 'n2', red: 'AF' },
+      { id: 't-c', nodoOrigenId: 'n-fan', nodoDestinoId: 'n3', red: 'AF' },
+    ]
+    const red: RedHidraulica = { nodos, tramos }
+
+    expect(resolverClasificacionDeTee(red, 'n-fan', 't-a')).toEqual({
+      tipo: 'derivacionMultipleNoModelada',
+      cantidadSalidas: 3,
+    })
+    expect(resolverClasificacionDeTee(red, 'n-fan', 't-c')).toEqual({
+      tipo: 'derivacionMultipleNoModelada',
+      cantidadSalidas: 3,
+    })
   })
 
   it('nodoId inexistente: throw (precondición imposible)', () => {
@@ -114,17 +139,23 @@ describe('resolverClasificacionDeTee', () => {
     }
   })
 
-  // M2-TOPO-D §35: si el nodo dejó de ser 1->2 (p. ej. le agregaron una
-  // tercera salida), NUNCA lanza -- devuelve 'noEsBifurcacionDeTee' antes
-  // de mirar `Nodo.tee`, aunque la configuración vieja siga presente
-  // (defensa en profundidad; `reconciliarTeesTrasCambioTopologico` ya la
-  // limpia en el flujo normal).
-  it('§35: nodo que dejó de ser 1->2 con una tee vieja todavía presente -> noEsBifurcacionDeTee, sin throw', () => {
+  // M2-TOPO-D §35 / M2-TOPO-E §8: si el nodo dejó de ser 1->2 (p. ej. le
+  // agregaron una tercera salida), NUNCA lanza -- clasifica sin mirar
+  // `tramoSalidaRectaId` de la `tee` vieja, aunque siga presente (defensa
+  // en profundidad; `reconciliarTeesTrasCambioTopologico` ya la limpia en
+  // el flujo normal). Desde M2-TOPO-E el resultado es
+  // `derivacionMultipleNoModelada` (1->3), no `noEsBifurcacionDeTee`: el
+  // camino que lo atraviesa queda incompleto, no aparenta relevamiento
+  // completo con 0.
+  it('§35: nodo que dejó de ser 1->2 con una tee vieja todavía presente -> derivacionMultipleNoModelada, sin throw', () => {
     const red = redConBifurcacion({ tipo: 'entradaPorExtremo', tramoSalidaRectaId: 't-recta' })
     const con1a3: RedHidraulica = {
       nodos: [...red.nodos, { id: 'n3' }],
       tramos: [...red.tramos, { id: 't-extra', nodoOrigenId: 'n-tee', nodoDestinoId: 'n3', red: 'AF' }],
     }
-    expect(resolverClasificacionDeTee(con1a3, 'n-tee', 't-recta')).toEqual({ tipo: 'noEsBifurcacionDeTee' })
+    expect(resolverClasificacionDeTee(con1a3, 'n-tee', 't-recta')).toEqual({
+      tipo: 'derivacionMultipleNoModelada',
+      cantidadSalidas: 3,
+    })
   })
 })

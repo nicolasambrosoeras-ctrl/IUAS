@@ -1,9 +1,12 @@
-// M2-TOPO-D §36/§37/§40 -- integración: un montante con derivaciones en
-// cadena, sus `Nodo.tee` configurables en modo Detalladas, y la garantía
-// de que el modo Estimadas NO lee esa configuración (modelo agregado
-// intacto). No introduce ninguna fórmula: sólo compone reconciliador de
-// montantes (M2-TOPO-C) + `conTeeDeNodo` + los resolvers de pérdida
-// localizada ya existentes.
+// M2-TOPO-D §36/§37/§40 + M2-TOPO-E §8/§30 -- integración: un montante con
+// derivaciones en cadena, sus `Nodo.tee` configurables en modo Detalladas,
+// y la garantía de que el modo Estimadas NO lee esa configuración (modelo
+// agregado intacto). Desde M2-TOPO-E, un nodo de derivación 1->N (N>2) deja
+// la pérdida localizada Detalladas explícitamente INCOMPLETA por
+// `derivacionMultipleNoModelada` en vez de aparentar un relevamiento
+// completo con contribución 0. No introduce ninguna fórmula: sólo compone
+// reconciliador de montantes (M2-TOPO-C) + `conTeeDeNodo` + los resolvers
+// de pérdida localizada ya existentes.
 import { describe, it, expect } from 'vitest'
 import type { Local, Proyecto, UnidadFuncional } from '../../../modelo/proyecto'
 import type { Nodo, RedHidraulica, Tramo } from '../../../modelo/redHidraulica'
@@ -193,7 +196,7 @@ describe('M2-TOPO-D · Estimadas intactas (§37)', () => {
   })
 })
 
-describe('M2-TOPO-D · fan-out 1->N (§40)', () => {
+describe('M2-TOPO-D · fan-out 1->N (§40) + M2-TOPO-E (§8/§30)', () => {
   it('3 Locales a la MISMA cota: una derivación 1->3, no editable como tee', () => {
     const { proyecto, montanteId } = montanteAfConLocales([4, 4, 4])
     expect(validarRedHidraulica(proyecto)).toEqual([])
@@ -204,21 +207,48 @@ describe('M2-TOPO-D · fan-out 1->N (§40)', () => {
     expect(derivaciones[0]!.cantidadSalidas).toBe(3)
   })
 
-  it('la topología 1->3 sigue siendo VÁLIDA para Qc y NO bloquea Detalladas por "tee sin configurar"', () => {
+  it('la topología 1->3 es VÁLIDA para Qc pero deja Detalladas INCOMPLETA por derivacionMultipleNoModelada (nunca un 0 silencioso ni un throw)', () => {
     const { proyecto } = montanteAfConLocales([4, 4, 4])
     expect(validarRedHidraulica(proyecto)).toEqual([])
-    const resultado = acumularPerdidaLocalizadaDeCamino(
+    let resultado: ReturnType<typeof acumularPerdidaLocalizadaDeCamino>
+    expect(() => {
+      resultado = acumularPerdidaLocalizadaDeCamino(
+        proyecto,
+        camino(proyecto, terminalMasProfundo(proyecto)),
+        catalogoArtefactos,
+        catalogoSistemasDeTuberia,
+      )
+    }).not.toThrow()
+    // El nodo 1->3 clasifica 'derivacionMultipleNoModelada' (M2-TOPO-E §8):
+    // su pérdida localizada real NO se modela con los datos actuales, así
+    // que el camino queda EXPLÍCITAMENTE incompleto -- no aparenta un
+    // relevamiento completo. No se asigna Ks ni se inventa geometría.
+    expect(resultado!.tipo).toBe('incompleta')
+    if (resultado!.tipo !== 'incompleta') return
+    expect(resultado!.tramosNoResueltos.every((m) => m.motivo === 'derivacionMultipleNoModelada')).toBe(true)
+  })
+
+  it('§30-E: el Qc de cada segmento del montante 1->3 sigue resolviéndose (la topología no cambia)', () => {
+    const { proyecto } = montanteAfConLocales([4, 4, 4])
+    const c = camino(proyecto, terminalMasProfundo(proyecto))
+    // El camino se resuelve estructuralmente (raíz -> terminal) sin
+    // 'topologiaNoResoluble': el 1->3 es un fan-out válido (M2-TOPO-A).
+    expect(c.tramos.length).toBeGreaterThan(0)
+  })
+
+  it('§30-D: Estimadas para un montante 1->3 conserva el modelo agregado histórico (no lee la topología 1->N)', () => {
+    const { proyecto } = montanteAfConLocales([4, 4, 4])
+    const estimada = resolverPerdidaLocalizadaEstimadaDeLocal(
       proyecto,
-      camino(proyecto, terminalMasProfundo(proyecto)),
+      'uf-1',
+      'l-1',
+      'AF',
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
     )
-    // El nodo 1->3 clasifica 'noEsBifurcacionDeTee' -> contribución de tee
-    // 0, SIN reportar `teeSinConfigurar`. Con accesorios [] en todo el
-    // camino, la pérdida localizada se ACUMULA (no queda incompleta):
-    // limitación conocida -- la pérdida real de la derivación múltiple NO
-    // se modela en Detalladas (CRIT-A31 cubre sólo 1->2), registrado en
-    // D-δ.95 como pendiente para HYD-EST / M2-TOPO-E.
-    expect(resultado.tipo).toBe('acumulada')
+    // El modelo agregado estimado (n-1 tees @ 3,00 + codo90 + llave, Vref)
+    // se resuelve igual que para cualquier topología -- nunca lee Nodo.tee
+    // ni el fan-out 1->N.
+    expect(estimada.tipo).toBe('estimada')
   })
 })

@@ -220,4 +220,45 @@ test.describe('M2-TOPO-C · constructor de montantes', () => {
     const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
     expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
   })
+
+  // M2-TOPO-E §8/§12/§34: tres Locales del ejemplo comparten cota (todos a
+  // 0 m) -> el montante crea UNA derivación 1->3. En Detalladas NO se
+  // ofrece un editor de tee 1->2 engañoso: se muestra la nota honesta y la
+  // verificación de presión de esos Locales queda explícitamente
+  // incompleta (nunca un 0 silencioso). La app sigue viva y sin ids.
+  test('M2-TOPO-E · derivación múltiple 1->3: nota honesta en Detalladas, sin editor engañoso ni crash', async ({
+    page,
+    errores,
+    baseURLEfectiva,
+  }) => {
+    await cargarAppLimpia(page, baseURLEfectiva)
+    await irATuberias(page)
+
+    const resumen = page.getByText('Configuración avanzada', { exact: true }).first()
+    if (await resumen.isVisible().catch(() => false)) {
+      const detalle = resumen.locator('xpath=ancestor::details[1]')
+      const abierto = await detalle.evaluate((el) => (el as HTMLDetailsElement).open).catch(() => true)
+      if (!abierto) await resumen.click()
+    }
+    await page.getByLabel('Pérdidas localizadas:').selectOption('detallado')
+    await estabilizar(page)
+
+    const seccion = seccionMontantes(page)
+    await agregarMontante(page, 'Agua fría')
+    const card = seccion.locator('.montante-card').first()
+    for (const label of ['Baño 1 · Unidad funcional 1', 'Cocina 1 · Unidad funcional 1', 'Lavadero 1 · Unidad funcional 1']) {
+      await card.getByLabel('Agregar Local al Montante AF 1').selectOption({ label })
+      await estabilizar(page)
+    }
+
+    const derivaciones = card.locator('.montante-card__derivaciones')
+    await expect(derivaciones.getByRole('heading', { name: 'Derivaciones' })).toBeVisible()
+    // 1->3: ningún editor de tee 1->2, sí la nota de limitación conocida.
+    await expect(derivaciones.locator('fieldset.tee-editor')).toHaveCount(0)
+    await expect(derivaciones.locator('.montante-card__derivacion-nota')).toContainText('derivación múltiple')
+    await expect(derivaciones.locator('.montante-card__derivacion-nota')).toContainText('queda incompleta')
+
+    const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+  })
 })

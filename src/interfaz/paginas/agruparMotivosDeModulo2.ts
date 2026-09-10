@@ -69,14 +69,30 @@ export function agruparMotivosDeModulo2(
     lineas.push(`Falta la longitud en ${formatearNumero(n, 'conteo')} ${pluralizar(n, 'tramo', 'tramos')} para calcular la pérdida distribuida.`)
   }
 
-  const perdidaLocalizadaIncompleta = motivos.filter((m) => m.tipo === 'perdidaLocalizadaIncompleta')
-  if (perdidaLocalizadaIncompleta.length > 0) {
-    const n = new Set(
-      perdidaLocalizadaIncompleta.flatMap((m) =>
-        m.tipo === 'perdidaLocalizadaIncompleta' ? m.tramosNoResueltos.map((t) => t.tramoId) : [],
-      ),
-    ).size
+  // La pérdida localizada Detalladas incompleta tiene dos causas de
+  // naturaleza distinta que se cuentan por separado (M2-TOPO-E §11):
+  //  - accesorios/tee sin relevar: el proyectista PUEDE resolverlo cargando
+  //    datos;
+  //  - derivación múltiple (1→N) no modelada: es una limitación del modelo,
+  //    no hay nada que el proyectista pueda declarar todavía.
+  const tramosPerdidaLocalizada = motivos.flatMap((m) =>
+    m.tipo === 'perdidaLocalizadaIncompleta' ? m.tramosNoResueltos : [],
+  )
+  const tramosDerivacionMultiple = new Set(
+    tramosPerdidaLocalizada.filter((t) => t.motivo === 'derivacionMultipleNoModelada').map((t) => t.tramoId),
+  )
+  const tramosRelevables = new Set(
+    tramosPerdidaLocalizada.filter((t) => t.motivo !== 'derivacionMultipleNoModelada').map((t) => t.tramoId),
+  )
+  if (tramosRelevables.size > 0) {
+    const n = tramosRelevables.size
     lineas.push(`Falta relevar accesorios o tees en ${formatearNumero(n, 'conteo')} ${pluralizar(n, 'tramo', 'tramos')}.`)
+  }
+  if (tramosDerivacionMultiple.size > 0) {
+    const n = tramosDerivacionMultiple.size
+    lineas.push(
+      `En ${formatearNumero(n, 'conteo')} ${pluralizar(n, 'tramo', 'tramos')} la pérdida localizada de una derivación múltiple todavía no está modelada.`,
+    )
   }
 
   const perdidaLocalizadaEstimadaIncompleta = motivos.filter((m) => m.tipo === 'perdidaLocalizadaEstimadaIncompleta')

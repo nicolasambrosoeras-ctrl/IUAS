@@ -18,10 +18,24 @@
 // no pertenece a los dos salientes reales, es una precondición imposible
 // tras la validación -- throw, no un estado de dominio a manejar acá
 // (validarRedHidraulica ya lo rechaza explícitamente antes de llegar a
-// este punto). El único estado de dominio legítimo que esta función
-// distingue es `Nodo.tee === undefined`: una bifurcación 1→2 real cuya
-// tee todavía no fue relevada -- nunca se infiere ninguna clasificación
-// para ese caso.
+// este punto). Los estados de dominio legítimos que esta función
+// distingue son:
+//  - `Nodo.tee === undefined` sobre una bifurcación 1→2 real: la tee
+//    todavía no fue relevada (`sinConfigurar`) -- nunca se infiere una
+//    clasificación.
+//  - 1 entrante + >2 salientes (`derivacionMultipleNoModelada`, M2-TOPO-E):
+//    fan-out válido para Qc (M2-TOPO-A) pero fuera del alcance de
+//    ConfiguracionDeTee (sólo 1→2). El modelo actual NO tiene datos para
+//    representar esa singularidad (orden físico de ramas, cuál es recta,
+//    piezas reales, longitudes intermedias) y NO se inventan. El consumidor
+//    (acumularPerdidaLocalizadaDeCamino) marca ese tramo como no resuelto
+//    -- la pérdida localizada del camino queda explícitamente INCOMPLETA,
+//    nunca un 0 silencioso que aparente relevamiento completo. Depende sólo
+//    de la topología real (entrantes/salientes), nunca de `montanteId`:
+//    una cabecera de Local con ≥3 artefactos recibe el mismo tratamiento
+//    que un nodo de derivación de montante 1→N.
+//  - 1→1 / raíz / cualquier nodo que no bifurca (`noEsBifurcacionDeTee`):
+//    genuinamente no hay singularidad de tee -- contribución 0 correcta.
 import type { IdAccesorioTabla07 } from '../../../normativa/eras-2023/tabla-07-perdidas-localizadas'
 import type { RedHidraulica } from '../../../modelo/redHidraulica'
 
@@ -41,9 +55,17 @@ export type ResultadoClasificacionDeTee =
       readonly tipo: 'sinConfigurar'
     }
   | {
-      // El Nodo no tiene exactamente 1 entrante + 2 salientes: fuera del
-      // alcance de este incremento (no bifurca, o bifurca en más de 2).
-      // No es un estado de incompletitud -- simplemente no aplica.
+      // 1 entrante + >2 salientes (fan-out 1→N, N≥3). Válido para Qc
+      // (M2-TOPO-A) pero fuera del alcance de ConfiguracionDeTee (1→2). Su
+      // pérdida localizada real NO se modela con los datos actuales -- es
+      // un estado de incompletitud, no un "no aplica" (M2-TOPO-E, §8).
+      readonly tipo: 'derivacionMultipleNoModelada'
+      readonly cantidadSalidas: number
+    }
+  | {
+      // El Nodo no bifurca (1→1, 1→0, raíz sin entrante) o tiene ≥2
+      // entrantes (precondición imposible tras validarRedHidraulica). No
+      // hay singularidad de tee -- contribución 0 genuina, no incompletitud.
       readonly tipo: 'noEsBifurcacionDeTee'
     }
 
@@ -59,6 +81,15 @@ export function resolverClasificacionDeTee(
 
   const salientes = redHidraulica.tramos.filter((tramo) => tramo.nodoOrigenId === nodoId)
   const entrantes = redHidraulica.tramos.filter((tramo) => tramo.nodoDestinoId === nodoId)
+
+  if (entrantes.length === 1 && salientes.length > 2) {
+    // Fan-out 1→N (N≥3): se distingue explícitamente de `noEsBifurcacionDeTee`
+    // -- el camino que atraviesa este nodo NO puede declararse con su
+    // pérdida localizada completa (M2-TOPO-E). No lanza aunque el Nodo
+    // arrastre una `tee` vieja de cuando era 1→2 (defensa en profundidad;
+    // reconciliarTeesTrasCambioTopologico ya la limpia en el flujo normal).
+    return { tipo: 'derivacionMultipleNoModelada', cantidadSalidas: salientes.length }
+  }
 
   if (salientes.length !== 2 || entrantes.length !== 1) {
     return { tipo: 'noEsBifurcacionDeTee' }

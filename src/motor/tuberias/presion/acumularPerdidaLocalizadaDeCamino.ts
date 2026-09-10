@@ -19,10 +19,20 @@
 // -- reutilizando la MISMA velocidadReal_mps ya resuelta de este Tramo,
 // nunca una "velocidad de tee" separada -- al hf_m propio de sus
 // accesorios en línea (ambos usan la misma V a igual Tramo, así que la
-// suma es la composición lineal correcta de CRIT-A26). Si el Nodo no es
-// una bifurcación de tee (noEsBifurcacionDeTee: no bifurca, o bifurca en
-// más de 2), no hay contribución de tee para este Tramo -- no es
-// incompletitud, simplemente no aplica.
+// suma es la composición lineal correcta de CRIT-A26).
+//
+// Fan-out 1→N (N≥3, derivacionMultipleNoModelada, M2-TOPO-E §8): el nodo
+// bifurca en más de 2 salientes -- topología válida para Qc (M2-TOPO-A)
+// pero fuera del alcance de ConfiguracionDeTee. El modelo actual NO tiene
+// los datos para representar esa singularidad (orden físico de las ramas,
+// cuál es recta, piezas reales, longitudes intermedias) y NO se inventan
+// (no se asigna Ks, no se calcula pérdida, no se fabrica geometría). El
+// Tramo que sale de ese nodo queda NO RESUELTO por motivo
+// `derivacionMultipleNoModelada`: la pérdida localizada del camino se
+// devuelve 'incompleta', nunca un 0 silencioso que aparente relevamiento
+// completo. Sólo cuando el Nodo genuinamente no bifurca (1→1, raíz,
+// noEsBifurcacionDeTee) no hay contribución de tee y la ausencia es 0
+// real, no incompletitud.
 //
 // Respeta los estados incompletos de la capa comercial (sinDemanda,
 // sinCandidatoAdmisible -- ningún Tramo en esos estados tiene
@@ -41,9 +51,11 @@
 // nodal real, independiente de la granularidad), pero sus accesorios en
 // línea NUNCA se exigen ni se suman -- contribuyen 0 a esa parte de
 // hfLocalizada por definición del modelo simplificado. Si el Nodo de
-// origen de un ramal no es una bifurcación de tee, el ramal entero
-// contribuye 0 sin necesitar siquiera resolver su diámetro comercial
-// (nada que computar sobre él).
+// origen de un ramal genuinamente no bifurca (noEsBifurcacionDeTee), el
+// ramal entero contribuye 0 sin necesitar siquiera resolver su diámetro
+// comercial (nada que computar sobre él); si en cambio es un fan-out 1→N
+// (derivacionMultipleNoModelada), el ramal queda no resuelto por ese
+// motivo, igual que en 'profesional'.
 import type { Proyecto } from '../../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../../normativa/eras-2023/catalogo-artefactos'
 import { obtenerKsDeAccesorio } from '../../../normativa/eras-2023/tabla-07-perdidas-localizadas'
@@ -56,7 +68,16 @@ import { resolverPerdidaLocalizadaDeTramo } from '../perdidaCarga/resolverPerdid
 import { calcularPerdidaCargaLocalizada } from '../perdidaCarga/calcularPerdidaCargaLocalizada'
 import { seleccionarTramosDeAcumulacion } from './seleccionarTramosDeAcumulacion'
 
-export type MotivoTramoSinPerdidaLocalizada = 'sinDemanda' | 'sinCandidatoAdmisible' | 'sinRelevar' | 'teeSinConfigurar'
+export type MotivoTramoSinPerdidaLocalizada =
+  | 'sinDemanda'
+  | 'sinCandidatoAdmisible'
+  | 'sinRelevar'
+  | 'teeSinConfigurar'
+  // Fan-out 1→N (N≥3) en el camino: su pérdida localizada no se modela con
+  // los datos actuales (M2-TOPO-E §8). Distinto de 'teeSinConfigurar' (una
+  // tee 1→2 real que sólo falta relevar): acá no hay nada que el
+  // proyectista pueda declarar todavía -- es una limitación del modelo.
+  | 'derivacionMultipleNoModelada'
 
 export type ResultadoPerdidaLocalizadaDeCamino =
   | {
@@ -124,6 +145,12 @@ export function acumularPerdidaLocalizadaDeCamino(
       tramosNoResueltos.push({ tramoId: tramo.id, motivo: 'teeSinConfigurar' })
       return { tipo: 'noResuelto' }
     }
+    if (clasificacionTee.tipo === 'derivacionMultipleNoModelada') {
+      // 1→N (N≥3): no se modela su pérdida localizada -- el camino queda
+      // incompleto, nunca un 0 silencioso (M2-TOPO-E §8).
+      tramosNoResueltos.push({ tramoId: tramo.id, motivo: 'derivacionMultipleNoModelada' })
+      return { tipo: 'noResuelto' }
+    }
     const hfTee_m =
       clasificacionTee.tipo === 'clasificado'
         ? calcularPerdidaCargaLocalizada(obtenerKsDeAccesorio(clasificacionTee.idAccesorioTabla07), velocidadReal_mps)
@@ -166,6 +193,13 @@ export function acumularPerdidaLocalizadaDeCamino(
   for (const tramo of tramosRamal) {
     const clasificacionTee = resolverClasificacionDeTee(redHidraulica, tramo.nodoOrigenId, tramo.id)
     if (clasificacionTee.tipo === 'noEsBifurcacionDeTee') {
+      continue
+    }
+    if (clasificacionTee.tipo === 'derivacionMultipleNoModelada') {
+      // 1→N también bloquea la completitud del ramal en 'simplificada'
+      // (M2-TOPO-E §8): la singularidad es nodal, independiente de la
+      // granularidad -- igual que la tee sin configurar.
+      tramosNoResueltos.push({ tramoId: tramo.id, motivo: 'derivacionMultipleNoModelada' })
       continue
     }
 

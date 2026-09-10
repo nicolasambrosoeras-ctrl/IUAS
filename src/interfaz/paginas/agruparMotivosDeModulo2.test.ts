@@ -71,6 +71,43 @@ describe('agruparMotivosDeModulo2', () => {
     expect(agruparMotivosDeModulo2(motivos, [])).toEqual(['Falta relevar accesorios o tees en 1 tramo.'])
   })
 
+  it('perdidaLocalizadaIncompleta con motivo derivacionMultipleNoModelada (M2-TOPO-E): línea propia, sin ids ni enums', () => {
+    const motivos: DiagnosticoIncompletitudModulo2[] = [
+      {
+        tipo: 'perdidaLocalizadaIncompleta',
+        nodoId: 'term-1',
+        tramosNoResueltos: [{ tramoId: 'tramo-x', motivo: 'derivacionMultipleNoModelada' }],
+      },
+      {
+        tipo: 'perdidaLocalizadaIncompleta',
+        nodoId: 'term-2',
+        tramosNoResueltos: [{ tramoId: 'tramo-y', motivo: 'derivacionMultipleNoModelada' }],
+      },
+    ]
+
+    expect(agruparMotivosDeModulo2(motivos, [])).toEqual([
+      'En 2 tramos la pérdida localizada de una derivación múltiple todavía no está modelada.',
+    ])
+  })
+
+  it('perdidaLocalizadaIncompleta: separa la línea de "relevar" de la de "derivación múltiple" cuando conviven', () => {
+    const motivos: DiagnosticoIncompletitudModulo2[] = [
+      {
+        tipo: 'perdidaLocalizadaIncompleta',
+        nodoId: 'term-1',
+        tramosNoResueltos: [
+          { tramoId: 'tramo-a', motivo: 'sinRelevar' },
+          { tramoId: 'tramo-x', motivo: 'derivacionMultipleNoModelada' },
+        ],
+      },
+    ]
+
+    expect(agruparMotivosDeModulo2(motivos, [])).toEqual([
+      'Falta relevar accesorios o tees en 1 tramo.',
+      'En 1 tramo la pérdida localizada de una derivación múltiple todavía no está modelada.',
+    ])
+  })
+
   it('balanceIncompleto: cuenta terminales distintos (nodoId), no la cantidad de entradas', () => {
     const motivos: DiagnosticoIncompletitudModulo2[] = [
       { tipo: 'balanceIncompleto', nodoId: 't1', terminosFaltantes: ['hfMedidor'] },

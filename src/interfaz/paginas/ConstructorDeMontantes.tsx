@@ -222,9 +222,9 @@ function DerivacionesDeMontante({
                 ? ` (${derivacion.etiquetasDeSalida.join(', ')})`
                 : ''}
               . La configuración detallada de tee cubre sólo bifurcaciones de dos salidas; en una
-              derivación múltiple su pérdida localizada no se modela todavía (limitación conocida —
-              las cotas de los Locales se pueden separar para que cada nivel sea una bifurcación
-              simple).
+              derivación múltiple su pérdida localizada no se modela todavía, así que en Detalladas
+              la verificación de presión de esos Locales queda incompleta (limitación conocida — las
+              cotas de los Locales se pueden separar para que cada nivel sea una bifurcación simple).
             </p>
           )}
         </div>
