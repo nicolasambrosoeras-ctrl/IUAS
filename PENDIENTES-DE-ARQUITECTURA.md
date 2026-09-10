@@ -10938,6 +10938,290 @@ arquitectónico de la serie de topología** (ADR si corresponde; decidir el
 desbloqueo formal de HYD-EST / VIS-TOPO; y la pérdida localizada de las
 derivaciones 1→N), sólo tras un nuevo QA Fuzz cloud 20×30 verde.
 
+## D-δ.96 -- M2-TOPO-E: cierre arquitectónico de M2-TOPO-01 + política 1→N (`derivacionMultipleNoModelada`) + `ADR-0001` + desbloqueo formal de HYD-EST / VIS-TOPO -- CERRADO
+
+Quinto y **último** slice de la serie M2-TOPO-01 (A identificación
+estructural D-δ.91, B enumeración/edición D-δ.92, C identidad + constructor
+D-δ.93, D edición fina de tees D-δ.95, E cierre D-δ.96). **No** es una
+nueva ronda de construcción: es auditoría + cierre arquitectónico + una
+corrección funcional acotada del gap final (fan-out 1→N en Detalladas).
+Gate de entrada: QA Fuzz cloud 20×30 seed vacía sobre `main` @ `618f7ca`
+**verde** (confirmado por el usuario).
+
+### Auditoría A/B/C/D -- sin contradicciones
+
+Reconstruida desde implementación + tests + D-δ.91/92/93/95 + `CRITERIOS.md`
++ `ROADMAP.md` + este documento:
+
+- **fuente de verdad única**: `RedHidraulica` (grafo dirigido, arborescencia,
+  ≤1 entrante por nodo, sin ciclos, red vacía válida, fan-out 1→N válido).
+  La topología **no** vive en componentes React, ni en `Montante`, ni en VIS,
+  ni en arrays duplicados de Locales, ni en coordenadas.
+- **`Montante = { id; red; nombre? }`** y nada más: identidad semántica.
+  Membresía física sólo por `Tramo.montanteId`; Locales servidos derivados
+  aguas abajo. `montanteId` **no lo lee ningún cálculo hidráulico** -- su
+  único uso en el motor es la supresión dirigida de D-δ.50
+  (`resolverIncrementoVerticalPorNivel`); la distribución compartida genérica
+  sin montante conserva D-δ.50 histórico (Alternativa A de D-δ.92).
+- **datos físicos** en `Nodo` / `Tramo`; longitud 0 inválida (CRIT-A20);
+  `longitudEsSugerida` distingue precargado de manual (RD-2, procedencia
+  nunca inferida por valor); dato manual nunca se redistribuye (RD-1); tee
+  es propiedad **nodal**, nunca accesorio de `Tramo`.
+- **helpers read-only** (`proyectarMontante`, `derivacionesDeMontante`,
+  `etiquetaDeSalidaDeMontante`, `identificarTramosDeDistribucionCompartida`):
+  sin traversals redundantes grotescos; `derivacionesDeMontante` cuenta la
+  topología por sí mismo (`entrantes === 1 && salientes >= 3` -> `noConfigurable`),
+  coherente con el nuevo criterio de `resolverClasificacionDeTee` sin
+  duplicar lógica de dominio.
+- **contradicciones encontradas**: ninguna. Cada slice consumió la señal
+  estructural del anterior sin reimplementarla. No hay segunda forma de
+  identificar montantes ni reconstrucción de membresía desde la UI.
+
+### Fan-out 1→N -- comportamiento inicial (gap heredado de D-δ.33 / D-δ.95)
+
+Un nodo con **1 entrante + N salientes, N>2** (p. ej. ≥2 Locales de un
+montante a la misma cota, o la cabecera de un Local con ≥3 artefactos):
+
+- topología **válida para Qc** (M2-TOPO-A §12) y para `validarRedHidraulica`;
+- en Detalladas, `resolverClasificacionDeTee` devolvía `noEsBifurcacionDeTee`
+  -> el nodo aportaba **0** a la pérdida localizada del camino, **sin**
+  reportar `teeSinConfigurar` ni ninguna incompletitud;
+- con accesorios relevados en el resto del camino, `acumularPerdidaLocalizadaDeCamino`
+  devolvía `acumulada` y el balance de presión podía figurar **"completo"**
+  aunque la singularidad física de la derivación múltiple no estuviera
+  modelada -- **un falso "completo"**.
+
+`ConfiguracionDeTee` (CRIT-A31) cubre sólo 1→2. Representar 1→N exigiría
+elegir orden físico de las ramas, cuál es recta, piezas reales y longitudes
+de nodos intermedios ficticios -- datos que el modelo no tiene y que dos
+configuraciones físicamente válidas resuelven distinto.
+
+### Política final adoptada (§8, implementada autónomamente -- no decisión roja)
+
+La política preferida del brief se pudo implementar **reutilizando el
+sistema de incompletitud existente** (`ResultadoPerdidaLocalizadaDeCamino.incompleta`
++ motivos + humanización) **sin alterar ninguna fórmula** y **sin elegir
+ninguna geometría** (§9): por tanto se implementó sin detenerse.
+
+- **`resolverClasificacionDeTee`** (`motor/tuberias/topologia/`): nueva
+  variante `{ tipo: 'derivacionMultipleNoModelada'; cantidadSalidas }`,
+  devuelta cuando `entrantes.length === 1 && salientes.length > 2`. Depende
+  **sólo de la topología real**, nunca de `montanteId` (§13). `noEsBifurcacionDeTee`
+  queda para 1→1 / raíz / multi-padre (contribución 0 genuina). §35 (defensa
+  en profundidad: nodo con `tee` vieja que dejó de ser 1→2) ahora devuelve
+  `derivacionMultipleNoModelada`, no `noEsBifurcacionDeTee`.
+- **`acumularPerdidaLocalizadaDeCamino`** (`motor/tuberias/presion/`):
+  `MotivoTramoSinPerdidaLocalizada` suma `'derivacionMultipleNoModelada'`.
+  Ambos loops (relevables en Profesional; ramal en Simplificada) marcan ese
+  `Tramo` como no resuelto por ese motivo -> el camino devuelve
+  `incompleta`. **No** se asigna Ks, **no** se calcula pérdida, **no** se
+  fabrica geometría.
+- **`agruparMotivosDeModulo2`** (`interfaz/paginas/`): parte los tramos de
+  `perdidaLocalizadaIncompleta` por motivo -- los `derivacionMultipleNoModelada`
+  generan su propia línea humana (*"En N tramos la pérdida localizada de una
+  derivación múltiple todavía no está modelada."*), separada de *"Falta
+  relevar accesorios o tees en N tramos."*. Sin ids, sin enums, sin número
+  de nodo técnico.
+- **`ConstructorDeMontantes.tsx`**: la nota de la derivación `noConfigurable`
+  ahora aclara que *"en Detalladas la verificación de presión de esos
+  Locales queda incompleta"* -- coherente con el pipeline (§12: la UI ya no
+  dice "no modelada" y luego "verificación completa").
+- **`resolverPresionResidualDeCamino` / `resolverEstadoModulo2` /
+  `resolverBalanceDePresion`**: **sin cambios de código** -- el motivo nuevo
+  se propaga por el tipo `MotivoTramoSinPerdidaLocalizada` ya threaded.
+
+**Cero Ks / geometría inventada -- demostración:** los tests
+`resolverClasificacionDeTee.test.ts` (§8: 1→3 -> `derivacionMultipleNoModelada`
+con `cantidadSalidas`, nunca un `idAccesorioTabla07`) y
+`montanteTees.integracion.test.ts` (§40: el camino 1→3 queda `incompleta`
+con **todos** los motivos `=== 'derivacionMultipleNoModelada'`, sin throw;
+el Qc de los segmentos se sigue resolviendo; Estimadas `1→3` conserva su
+modelo agregado) fijan que no aparece ningún número de pérdida nuevo.
+
+### Tees 1→2 -- contrato final SIN cambios
+
+`teeSinConfigurar` (Nodo.tee ausente sobre bifurcación real) ->
+`incompleta`; `entradaPorExtremo` + `tramoSalidaRectaId` -> paso recto /
+lateral; `entradaCentral` -> ambas salidas laterales; Ks de Tabla N°7;
+velocidad de salida por Qc propio del tramo; acumulación en el camino.
+`reconciliarTeesTrasCambioTopologico` sin cambios (1→2→1→1, 1→2→1→3, salida
+recta eliminada, nodo preservado, borrar montante -- ya cubiertos por
+`montantesDelProyecto.test.ts` y `reconciliarMontante.test.ts`). Ninguna
+constante tocada.
+
+### Detalladas / Estimadas / Presión / M3 / M4
+
+- **Detalladas**: único cambio -- el falso "completo" 1→N pasa a
+  `perdidaLocalizadaIncompleta` / `derivacionMultipleNoModelada`. El resto
+  idéntico.
+- **Estimadas**: **intacto**. `resolverPerdidaLocalizadaEstimadaDeLocal` no
+  lee `Nodo.tee` ni la topología 1→N; modelo agregado por `(Local, Red)`
+  (`max(0, n-1)` tees @ Ks 3,00 + 1 codo90 @ 1,35 + 1 llave @ 9,18, Vref)
+  sin cambios; test byte-equivalente antes/después.
+- **Presión**: caminos profundos con tees 1→2 configuradas se siguen
+  acumulando; un 1→N intermedio deja el camino incompleto; D-δ.50 sigue
+  suprimido sólo si el camino atraviesa un tramo con `montanteId`.
+- **M3 / M4**: sin cambios de responsabilidad. Regresión verde.
+
+### Backward compatibility -- demostrada
+
+Proyecto sin `montantes` / sin `montanteId` / sin `longitudEsSugerida` /
+sin `Nodo.tee` (todos los actuales, incluido el de ejemplo: `simplificada`,
+0 tramos compartidos): comportamiento **byte-idéntico**. Proyecto vacío
+(0 UF, red vacía, sin montantes): válido, "Reiniciar cálculo" no se rompe.
+Ningún campo nuevo obligatorio; sin migración (`SCHEMA_VERSION_ACTUAL` no
+cambia).
+
+### Goldens -- SIN rebaseline
+
+`npx vitest run` **1611 / 1611**. Los golden hidráulicos
+(`resolverHidraulicaDeTramo`, `resolverEstadoModulo4`, `calcularReservaDiaria`)
+no tocan el pipeline de pérdida localizada de camino -> **sin cambio de
+número**. Único ajuste de fixture: `montanteTees.integracion.test.ts` §40 y
+`acumularPerdidaLocalizadaDeCamino.test.ts` (test de "manifold plano")
+pasan de esperar `acumulada` a esperar `incompleta` para un caso
+explícitamente 1→N en Detalladas -- **corrección de falso-completo, no
+rebaseline hidráulico** (no se inventa ningún `hf`). Dos fixtures de
+`acumularPerdidaLocalizadaDeCamino.test.ts` que usaban un nodo 1→3 sólo
+como "fan-out sin tee" se reconvirtieron a bifurcación 1→2 `entradaCentral`
+para conservar su cobertura real (CRIT-A30 velocidad por tramo /
+reducciones).
+
+### Multinivel futuro (`UI-M1-MULTINIVEL-01`) -- auditoría de compatibilidad, SIN implementación
+
+M2-TOPO ordena las derivaciones y calcula Δz por **cota de piso efectiva
+del Local** (`resolverCotaPisoDeLocal` = `Local.cotaPiso_m ??
+UnidadFuncional.cotaHidraulicaReferencia_m`), **no** por "una UF = una
+planta". Una UF multinivel podrá asignar `cotaPiso_m` por Local sin
+reemplazar el grafo hidráulico. La única suposición UF-granular restante es
+el `3·nivel` vertical típico de D-δ.50 en Simplificada, que ya se suprime en
+los caminos por montante y es una aproximación conocida de ese método, no
+una dependencia de la topología. **Sin gap que rompa una futura UF
+multinivel.** No se incorpora entidad `Nivel` (queda para su propio slice).
+
+### ADR
+
+**`docs/adr/ADR-0001-topologia-hidraulica-explicita-y-semantica-de-montantes.md`**
+(nuevo). Es el **primer ADR del repositorio**: `docs/adr/` existía vacío
+(deuda registrada en `ROADMAP.md`) y no hay ADR-001..014 previos, así que
+la numeración arranca en `ADR-0001` -- el "ADR-015" que circuló en la
+planificación se descarta. Registra: contexto (necesidad de representar
+distribución general / secundaria / montantes / niveles / caminos /
+derivaciones / presión sin una segunda fuente de verdad); decisión
+(`RedHidraulica` única fuente; `Montante` identidad mínima; datos físicos
+en `Nodo`/`Tramo`; tee metadata nodal 1→2; nodo topológico ≠ pieza física;
+1→N no se interpreta sin datos); reconciliación M1→M2 incremental,
+preservación de datos manuales, IDs estables; consecuencias (VIS deriva el
+grafo, HYD-EST consume topología, sin layouts persistidos); compatibilidad
+(proyectos sin montantes válidos, sin migración) y la nota multinivel.
+
+### Graph-ready -- prueba final
+
+VIS-TOPO puede derivar exclusivamente de `RedHidraulica` +
+`Proyecto.montantes` + UF/Locales + resultados hidráulicos: origen,
+montantes, segmentos, distribución, nodos de derivación, Locales destino
+(etiquetas humanas), red AF/AC, DN, longitud, niveles/cotas, tee 1→2 si
+está configurada. No necesita x/y persistidos, edges aparte, `localesIds[]`
+ni `tramosIds[]` dentro de `Montante`. Cubierto por
+`montantesDelProyecto.visTopo.test.ts` (fixture de 3 Locales) y la nueva
+cobertura 1→3 de `montanteTees.integracion.test.ts`.
+
+### HYD-EST -- DESBLOQUEADO
+
+**HYD-EST puede comenzar** porque la topología ya expone, para un camino:
+qué nodo bifurca (`identificarNodosDeBifurcacion` / `resolverClasificacionDeTee`),
+cuántas salidas tiene, qué salida recorre el camino, si una tee 1→2 está
+configurada y si pasa recto o lateral (`resolverClasificacionDeTee` ->
+`teePasoRecto` / `teeSalidaLateral` / `teeEntradaCentralSalidasLaterales`),
+DN antes/después (`resolverDiametroComercialDeTramo` por tramo), velocidades
+de tramos, y Local/Red destino (`etiquetaDeSalidaDeMontante` /
+`obtenerCaminoHaciaOrigen`). **DESBLOQUEADO** para: tee 1→2 configurada,
+recto/lateral, DN, velocidades, red, Local destino. **NO resuelto
+físicamente**: 1→N (HYD-EST no puede inventar esa geometría; hoy el camino
+queda `derivacionMultipleNoModelada`). D-δ.90 sigue vigente: el modelo
+Estimadas actual (n−1 tees @ 3,00 + codo90 + llave, Vref) queda intacto
+hasta que HYD-EST lo reemplace path-aware; no se aplican tee lateral 1,62 /
+tee straight 1,00 / reducción 0,75 / gate valve 0,17 / equivalentes 2,37 y
+1,75.
+
+### VIS-TOPO -- DESBLOQUEADO
+
+**VIS-TOPO puede comenzar** porque hay **un solo grafo fuente**
+(`RedHidraulica`), identidad de montante estable (`Proyecto.montantes`),
+nodos/tramos, derivaciones, destinos humanos, niveles/cotas y resultados
+hidráulicos derivables, y **no hace falta persistir layout** (sin SVG /
+React Flow / Dagre / ELK / Cytoscape / pan-zoom todavía -- eso es el
+trabajo de VIS-TOPO-01).
+
+### Estado
+
+**D-δ.96 / M2-TOPO-E -- CERRADO.** Cambios de código en `src/`:
+`motor/tuberias/topologia/resolverClasificacionDeTee.ts` (variante
+`derivacionMultipleNoModelada`), `motor/tuberias/presion/acumularPerdidaLocalizadaDeCamino.ts`
+(motivo + ambos loops), `interfaz/paginas/agruparMotivosDeModulo2.ts`
+(línea humana propia), `interfaz/paginas/ConstructorDeMontantes.tsx` (copy).
+Docs: `docs/adr/ADR-0001-...md` (nuevo), `src/normativa/eras-2023/CRITERIOS.md`
+(CRIT-A31), `ROADMAP.md`, este documento. Tests:
+`resolverClasificacionDeTee.test.ts` (+1, §8), `montanteTees.integracion.test.ts`
+(§40 reescrito + §30-D/§30-E), `acumularPerdidaLocalizadaDeCamino.test.ts`
+(3 fixtures 1→3 ajustadas), `agruparMotivosDeModulo2.test.ts` (+2),
+`tests/e2e/montantes.spec.ts` (+1 caso 1→3). Baseline: Vitest
+**1611 / 1611**, `tsc -b` / `npm run e2e:typecheck` / `npm run build`
+verdes, ESLint **11 / 0 / 0** (sin errores nuevos; los 11 pre-existentes no
+están en archivos tocados). E2E dirigido (`montantes` 5/5 desktop, `smoke`
+1/1, `hallazgos` 4/4) contra `npm run dev`. Fuzz local en serie
+(no concurrente): `424242` 3×30, `34493241441-1:15` desktop+mobile,
+`34411681277-1:0`, `34398035608-1` runs 0–12, `m7` / `m42` / `m99` --
+verdes. `v0.4.0-beta.5` sin mover; sin `beta.6`. Snapshot
+`resguardo-documentacion/` intacto.
+
+**M2-TOPO-01: CERRADO.** El motor soporta profundidad arbitraria de
+segmentos; distribución compartida identificable; montantes explícitos
+editables; Locales agregables/removibles; cotas/segmentos reconciliados;
+dato físico manual preservado (RD-1/RD-2); D-δ.50 coherente; tee 1→2
+configurable; stale tee reconciliada; **1→N ya no se interpreta falsamente
+como una tee simple ni como "completo"**; Estimadas histórico intacto; M3/M4
+compatibles; VIS proyectable; HYD-EST desbloqueado en lo que la topología
+realmente conoce; backward compatibility demostrada.
+
+### PERF-SCALE-01 -- P1 REAL (siguiente prioridad tras el cierre)
+
+Definido con el usuario **fuera del repo**; **no** es una referencia
+huérfana (la nota de D-δ.94 queda corregida por este delta). Caso real:
+14 UF, ~238 terminales, inputs M4/verificación casi congelados. Perfil
+Chrome producción: ~19,7 s de muestra, ~15,2 s scripting, ~14,9 s en el
+main thread. Hotspot confirmado:
+`determinarCondicionHidraulicaDeCaudal` ~6,4 s SELF en una ventana de
+~10 s -- por cada llamada reconstruye `tramo.find`, un `Map` de nodos, un
+`Map` de salientes y un DFS aguas abajo para **un** artefacto. Segundo
+hotspot (minificado `Xe`, ~2,5 s self) sin identificar todavía. **No se
+optimiza en M2-TOPO-E.** Queda como **siguiente P1** tras el cierre de
+M2-TOPO-01, después del próximo QA Fuzz cloud verde.
+
+### Pendientes preservados (sin abrir en este slice)
+
+- **`PERF-SCALE-01`** -- P1 (arriba).
+- **`UI-M2-GROUP-01`** -- paquete UX ya acordado: árbol
+  `UF > Local · N artefactos físicos > Agua fría · N puntos / Agua caliente
+  · N puntos`, UF colapsables (contenido colapsado idealmente no montado),
+  "Duplicar local" en M1. No implementar aquí.
+- **`UI-M1-MULTINIVEL-01`** -- una UF puede ocupar varios niveles (dúplex,
+  tríplex): dentro de la UF, "Duplicar unidad funcional" / "+ Agregar
+  nivel" / "Eliminar unidad funcional"; cada nivel con Nombre / Nivel /
+  Cota / Locales / Artefactos; una UF de un nivel se ve casi igual que hoy.
+  M2-TOPO ya es compatible (cota efectiva de Local). No implementar aquí.
+- **`FIX-LEAK-M3-01`** -- P2: `humanizarModulo3.ts`
+  (`medidorIndividualFueraDeTabla06`, D-δ.56) puede interpolar el id crudo
+  de UF con carga extrema de artefactos. Sin tocar.
+- **`HYD-EST-01`** -- desbloqueado (arriba); no implementar (tee lateral
+  1,62 / straight 1,00 / reducción 0,75 / gate 0,17 / equivalentes 2,37 y
+  1,75).
+- **`VIS-TOPO-01`** -- desbloqueado (arriba); no implementar (sin gráfico).
+- **`PERSIST-01` / `REPORT-01` / `UX-TEST-01` / `DEFENSE-01`** -- NO iniciar.
+
+**Siguiente:** nuevo **QA Fuzz cloud 20×30 seed vacía** sobre `main`; si
+queda verde, iniciar **PERF-SCALE-01**.
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son

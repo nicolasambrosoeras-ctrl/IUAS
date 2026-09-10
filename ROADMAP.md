@@ -262,7 +262,10 @@ la alimentación. Ver `CRITERIOS.md` → CAT-CONN-01.
   D: edición fina de tees de las derivaciones de montante + reconciliación
   de `Nodo.tee` tras cambios de topología, D-δ.95 CERRADO (con la pérdida
   localizada de las derivaciones 1→N documentada como limitación conocida);
-  E: cierre arquitectónico + ADR + política 1→N + desbloqueo HYD-EST/VIS-TOPO).
+  E: cierre arquitectónico + `ADR-0001` + política 1→N (`derivacionMultipleNoModelada`:
+  un fan-out 1→N en Detalladas deja el camino explícitamente incompleto en
+  vez de aparentar "completo" con 0) + desbloqueo formal de HYD-EST/VIS-TOPO,
+  D-δ.96 CERRADO). **M2-TOPO-01: CERRADO.**
 
 #### Documentación / exportación
 
@@ -1318,6 +1321,33 @@ salvo bug inequívoco o decisión roja explícita.
     **M2-TOPO-E** (cierre arquitectónico + ADR + política 1→N + desbloqueo
     HYD-EST/VIS-TOPO).
 
+- **D-δ.96 — M2-TOPO-E: cierre arquitectónico de M2-TOPO-01.** Último slice
+  de la serie. Auditoría A/B/C/D (sin contradicciones: `RedHidraulica` es la
+  única fuente física, `montanteId` no lo lee ningún cálculo hidráulico, sin
+  segunda topología ni helper duplicado grave). **Política 1→N (§8, cambio
+  funcional):** `resolverClasificacionDeTee` distingue el fan-out
+  1 entrante + >2 salientes como `derivacionMultipleNoModelada` (según la
+  topología real, nunca según `montanteId`; aplica también a cabeceras de
+  Local con ≥3 artefactos); `acumularPerdidaLocalizadaDeCamino` lo marca no
+  resuelto y el camino Detalladas queda **explícitamente incompleto**
+  (`perdidaLocalizadaIncompleta`), nunca un 0 silencioso que aparente
+  "completo". **No asigna Ks, no calcula pérdida, no inventa geometría** —
+  reutiliza el sistema de incompletitud + humanización existente, sin tocar
+  fórmulas. 1→2, Estimadas (`resolverPerdidaLocalizadaEstimadaDeLocal` sigue
+  sin leer topología) y goldens **sin cambios**; el único efecto sobre
+  fixtures es un caso 1→N en Detalladas que pasa de "acumulada" a
+  "incompleta" (corrección de falso-completo). **`ADR-0001` —** primer ADR
+  del repo (`docs/adr/` estaba vacío): consolida la arquitectura de
+  topología hidráulica explícita y semántica de montantes. **Multinivel
+  futuro:** confirmado que M2-TOPO trabaja por **cota de piso efectiva del
+  Local** (`resolverCotaPisoDeLocal`), no por "UF = una planta" — sin gap.
+  **HYD-EST y VIS-TOPO: formalmente DESBLOQUEADOS.** Vitest **1611 / 1611**;
+  `tsc` / `e2e:typecheck` / `build` verdes; ESLint 11/0/0. E2E
+  `montantes.spec.ts` +1 caso 1→3; fuzz local en serie verde.
+  `v0.4.0-beta.5` sin mover; sin `beta.6`. **M2-TOPO-01: CERRADO.**
+  - **Siguiente:** nuevo QA Fuzz cloud 20×30 (seed vacía); si queda verde,
+    **PERF-SCALE-01** (P1).
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
@@ -1372,8 +1402,9 @@ de bombas, presurizadores, `hfEquipoACS`, reporting PDF de M4.
 
 ## Deuda técnica conocida (no bloqueante, registrada explícitamente)
 
-- `docs/adr/` y `docs/arquitectura/` existen como carpetas vacías, sin
-  ningún documento real todavía.
+- `docs/adr/` tiene su primer documento real: `ADR-0001` (topología
+  hidráulica explícita y semántica de montantes, M2-TOPO-E / D-δ.96).
+  `docs/arquitectura/` sigue vacía.
 - **Piloto web (DEPLOY-01):**
   - **Sin persistencia.** Los cambios viven sólo en la sesión de la
     pestaña; recargar restablece el proyecto de ejemplo. Insumo directo

@@ -1960,13 +1960,32 @@ borrado de montante pueden dejar una `Nodo.tee` inválida (nodo fuera de
 la limpia de forma determinista sin tocar longitudes/DN/accesorios ni la
 topología. **Límite 1→N (N≥3):** una derivación con ≥3 salidas es válida
 para Qc (M2-TOPO-A) pero queda fuera del alcance de `ConfiguracionDeTee`
-(1→2); `resolverClasificacionDeTee` devuelve `noEsBifurcacionDeTee` y el
-nodo contribuye **0** a la pérdida localizada en Detalladas, **sin**
-reportar incompletitud -- subestimación conocida de la pérdida de la
-derivación múltiple, ya presente desde D-δ.33. Modelar esa pérdida
-requeriría elegir entre geometrías físicas no equivalentes y queda
-diferido a HYD-EST / M2-TOPO-E. El modo **Estimadas no cambia**:
-`resolverPerdidaLocalizadaEstimadaDeLocal` no lee `Nodo.tee`.
+(1→2). Modelar su pérdida localizada requeriría elegir entre geometrías
+físicas no equivalentes (orden de las ramas, cuál es recta, piezas
+reales, longitudes de nodos intermedios ficticios) que el modelo actual
+no tiene datos para fijar, y IUAS no las inventa. El modo **Estimadas no
+cambia**: `resolverPerdidaLocalizadaEstimadaDeLocal` no lee `Nodo.tee` ni
+la topología 1→N.
+
+**M2-TOPO-E (D-δ.96) -- cierre del falso "completo" 1→N.** Hasta D-δ.95, un
+nodo 1→N (N≥3) en el camino clasificaba `noEsBifurcacionDeTee` y
+contribuía **0** a la pérdida localizada Detalladas **sin** reportar
+incompletitud: un balance de presión podía figurar "completo" aunque la
+singularidad física de la derivación múltiple no estuviera modelada.
+Desde M2-TOPO-E, `resolverClasificacionDeTee` distingue ese caso como
+`derivacionMultipleNoModelada` (depende sólo de la topología real --
+1 entrante + >2 salientes --, nunca de `montanteId`; aplica también a la
+cabecera de un Local con ≥3 artefactos) y `acumularPerdidaLocalizadaDeCamino`
+marca ese `Tramo` como no resuelto por el motivo homónimo, igual que un
+accesorio sin relevar. El camino queda **explícitamente INCOMPLETO**
+(`perdidaLocalizadaIncompleta`), nunca un 0 silencioso. **No se asigna
+ningún Ks, no se calcula pérdida, no se fabrica geometría**: sólo se
+evita el falso "completo". No cambia ninguna fórmula ni ningún golden
+hidráulico; el único efecto sobre fixtures es que un caso 1→N en
+Detalladas que antes cerraba "acumulada" ahora cierra "incompleta"
+(corrección de falso-completo, no rebaseline). La topología 1→2 sigue
+idéntica (`teeSinConfigurar` / paso recto / lateral / entrada central,
+Ks de Tabla N°7).
 
 ## CRIT-A32 — Tabla N°6: selección del medidor general por caudal de cálculo, e inconsistencia del ejemplo oficial
 
