@@ -219,14 +219,20 @@ function conLongitudSugerida(tramo: Tramo, longitud: number | undefined): Tramo 
 }
 
 // Segmentos del montante ordenados desde el origen hacia la punta.
-type CadenaDeMontante = {
+export type CadenaDeMontante = {
   readonly origenNodoId: string
   readonly segmentos: readonly Tramo[]
   // nodoDestinoId de cada segmento, en orden origen -> punta.
   readonly nodosDeDerivacion: readonly string[]
 }
 
-function reconstruirCadena(redHidraulica: RedHidraulica, montanteId: string): CadenaDeMontante | undefined {
+// Reconstrucción read-only de la cadena lineal de segmentos de un montante,
+// en orden origen -> punta. `undefined` si el montante no tiene segmentos o
+// si una edición manual del JSON rompió la linealidad. Exportada para que
+// la proyección de la UI (montantesDelProyecto.ts / constructor de M2) y la
+// prueba de proyectabilidad VIS-TOPO deriven el orden de los segmentos de
+// la MISMA fuente que el motor, sin reimplementar el recorrido.
+export function reconstruirCadena(redHidraulica: RedHidraulica, montanteId: string): CadenaDeMontante | undefined {
   const segmentos = redHidraulica.tramos.filter((t) => t.montanteId === montanteId)
   if (segmentos.length === 0) {
     return undefined
@@ -261,8 +267,11 @@ function reconstruirCadena(redHidraulica: RedHidraulica, montanteId: string): Ca
 }
 
 // Locales servidos por el montante, DERIVADOS de la topología: unión de
-// los Locales aguas abajo de cada segmento.
-function derivarLocalesServidos(proyecto: Proyecto, montanteId: string): readonly LocalServido[] {
+// los Locales aguas abajo de cada segmento. Nunca se persiste una lista
+// paralela (D-δ.23): esta derivación es la única forma de responder "qué
+// Locales sirve el montante", y la comparten el motor de reconciliación y
+// la UI del constructor (montantesDelProyecto.ts).
+export function derivarLocalesServidos(proyecto: Proyecto, montanteId: string): readonly LocalServido[] {
   const { redHidraulica } = proyecto
   if (redHidraulica === undefined) {
     return []

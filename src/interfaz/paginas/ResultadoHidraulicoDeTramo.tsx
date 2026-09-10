@@ -44,6 +44,7 @@ import { TablaDimensionamientoDeModulo2, type EntradaDeTabla } from './TablaDime
 import { AccesoriosDeTramoEditor } from './AccesoriosDeTramoEditor'
 import { LocalYRedCard } from './LocalYRedCard'
 import { EncabezadoDeEtapa } from './EncabezadoDeEtapa'
+import { ConstructorDeMontantes } from './ConstructorDeMontantes'
 
 // Duplicado intencional de la etiqueta homónima en MotorDemandaPantalla.tsx
 // (mismo criterio que aplicarParticipacionCritA8: segundo consumidor
@@ -595,6 +596,12 @@ export function ResultadoHidraulicoDeTramo({
           <DistribucionGeneral proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} onCambiar={onCambiar} />
 
           <DistribucionSecundaria proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} onCambiar={onCambiar} />
+
+          <ConstructorDeMontantes
+            proyecto={proyecto}
+            catalogoArtefactos={catalogoArtefactos}
+            onCambiar={onCambiar}
+          />
 
           {proyecto.unidadesFuncionales.map((uf) => (
             <SeccionDeUnidadFuncional

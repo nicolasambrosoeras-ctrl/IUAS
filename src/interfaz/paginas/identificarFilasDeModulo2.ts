@@ -141,11 +141,22 @@ export function identificarFilasPrincipalesDeLocales(proyecto: Proyecto): readon
 // en cada render.
 export function identificarFilasDistribucionSecundaria(proyecto: Proyecto): readonly FilaDistribucionSecundaria[] {
   const contadorPorRed = new Map<RedDeTramo, number>()
-  return identificarTramosDeDistribucionCompartida(proyecto).map((tramo) => {
-    const ordinal = (contadorPorRed.get(tramo.red) ?? 0) + 1
-    contadorPorRed.set(tramo.red, ordinal)
-    return { etiqueta: `Distribución secundaria ${ordinal}`, red: tramo.red, tramoId: tramo.id }
-  })
+  return (
+    identificarTramosDeDistribucionCompartida(proyecto)
+      // M2-TOPO-C §17: un segmento que pertenece a un montante explícito
+      // (`Tramo.montanteId`) se muestra bajo la card de ese montante, no
+      // como una fila "Distribución secundaria N" -- se deduplica acá para
+      // no mostrar el mismo Tramo dos veces y para que la numeración de
+      // distribución secundaria genérica no consuma un ordinal por él. La
+      // clasificación estructural del motor no cambia (es también la fuente
+      // de VIS-TOPO): sólo se filtra la proyección de esta fila de UI.
+      .filter((tramo) => tramo.montanteId === undefined)
+      .map((tramo) => {
+        const ordinal = (contadorPorRed.get(tramo.red) ?? 0) + 1
+        contadorPorRed.set(tramo.red, ordinal)
+        return { etiqueta: `Distribución secundaria ${ordinal}`, red: tramo.red, tramoId: tramo.id }
+      })
+  )
 }
 
 // Ordinal de presentación por Local dentro de una Unidad Funcional, según

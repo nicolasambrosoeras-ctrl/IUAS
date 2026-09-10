@@ -1,0 +1,113 @@
+/* Constructor de montantes de Módulo 2 (M2-TOPO-C §7-§18, §25). Layout
+   propio; los tokens y utilidades (.ui-card, .ui-callout, .ui-btn--fantasma)
+   son los del sistema visual. Responsive: las cards y sus controles no
+   provocan overflow horizontal a 360-390 px (§25). */
+
+.constructor-montantes {
+  margin-top: var(--esp-lg);
+}
+
+.constructor-montantes__intro {
+  margin: 0 0 var(--esp-sm);
+  color: var(--color-texto-2);
+}
+
+.constructor-montantes__vacio,
+.montante-card__vacio {
+  color: var(--color-texto-2);
+  font-size: var(--fs-ayuda);
+  margin: var(--esp-xs) 0;
+}
+
+.constructor-montantes__lista {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-md);
+  margin-bottom: var(--esp-md);
+}
+
+.constructor-montantes__agregar,
+.constructor-montantes__eleccion button {
+  min-height: 2.25rem;
+}
+
+.constructor-montantes__eleccion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-sm);
+}
+
+.montante-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-sm);
+}
+
+.montante-card__cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-sm);
+}
+
+.montante-card__nombre {
+  flex: 1 1 12rem;
+  min-width: 0;
+  font-weight: var(--peso-semibold);
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--color-borde-fuerte);
+  border-radius: 6px;
+}
+
+.montante-card__borrar {
+  margin-left: auto;
+}
+
+.montante-card__seccion h4 {
+  margin: var(--esp-sm) 0 var(--esp-xs);
+  font-size: var(--fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-texto-3);
+}
+
+.montante-card__locales {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-xs);
+}
+
+.montante-card__locales li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-sm);
+}
+
+.montante-card__locales li > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.montante-card__agregar select {
+  max-width: 100%;
+}
+
+.montante-card__aviso {
+  margin: var(--esp-xs) 0 0;
+}
+
+@media (max-width: 560px) {
+  .montante-card__borrar {
+    margin-left: 0;
+  }
+
+  .montante-card__cabecera {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

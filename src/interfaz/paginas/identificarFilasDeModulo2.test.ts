@@ -426,6 +426,26 @@ describe('identificarFilasDistribucionSecundaria', () => {
     expect(proyectoMontante).toEqual(antes)
   })
 
+  // M2-TOPO-C §17: los segmentos que pertenecen a un montante explícito
+  // (`Tramo.montanteId`) se muestran bajo la card del montante, NO como
+  // filas "Distribución secundaria N" -- se deduplican y no consumen
+  // ordinal. Un tramo compartido genérico SIN montante sigue apareciendo.
+  it('excluye los segmentos con montanteId; los compartidos sin montante siguen apareciendo', () => {
+    const proyectoConMontanteExplicito: Proyecto = {
+      ...proyectoMontante,
+      montantes: [{ id: 'm-1', red: 'AF' }],
+      redHidraulica: {
+        ...montanteSegmentado,
+        tramos: montanteSegmentado.tramos.map((tramo) =>
+          tramo.id === 't-segA' ? { ...tramo, montanteId: 'm-1' } : tramo,
+        ),
+      },
+    }
+    expect(identificarFilasDistribucionSecundaria(proyectoConMontanteExplicito)).toEqual([
+      { etiqueta: 'Distribución secundaria 1', red: 'AF', tramoId: 't-segB' },
+    ])
+  })
+
   // Montante AF+AC en paralelo: la numeracion es POR RED -- "Distribución
   // secundaria 1 · AF" y "Distribución secundaria 1 · AC" son dos filas
   // distintas (la columna Red las desambigua, igual que "Baño 1" AF/AC).
