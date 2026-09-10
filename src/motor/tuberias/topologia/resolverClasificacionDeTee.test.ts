@@ -92,4 +92,39 @@ describe('resolverClasificacionDeTee', () => {
       /tramoSalidaRectaId \("tramo-inexistente"\) que no es ninguno de sus dos tramos salientes/,
     )
   })
+
+  // M2-TOPO-D §29: el ORDEN del array `tramos` (y por tanto el orden en que
+  // aparecen los salientes) NO tiene significado físico recto/lateral -- la
+  // clasificación depende sólo de `tramoSalidaRectaId`.
+  it('§29: invertir el orden de los tramos salientes en el array no cambia la clasificación', () => {
+    const base = redConBifurcacion({ tipo: 'entradaPorExtremo', tramoSalidaRectaId: 't-lateral' })
+    const invertida: RedHidraulica = {
+      nodos: base.nodos,
+      tramos: [base.tramos[0]!, base.tramos[2]!, base.tramos[1]!], // t-lateral antes que t-recta
+    }
+    for (const red of [base, invertida]) {
+      expect(resolverClasificacionDeTee(red, 'n-tee', 't-lateral')).toEqual({
+        tipo: 'clasificado',
+        idAccesorioTabla07: 'teePasoRecto',
+      })
+      expect(resolverClasificacionDeTee(red, 'n-tee', 't-recta')).toEqual({
+        tipo: 'clasificado',
+        idAccesorioTabla07: 'teeSalidaLateral',
+      })
+    }
+  })
+
+  // M2-TOPO-D §35: si el nodo dejó de ser 1->2 (p. ej. le agregaron una
+  // tercera salida), NUNCA lanza -- devuelve 'noEsBifurcacionDeTee' antes
+  // de mirar `Nodo.tee`, aunque la configuración vieja siga presente
+  // (defensa en profundidad; `reconciliarTeesTrasCambioTopologico` ya la
+  // limpia en el flujo normal).
+  it('§35: nodo que dejó de ser 1->2 con una tee vieja todavía presente -> noEsBifurcacionDeTee, sin throw', () => {
+    const red = redConBifurcacion({ tipo: 'entradaPorExtremo', tramoSalidaRectaId: 't-recta' })
+    const con1a3: RedHidraulica = {
+      nodos: [...red.nodos, { id: 'n3' }],
+      tramos: [...red.tramos, { id: 't-extra', nodoOrigenId: 'n-tee', nodoDestinoId: 'n3', red: 'AF' }],
+    }
+    expect(resolverClasificacionDeTee(con1a3, 'n-tee', 't-recta')).toEqual({ tipo: 'noEsBifurcacionDeTee' })
+  })
 })

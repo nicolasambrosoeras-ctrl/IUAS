@@ -7,10 +7,18 @@ import { describe, it, expect } from 'vitest'
 import type { Local, Proyecto, TipoDeLocal, UnidadFuncional } from '../../modelo/proyecto'
 import type { Nodo, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
 import { validarRedHidraulica } from '../../validacion/redHidraulica'
-import { agregarLocalAMontante, borrarMontante } from './reconciliarMontante'
+import {
+  agregarLocalAMontante,
+  borrarMontante,
+  quitarLocalDeMontante,
+  reconciliarTeesTrasCambioTopologico,
+} from './reconciliarMontante'
+import { conTeeDeNodo } from './actualizarRedHidraulica'
 import {
   conMontanteNuevo,
   conNombreDeMontante,
+  derivacionesDeMontante,
+  etiquetaDeSalidaDeMontante,
   interpretarResultadoDeMontante,
   localesOfreciblesParaMontante,
   proyectarMontante,
@@ -261,5 +269,108 @@ describe('identidad de montante estable', () => {
     expect(borrado.proyecto.montantes ?? []).toEqual([])
     expect(borrado.proyecto.unidadesFuncionales[0]?.locales.map((l) => l.id)).toContain('l-af')
     expect(validarRedHidraulica(borrado.proyecto)).toEqual([])
+  })
+})
+
+// --- M2-TOPO-D: derivaciones (tees) del montante --------------------
+
+// Montante AF con dos Locales a cotas distintas (l-af=3, l-ambas=6):
+// exactamente UN nodo de derivación 1->2 (el de cota 3: feed de l-af +
+// segmento que sube a cota 6); la punta (cota 6) es 1->1.
+function montanteAfConDosLocales(): { proyecto: Proyecto; montanteId: string } {
+  const creado = conMontanteNuevo(proyectoBase(), 'AF')
+  const { montanteId } = creado
+  const p1 = esperarProyecto(agregarLocalAMontante(creado.proyecto, montanteId, 'uf-1', 'l-af'))
+  const p2 = esperarProyecto(agregarLocalAMontante(p1, montanteId, 'uf-1', 'l-ambas'))
+  return { proyecto: p2, montanteId }
+}
+
+describe('derivacionesDeMontante (M2-TOPO-D)', () => {
+  it('montante con 0 Locales: sin derivaciones (§15)', () => {
+    const { proyecto, montanteId } = conMontanteNuevo(proyectoBase(), 'AF')
+    expect(derivacionesDeMontante(proyecto, montanteId)).toEqual([])
+  })
+
+  it('montante con 1 Local: la punta es 1->1, no es derivación (§15)', () => {
+    const { proyecto, montanteId } = conMontanteNuevo(proyectoBase(), 'AF')
+    const conUno = esperarProyecto(agregarLocalAMontante(proyecto, montanteId, 'uf-1', 'l-af'))
+    expect(derivacionesDeMontante(conUno, montanteId)).toEqual([])
+  })
+
+  it('montante con 2 Locales a cotas distintas: 1 bifurcación 1->2 con salidas humanas', () => {
+    const { proyecto, montanteId } = montanteAfConDosLocales()
+    const derivaciones = derivacionesDeMontante(proyecto, montanteId)
+    expect(derivaciones).toHaveLength(1)
+    const d = derivaciones[0]!
+    expect(d.tipo).toBe('bifurcacion')
+    if (d.tipo !== 'bifurcacion') return
+    expect(d.teeConfigurada).toBe(false)
+    const etiquetas = Object.values(d.etiquetasDeSalida).sort()
+    // una salida es el Local que deriva acá, la otra la continuación del montante.
+    expect(etiquetas).toContain('Baño 1 · UF 1')
+    expect(etiquetas.some((e) => e.startsWith('Montante AF'))).toBe(true)
+    // los VALORES (lo que se muestra) nunca son ids técnicos -- las claves
+    // del record son tramoIds internos, sólo se usan para el matching.
+    for (const etiqueta of etiquetas) {
+      expect(etiqueta).not.toMatch(/tramo-montante|nodo-montante|^t-|^n-/)
+    }
+  })
+
+  it('etiquetaDeSalidaDeMontante: continuación del montante -> su nombre; feed de un Local -> etiqueta del Local', () => {
+    const { proyecto, montanteId } = montanteAfConDosLocales()
+    const d = derivacionesDeMontante(proyecto, montanteId)[0]!
+    if (d.tipo !== 'bifurcacion') throw new Error('esperaba bifurcacion')
+    for (const salida of d.tramosSalientesIds) {
+      const etiqueta = etiquetaDeSalidaDeMontante(proyecto, montanteId, salida)
+      expect(etiqueta === 'Montante AF 1' || etiqueta === 'Baño 1 · UF 1').toBe(true)
+    }
+  })
+
+  it('teeConfigurada refleja Nodo.tee; configurar no toca longitudes/DN/accesorios (§19)', () => {
+    const { proyecto, montanteId } = montanteAfConDosLocales()
+    const d = derivacionesDeMontante(proyecto, montanteId)[0]!
+    if (d.tipo !== 'bifurcacion') throw new Error('esperaba bifurcacion')
+    const conTee = conTeeDeNodo(proyecto, d.nodoId, { tipo: 'entradaCentral' })
+    expect(validarRedHidraulica(conTee)).toEqual([])
+    expect(conTee.redHidraulica!.tramos).toEqual(proyecto.redHidraulica!.tramos) // topología intacta
+    expect(derivacionesDeMontante(conTee, montanteId)[0]!.tipo === 'bifurcacion' &&
+      derivacionesDeMontante(conTee, montanteId)[0]).toMatchObject({ teeConfigurada: true })
+  })
+})
+
+describe('reconciliarTeesTrasCambioTopologico (M2-TOPO-D §13/§38)', () => {
+  it('preserva Nodo.tee mientras el nodo siga siendo 1->2 con las mismas salidas', () => {
+    const { proyecto, montanteId } = montanteAfConDosLocales()
+    const d = derivacionesDeMontante(proyecto, montanteId)[0]!
+    if (d.tipo !== 'bifurcacion') throw new Error('esperaba bifurcacion')
+    const conTee = conTeeDeNodo(proyecto, d.nodoId, {
+      tipo: 'entradaPorExtremo',
+      tramoSalidaRectaId: d.tramosSalientesIds[0],
+    })
+    const rh = reconciliarTeesTrasCambioTopologico(conTee.redHidraulica!)
+    expect(rh).toBe(conTee.redHidraulica) // sin cambios -> misma referencia
+    expect(rh.nodos.find((n) => n.id === d.nodoId)?.tee).toBeDefined()
+  })
+
+  it('quitar un Local que deja el nodo fuera de 1->2 limpia Nodo.tee, y el resultado valida', () => {
+    const { proyecto, montanteId } = montanteAfConDosLocales()
+    const d = derivacionesDeMontante(proyecto, montanteId)[0]!
+    if (d.tipo !== 'bifurcacion') throw new Error('esperaba bifurcacion')
+    // Configurar la tee marcando como recta la CONTINUACIÓN del montante.
+    const salidaMontante = d.tramosSalientesIds.find(
+      (s) => proyecto.redHidraulica!.tramos.find((t) => t.id === s)?.montanteId === montanteId,
+    )!
+    const conTee = conTeeDeNodo(proyecto, d.nodoId, { tipo: 'entradaPorExtremo', tramoSalidaRectaId: salidaMontante })
+    expect(conTee.redHidraulica!.nodos.find((n) => n.id === d.nodoId)?.tee).toBeDefined()
+
+    // Quitar l-af: su feed sale de ese nodo -> el nodo pasa a 1->1.
+    const quitado = quitarLocalDeMontante(conTee, montanteId, 'uf-1', 'l-af')
+    if (quitado.tipo !== 'reconciliado') throw new Error(quitado.tipo)
+    expect(validarRedHidraulica(quitado.proyecto)).toEqual([])
+    const nodo = quitado.proyecto.redHidraulica!.nodos.find((n) => n.id === d.nodoId)
+    // el nodo puede haber sido podado o seguir sin tee -- nunca con una tee stale.
+    expect(nodo?.tee).toBeUndefined()
+    // longitudes/DN/accesorios de los segmentos: sin tocar por la limpieza de tee.
+    expect(quitado.proyecto.redHidraulica!.tramos.every((t) => t.accesorios === undefined)).toBe(true)
   })
 })

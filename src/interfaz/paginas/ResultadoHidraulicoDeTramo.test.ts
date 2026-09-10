@@ -159,7 +159,7 @@ describe('ResultadoHidraulicoDeTramo (UI) — D-δ.43', () => {
 
     expect(html).toContain('Toilette')
     expect(html).toContain('Tee')
-    expect(html).toContain('Bifurcación sin configurar')
+    expect(html).toContain('Configuración de la derivación')
   })
 
   it('distingue AF/AC con nombre humano de red, no la sigla sola ni ids de nodo', () => {
@@ -316,7 +316,7 @@ describe("ResultadoHidraulicoDeTramo (UI) — granularidadHidraulica 'simplifica
 
     expect(html).not.toContain('Tees (bifurcaciones)')
     expect(html).toContain('Tee')
-    expect(html).toContain('Bifurcación sin configurar')
+    expect(html).toContain('Configuración de la derivación')
   })
 
   it('nunca expone ids técnicos de Nodo/Tramo, igual que en modo profesional', () => {
@@ -374,7 +374,7 @@ describe("ResultadoHidraulicoDeTramo (UI) — metodoPerdidaLocalizada 'estimado'
       )
 
       expect(html).not.toContain('Confirmar que este tramo no tiene accesorios')
-      expect(html).not.toContain('Bifurcación sin configurar')
+      expect(html).not.toContain('Configuración de la derivación')
     },
   )
 

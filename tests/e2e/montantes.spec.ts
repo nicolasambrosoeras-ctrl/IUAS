@@ -165,4 +165,59 @@ test.describe('M2-TOPO-C · constructor de montantes', () => {
     const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
     expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
   })
+
+  // M2-TOPO-D §41: en modo Detalladas, un montante con dos Locales tiene
+  // una derivación 1->2 configurable; elegir tipo de entrada + continuación
+  // recta funciona, la app sigue viva y no aparecen ids técnicos.
+  test('M2-TOPO-D · configurar la tee de una derivación de montante (Detalladas)', async ({
+    page,
+    errores,
+    baseURLEfectiva,
+  }) => {
+    await cargarAppLimpia(page, baseURLEfectiva)
+    await irATuberias(page)
+
+    // Activar "Pérdidas localizadas: Detalladas".
+    const resumen = page.getByText('Configuración avanzada', { exact: true }).first()
+    if (await resumen.isVisible().catch(() => false)) {
+      const detalle = resumen.locator('xpath=ancestor::details[1]')
+      const abierto = await detalle.evaluate((el) => (el as HTMLDetailsElement).open).catch(() => true)
+      if (!abierto) await resumen.click()
+    }
+    await page.getByLabel('Pérdidas localizadas:').selectOption('detallado')
+    await estabilizar(page)
+
+    const seccion = seccionMontantes(page)
+    await agregarMontante(page, 'Agua fría')
+    const card = seccion.locator('.montante-card').first()
+    await card.getByLabel('Agregar Local al Montante AF 1').selectOption({ label: 'Baño 1 · Unidad funcional 1' })
+    await estabilizar(page)
+    await card.getByLabel('Agregar Local al Montante AF 1').selectOption({ label: 'Cocina 1 · Unidad funcional 1' })
+    await estabilizar(page)
+
+    // Aparece la sección Derivaciones con el editor de tee y el aviso de
+    // que falta configurarla.
+    const derivaciones = card.locator('.montante-card__derivaciones')
+    await expect(derivaciones.getByRole('heading', { name: 'Derivaciones' })).toBeVisible()
+    await expect(derivaciones.locator('fieldset.tee-editor')).toHaveCount(1)
+    await expect(derivaciones.getByText('Falta definir la configuración de la derivación')).toBeVisible()
+
+    // Elegir "entra por un extremo" -> aparece el grupo de continuación recta.
+    await derivaciones.getByRole('radio', { name: /un extremo/ }).check()
+    await estabilizar(page)
+    await expect(derivaciones.getByText('Continúa recta hacia…')).toBeVisible()
+
+    // Elegir una continuación recta -> el aviso de "falta definir" desaparece.
+    await derivaciones.locator('.tee-editor__grupo').last().getByRole('radio').first().check()
+    await estabilizar(page)
+    await expect(derivaciones.getByText('Falta definir la configuración de la derivación')).toHaveCount(0)
+
+    // Cambiar a "entra por el centro" -> ya no se pide la recta.
+    await derivaciones.getByRole('radio', { name: /el centro/ }).check()
+    await estabilizar(page)
+    await expect(derivaciones.getByText('Continúa recta hacia…')).toHaveCount(0)
+
+    const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+  })
 })
