@@ -15,7 +15,8 @@
     "e2e:catalogo": "playwright test tests/e2e/catalogo-conectividad.spec.ts",
     "e2e:fuzz": "playwright test tests/e2e/sequence-fuzz.spec.ts",
     "e2e:crash": "playwright test tests/e2e/crash-observado.spec.ts",
-    "e2e:typecheck": "tsc -p tsconfig.e2e.json"
+    "e2e:typecheck": "tsc -p tsconfig.e2e.json",
+    "perf": "vitest run --config vitest.perf.config.ts"
   },
   "repository": {
     "type": "git",

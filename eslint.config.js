@@ -27,6 +27,17 @@ export default defineConfig([
     },
   },
 
+  // PERF-SCALE-01A: benchmark local del motor (`scripts/perf/*.perf.ts`).
+  // Corre en Node bajo `vitest.perf.config.ts`, NUNCA en CI (`npm test` no
+  // lo ve). Necesita los globals de Node (`process`, `performance`,
+  // `console`). Igual que el harness de fuzz, no participa de `tsc -b`.
+  {
+    files: ['scripts/**/*.{ts,tsx}', 'vitest.perf.config.ts'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+
   // QA-FUZZ-01 (D-δ.80): harness E2E de Playwright + config. Corre en
   // Node, y el codigo dentro de `page.evaluate(...)` corre en el
   // navegador: necesita ambos conjuntos de globals. No participa de
