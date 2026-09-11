@@ -1584,8 +1584,38 @@ salvo bug inequívoco o decisión roja explícita.
   Verificación sigue con cientos de motivos) -- según esa prueba,
   `PERF-SCALE-01: CERRADO`, o se abre `PERF-SCALE-01E` (render/DOM) con la
   evidencia concreta que aporte esa prueba, no por intuición.
-  - **Siguiente:** push a `main`, deploy, QA Fuzz cloud 20×30 (seed
-    vacía) sobre `main`, luego la validación manual de arriba.
+
+- **FIX-MONTANTE-ADD-01 (D-δ.101) -- CERRADA.** Regresión funcional
+  reportada tras el deploy de 01D: `+ Agregar montante` → AF/AC no
+  mostraba ninguna card. Causa: el comparador de memo de 01D
+  (`sonPropsDeDimensionamientoEquivalentes.ts`) auditó qué campos el
+  árbol de Tuberías NUNCA lee (`cota_m`/`desnivelConexion_m`/
+  `presionSobreAcera_m`) pero no la recíproca -- dos campos que sí lee
+  quedaron fuera de la comparación: `Proyecto.montantes`
+  (`ConstructorDeMontantes`) y `Nodo.tee` (`TeeDeNodoEditor`, dentro de
+  `DerivacionesDeMontante`). `conMontanteNuevo`/`conTeeDeNodo` sólo
+  reconstruyen esos campos puntuales -- el memo veía todo lo demás
+  intacto y se saltaba el render, dejando la UI mostrando el estado
+  viejo. El E2E determinista (`montantes.spec.ts`) sí lo detectaba, pero
+  el fuzz cloud no (sus acciones de alta de montante nunca verifican que
+  la card aparezca, sólo invariantes genéricos). Fix: agregar
+  `proyecto.montantes` a la comparación por referencia, y un comparador
+  dirigido nuevo para `Nodo.tee` que NO compara `redHidraulica.nodos`
+  por referencia de array completo (eso habría reintroducido el
+  re-render evitable de `Nodo.cota_m` que 01D existe para evitar) sino
+  sólo el campo `tee` de cada nodo. Sin cambios de dominio. Vitest
+  **1688/1688** (+2); `tsc`/`e2e:typecheck`/`build` verdes; ESLint
+  11/0/0 sin cambios. `montantes.spec.ts` 5/5 desktop+mobile contra
+  build local (fallaban los 5 contra el código pre-fix); fuzz dirigido
+  (seeds 7/42/99 · 30 pasos) verde. De paso, se corrigió
+  `playwright.config.ts` (faltaba `--base /IUAS/` en el comando
+  `preview` del `webServer`; sin este flag Vite resuelve `command` como
+  `'serve'` durante preview y nunca aplica la base de producción,
+  rompiendo el testing E2E local -- no afecta el build ni GitHub Pages).
+  - **Siguiente:** push a `main`, deploy, smoke de producción (AF + AC +
+    renombrar), validación manual del usuario, luego QA Fuzz cloud 20×30
+    (seed vacía) sobre `main`. Si verde: retomar `PERF-SCALE-01E`
+    (diagnóstico pendiente: agregar UF vacía 33→34 tarda >2 s).
 
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto

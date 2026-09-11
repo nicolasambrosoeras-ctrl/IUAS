@@ -12167,6 +12167,138 @@ aporte -- no por intuición.
 **Siguiente:** push a `main`, deploy, QA Fuzz cloud 20×30 (seed vacía)
 sobre `main`, luego la validación manual de arriba.
 
+## D-δ.101 -- FIX-MONTANTE-ADD-01: el comparador de memo de 01D ocultaba el alta de montantes y la edición de tee -- CERRADA
+
+Regresión funcional reportada por el usuario tras el deploy de
+PERF-SCALE-01D (QA Fuzz cloud 20×30 seed vacía **TODO VERDE**, producción
+carga): en Tuberías → Constructor de montantes, `+ Agregar montante` →
+elegir Agua fría/Agua caliente **no mostraba ningún montante nuevo**.
+Prioridad sobre `PERF-SCALE-01E` -- no se inició.
+
+### Causa raíz
+
+El `React.memo` introducido en D-δ.100
+(`sonPropsDeDimensionamientoEquivalentes.ts`, ver arriba) compara por
+referencia `unidadesFuncionales` / `redHidraulica?.tramos` /
+`configuracionHidraulica` / `modoTrabajo` / `catalogoArtefactos` /
+`onCambiar` -- pero el árbol que envuelve (`ResultadoHidraulicoDeTramo`,
+que incluye `ConstructorDeMontantes`) también lee dos campos que ese
+comparador **no** auditó:
+
+1. **`Proyecto.montantes`.** `conMontanteNuevo` (`montantesDelProyecto.ts`)
+   sólo reconstruye `Proyecto.montantes` -- un alta sin Locales todavía no
+   toca `unidadesFuncionales` ni `redHidraulica.tramos`. El comparador
+   veía las cinco referencias auditadas intactas → "props equivalentes" →
+   React se saltaba el render → `ConstructorDeMontantes` seguía mostrando
+   el árbol viejo ("Todavía no hay montantes explícitos") aunque
+   `Proyecto.montantes` ya tuviera la identidad nueva. Caso **C** del
+   diagnóstico pedido: el estado cambiaba, React no re-renderizaba.
+2. **`Nodo.tee`.** Mismo patrón para `DerivacionesDeMontante` →
+   `TeeDeNodoEditor` (M2-TOPO-D, D-δ.95), que lee `redHidraulica.nodos`.
+   `conTeeDeNodo` (`actualizarRedHidraulica.ts`) sólo reconstruye
+   `redHidraulica.nodos` -- nunca `.tramos` -- así que elegir un tipo de
+   entrada o una salida recta tampoco re-renderizaba: el radio quedaba
+   visualmente sin marcar (Playwright lo reportaba como "Clicking the
+   checkbox did not change its state").
+
+El comentario original de D-δ.100 auditó correctamente que el árbol
+**nunca lee** `Nodo.cota_m` / `desnivelConexion_m` / `presionSobreAcera_m`
+(por eso esos tres se excluyen a propósito), pero no verificó la
+recíproca: que **todo** lo que el árbol sí lee estuviera cubierto por el
+comparador. `montantes` y `Nodo.tee` son ambos de escritura reciente
+(M2-TOPO-C/D, D-δ.93/95) y quedaron fuera cuando D-δ.100 escribió el
+comparador.
+
+### Por qué el E2E existente (`montantes.spec.ts`) no lo detectó antes del deploy
+
+No fue el fuzz cloud: sus acciones `crearMontanteAF`/`crearMontanteAC`
+(`tests/e2e/qa/acciones.ts`) hacen click pero **nunca verifican que la
+card aparezca** -- sólo corren los invariantes genéricos (consola limpia,
+app viva) al final de cada step, y como el memo no rompe nada (sólo
+oculta un render), esos invariantes no detectan nada anómalo. El spec
+determinista `tests/e2e/montantes.spec.ts` sí afirma explícitamente
+`toBeVisible()` sobre la card nueva y falló de inmediato al correrlo
+sobre HEAD (verificado antes de tocar código) -- pero ese spec no forma
+parte del gate "QA Fuzz cloud" que valida cada slice de PERF-SCALE; no
+se había vuelto a correr como parte del checkpoint post-01D.
+
+### Fix
+
+Una línea funcional + un comparador dirigido nuevo en
+`sonPropsDeDimensionamientoEquivalentes.ts`:
+
+- `prev.proyecto.montantes === next.proyecto.montantes` agregado a la
+  comparación por referencia (igual tratamiento que `unidadesFuncionales`).
+- `sonNodosDeTeeEquivalentes(prevNodos, nextNodos)`: **no** compara
+  `redHidraulica.nodos` por referencia de array completo -- ese array se
+  reconstruye (nuevo `.map`) también cuando sólo cambia `Nodo.cota_m`
+  (`conCotaDeNodo`, editado desde Verificación/Módulo 4, una sección
+  DISTINTA que sí debe seguir sin re-renderizar Tuberías, tal como D-δ.100
+  lo dejó). Comparar el array completo habría reintroducido exactamente
+  el re-render que ese memo existe para evitar. En cambio compara sólo el
+  campo `tee` de cada nodo (por posición/id, mismo orden que produce
+  `.map`), que es el único campo de `Nodo` que este árbol lee.
+
+Ningún cambio de dominio: `Proyecto.montantes`, `Montante`, `Nodo.tee`,
+`conMontanteNuevo`, `conTeeDeNodo`, reconciliación, segmentación, cotas,
+RD-1/RD-2, D-δ.50, fan-out 1→N -- todo intacto.
+
+### Regresión agregada
+
+- `sonPropsDeDimensionamientoEquivalentes.test.ts`: +2 casos --
+  `conMontanteNuevo` → DISTINTAS (antes del fix, el bug real habría dado
+  `true`); `conTeeDeNodo` → DISTINTAS. El caso preexistente de
+  `conCotaDeNodo` → equivalentes sigue en `true` (perf de 01D preservada).
+- `tests/e2e/montantes.spec.ts` (preexistente, sin cambios de contenido):
+  los 5 casos -- incluidos el alta AF/AC por la ruta interactiva real del
+  usuario (click + selector, sin helpers internos) y la configuración de
+  tee de una derivación -- fallaban contra el código pre-fix (4 por
+  timeout esperando la card/selector, 1 -- la de tee -- por
+  "Clicking the checkbox did not change its state") y pasan con el fix,
+  desktop y mobile.
+
+### Hallazgo de infraestructura de testing local (corregido, fuera del dominio)
+
+`playwright.config.ts` invocaba `vite preview` sin `--base`: Vite
+resuelve `command` como `'serve'` (no `'build'`) durante `preview`, así
+que el `base: command === 'build' ? '/IUAS/' : '/'` de `vite.config.ts`
+nunca aplicaba la base `/IUAS/` al servidor de preview, mientras el
+`index.html` ya construido sí referenciaba `/IUAS/assets/...` (base fija
+en tiempo de build). El preview local servía el bundle en la raíz y
+cualquier request a `/IUAS/assets/...` caía al fallback SPA (devolvía
+`index.html`, `Content-Type: text/html`, en vez del JS real) -- esto
+enmascaró la primera corrida de verificación local del fix (parecía que
+el fix no andaba; en realidad el navegador nunca cargó el JS nuevo).
+Corregido agregando `--base /IUAS/` al comando `preview` del `webServer`
+de Playwright. No afecta el build de producción (`vite build` sigue
+resolviendo `/IUAS/` como siempre) ni GitHub Pages.
+
+### Verificación
+
+Vitest **1688 / 1688** (1686 + 2 nuevos). `tsc -b` / `npm run
+e2e:typecheck` / `npm run build` verdes. **ESLint 11 / 0 / 0** (baseline
+sin cambios, ninguno de los 3 archivos tocados por este fix aparece en la
+lista de errores preexistentes). E2E contra build local
+(`IUAS_BASE_URL=http://localhost:4173/IUAS/`, tras el fix de
+`playwright.config.ts`): `montantes.spec.ts` 5/5 desktop + 5/5 mobile;
+`smoke.spec.ts`, `catalogo-conectividad.spec.ts` (24 casos),
+`cotas-heredadas.spec.ts` verdes (confirman que la optimización de pelo
+de agua/desnivel de 01D sigue intacta). Fuzz dirigido (fix acotado a
+React/memo, sin tocar motor ni reconciliación): seeds `7`, `42`, `99` ·
+30 pasos cada una, verdes contra build local.
+
+### Estado
+
+**D-δ.101 / FIX-MONTANTE-ADD-01 -- CERRADA.** Código modificado:
+`interfaz/paginas/sonPropsDeDimensionamientoEquivalentes.ts` (+`.test.ts`),
+`playwright.config.ts` (infraestructura de testing local, sin afectar
+producción). Sin cambios de dominio, schema, reconciliación ni fórmulas.
+
+**Siguiente:** push a `main`, deploy, smoke de producción (AF + AC +
+renombrar), validación manual del usuario, luego QA Fuzz cloud 20×30 seed
+vacía sobre `main`. Si verde: retomar `PERF-SCALE-01E` (diagnóstico
+pendiente: agregar UF vacía 33→34 tarda >2 s).
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son
