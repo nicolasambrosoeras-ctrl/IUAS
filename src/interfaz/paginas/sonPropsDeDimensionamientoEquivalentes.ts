@@ -62,7 +62,11 @@ export type PropsDeDimensionamiento = {
   readonly onCambiar: (proyecto: Proyecto) => void
 }
 
-function sonNodosDeTeeEquivalentes(
+// Exportada: PERF-SCALE-01E la reutiliza en
+// sonPropsDeSeccionDeUnidadFuncionalEquivalentes.ts (memo por-UF de
+// SeccionDeUnidadFuncional) -- mismo criterio de comparación de `Nodo.tee`,
+// una sola fuente de verdad para ese fragmento del comparador.
+export function sonNodosDeTeeEquivalentes(
   prevNodos: readonly Nodo[] | undefined,
   nextNodos: readonly Nodo[] | undefined,
 ): boolean {

@@ -11,6 +11,7 @@
 // ya existen.
 import { memo, useMemo } from 'react'
 import { sonPropsDeDimensionamientoEquivalentes } from './sonPropsDeDimensionamientoEquivalentes'
+import { sonPropsDeSeccionDeUnidadFuncionalEquivalentes } from './sonPropsDeSeccionDeUnidadFuncionalEquivalentes'
 import type { GranularidadHidraulica, MaterialTuberiaId, MetodoPerdidaDistribuida, MetodoPerdidaLocalizada, Proyecto, TipoDeLocal } from '../../modelo/proyecto'
 import { crearContextoDeCalculoM2, type ContextoDeCalculoM2 } from '../../motor/tuberias/contextoDeCalculoM2'
 import type { ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
@@ -502,7 +503,15 @@ function DistribucionSecundaria({
 // artefactos + estimación localizada; en Profesional el árbol de Tramos
 // físicos + editores de accesorios/tees (LocalYRedCard sin encabezado ni
 // dimensionamiento del representativo, que ya están en la fila).
-function SeccionDeUnidadFuncional({
+// PERF-SCALE-01E: envuelto en React.memo con un comparador dedicado
+// (sonPropsDeSeccionDeUnidadFuncionalEquivalentes) -- agregar/duplicar/
+// eliminar OTRA Unidad Funcional cambia la referencia de
+// `proyecto.unidadesFuncionales`, lo que invalida el memo EXTERNO
+// (sonPropsDeDimensionamientoEquivalentes) y hace re-renderizar
+// ResultadoHidraulicoDeTramoBase entero; sin este memo interno, las N-1
+// tarjetas de UF no afectadas se reconciliaban igual que la afectada
+// (medido: >2 s a 33 UF con esta única sección, ver PENDIENTES-DE-ARQUITECTURA.md).
+function SeccionDeUnidadFuncionalBase({
   proyecto,
   uf,
   catalogoArtefactos,
@@ -576,6 +585,8 @@ function SeccionDeUnidadFuncional({
     </section>
   )
 }
+
+const SeccionDeUnidadFuncional = memo(SeccionDeUnidadFuncionalBase, sonPropsDeSeccionDeUnidadFuncionalEquivalentes)
 
 function formatearNumeroM(valor: number): string {
   return `${valor.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m`

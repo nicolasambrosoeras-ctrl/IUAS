@@ -25,6 +25,7 @@ import {
   textoValorCalculado,
 } from '../../presentacion/desarrolloDelCalculoDemanda'
 import { duplicarUnidadFuncionalEnProyecto } from './duplicarUnidadFuncional'
+import { agregarUnidadFuncionalVaciaEnProyecto } from './agregarUnidadFuncional'
 import { generarId } from './generarId'
 import { backfillLongitudesDePredimensionamiento } from './backfillLongitudesDePredimensionamiento'
 import { sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas } from './sincronizarConectividadFisicaDeArtefacto'
@@ -1253,23 +1254,15 @@ function ProyectoFormulario({
   }
 
   function agregarUnidadFuncional() {
-    // D-δ.46: nivel inicial por orden de creación (UF1→PB, UF2→Piso1...)
-    // -- solo un default de creación, el nivel sigue siendo completamente
-    // editable después (puede haber varias UF en un mismo piso, ninguna
-    // en otro, subsuelos, etc., ver PENDIENTES-DE-ARQUITECTURA.md D-δ.46).
-    const nivel = unidadesFuncionales.length
-    const nuevaUf: UnidadFuncional = {
-      id: generarId('uf'),
-      nombre: `Unidad funcional ${unidadesFuncionales.length + 1}`,
-      nivel,
-      cotaHidraulicaReferencia_m: calcularCotaHidraulicaDefaultDeNivel(nivel),
-      locales: [],
-    }
+    // PERF-SCALE-01E: la mutación pura vive en agregarUnidadFuncional.ts
+    // (agregarUnidadFuncionalVaciaEnProyecto) -- spread superficial que sólo
+    // toca `unidadesFuncionales`, igual que antes de esta extracción.
+    const { proyecto: proyectoConUfNueva, nuevaUf } = agregarUnidadFuncionalVaciaEnProyecto(proyecto)
     // Sección 4: la UF nueva nace COLAPSADA; las existentes no cambian de
     // estado visual. El id se conoce acá directamente, sin depender del
     // updater.
     marcarColapsadas([nuevaUf.id])
-    cambiarUnidadesFuncionales([...unidadesFuncionales, nuevaUf])
+    onCambiar(proyectoConUfNueva)
   }
 
   function duplicarUnidadFuncional(unidadFuncionalId: string) {
