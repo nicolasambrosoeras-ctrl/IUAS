@@ -108,7 +108,18 @@ describe('PERF-SCALE-01B §17 (adenda) — Duplicar unidad funcional', () => {
     expect(contadores.resolucionesModulo2).toBe(0)
     expect(contadores.solicitudesHidraulicaDeTramo).toBe(0)
     expect(contadores.solicitudesDiametroComercialDeTramo).toBe(0)
-    expect(contadores.indicesTopologicosCreados).toBe(0)
+    // PERF-SCALE-01D: `indicesTopologicosCreados` dejó de ser exclusivo de
+    // hidráulica -- `obtenerArtefactosAguasAbajo` (usado acá por
+    // `redesObjetivoParaClon` para determinar conectividad física de cada
+    // Artefacto clonado, sin ningún cálculo hidráulico) ahora comparte el
+    // mismo IndiceTopologico/contador que resolverHidraulicaDeTramo en vez
+    // de reconstruir uno inline sin instrumentar. El invariante real de
+    // este test -- cero hidráulica -- ya lo cubren las dos aserciones de
+    // arriba (solicitudes en 0); este índice sí crece con la cantidad de
+    // Artefactos clonados (una llamada a obtenerArtefactosAguasAbajo por
+    // Artefacto), sin ningún contexto compartido que threadear acá (la
+    // duplicación no es una resolución de M2).
+    expect(contadores.indicesTopologicosCreados).toBeGreaterThan(0)
 
     // Y efectivamente construyó la UF copia completa (un nivel más de todo).
     expect(conCopia.unidadesFuncionales.length).toBe(base.unidadesFuncionales.length + 1)

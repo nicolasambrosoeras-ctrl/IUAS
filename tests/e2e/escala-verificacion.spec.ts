@@ -1,36 +1,53 @@
-// PERF-SCALE-01B §21 -- E2E dirigido: proyecto de escala moderada + edición
-// de "Pelo de agua mínimo" y de un parámetro de tanque.
+// PERF-SCALE-01B §21 / PERF-SCALE-01D §35 -- E2E dirigido: proyecto de
+// escala real (20+ UF) + edición de "Pelo de agua mínimo" y de un parámetro
+// de tanque.
 //
-// Reproduce la MISMA ruta funcional del caso real (agregar UF, ir a
-// Verificación, teclear en el input de pelo de agua, editar el desnivel de
-// conexión del tanque) sobre un proyecto varias veces más grande que el
-// demo, y exige que la app siga viva -- sin pageerror, sin console.error,
-// invariantes OK -- después de cada edición. NO usa un timeout gigante:
-// con el contexto de cálculo local de 01B el motor resuelve rápido; si una
-// tecla volviera a colgar el hilo, `estabilizar` + los asserts lo delatan.
+// Reproduce la MISMA ruta funcional del caso real (duplicar UF hasta 20+,
+// ir a Abastecimiento/Verificación, teclear en el input de pelo de agua,
+// editar el desnivel de conexión del tanque, agregar un artefacto) y exige
+// que la app siga viva -- sin pageerror, sin console.error, invariantes OK
+// -- después de cada edición. NO usa un timeout gigante ni afirma sobre
+// milisegundos (eso vive en scripts/perf/benchmarkEscalaXXL.perf.ts,
+// PERF-SCALE-01D): con el índice topológico y los tramos representativos
+// compartidos por resolución, el motor resuelve rápido a esta escala; si
+// alguna edición volviera a colgar el hilo, `estabilizar` + los asserts lo
+// delatan (Playwright falla por timeout, no silenciosamente).
 import { test, expect } from './qa/fixtures'
 import { cargarAppLimpia, estabilizar } from './qa/estado'
 import { verificarInvariantes, primerFallo } from './qa/invariantes'
 
-test.describe('PERF-SCALE-01B · verificación sobre proyecto de escala', () => {
-  test('duplicar UF varias veces + editar pelo de agua y desnivel de tanque no cuelga ni desmonta la app', async ({
+test.describe('PERF-SCALE-01B/01D · verificación sobre proyecto de escala', () => {
+  test('duplicar UF hasta 20+, agregar artefacto y editar pelo de agua/desnivel no cuelga ni desmonta la app', async ({
     page,
     errores,
     baseURLEfectiva,
   }) => {
+    test.setTimeout(120_000)
     await cargarAppLimpia(page, baseURLEfectiva)
 
-    // 1. Demanda: duplicar la primera UF 4 veces -> ~5 UF. Cada duplicación
-    //    dispara un re-render completo (sidebar + los 4 paneles montados);
-    //    ejercita el threading del contexto de cálculo en la ruta real.
+    // 1. Demanda: duplicar la primera UF 19 veces -> ~20 UF (PERF-SCALE-01D
+    //    §35: cubrir escala 20 UF explícitamente, no sólo una escala
+    //    moderada). Cada duplicación dispara un re-render completo (sidebar
+    //    + los 4 paneles montados); ejercita el threading del contexto de
+    //    cálculo e índices compartidos en la ruta real.
     await page.getByRole('link', { name: /Demanda/ }).first().click()
     await estabilizar(page)
-    for (let i = 0; i < 4; i += 1) {
+    for (let i = 0; i < 19; i += 1) {
       await page.getByRole('button', { name: 'Duplicar' }).first().click()
       await estabilizar(page)
     }
     let violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
     expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+
+    // 1b. Agregar un artefacto en la última UF (PERF-SCALE-01D §35): otra
+    //     acción diagnóstica que cambia demanda/topología a esta escala.
+    const botonAgregar = page.getByRole('button', { name: '+ Agregar artefacto' }).last()
+    if (await botonAgregar.isVisible().catch(() => false)) {
+      await botonAgregar.click()
+      await estabilizar(page)
+      violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+      expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+    }
 
     // 2. Abastecimiento: esquema "Tanque elevado" (habilita el input de
     //    pelo de agua mínimo en Verificación).

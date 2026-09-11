@@ -35,6 +35,10 @@ import {
 } from './presion/resolverPresionResidualDeCamino'
 import { crearContextoDeCalculoM2 } from './contextoDeCalculoM2'
 import { generarProyectoDeEscala } from '../../pruebas/escala/generarProyectoDeEscala'
+import { obtenerCaminoHaciaOrigen } from './topologia/obtenerCaminoHaciaOrigen'
+import { obtenerArtefactosAguasAbajo } from './topologia/obtenerArtefactosAguasAbajo'
+import { identificarTramosRepresentativosDeLocales } from './topologia/identificarTramoRepresentativoDeLocal'
+import { crearIndiceTopologico } from './topologia/indiceTopologico'
 
 function conConfig(proyecto: Proyecto, overrides: Partial<Proyecto['configuracionHidraulica']>): Proyecto {
   return { ...proyecto, configuracionHidraulica: { ...proyecto.configuracionHidraulica, ...overrides } }
@@ -63,6 +67,17 @@ const escenarios: readonly Escenario[] = [
     }),
   },
   { nombre: 'escala 5×3 · estimado + profesional', proyecto: generarProyectoDeEscala({ cantidadUf: 5, localesPorUf: 3 }) },
+  {
+    // PERF-SCALE-01D: granularidad 'simplificada' a escala es el escenario
+    // real que expuso identificarTramosRepresentativosDeLocales como
+    // hotspot -- generarProyectoDeEscala fija 'profesional' por defecto
+    // (PERF-SCALE-01A no reabre M2-TOPO), así que este escenario lo
+    // sobrescribe explícitamente.
+    nombre: 'escala 5×3 · estimado + simplificada',
+    proyecto: conConfig(generarProyectoDeEscala({ cantidadUf: 5, localesPorUf: 3 }), {
+      granularidadHidraulica: 'simplificada',
+    }),
+  },
 ]
 
 describe('PERF-SCALE-01B — equivalencia contexto compartido ≡ legacy', () => {
@@ -74,6 +89,31 @@ describe('PERF-SCALE-01B — equivalencia contexto compartido ≡ legacy', () =>
       if (red === undefined) throw new Error('escenario sin redHidraulica')
       const tramoIds = red.tramos.map((t) => t.id)
       const terminalIds = red.nodos.filter((n) => n.referencia?.tipo === 'artefacto').map((n) => n.id)
+
+      it('PERF-SCALE-01D · obtenerCaminoHaciaOrigen: contexto (índice compartido) ≡ sin contexto', () => {
+        const ctx = crearContextoDeCalculoM2()
+        for (const terminalId of terminalIds) {
+          const sinContexto = obtenerCaminoHaciaOrigen(red, terminalId)
+          const conContexto = obtenerCaminoHaciaOrigen(red, terminalId, ctx)
+          expect(conContexto).toEqual(sinContexto)
+        }
+      })
+
+      it('PERF-SCALE-01D · obtenerArtefactosAguasAbajo: índice compartido ≡ sin índice', () => {
+        const indice = crearIndiceTopologico(red)
+        for (const tramoId of tramoIds) {
+          const sinIndice = obtenerArtefactosAguasAbajo(pv, tramoId)
+          const conIndice = obtenerArtefactosAguasAbajo(pv, tramoId, indice)
+          expect(conIndice).toEqual(sinIndice)
+        }
+      })
+
+      it('PERF-SCALE-01D · identificarTramosRepresentativosDeLocales: contexto ≡ sin contexto', () => {
+        const ctx = crearContextoDeCalculoM2()
+        const sinContexto = identificarTramosRepresentativosDeLocales(pv)
+        const conContexto = identificarTramosRepresentativosDeLocales(pv, ctx)
+        expect(conContexto).toEqual(sinContexto)
+      })
 
       it('resolverHidraulicaDeTramo: contexto ≡ sin contexto, y el hit devuelve el mismo objeto memoizado', () => {
         const ctx = crearContextoDeCalculoM2()
