@@ -11409,6 +11409,219 @@ contra `npm run dev`): `424242` 3×30, `34493241441-1:15` desktop+mobile,
 **Siguiente:** **QA Fuzz cloud 20×30 seed vacía** sobre `main`; si queda
 verde, iniciar **PERF-SCALE-01B** en chat nuevo.
 
+## D-δ.98 -- PERF-SCALE-01B: contexto de cálculo local a la resolución de M2 -- memoización cross-camino / cross-etapa de la hidráulica por Tramo -- CERRADO (motor)
+
+Segundo slice de `PERF-SCALE-01` (P1). Objetivo acotado: **eliminar la
+redundancia restante de cálculo hidráulico del mismo Tramo dentro de UNA
+resolución de Módulo 2**, preservando EXACTAMENTE los resultados
+hidráulicos. No agrega features, no toca fórmulas, no cambia criterios
+normativos, no reabre M2-TOPO-01, no toca React.
+
+### QA cloud de entrada
+
+QA Fuzz cloud 20×30 seed vacía sobre `865b8c0` (post-PERF-SCALE-01A):
+**TODO VERDE** (informado por el usuario). Prueba manual del usuario sobre
+producción tras `865b8c0`: la mejora de 01A es clara, pero a partir de
+~8-9 UF vuelve a aparecer lag; cargar datos de tanque tarda; editar "Pelo
+de agua mínimo" puede trabar la interacción.
+
+### Baseline 01B (fixture de escala, misma máquina, antes del fix)
+
+| Fixture | Tramos distintos | Solicitudes diámetro | Cálculos reales (índice + DFS) | Ratio | `resolverEstadoModulo2` warm |
+| --- | --- | --- | --- | --- | --- |
+| **S** (14 term / 20 tramos) | 20 | 98 | 98 | 4,9× | ~4,1 ms |
+| **M** (294 term / 393 tramos) | 393 | 2058 | 2058 | 5,24× | ~596 ms |
+
+El mismo Tramo se resolvía desde cero **~5,2 veces por resolución**: una
+vez por cada camino de terminal que lo incluye (cross-camino) y una vez
+por cada etapa del pipeline que le pide hidráulica/diámetro/velocidad
+(cross-etapa: pérdida distribuida, pérdida localizada estimada/detallada,
+diámetro comercial).
+
+### Call graph confirmado
+
+```
+resolverEstadoModulo2(proyecto, ...)
+  └─ por cada terminal (294):  resolverPresionResidualDeCamino(..., contexto)
+       ├─ acumularPerdidaDistribuidaDeCamino(..., contexto)
+       │    └─ por Tramo del camino:  resolverPerdidaDistribuidaDeTramo(..., contexto)
+       │         └─ resolverDiametroComercialDeTramo(..., contexto)  ← MEMO
+       │              └─ resolverHidraulicaDeTramo(..., contexto)     ← MEMO (índice topológico + DFS aguas abajo)
+       ├─ [detallado]  acumularPerdidaLocalizadaDeCamino(..., contexto)
+       │    └─ por Tramo:  resolverDiametroComercialDeTramo(..., contexto)
+       └─ [estimado]   resolverPerdidaLocalizadaEstimadaDeLocal(..., contexto)
+            └─ por Tramo terminal del Local+red:  resolverDiametroComercialDeTramo(..., contexto)
+```
+
+`resolverHidraulicaDeTramo` sólo tiene un llamador de motor:
+`resolverDiametroComercialDeTramo`. Threading: **8 firmas** aceptan un
+parámetro opcional `contexto` al final (`resolverEstadoModulo2` lo crea;
+las 7 restantes lo pasan hacia abajo). Sin él ⇒ comportamiento previo byte
+a byte (call sites puntuales de la UI y tests históricos).
+
+### Causa raíz
+
+`resolverHidraulicaDeTramo(proyecto, tramoId, catálogo)` y
+`resolverDiametroComercialDeTramo(proyecto, tramoId, catálogos)` son
+**funciones puras de `(proyecto, tramoId)`** para catálogos fijos. Durante
+una resolución de M2 el `proyecto` (incluida `redHidraulica` con
+`dnComercialAdoptado`) y los catálogos son **inmutables** -- nadie los
+muta mientras se resuelve. Pero el motor las volvía a ejecutar desde cero
+cada vez que un camino o una etapa distinta pedía datos del mismo Tramo.
+
+### Solución -- `ContextoDeCalculoM2`
+
+`src/motor/tuberias/contextoDeCalculoM2.ts`: un contexto **puro y local a
+UNA resolución** con dos memos `Map<tramoId, resultado>` --
+`hidraulicaPorTramo` y `diametroComercialPorTramo`.
+
+- **Clave:** sólo `tramoId`. La entrada real (proyecto/red/config) es
+  inmutable durante la resolución, así que no puede haber dos resultados
+  hidráulicos legítimos distintos para el mismo Tramo -- **no es una
+  decisión roja**, es una propiedad demostrable del pipeline.
+- **Ciclo de vida:** se crea vacío en `resolverEstadoModulo2` (justo antes
+  del loop por terminal) y se descarta al retornar. **No** se guarda en el
+  `Proyecto`, **no** hay cache global / `WeakMap` / singleton, **no** hay
+  invalidación. Cada edición del `Proyecto` arranca una resolución nueva
+  con un contexto nuevo ⇒ el resultado depende sólo del input actual y
+  **nunca puede quedar stale**.
+- **Memoria:** O(tramos) por resolución (nunca O(tramos×terminales));
+  elegible para GC al terminar.
+- **Errores (§27):** el memo sólo guarda resultados; si
+  `resolverHidraulicaDeTramo` lanza, no se escribe nada y el próximo
+  pedido vuelve a lanzar -- semántica observable idéntica. Un `hit`
+  devuelve la MISMA referencia (no clona, no recalcula, no muta).
+
+`resolverDiametroComercialDeTramo` corta en su propio memo **antes** de
+llamar a `resolverHidraulicaDeTramo`, así que el índice topológico +
+traversal DFS de 01A se ejecutan **una sola vez por Tramo distinto por
+resolución**.
+
+### Complejidad -- antes / después (por resolución de M2)
+
+| | ANTES 01B | DESPUÉS 01B |
+| --- | --- | --- |
+| índices topológicos + DFS aguas abajo | **O(Σ_caminos Σ_tramos)** ≈ 5,2·tramos | **≤ tramos** (uno por Tramo distinto) |
+| solicitudes de diámetro comercial | 5,2·tramos, todas recalculadas | 5,2·tramos, **1665/2058 servidas del memo** (M) |
+
+### Equivalencia hidráulica -- demostración
+
+`contextoDeCalculoM2.equivalencia.test.ts` (18 casos): sobre el proyecto
+de ejemplo real en sus 3 combinaciones metodológicas (estimado+simplificada,
+detallado+profesional, Hazen→Darcy) y el fixture de escala en 2 tamaños ×
+2 métodos de pérdida localizada, compara para **todos los Tramos** y
+**todos los terminales**:
+
+- `resolverHidraulicaDeTramo` con contexto ≡ sin contexto; el `hit`
+  devuelve la misma referencia; re-leer el contexto lleno ≡ recálculo
+  fresco (no hay mutación post-guardado);
+- `resolverDiametroComercialDeTramo` con contexto ≡ sin contexto;
+- `resolverPresionResidualDeCamino` con un **contexto compartido** entre
+  todos los terminales ≡ sin contexto, en **orden de declaración Y orden
+  inverso** (si un terminal contaminara a otro vía el memo, el orden lo
+  revelaría).
+
+`resolverEstadoModulo2` es una función pura de los resultados por terminal
+de `resolverPresionResidualDeCamino` (sólo `switch` + agregación): la
+equivalencia por terminal + la suite completa verde **sin rebaselinear
+ningún golden** es la demostración del estado agregado.
+`npx vitest run`: **1648 / 1648** (1623 previos + 25 nuevos).
+
+### Benchmark post-fix (`npm run perf`, misma máquina, no CI)
+
+| Fixture | Tramos | Índices ANTES | Índices DESPUÉS | Solicitudes diám. / cálculos / hits | `resolverEstadoModulo2` warm ANTES → DESPUÉS |
+| --- | --- | --- | --- | --- | --- |
+| **S** | 20 | 98 | **20** | 98 / 20 / 78 | ~4,1 ms → **~1,3 ms** |
+| **M** | 393 | 2058 | **393** | 2058 / 393 / **1665** | ~596 ms → **~75 ms** (≈8×) |
+| **L** | 1481 | 7840 | **1481** | 7840 / 1481 / 6359 | — → ~928 ms |
+
+`cálculos hidráulicos reales / tramo = 1,00` en S, M y L: el ratio ya **no
+crece con la escala**. Proyecto pequeño **no se degrada** (mejora ~3×).
+M frío ≈ 92 ms.
+
+### Regresión estructural en CI
+
+`escalaDelMotor.regresion.test.ts` +3 asserts (sin milisegundos):
+`calculosHidraulicaDeTramo ≤ tramos`, `= calculosDiametroComercialDeTramo
+= indicesTopologicosCreados = traversalsCondicionAguasAbajo`, y
+`solicitudesDiametroComercialDeTramo > 2·cálculos` (el memo está
+absorbiendo redundancia real; si alguien quita el threading, solicitudes
+≡ cálculos y falla). Instrumentación (`instrumentacionTopologica.ts`)
+ampliada con contadores de solicitudes/cálculos de hidráulica y diámetro
+y de `resolucionesModulo2` -- inerte por defecto, sólo benchmark/tests.
+
+### §17 -- resoluciones completas por edición (medido, NO optimizado en 01B)
+
+Una edición conceptual (tecla en "Pelo de agua mínimo", dato de tanque)
+dispara **UN** re-render de `MotorDemandaPantalla` con los 4 paneles
+montados (one-page). Ese re-render, sobre el fixture M:
+
+- **`resolverEstadoModulo2` se ejecuta 2 veces**: sidebar
+  (`resolverResumenDeProyecto`) + `PanelDePresionDeModulo2`;
+- `PanelDePresionDeModulo2` además recorre el árbol de presión **una
+  tercera vez** con un bucle `candidatos = nodosTerminales.map(
+  resolverPresionResidualDeCamino)` **SIN contexto compartido** -- ese
+  bucle solo hace ~2058 índices topológicos (tanto como el M2 pre-01B);
+- `ResultadoHidraulicoDeTramo` (Tuberías) resuelve ~3 barridos
+  `resolverFilaDeDimensionamiento` por Tramo, también sin contexto;
+- **ninguno** de estos componentes usa `useMemo`.
+
+Medición (`resolucionesDeVerificacionPorEdicion.regresion.test.ts`): un
+re-render = **2 `resolverEstadoModulo2` + ~2842 índices topológicos**
+(vs. 393 de una sola resolución con memo) ⇒ ~800 ms en la máquina local
+para el fixture M. **`Duplicar unidad funcional`** (adenda del usuario):
+`duplicarUnidadFuncionalEnProyecto` construye la UF copia **completa** y
+publica **UN** `Proyecto` final -- **0 `resolverEstadoModulo2`, 0 cálculo
+hidráulico, 0 estados intermedios** durante el build (~36 ms, sólo
+topología inmutable encadenada). El costo percibido de "Duplicar UF" es el
+**mismo re-render fan-out** de cualquier tecla, no la duplicación en sí.
+
+### Decisión 01B / 01C
+
+**CASO B (§18):** el motor quedó rápido (una resolución de M2 en M: ~75 ms
+warm, ~393 índices), pero **una tecla dispara múltiples resoluciones
+completas redundantes** en la capa React (2× `resolverEstadoModulo2` + 1
+bucle `candidatos` sin contexto + ~3 barridos de dimensionamiento, sin
+`useMemo` en ningún panel, con duplicación sidebar↔panel).
+
+**Se abre `PERF-SCALE-01C` -- P1: orquestación React / derived computations
+de la verificación de M2.** Alcance EXCLUSIVO: eliminar las resoluciones
+redundantes de la ruta de render (compartir `EstadoModulo2` /
+`ContextoDeCalculoM2` entre sidebar y paneles, `useMemo` sobre
+`proyecto`, colapsar el bucle `candidatos` en los resultados que
+`resolverEstadoModulo2` ya produjo). **Prohibido** debounce como criterio
+de cierre (§20). No entra: UI-M2-GROUP-01, UI-M1-MULTINIVEL-01, HYD-EST,
+VIS-TOPO, REPORT, PERSIST.
+
+### Estado
+
+**D-δ.98 / PERF-SCALE-01B -- CERRADO (motor).** Código nuevo en `src/`:
+`motor/tuberias/contextoDeCalculoM2.ts`. Modificados:
+`motor/tuberias/resolverHidraulicaDeTramo.ts`,
+`motor/tuberias/resolverDiametroComercialDeTramo.ts`,
+`motor/tuberias/resolverPerdidaDistribuidaDeTramo.ts`,
+`motor/tuberias/presion/acumularPerdidaDistribuidaDeCamino.ts`,
+`motor/tuberias/presion/acumularPerdidaLocalizadaDeCamino.ts`,
+`motor/tuberias/presion/resolverPerdidaLocalizadaEstimadaDeLocal.ts`,
+`motor/tuberias/presion/resolverPresionResidualDeCamino.ts`,
+`motor/modulo2/resolverEstadoModulo2.ts`,
+`motor/tuberias/topologia/instrumentacionTopologica.ts`. Tests nuevos:
+`motor/tuberias/contextoDeCalculoM2.equivalencia.test.ts`,
+`interfaz/paginas/resolucionesDeVerificacionPorEdicion.regresion.test.ts`,
++3 asserts en `motor/tuberias/escalaDelMotor.regresion.test.ts`; E2E
+`tests/e2e/escala-verificacion.spec.ts`. Infra: `scripts/perf/benchmarkMotorDeEscala.perf.ts`
+(imprime solicitudes/cálculos/hits). Baseline: **Vitest 1648 / 1648**,
+`tsc -b` / `npm run e2e:typecheck` / `npm run build` verdes, **ESLint
+11 / 0 / 0** (baseline sin cambios). Goldens **sin rebaseline**.
+`v0.4.0-beta.5` sin mover; sin `beta.6`. Snapshot
+`resguardo-documentacion/` intacto.
+
+**Siguiente:** **QA Fuzz cloud 20×30 seed vacía** sobre `main`; luego
+prueba manual del usuario sobre producción (agregar UF hasta ~9-14,
+cargar tanque, editar "Pelo de agua mínimo" y desnivel). Según esa prueba:
+`PERF-SCALE-01` se cierra, o se confirma que **`PERF-SCALE-01C` es
+necesario** (evidencia de motor ya lo indica).
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son

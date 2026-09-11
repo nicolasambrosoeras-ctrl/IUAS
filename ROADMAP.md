@@ -1378,6 +1378,47 @@ salvo bug inequívoco o decisión roja explícita.
   - **Siguiente:** QA Fuzz cloud 20×30 (seed vacía); si queda verde,
     **PERF-SCALE-01B** en chat nuevo.
 
+- **D-δ.98 — PERF-SCALE-01B: contexto de cálculo local a la resolución de
+  M2.** Segundo slice del P1 `PERF-SCALE-01`. Prueba manual post-01A: la
+  mejora es clara pero el lag reaparece a ~8-9 UF; tanque y "Pelo de agua
+  mínimo" pesados. **Causa residual (01A la identificó):** dentro de UNA
+  `resolverEstadoModulo2`, el mismo Tramo resolvía su hidráulica desde cero
+  **~5,2×** — una vez por cada camino de terminal que lo incluye
+  (cross-camino) y una vez por cada etapa que le pide diámetro/velocidad
+  (cross-etapa: pérdida distribuida, localizada estimada/detallada,
+  diámetro comercial). **Fix (sin fórmulas, sin React):**
+  `ContextoDeCalculoM2` — contexto **puro y local a una resolución** con
+  memos `Map<tramoId, resultado>` para `resolverHidraulicaDeTramo` y
+  `resolverDiametroComercialDeTramo`, threadeado como parámetro **opcional**
+  por 8 firmas desde `resolverEstadoModulo2` (ausente ⇒ comportamiento
+  previo byte a byte). Clave = sólo `tramoId`: durante la resolución el
+  Proyecto/red/config son inmutables ⇒ no hay dos resultados legítimos
+  distintos (no es decisión roja). Sin cache global, sin `WeakMap`, sin
+  invalidación — vive una resolución, nunca queda stale. **Colapsa
+  2058→393 (fixture M):** el índice topológico + DFS aguas abajo de 01A se
+  ejecuta **1 vez por Tramo distinto**; `resolverEstadoModulo2` warm M
+  **~596 ms → ~75 ms** (≈8×), ratio cálculos/tramo = 1,00 en S/M/L,
+  proyecto chico no se degrada. **Equivalencia:** ruta con contexto
+  compartido ≡ legacy sin contexto para todos los Tramos y terminales
+  (orden directo e inverso), goldens **sin rebaseline**. Instrumentación
+  ampliada (solicitudes/cálculos/hits, `resolucionesModulo2`) — inerte por
+  defecto. **§17 — resoluciones por edición (medido, NO optimizado acá):**
+  una tecla dispara **2× `resolverEstadoModulo2`** (sidebar + panel) + un
+  bucle `candidatos` sin contexto (≈ 3er recorrido, ~2058 índices) + ~3
+  barridos de dimensionamiento; **ningún panel usa `useMemo`**. `Duplicar
+  UF` construye la copia completa y publica UN Proyecto final (0
+  resoluciones, 0 estados intermedios durante el build). **CASO B (§18)
+  → se abre `PERF-SCALE-01C` (P1): orquestación React / derived
+  computations de la verificación de M2** (compartir estado sidebar↔paneles,
+  `useMemo` sobre proyecto, colapsar `candidatos`). Debounce prohibido como
+  cierre. Vitest **1648 / 1648** (1623 + 25); `tsc` / `e2e:typecheck` /
+  `build` verdes; ESLint **11/0/0** (baseline). E2E
+  `escala-verificacion.spec.ts` (desktop+mobile). `v0.4.0-beta.5` sin
+  mover; sin `beta.6`. **PERF-SCALE-01: NO cerrado (motor 01B hecho; 01C
+  necesario por evidencia — pendiente prueba manual del usuario).**
+  - **Siguiente:** QA Fuzz cloud 20×30 (seed vacía) sobre `main`; luego
+    prueba manual del usuario en producción; según ella, `PERF-SCALE-01C`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
