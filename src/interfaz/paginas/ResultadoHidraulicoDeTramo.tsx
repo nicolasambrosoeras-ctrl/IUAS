@@ -9,7 +9,8 @@
 // validarProyecto (gate en MotorDemandaPantalla), así que redHidraulica,
 // si existe, ya es estructuralmente válida y sus referencias a Artefactos
 // ya existen.
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
+import { sonPropsDeDimensionamientoEquivalentes } from './sonPropsDeDimensionamientoEquivalentes'
 import type { GranularidadHidraulica, MaterialTuberiaId, MetodoPerdidaDistribuida, MetodoPerdidaLocalizada, Proyecto, TipoDeLocal } from '../../modelo/proyecto'
 import { crearContextoDeCalculoM2, type ContextoDeCalculoM2 } from '../../motor/tuberias/contextoDeCalculoM2'
 import type { ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
@@ -580,7 +581,7 @@ function formatearNumeroM(valor: number): string {
   return `${valor.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m`
 }
 
-export function ResultadoHidraulicoDeTramo({
+function ResultadoHidraulicoDeTramoBase({
   proyecto,
   catalogoArtefactos,
   onCambiar,
@@ -663,3 +664,5 @@ export function ResultadoHidraulicoDeTramo({
     </details>
   )
 }
+
+export const ResultadoHidraulicoDeTramo = memo(ResultadoHidraulicoDeTramoBase, sonPropsDeDimensionamientoEquivalentes)
