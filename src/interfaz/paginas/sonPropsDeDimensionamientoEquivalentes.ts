@@ -41,6 +41,16 @@
 // consideraba las props equivalentes y ConstructorDeMontantes (dentro de
 // este árbol) nunca mostraba el montante recién creado.
 //
+// FIX-M2-A-PROP-01: `proyecto.parametros.tipoDeProyecto` también se compara
+// por valor. resolverHidraulicaDeTramo (motor de M2) lee ese campo
+// directamente para determinar el coeficiente de simultaneidad `a` efectivo
+// por tramo -- Qc, DN y V del tramo dependen de él. Faltaba en este
+// comparador: al cambiar `a` en "Tipología de proyecto" (MotorDemandaPantalla),
+// Qc se actualizaba correctamente en Demanda (M1, sin memo) pero Tuberías/
+// Montantes (M2, este árbol memoizado) seguían mostrando el DN/V de antes,
+// porque ninguno de los campos comparados hasta entonces cambiaba de
+// referencia (sólo `proyecto.parametros` lo hace).
+//
 // Mismo hallazgo para `Nodo.tee`: TeeDeNodoEditor (dentro de
 // DerivacionesDeMontante, dentro de este mismo árbol) lee `redHidraulica.nodos`
 // y `conTeeDeNodo` (actualizarRedHidraulica.ts) sólo reconstruye `nodos` --
@@ -90,6 +100,10 @@ export function sonPropsDeDimensionamientoEquivalentes(
     prev.proyecto.configuracionHidraulica === next.proyecto.configuracionHidraulica &&
     prev.proyecto.modoTrabajo === next.proyecto.modoTrabajo &&
     prev.proyecto.montantes === next.proyecto.montantes &&
+    // FIX-M2-A-PROP-01: resolverHidraulicaDeTramo lee
+    // proyecto.parametros.tipoDeProyecto (coeficiente de simultaneidad `a`)
+    // directamente -- afecta Qc/DN/V de cada tramo, no sólo Demanda (M1).
+    prev.proyecto.parametros.tipoDeProyecto === next.proyecto.parametros.tipoDeProyecto &&
     prev.catalogoArtefactos === next.catalogoArtefactos &&
     prev.onCambiar === next.onCambiar
   )

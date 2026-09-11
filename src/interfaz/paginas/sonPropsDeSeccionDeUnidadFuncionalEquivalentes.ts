@@ -20,6 +20,9 @@
 //   - `proyecto.redHidraulica.nodos` -- SOLO el campo `tee` (TeeDeNodoEditor)
 //   - `proyecto.configuracionHidraulica` (método de pérdida, granularidad,
 //     material, sistema)
+//   - `proyecto.parametros.tipoDeProyecto` (coeficiente de simultaneidad `a`
+//     -- resolverHidraulicaDeTramo lo lee para Qc/DN/V de cada tramo;
+//     FIX-M2-A-PROP-01: faltaba y quedaba stale al cambiar `a`)
 //   - `catalogoArtefactos`, `onCambiar`
 // Nada de este árbol lee `proyecto.montantes` ni `proyecto.modoTrabajo`
 // directamente (ConstructorDeMontantes es un HERMANO en el JSX, no un hijo
@@ -69,6 +72,11 @@ export function sonPropsDeSeccionDeUnidadFuncionalEquivalentes(
     prev.proyecto.redHidraulica?.tramos === next.proyecto.redHidraulica?.tramos &&
     sonNodosDeTeeEquivalentes(prev.proyecto.redHidraulica?.nodos, next.proyecto.redHidraulica?.nodos) &&
     prev.proyecto.configuracionHidraulica === next.proyecto.configuracionHidraulica &&
+    // FIX-M2-A-PROP-01: resolverFilaDeDimensionamiento/resolverControlDeDnDeTramo
+    // leen proyecto.parametros.tipoDeProyecto (coeficiente de simultaneidad `a`)
+    // directamente para Qc/DN/V por tramo -- estructural para esta UF, no sólo
+    // para Demanda (M1).
+    prev.proyecto.parametros.tipoDeProyecto === next.proyecto.parametros.tipoDeProyecto &&
     prev.catalogoArtefactos === next.catalogoArtefactos &&
     prev.onCambiar === next.onCambiar
   )
