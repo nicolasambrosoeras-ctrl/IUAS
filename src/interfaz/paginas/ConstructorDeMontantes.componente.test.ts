@@ -94,3 +94,75 @@ describe('ConstructorDeMontantes', () => {
     expect(html).toContain('Montante cocinas')
   })
 })
+
+// UI-M2-GROUP-01 §13-§19: header compacto SIEMPRE montado, cuerpo pesado
+// SOLO para el montante activo (unmount real, §16). Con un único montante
+// queda activo por defecto (§15, sin fricción) -- por eso los tests de
+// arriba ("montante con Locales servidos", etc.) siguen viendo el cuerpo
+// completo sin cambios. Estos tests cubren específicamente >1 montante.
+describe('UI-M2-GROUP-01 -- Montantes compactos', () => {
+  it('"+ Agregar montante" vive en el encabezado de la sección (§17)', () => {
+    const html = render(proyectoBase())
+    expect(html).toContain('class="constructor-montantes__header"')
+    expect(html).toMatch(/class="constructor-montantes__header"[^]*?\+ Agregar montante/)
+  })
+
+  it('con 2 montantes: 2 headers colapsables, el primero activo por defecto y el segundo colapsado', () => {
+    const { proyecto: p1 } = conMontanteNuevo(proyectoBase(), 'AF')
+    const { proyecto: p2 } = conMontanteNuevo(p1, 'AC')
+    const html = render(p2)
+
+    expect(html.match(/class="montante-card__cabecera-toggle"/g)?.length).toBe(2)
+    expect(html.match(/aria-expanded="true"/g)?.length).toBe(1)
+    expect(html.match(/aria-expanded="false"/g)?.length).toBe(1)
+  })
+
+  it('unmount real (§16): el cuerpo (Locales/Segmentos) del montante colapsado no está en el DOM', () => {
+    const { proyecto: p1 } = conMontanteNuevo(proyectoBase(), 'AF')
+    const { proyecto: p2 } = conMontanteNuevo(p1, 'AC')
+    const html = render(p2)
+
+    // "Locales alimentados" y "Segmentos" son encabezados del CUERPO -- con
+    // 2 montantes y sólo el primero activo, deben aparecer una sola vez
+    // cada uno (no dos).
+    expect(html.match(/Locales alimentados/g)?.length).toBe(1)
+    expect(html.match(/Segmentos/g)?.length).toBe(1)
+    // El input de renombre (parte del cuerpo) también sólo una vez.
+    expect(html.match(/class="montante-card__nombre"/g)?.length).toBe(1)
+  })
+
+  it('con 1 solo montante: se muestra abierto sin fricción, igual que antes (§15)', () => {
+    const { proyecto } = conMontanteNuevo(proyectoBase(), 'AF')
+    const html = render(proyecto)
+    expect(html).toContain('Locales alimentados')
+    expect(html).toContain('aria-expanded="true"')
+  })
+
+  it('§18: montante con Locales asignados y sin más candidatos -> copy compacto "Sin más locales disponibles"', () => {
+    const creado = conMontanteNuevo(proyectoBase(), 'AF')
+    const r1 = agregarLocalAMontante(creado.proyecto, creado.montanteId, 'uf-1', 'l-a')
+    if (r1.tipo !== 'reconciliado') throw new Error(r1.tipo)
+    const r2 = agregarLocalAMontante(r1.proyecto, creado.montanteId, 'uf-1', 'l-b')
+    if (r2.tipo !== 'reconciliado') throw new Error(r2.tipo)
+    const html = render(r2.proyecto)
+    expect(html).toContain('Sin más locales disponibles')
+    expect(html).not.toContain('No hay Locales disponibles para este montante')
+  })
+
+  it('§18: montante SIN Locales y sin candidatos -> mantiene la explicación completa', () => {
+    // proyectoBase sólo tiene 2 Locales, ambos ya en la UF; un montante AF
+    // recién creado SIN agregarle nada todavía sí tiene candidatos (l-a,
+    // l-b libres) -- para forzar "sin Locales Y sin candidatos" hay que
+    // agotar los candidatos con un SEGUNDO montante AF y dejar el primero
+    // vacío.
+    const m1 = conMontanteNuevo(proyectoBase(), 'AF')
+    const m2 = conMontanteNuevo(m1.proyecto, 'AF')
+    const r1 = agregarLocalAMontante(m2.proyecto, m2.montanteId, 'uf-1', 'l-a')
+    if (r1.tipo !== 'reconciliado') throw new Error(r1.tipo)
+    const r2 = agregarLocalAMontante(r1.proyecto, m2.montanteId, 'uf-1', 'l-b')
+    if (r2.tipo !== 'reconciliado') throw new Error(r2.tipo)
+    // m1 (primer montante) sigue sin Locales y ya no hay candidatos libres.
+    const html = render(r2.proyecto)
+    expect(html).toContain('No hay Locales disponibles para este montante')
+  })
+})
