@@ -7,8 +7,22 @@
   margin-top: var(--esp-lg);
 }
 
+/* UI-M2-GROUP-01 §17: "+ Agregar montante" (o el selector de red) vive en
+   el encabezado de la sección, no después de recorrer todas las cards. */
+.constructor-montantes__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-sm);
+}
+
+.constructor-montantes__header h3 {
+  margin: 0;
+}
+
 .constructor-montantes__intro {
-  margin: 0 0 var(--esp-sm);
+  margin: var(--esp-xs) 0 var(--esp-sm);
   color: var(--color-texto-2);
 }
 
@@ -41,18 +55,66 @@
 .montante-card {
   display: flex;
   flex-direction: column;
-  gap: var(--esp-sm);
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
-.montante-card__cabecera {
+/* UI-M2-GROUP-01 §13-§16: header SIEMPRE visible/montado, control real
+   (`<button>`, aria-expanded, §34). El cuerpo (nombre editable, Locales,
+   Segmentos, Derivaciones) sólo se monta cuando el montante está activo. */
+.montante-card__cabecera-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--esp-sm);
+  width: 100%;
+  padding: var(--esp-sm) var(--esp-md);
+  background: var(--color-superficie-2);
+  border: none;
+  text-align: left;
+  min-height: 2.5rem;
+}
+
+.montante-card__flecha {
+  opacity: 0.6;
+}
+
+.montante-card__cabecera-nombre {
+  font-weight: var(--peso-semibold);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.montante-card__cabecera-resumen {
+  color: var(--color-texto-3);
+  font-size: var(--fs-ayuda);
+}
+
+.montante-card__cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-sm);
+  padding: var(--esp-sm) var(--esp-md) var(--esp-md);
+}
+
+.montante-card__editar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--esp-sm);
 }
 
-.montante-card__nombre {
+.montante-card__campo-nombre {
   flex: 1 1 12rem;
+  display: flex;
+  align-items: center;
+  gap: var(--esp-xs);
+  min-width: 0;
+}
+
+.montante-card__nombre {
+  flex: 1 1 auto;
   min-width: 0;
   font-weight: var(--peso-semibold);
   padding: 0.35rem 0.5rem;
@@ -60,6 +122,8 @@
   border-radius: 6px;
 }
 
+/* §19: acción secundaria dentro del cuerpo expandido, no el elemento
+   dominante del header. */
 .montante-card__borrar {
   margin-left: auto;
 }
@@ -106,7 +170,12 @@
     margin-left: 0;
   }
 
-  .montante-card__cabecera {
+  .montante-card__editar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .constructor-montantes__header {
     flex-direction: column;
     align-items: stretch;
   }

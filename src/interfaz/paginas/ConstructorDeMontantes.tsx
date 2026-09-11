@@ -13,7 +13,7 @@
 // se muestran con la MISMA tabla y los mismos resolvers que Distribución
 // general/secundaria (resolverFilaDeDimensionamiento / resolverControlDeDnDeTramo
 // / AccesoriosDeTramoEditor): no hay cálculo propio acá.
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Proyecto } from '../../modelo/proyecto'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
@@ -36,6 +36,7 @@ import {
   proyectarMontante,
   type MontanteProyectado,
 } from './montantesDelProyecto'
+import { elegirElementoActivoTrasCambio } from './estadoDeElementoActivo'
 import './constructorDeMontantes.css'
 
 // Segmentos de un montante como filas de la tabla de dimensionamiento de
@@ -74,7 +75,50 @@ function entradasDeSegmentos(
   }))
 }
 
-function MontanteCard({
+// UI-M2-GROUP-01 (§13-§16): header SIEMPRE montado (aunque el montante esté
+// colapsado) -- resumen barato derivado de `proyectarMontante` (misma
+// proyección que ya se calculaba siempre en la versión anterior, no agrega
+// costo). El nombre/badge/resumen son de solo lectura acá: renombrar y
+// borrar quedan en el cuerpo expandido (§19, acción secundaria, no
+// dominante). `<button>` real con `aria-expanded` (§34).
+function MontanteCardCabecera({
+  proyecto,
+  montanteId,
+  activo,
+  onAbrir,
+}: {
+  proyecto: Proyecto
+  montanteId: string
+  activo: boolean
+  onAbrir: () => void
+}) {
+  const proyeccion = proyectarMontante(proyecto, montanteId)
+  if (proyeccion === undefined) {
+    return null
+  }
+  const nombre = proyecto.montantes?.find((m) => m.id === montanteId)?.nombre ?? proyeccion.nombreFallback
+  const cantidadLocales = proyeccion.localesServidos.length
+  const cantidadSegmentos = proyeccion.segmentos.length
+
+  return (
+    <button type="button" className="montante-card__cabecera-toggle" aria-expanded={activo} onClick={onAbrir}>
+      <span className="montante-card__flecha" aria-hidden="true">
+        {activo ? '▼' : '▶'}
+      </span>
+      <span className="montante-card__cabecera-nombre">{nombre}</span>
+      <BadgeDeRed red={proyeccion.red} />
+      <span className="montante-card__cabecera-resumen">
+        {cantidadLocales} {cantidadLocales === 1 ? 'local' : 'locales'} · {cantidadSegmentos}{' '}
+        {cantidadSegmentos === 1 ? 'segmento' : 'segmentos'}
+      </span>
+    </button>
+  )
+}
+
+// Cuerpo del montante -- solo se monta cuando el montante está activo
+// (§16, unmount real): Locales alimentados, Segmentos y Derivaciones (Tee)
+// no existen en el DOM mientras el montante está colapsado.
+function MontanteCardCuerpo({
   proyecto,
   catalogoArtefactos,
   montanteId,
@@ -107,17 +151,19 @@ function MontanteCard({
   const entradas = entradasDeSegmentos(proyecto, catalogoArtefactos, proyeccion, onCambiar)
 
   return (
-    <article className="montante-card ui-card">
-      <header className="montante-card__cabecera">
-        <input
-          className="montante-card__nombre"
-          type="text"
-          value={proyecto.montantes?.find((m) => m.id === montanteId)?.nombre ?? ''}
-          placeholder={proyeccion.nombreFallback}
-          aria-label={`Nombre del ${proyeccion.nombreFallback}`}
-          onChange={(evento) => onCambiar(conNombreDeMontante(proyecto, montanteId, evento.target.value))}
-        />
-        <BadgeDeRed red={proyeccion.red} />
+    <div className="montante-card__cuerpo">
+      <div className="montante-card__editar">
+        <label className="montante-card__campo-nombre">
+          Nombre:{' '}
+          <input
+            className="montante-card__nombre"
+            type="text"
+            value={proyecto.montantes?.find((m) => m.id === montanteId)?.nombre ?? ''}
+            placeholder={proyeccion.nombreFallback}
+            aria-label={`Nombre del ${proyeccion.nombreFallback}`}
+            onChange={(evento) => onCambiar(conNombreDeMontante(proyecto, montanteId, evento.target.value))}
+          />
+        </label>
         <button
           type="button"
           className="ui-btn--fantasma montante-card__borrar"
@@ -125,7 +171,7 @@ function MontanteCard({
         >
           Borrar montante
         </button>
-      </header>
+      </div>
 
       <section className="montante-card__seccion">
         <h4>Locales alimentados</h4>
@@ -154,6 +200,7 @@ function MontanteCard({
         <AgregarLocal
           nombreMontante={proyeccion.nombreFallback}
           ofrecibles={ofrecibles}
+          tieneLocalesAsignados={proyeccion.localesServidos.length > 0}
           onAgregar={(ufId, localId) => aplicar(agregarLocalAMontante(proyecto, montanteId, ufId, localId))}
         />
       </section>
@@ -175,6 +222,37 @@ function MontanteCard({
         <p className="montante-card__aviso ui-callout ui-callout--warn" role="alert">
           {aviso}
         </p>
+      ) : null}
+    </div>
+  )
+}
+
+// Contenedor: cabecera SIEMPRE montada, cuerpo SOLO si `activo` (§16).
+function MontanteCard({
+  proyecto,
+  catalogoArtefactos,
+  montanteId,
+  activo,
+  onAbrir,
+  onCambiar,
+}: {
+  proyecto: Proyecto
+  catalogoArtefactos: readonly ArtefactoNormativo[]
+  montanteId: string
+  activo: boolean
+  onAbrir: () => void
+  onCambiar: (proyecto: Proyecto) => void
+}) {
+  return (
+    <article className="montante-card ui-card">
+      <MontanteCardCabecera proyecto={proyecto} montanteId={montanteId} activo={activo} onAbrir={onAbrir} />
+      {activo ? (
+        <MontanteCardCuerpo
+          proyecto={proyecto}
+          catalogoArtefactos={catalogoArtefactos}
+          montanteId={montanteId}
+          onCambiar={onCambiar}
+        />
       ) : null}
     </article>
   )
@@ -236,13 +314,21 @@ function DerivacionesDeMontante({
 function AgregarLocal({
   nombreMontante,
   ofrecibles,
+  tieneLocalesAsignados,
   onAgregar,
 }: {
   nombreMontante: string
   ofrecibles: ReturnType<typeof localesOfreciblesParaMontante>
+  tieneLocalesAsignados: boolean
   onAgregar: (unidadFuncionalId: string, localId: string) => void
 }) {
   if (ofrecibles.length === 0) {
+    // UI-M2-GROUP-01 (§18): copy distinto según si el montante YA tiene
+    // Locales asignados (agotó candidatos -- mensaje compacto) o si nunca
+    // tuvo ninguno (explicación completa, útil para entender por qué).
+    if (tieneLocalesAsignados) {
+      return <p className="montante-card__vacio">Sin más locales disponibles</p>
+    }
     return (
       <p className="montante-card__vacio">
         No hay Locales disponibles para este montante. Los Locales se crean en la Demanda; cada Local
@@ -279,6 +365,14 @@ function AgregarLocal({
   )
 }
 
+// UI-M2-GROUP-01 (§13-§17): "+ Agregar montante" se movió al encabezado de
+// la sección (§17, no obliga a recorrer todos los montantes existentes) y
+// cada montante pasa a header compacto colapsable con UN montante activo
+// por vez (§15), igual que las Unidades Funcionales (misma lógica de
+// selección: elegirElementoActivoTrasCambio). El nuevo montante queda
+// activo/expandido apenas se crea (§17, preserva FIX-MONTANTE-ADD-01: se
+// sigue aplicando `onCambiar` con el resultado de `conMontanteNuevo` sin
+// tocar su firma).
 export function ConstructorDeMontantes({
   proyecto,
   catalogoArtefactos,
@@ -289,16 +383,54 @@ export function ConstructorDeMontantes({
   onCambiar: (proyecto: Proyecto) => void
 }) {
   const [eligiendoRed, setEligiendoRed] = useState(false)
-  const montantes = proyecto.montantes ?? []
+  const montantesRaw = proyecto.montantes
+  const montantes = montantesRaw ?? []
+  const [montanteActivoId, setMontanteActivoId] = useState<string | undefined>(() => montantes[0]?.id)
+  const idsAnterioresRef = useRef<readonly string[]>(montantes.map((m) => m.id))
+
+  // Depende de la referencia CRUDA de `proyecto.montantes` (puede ser
+  // undefined) -- por eso el array de ids también se deriva de esa
+  // referencia DENTRO del efecto (no de `montantes`, que con el `?? []` de
+  // fallback crearía un array nuevo en cada render y dispararía este
+  // efecto siempre).
+  useEffect(() => {
+    const idsActuales = (montantesRaw ?? []).map((m) => m.id)
+    const idsAnteriores = idsAnterioresRef.current
+    idsAnterioresRef.current = idsActuales
+    setMontanteActivoId((activo) => elegirElementoActivoTrasCambio(idsAnteriores, idsActuales, activo))
+  }, [montantesRaw])
 
   function crear(red: RedDeTramo) {
     setEligiendoRed(false)
-    onCambiar(conMontanteNuevo(proyecto, red).proyecto)
+    const resultado = conMontanteNuevo(proyecto, red)
+    setMontanteActivoId(resultado.montanteId)
+    onCambiar(resultado.proyecto)
   }
 
   return (
     <section className="constructor-montantes">
-      <h3>Montantes</h3>
+      <div className="constructor-montantes__header">
+        <h3>Montantes</h3>
+        {eligiendoRed ? (
+          <div className="constructor-montantes__eleccion" role="group" aria-label="Red del montante nuevo">
+            <span>Red del montante:</span>
+            <button type="button" onClick={() => crear('AF')}>
+              {ETIQUETA_RED.AF}
+            </button>
+            <button type="button" onClick={() => crear('AC')}>
+              {ETIQUETA_RED.AC}
+            </button>
+            <button type="button" className="ui-btn--fantasma" onClick={() => setEligiendoRed(false)}>
+              Cancelar
+            </button>
+          </div>
+        ) : (
+          <button type="button" className="constructor-montantes__agregar" onClick={() => setEligiendoRed(true)}>
+            + Agregar montante
+          </button>
+        )}
+      </div>
+
       <p className="constructor-montantes__intro">
         <small>
           Un montante agrupa los segmentos verticales que alimentan varios Locales por una misma red.
@@ -317,29 +449,12 @@ export function ConstructorDeMontantes({
               proyecto={proyecto}
               catalogoArtefactos={catalogoArtefactos}
               montanteId={montante.id}
+              activo={montante.id === montanteActivoId}
+              onAbrir={() => setMontanteActivoId(montante.id)}
               onCambiar={onCambiar}
             />
           ))}
         </div>
-      )}
-
-      {eligiendoRed ? (
-        <div className="constructor-montantes__eleccion" role="group" aria-label="Red del montante nuevo">
-          <span>Red del montante:</span>
-          <button type="button" onClick={() => crear('AF')}>
-            {ETIQUETA_RED.AF}
-          </button>
-          <button type="button" onClick={() => crear('AC')}>
-            {ETIQUETA_RED.AC}
-          </button>
-          <button type="button" className="ui-btn--fantasma" onClick={() => setEligiendoRed(false)}>
-            Cancelar
-          </button>
-        </div>
-      ) : (
-        <button type="button" className="constructor-montantes__agregar" onClick={() => setEligiendoRed(true)}>
-          + Agregar montante
-        </button>
       )}
     </section>
   )
