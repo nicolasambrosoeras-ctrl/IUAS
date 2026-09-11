@@ -12299,6 +12299,245 @@ renombrar), validación manual del usuario, luego QA Fuzz cloud 20×30 seed
 vacía sobre `main`. Si verde: retomar `PERF-SCALE-01E` (diagnóstico
 pendiente: agregar UF vacía 33→34 tarda >2 s).
 
+## D-δ.102 -- PERF-SCALE-01E: `Agregar UF` vacía a ~33 UF re-renderizaba las 33 tarjetas existentes de Tuberías sin necesidad -- CERRADO
+
+Quinto slice del P1 `PERF-SCALE-01`. Gates de entrada: FIX-MONTANTE-ADD-01
+(D-δ.101) validado manualmente en producción (alta de montante AF y AC
+funcionando); QA Fuzz cloud post-fix (`main`, 20×30, seed vacía) confirmado
+**TODO VERDE** por el usuario antes de iniciar.
+
+### Caso real
+
+Evidencia manual del usuario tras 01D/FIX-MONTANTE-ADD-01: con ~30 UF y
+~544 artefactos ya cargados, M4 (volumen tanque, volumen cisterna, pelo de
+agua, desniveles) sigue **totalmente fluido** -- 01D no se rompió. Pero
+`+ Agregar unidad funcional` con ~33 UF existentes tarda **más de 2 s**,
+pese a que la UF nueva nace **vacía** (sin Locales/Artefactos/terminales/
+tramos/montantes/demanda nueva). `Duplicar UF` 30→31 (que sí cambia datos
+reales) medía ≈2,46 s -- mencionado como referencia, no como objetivo
+principal.
+
+### Propiedad de dominio verificada primero
+
+Antes de optimizar nada: ¿agregar una UF vacía cambia algún resultado
+hidráulico existente? Verificado con
+`agregarUnidadFuncional.equivalencia.test.ts` (nuevo, 21 casos × 3 escalas
+de fixture: 3/10/20 UF, esquema `tanqueElevado` + profesional, mismo
+patrón que el fixture XXL de 01D) -- comparando el Proyecto antes/después
+de `agregarUnidadFuncionalVaciaEnProyecto`:
+
+- `redHidraulica`, `configuracionHidraulica`, `configuracionMedidores`,
+  `configuracionAbastecimiento`, `montantes` y `parametros` se preservan
+  **por referencia** (el mutador sólo reconstruye `unidadesFuncionales`).
+- Cero artefactos/terminales/tramos/nodos nuevos.
+- `calcularSimultaneidad` (demanda/Qc), `resolverEstadoModulo2` (Qc/DN/V/
+  hf/presión/crítico/completitud), `resolverEstadoModulo3` y
+  `resolverEstadoModulo4` resuelven **byte a byte idénticos** antes y
+  después, en las tres escalas.
+
+Confirmado: sólo el listado de `unidadesFuncionales` (y cualquier resumen
+que cuente UF) debía cambiar. Todo lo demás que sí cambiaba era trabajo
+evitable.
+
+### Profiling BEFORE
+
+**Node** (`scripts/perf/benchmarkAgregarUfVacia.perf.ts`, nuevo --
+`localesPorUf=4` para aproximar la densidad real, 528 artefactos a 33 UF
+vs. ~544 reportados): "PANTALLA COMPLETA" (validación + M2 + resumen +
+M3 + M4, réplica exacta de lo que corre `MotorDemandaPantalla` por
+render) sobre el proyecto YA CON la UF vacía agregada:
+
+| UF (antes→después) | mutación | pantalla completa (motor) |
+| --- | ---: | ---: |
+| 10→11 | ~0 ms | 34,8 ms |
+| 20→21 | ~0 ms | 106,6 ms |
+| 30→31 | ~0 ms | 242,7 ms |
+| 33→34 | ~0 ms | 296,4 ms |
+
+El motor (Node, sin DOM) nunca pasó de ~300 ms -- no explica los >2 s
+reportados. Candidatos M2 idénticos antes/después confirmado en el mismo
+script (equivalencia de dominio, reafirma lo de arriba).
+
+**Navegador real** (build local, `vite preview`, medido con
+`performance.now()` alrededor del click + 2 rAF de estabilización; nota
+de infraestructura: la fixture `baseURLEfectiva` de
+`tests/e2e/qa/fixtures.ts` lee `IUAS_BASE_URL` directamente y **no**
+respeta el `use.baseURL` que arma `IUAS_PREVIEW=1` en
+`playwright.config.ts` -- medir contra el build local exige pasar
+**ambas** variables, `IUAS_PREVIEW=1 IUAS_BASE_URL=http://localhost:4173/IUAS/`;
+sin `IUAS_BASE_URL` explícita, cualquier medición "local" termina
+midiendo producción en silencio, como pasó en la primera pasada de este
+mismo profiling):
+
+| Acción | 10→11 UF | 20→21 UF | 30→31 UF | 33→34 UF |
+| --- | ---: | ---: | ---: | ---: |
+| Agregar UF vacía (ANTES, producción pre-fix) | ~300 ms | ~800-1000 ms | ~1700-2200 ms | **~2000-2450 ms** |
+
+Reproduce el reporte del usuario casi exacto. Con el motor acotado a
+~300 ms, el resto (~1700 ms a 33 UF) es render/commit/DOM de React.
+
+### Causa raíz
+
+`SeccionDeUnidadFuncional` (una tarjeta de UF dentro de "Tuberías",
+`ResultadoHidraulicoDeTramo.tsx`) **no tenía `React.memo` propio**. El
+único memo existente en ese árbol (`ResultadoHidraulicoDeTramo`,
+`sonPropsDeDimensionamientoEquivalentes.ts`, de 01D) compara
+`unidadesFuncionales` **por referencia completa** -- correcto para decidir
+si el árbol entero necesita re-renderizar, pero esa referencia SIEMPRE
+cambia al agregar una UF (aunque sea vacía), así que el memo externo
+nunca evita nada acá: `ResultadoHidraulicoDeTramoBase` se re-ejecuta
+completo y su `.map()` vuelve a invocar las 33 (o N) instancias de
+`SeccionDeUnidadFuncional`, no sólo la nueva. Cada una reconstruye su
+propia tabla de dimensionamiento (`TablaDimensionamientoDeModulo2`) más
+el árbol `LocalYRedCard`/`TeeDeNodoEditor`/`AccesoriosDeTramoEditor` de
+cada Local -- trabajo de render+reconciliación real, aunque sin tocar el
+DOM final (props/valores resultan iguales), que crece con la cantidad de
+UF existentes: exactamente el patrón O(n) observado en la tabla de
+arriba (300→800→1700→2000 ms).
+
+### Auditoría recíproca (misma disciplina que exigió FIX-MONTANTE-ADD-01)
+
+Grep sobre todo lo que `SeccionDeUnidadFuncional` y su subárbol
+(`LocalYRedCard`, `TeeDeNodoEditor`, `AccesoriosDeTramoEditor`,
+`resolverFilaDeDimensionamiento`, `resolverControlDeDnDeTramo`,
+`resolverResultadoDeTramoParaUi`, `construirArbolDeLocal`) leen de
+`Proyecto`: únicamente `redHidraulica` (`.tramos`, y sólo el campo `.tee`
+de cada `Nodo`) y `configuracionHidraulica`. **Nada de este árbol lee
+`Proyecto.montantes` ni `Proyecto.modoTrabajo`** directamente
+(`ConstructorDeMontantes` es un HERMANO en el JSX de
+`ResultadoHidraulicoDeTramoBase`, no un hijo de `SeccionDeUnidadFuncional`).
+
+### Fix
+
+`React.memo` dirigido en `SeccionDeUnidadFuncional`
+(`sonPropsDeSeccionDeUnidadFuncionalEquivalentes.ts`, propio archivo por
+`react-refresh/only-export-components`, reutiliza `sonNodosDeTeeEquivalentes`
+exportada de 01D/FIX-MONTANTE-ADD-01) que compara: `uf` (referencia
+propia -- lo único variable por instancia), `redHidraulica?.tramos`
+(referencia), `Nodo.tee` de todos los nodos (mismo criterio que
+FIX-MONTANTE-ADD-01), `configuracionHidraulica` (referencia),
+`catalogoArtefactos` y `onCambiar` (referencia; `onCambiar` es
+`setProyecto`, estable por contrato de React). Deliberadamente
+**excluidos** de la comparación, con la justificación auditada en el
+propio archivo: `proyecto` completo (siempre cambia; los campos que
+importan ya se comparan por separado), `filasPrincipalesDeLocales`
+(array recalculado ENTERO en el padre en cada render, pero su contenido
+para una UF cuyo `tramos`/`nodos.tee` no cambiaron tampoco cambia --
+verificado por los tests de equivalencia), `contextoDeCalculo` (instancia
+nueva por render, es un caché de deduplicación DENTRO de una resolución,
+no una fuente de datos -- si el memo salta el render de una UF, ese
+contexto simplemente nunca se toca para ella). Ninguna de las exclusiones
+reabre invalidación global (brief §9): son comparaciones explícitas,
+auditadas, locales a este comparador.
+
+De paso, la mutación real de "Agregar UF" (antes una closure privada
+`agregarUnidadFuncional` dentro de `MotorDemandaPantalla.tsx`) se extrajo
+a `interfaz/paginas/agregarUnidadFuncional.ts`
+(`agregarUnidadFuncionalVaciaEnProyecto` + `crearUnidadFuncionalVacia`),
+mismo criterio que `duplicarUnidadFuncional.ts`: testeable sin arrastrar
+React/JSX. Comportamiento sin cambios -- sigue siendo un spread
+superficial de `unidadesFuncionales`.
+
+### Medido (AFTER)
+
+Navegador real, mismo build local, misma técnica de medición, con un
+contador de renders temporal (retirado antes de cerrar el slice) que
+confirmó **exactamente 1** ejecución de `SeccionDeUnidadFuncional` por
+click -- sólo la UF nueva, cero de las existentes:
+
+| Acción | 10→11 UF | 20→21 UF | 30→31 UF | 33→34 UF |
+| --- | ---: | ---: | ---: | ---: |
+| Agregar UF vacía (ANTES) | ~300 ms | ~800-1000 ms | ~1700-2200 ms | ~2000-2450 ms |
+| Agregar UF vacía (DESPUÉS) | ~250-320 ms | ~430-530 ms | ~590-860 ms | **~580-630 ms** |
+| Renders de `SeccionDeUnidadFuncional` (ANTES → DESPUÉS) | N → 1 | N → 1 | N → 1 | N (34) → **1** |
+
+A 33→34 UF: de **>2 s a ~600 ms** (≈3,3-3,5×), y crucialmente la curva
+deja de crecer con la escala (250→430→590→610 ms, prácticamente meseta)
+en vez de seguir subiendo linealmente -- confirma que el costo residual
+es, en su mayoría, el motor (~300 ms medidos en Node) más el render de
+UNA sola UF nueva, no trabajo por-UF-existente. `Duplicar UF` 30→31
+(control, no tocado por este fix): ~2,7 s DESPUÉS -- consistente con los
+≈2,46 s reportados antes de 01E (sin regresión; sigue siendo render
+legítimo de una UF que sí cambia datos, brief §23).
+
+M4 (volumen tanque/cisterna, pelo de agua, desniveles) no fue tocado por
+este fix (memo exclusivo de `SeccionDeUnidadFuncional`, dentro de
+"Tuberías") -- `escala-verificacion.spec.ts` (que ejercita pelo de
+agua/desnivel a escala) sigue verde, confirma que 01D sigue intacto.
+
+### Equivalencia y regresión
+
+- `agregarUnidadFuncional.equivalencia.test.ts` (nuevo): 21 casos × 3
+  escalas -- ver "Propiedad de dominio verificada primero" arriba.
+- `sonPropsDeSeccionDeUnidadFuncionalEquivalentes.test.ts` (nuevo): 10
+  casos -- mismas props (equivalente); agregar UF vacía nueva sobre una UF
+  existente (equivalente, no debe re-renderizar); agregar montante nuevo
+  (equivalente -- este árbol no lee `montantes`); editar pelo de agua de
+  la raíz (equivalente); duplicar OTRA UF y editar longitud de un Tramo
+  (distintas -- `redHidraulica.tramos` cambió); cambiar
+  `granularidadHidraulica` (distintas); **configurar la tee de un nodo
+  (distintas -- guardia explícita de la regresión FIX-MONTANTE-ADD-01,
+  extendida a este comparador nuevo)**; esta misma UF pasa a ser otra
+  instancia (distintas); distinto `catalogoArtefactos`/`onCambiar`
+  (distintas).
+- Vitest **1719 / 1719** (1688 + 31 nuevos). Goldens **sin rebaseline**.
+- `tsc -b` / `npm run e2e:typecheck` / `npm run build` verdes. **ESLint
+  11 / 0 / 0** -- idéntico al baseline, ninguno de los archivos nuevos ni
+  modificados aparece en la lista de errores preexistentes.
+
+### E2E y fuzz
+
+- `tests/e2e/agregar-uf-vacia-escala.spec.ts` (nuevo): construye 30 UF
+  (29 duplicaciones desde la UF de demo), clickea `+ Agregar unidad
+  funcional`, verifica 31 tarjetas de UF en Demanda, la UF 31 nace
+  colapsada y vacía (se expande y se confirma 0 Locales), "Tuberías"
+  también muestra la UF 31, sin `pageerror`/`console.error`, invariantes
+  OK. Verde desktop (21 s) y mobile (27 s) contra build local. NO afirma
+  sobre milisegundos (eso queda en la tabla de arriba, no en CI).
+- `montantes.spec.ts` (guardia de FIX-MONTANTE-ADD-01): 5/5 desktop + 5/5
+  mobile verde -- alta de montante AF/AC y edición de tee siguen
+  funcionando con el comparador nuevo en el árbol.
+- `cotas-heredadas.spec.ts`, `smoke.spec.ts`, `escala-verificacion.spec.ts`
+  (guardia de 01B/01D, pelo de agua/desnivel a ~20 UF): verdes desktop
+  contra build local.
+- Fuzz Nivel A (se tocó memoización compartida de "Tuberías", brief §33):
+  seed `424242` × 3 runs × 30 pasos, desktop -- verde.
+
+### Instrumentación de diagnóstico -- retirada
+
+El contador temporal (`window.__seccionRenders`, incrementado dentro de
+`SeccionDeUnidadFuncionalBase`) y el spec de Playwright que lo leía se
+usaron exclusivamente para confirmar la causa raíz y verificar el fix, y
+se **eliminaron por completo** antes de cerrar el slice -- no queda
+ningún rastro en `src/` ni en `tests/e2e/`.
+
+### Estado
+
+**D-δ.102 / PERF-SCALE-01E -- CERRADO.** Código nuevo:
+`interfaz/paginas/agregarUnidadFuncional.ts`,
+`interfaz/paginas/agregarUnidadFuncional.equivalencia.test.ts`,
+`interfaz/paginas/sonPropsDeSeccionDeUnidadFuncionalEquivalentes.ts`
+(+`.test.ts`), `scripts/perf/benchmarkAgregarUfVacia.perf.ts`,
+`tests/e2e/agregar-uf-vacia-escala.spec.ts`. Modificados:
+`interfaz/paginas/MotorDemandaPantalla.tsx` (usa la mutación extraída),
+`interfaz/paginas/ResultadoHidraulicoDeTramo.tsx` (`React.memo` en
+`SeccionDeUnidadFuncional`),
+`interfaz/paginas/sonPropsDeDimensionamientoEquivalentes.ts`
+(`sonNodosDeTeeEquivalentes` exportada para reuso). Sin cambios de
+dominio, sin cache global, sin invalidation engine, sin schema change,
+sin worker, sin debounce, sin virtualización.
+
+**PERF-SCALE-01: recomendado CERRAR** -- M4/presión siguen fluidos
+(01D intacto), alta de UF vacía queda sub-segundo y deja de escalar con
+la cantidad de UF existentes, `Duplicar UF` queda como operación pesada
+legítima ocasional (dato real que cambia, no trabajo evitable). Pendiente
+la validación manual del usuario (abajo) antes de confirmarlo por
+completo.
+
+**Siguiente:** push a `main`, deploy, smoke de producción, validación
+manual del usuario (abajo), luego QA Fuzz cloud 20×30 (seed vacía) sobre
+`main` -- sólo si el usuario lo autoriza explícitamente.
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son

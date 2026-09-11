@@ -1617,6 +1617,70 @@ salvo bug inequívoco o decisión roja explícita.
     (seed vacía) sobre `main`. Si verde: retomar `PERF-SCALE-01E`
     (diagnóstico pendiente: agregar UF vacía 33→34 tarda >2 s).
 
+- **D-δ.102 — PERF-SCALE-01E: `Agregar UF` vacía re-renderizaba las UF
+  existentes de "Tuberías" sin necesidad.** Quinto slice del P1
+  `PERF-SCALE-01`. QA Fuzz cloud post-FIX-MONTANTE-ADD-01 20×30 seed
+  vacía **TODO VERDE**; validación manual: alta de montante AF/AC OK; M4
+  sigue fluido a ~30 UF/~544 artefactos, pero `+ Agregar unidad
+  funcional` a ~33 UF tardaba **>2 s** pese a que la UF nueva nace vacía
+  (sin Locales/Artefactos/terminales/tramos/demanda). Verificado primero
+  (21 casos × 3 escalas, `agregarUnidadFuncional.equivalencia.test.ts`):
+  agregar una UF vacía preserva por referencia toda subestructura ajena a
+  `unidadesFuncionales` y resuelve M2/M3/M4/demanda byte a byte
+  idénticos -- ninguna dependencia hidráulica oculta. Profiling (Node,
+  `scripts/perf/benchmarkAgregarUfVacia.perf.ts`, nuevo): el motor nunca
+  pasó de ~300 ms a 33 UF -- no explicaba los >2 s. Profiling (navegador
+  real, build local): reprodujo el reporte casi exacto (~300 ms a 10 UF →
+  **~2000-2450 ms** a 33 UF). Causa raíz: `SeccionDeUnidadFuncional`
+  (una tarjeta de UF en "Tuberías") no tenía `React.memo` propio -- el
+  memo externo de 01D (`sonPropsDeDimensionamientoEquivalentes`) compara
+  `unidadesFuncionales` por referencia completa, que SIEMPRE cambia al
+  agregar una UF, así que nunca evitaba nada acá: las 33 tarjetas
+  existentes se reconciliaban igual que la nueva. Auditoría recíproca
+  (grep sobre todo el subárbol de `SeccionDeUnidadFuncional`): sólo lee
+  `redHidraulica.tramos`, `Nodo.tee` y `configuracionHidraulica` de
+  `Proyecto` -- nunca `montantes` ni `modoTrabajo`. Fix: `React.memo`
+  dirigido nuevo (`sonPropsDeSeccionDeUnidadFuncionalEquivalentes.ts`,
+  reutiliza `sonNodosDeTeeEquivalentes` de FIX-MONTANTE-ADD-01) que
+  compara `uf` (referencia propia) + esos tres campos auditados, excluye
+  deliberadamente `proyecto` completo/`filasPrincipalesDeLocales`/
+  `contextoDeCalculo` (siempre nuevos por render, pero irrelevantes para
+  el resultado de una UF no tocada -- justificado en el propio archivo,
+  sin cache global ni invalidación nueva). De paso se extrajo la
+  mutación real (`agregarUnidadFuncionalVaciaEnProyecto`, antes closure
+  privada) a `agregarUnidadFuncional.ts`, mismo criterio que
+  `duplicarUnidadFuncional.ts`. **Medido (navegador real, contador de
+  renders temporal confirmando 1 sola ejecución de
+  `SeccionDeUnidadFuncional` por click, sólo la UF nueva):** 33→34 UF
+  **>2 s → ~600 ms** (≈3,3-3,5×), curva prácticamente en meseta con la
+  escala (antes crecía linealmente). `Duplicar UF` 30→31 (control, no
+  tocado): ~2,7 s después, consistente con los ≈2,46 s reportados antes
+  -- sin regresión, sigue siendo render legítimo de una UF que sí cambia
+  datos. M4/pelo de agua siguen fluidos (`escala-verificacion.spec.ts`
+  verde, 01D intacto). **Equivalencia:**
+  `agregarUnidadFuncional.equivalencia.test.ts` (nuevo, 21 casos);
+  `sonPropsDeSeccionDeUnidadFuncionalEquivalentes.test.ts` (nuevo, 10
+  casos, incluida la guardia de tee de FIX-MONTANTE-ADD-01 extendida a
+  este comparador). Vitest **1719/1719** (1688 + 31); `tsc`/
+  `e2e:typecheck`/`build` verdes; ESLint **11/0/0** sin cambios. E2E
+  nuevo `agregar-uf-vacia-escala.spec.ts` desktop+mobile verde contra
+  build local; `montantes.spec.ts` 5/5 desktop+mobile (guardia
+  FIX-MONTANTE-ADD-01) y `cotas-heredadas.spec.ts`/`smoke.spec.ts`/
+  `escala-verificacion.spec.ts` verdes. Fuzz Nivel A: seed `424242` 3×30
+  desktop verde. Instrumentación de diagnóstico (contador temporal)
+  retirada por completo antes de cerrar. Sin cache global, sin
+  invalidation engine, sin virtualización, sin schema change, sin
+  worker, sin debounce.
+  - **PERF-SCALE-01: recomendado CERRAR** (M4/presión fluidos, alta de UF
+    vacía sub-segundo y sin escalar con la cantidad de UF, `Duplicar UF`
+    queda como operación pesada legítima ocasional) -- pendiente la
+    validación manual del usuario sobre el deploy para confirmarlo.
+  - **Siguiente:** push a `main`, deploy, smoke de producción, validación
+    manual del usuario (llegar a ~30-33 UF, medir Agregar UF, probar
+    montante AF/AC, volumen tanque/cisterna/pelo de agua, opcional
+    duplicar UF), luego QA Fuzz cloud 20×30 (seed vacía) sobre `main`
+    -- sólo si el usuario lo autoriza explícitamente.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
