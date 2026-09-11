@@ -191,7 +191,10 @@ describe('UI-M2-GROUP-01 §11/§12 -- Local agrupa sus filas AF/AC bajo un únic
   it('el encabezado de grupo del Local aparece UNA sola vez aunque haya filas AF y AC', () => {
     const html = render(proyectoConLocalAfYAc())
     expect(html.match(/class="m2-fila-grupo"/g)?.length).toBe(1)
-    expect(html).toContain('Baño 1 · 1 artefacto')
+    // UI-M2-GROUP-02 §2: nombre y meta en spans separados (jerarquía
+    // visual), ya no una única cadena concatenada.
+    expect(html).toMatch(/class="m2-fila-grupo__nombre">Baño 1</)
+    expect(html).toMatch(/class="m2-fila-grupo__meta"> · 1 artefacto</)
   })
 
   it('las dos filas (AF y AC) del Local siguen ambas presentes y editables', () => {
@@ -202,6 +205,6 @@ describe('UI-M2-GROUP-01 §11/§12 -- Local agrupa sus filas AF/AC bajo un únic
 
   it('no suma AF+AC como cantidad física del Local (§12): el grupo muestra la cantidad de artefactos del Local, no 2', () => {
     const html = render(proyectoConLocalAfYAc())
-    expect(html).not.toContain('Baño 1 · 2 artefactos')
+    expect(html).not.toContain('· 2 artefactos')
   })
 })

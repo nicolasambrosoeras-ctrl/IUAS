@@ -221,6 +221,46 @@ test.describe('M2-TOPO-C · constructor de montantes', () => {
     expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
   })
 
+  // UI-M2-GROUP-02 §1: 0 o 1 montante abierto -- click en el montante ya
+  // abierto lo cierra (antes siempre quedaba uno abierto por fuerza).
+  test('UI-M2-GROUP-02 · click en el montante ya abierto lo cierra: todos pueden quedar condensados', async ({
+    page,
+    errores,
+    baseURLEfectiva,
+  }) => {
+    await cargarAppLimpia(page, baseURLEfectiva)
+    await irATuberias(page)
+    const seccion = seccionMontantes(page)
+
+    await agregarMontante(page, 'Agua fría')
+    await agregarMontante(page, 'Agua caliente')
+    const cabeceras = seccion.locator('.montante-card__cabecera-toggle')
+    await expect(cabeceras).toHaveCount(2)
+
+    // El montante recién creado (AC) nace activo.
+    const cabeceraAC = seccion.locator('.montante-card', { hasText: 'Agua caliente' }).locator('.montante-card__cabecera-toggle')
+    const cabeceraAF = seccion.locator('.montante-card', { hasText: 'Agua fría' }).locator('.montante-card__cabecera-toggle')
+    await expect(cabeceraAC).toHaveAttribute('aria-expanded', 'true')
+
+    // Clickearlo lo cierra -- ningún montante queda abierto.
+    await cabeceraAC.click()
+    await estabilizar(page)
+    await expect(seccion.locator('[aria-expanded="true"]')).toHaveCount(0)
+    await expect(seccion.locator('[aria-expanded="false"]')).toHaveCount(2)
+    // Cuerpo pesado (Locales alimentados, Segmentos) fuera del DOM en ambos.
+    await expect(seccion.locator('.montante-card__cuerpo')).toHaveCount(0)
+
+    // Abrir el otro desde "0 abiertas": sólo ese queda montado.
+    await cabeceraAF.click()
+    await estabilizar(page)
+    await expect(cabeceraAF).toHaveAttribute('aria-expanded', 'true')
+    await expect(cabeceraAC).toHaveAttribute('aria-expanded', 'false')
+    await expect(seccion.locator('.montante-card__cuerpo')).toHaveCount(1)
+
+    const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+  })
+
   // M2-TOPO-E §8/§12/§34: tres Locales del ejemplo comparten cota (todos a
   // 0 m) -> el montante crea UNA derivación 1->3. En Detalladas NO se
   // ofrece un editor de tee 1->2 engañoso: se muestra la nota honesta y la

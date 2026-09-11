@@ -137,6 +137,71 @@ test.describe('UI-M2-GROUP-01 §40 · agrupación progresiva de Unidades Funcion
   })
 })
 
+test.describe('UI-M2-GROUP-02 §1 · 0 o 1 UF abierta (toggle real)', () => {
+  test('click en la UF ya abierta la cierra: todas quedan condensadas, sin contenido pesado montado', async ({
+    page,
+    errores,
+    baseURLEfectiva,
+  }) => {
+    await cargarAppLimpia(page, baseURLEfectiva)
+    await irADemanda(page)
+    await page.getByRole('button', { name: 'Duplicar' }).first().click()
+    await estabilizar(page)
+    await irATuberias(page)
+
+    const lista = listaUf(page)
+    const headers = lista.locator('.lista-uf__cabecera')
+    const headerCopia = headers.filter({ hasText: 'Unidad funcional 1 (copia)' })
+
+    // La copia nace activa (aria-expanded=true) -- clickearla la cierra.
+    await expect(headerCopia).toHaveAttribute('aria-expanded', 'true')
+    await headerCopia.click()
+    await estabilizar(page)
+
+    await expect(lista.locator('[aria-expanded="false"]')).toHaveCount(2)
+    await expect(lista.locator('[aria-expanded="true"]')).toHaveCount(0)
+    // Ninguna UF tiene su heading/tabla montados -- unmount real también en
+    // el estado "ninguna abierta", no sólo al cambiar de UF activa.
+    await expect(lista.getByRole('heading', { name: /^Unidad funcional/ })).toHaveCount(0)
+    await expect(lista.locator('.tabla-tecnica')).toHaveCount(0)
+
+    const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+  })
+
+  test('con todas condensadas, abrir una UF la muestra sola (0 -> 1, nunca 2 montadas)', async ({
+    page,
+    errores,
+    baseURLEfectiva,
+  }) => {
+    await cargarAppLimpia(page, baseURLEfectiva)
+    await irADemanda(page)
+    await page.getByRole('button', { name: 'Duplicar' }).first().click()
+    await estabilizar(page)
+    await irATuberias(page)
+
+    const lista = listaUf(page)
+    const headers = lista.locator('.lista-uf__cabecera')
+    const headerOriginal = headers.filter({ hasNotText: '(copia)' })
+    const headerCopia = headers.filter({ hasText: 'Unidad funcional 1 (copia)' })
+
+    // Condensar todo primero.
+    await headerCopia.click()
+    await estabilizar(page)
+    await expect(lista.locator('[aria-expanded="false"]')).toHaveCount(2)
+
+    // Abrir la original desde el estado "0 abiertas".
+    await headerOriginal.click()
+    await estabilizar(page)
+    await expect(headerOriginal).toHaveAttribute('aria-expanded', 'true')
+    await expect(headerCopia).toHaveAttribute('aria-expanded', 'false')
+    await expect(lista.getByRole('heading', { name: /^Unidad funcional/ })).toHaveCount(1)
+
+    const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+  })
+})
+
 test.describe('UI-M2-GROUP-01 §41 · escala ~30 UF en Tuberías', () => {
   test('30 UF: sólo una desarrollada, el resto sólo headers, agregar UF dispara la última activa', async ({
     page,
