@@ -11822,6 +11822,351 @@ Según esa prueba: `PERF-SCALE-01: CERRADO`, o se documenta evidencia
 concreta para `PERF-SCALE-01D` (cálculo incremental) -- no se abre por
 intuición.
 
+## D-δ.100 -- PERF-SCALE-01D: escala real 20+ UF -- tres redundancias algorítmicas O(n²)/O(n³) sin tocar por 01A/B/C + un React.memo dirigido -- CERRADO
+
+Cuarto slice de `PERF-SCALE-01` (P1). QA Fuzz cloud post-01C 20×30 seed
+vacía **TODO VERDE** (confirmado por el usuario). Prueba manual post-01C:
+hasta ~14 UF la experiencia mejora bastante; a partir de ~15 UF reaparece
+lag perceptible; `Duplicar UF` 20→21 tarda ~1 s; editar "Pelo de agua
+mínimo" o el desnivel del tanque se vuelve **muy pesado** -- la UI "parece
+colgarse"; la Verificación mostraba `Incompleto (384 motivos)`.
+`PERF-SCALE-01` no podía cerrarse. Brief explícito: **medir primero, no
+asumir que el cuello es motor/React/DOM/motivos/M4** -- ninguna hipótesis
+genérica resultó ser la causa real.
+
+### Fase 1 -- profiling antes de editar
+
+Fixture XXL: `generarProyectoDeEscala` ya acepta una `FormaDeEscala`
+arbitraria (no hizo falta extenderlo) -- se usó `{cantidadUf: 8/14/20/21,
+localesPorUf: 3}` directamente, con una variante local (sólo en el
+benchmark, sin tocar el generador) que fuerza `esquema: 'tanqueElevado'` +
+cota de raíz + `desnivelConexion_m`, porque el generador por defecto usa
+`esquema: 'directa'` (donde "pelo de agua" ni siquiera existe como dato
+manual separado del desnivel -- CRIT-A39).
+
+**Nuevo benchmark** `scripts/perf/benchmarkEscalaXXL.perf.ts` (patrón de
+`benchmarkMotorDeEscala.perf.ts`, no CI): mide, por escala, `resolverEstadoModulo2`
+/ M3 / M4 / `resolverEntradasDeVerificacion` / `agruparMotivosDeModulo2` /
+"pantalla completa" (M2+resumen+M3+M4, replicando exactamente lo que
+`MotorDemandaPantalla` ejecuta tras 01C) y las 4 acciones diagnósticas
+(Duplicar UF con la función real `duplicarUnidadFuncionalEnProyecto`,
+Agregar artefacto, Editar pelo de agua, Editar desnivel), más una
+comparación estructural (Qc/DN/V/hf idénticos sí/no) antes/después de las
+dos últimas.
+
+**Instrumentación topológica extendida** (`instrumentacionTopologica.ts`,
+mismo seam inerte de 01A/B, gate `activo`): `pasosCaminoHaciaOrigen`
+(iteraciones del while de `obtenerCaminoHaciaOrigen`), `resolucionesRedDeTerminal`
+(llamadas a `resolverRedDeTerminal`), `construccionesTramosRepresentativos`
+(llamadas reales -- no memoizadas -- a `identificarTramosRepresentativosDeLocales`)
+y `tiemposMsPorEtapa` (ms acumulados por etapa dentro de
+`resolverPresionResidualDeCamino`, gateado además por
+`instrumentacionTopologicaActiva()` para no pagar ni el `performance.now()`
+en producción). Con esto se descompuso el costo de una resolución sin
+necesitar un profiler externo.
+
+**React/DOM:** dado que no hay `@testing-library/react` ni build de
+profiling de `react-dom` en producción, se corrió `npm run dev` (Vite dev
+server, sí soporta `<Profiler>`) + Playwright, con un módulo diagnóstico
+TEMPORAL (`PerfProfiler` gateado por `window.__IUAS_PERF__`, seteado sólo
+por el spec de medición vía `addInitScript`) envolviendo los paneles
+pesados de `MotorDemandaPantalla`. Se usó exclusivamente para medir; se
+retiró por completo antes de cerrar el slice (no queda ningún
+`React.Profiler` ni `window.__IUAS_PERF__` en el árbol de producción).
+
+### Hallazgos -- tres redundancias en el motor, ninguna tocada por 01A/B/C
+
+1. **`obtenerCaminoHaciaOrigen`** (`motor/tuberias/topologia/obtenerCaminoHaciaOrigen.ts`):
+   cada iteración del `while` hacía `redHidraulica.tramos.filter(t =>
+   t.nodoDestinoId === nodoActualId)` -- un escaneo de TODOS los tramos del
+   Proyecto por cada paso del camino. Para un camino de profundidad `d`:
+   O(d·tramos) en vez de O(d). Se ejecuta una vez por terminal en cada
+   resolución de M2.
+2. **`resolverEntradasDeVerificacion`**: las closures
+   `perdidasDeMedidoresDeTerminal`/`hfMedidorDeTerminal` (invocadas una vez
+   por terminal desde el loop de `resolverEstadoModulo2`) repetían, en cada
+   invocación, `nodosTerminales.find(...)` (O(terminales)) y
+   `resolverRedDeTerminal(proyecto, id)` → `tramos.find(...)` (O(tramos)).
+   Total: O(terminales·(terminales+tramos)).
+3. **`crearIndiceTopologico`** (el índice nodos/tramos/salientes que 01A ya
+   había introducido, con un comentario de diseño que decía explícitamente
+   "se materializa UNA vez por resolución"): en los hechos se reconstruía
+   **una vez por Tramo DISTINTO calculado** (`calcularHidraulicaDeTramo` lo
+   invocaba sin ningún contexto compartido) -- a escala 20 UF, ~561
+   reconstrucciones redundantes del MISMO índice en una sola resolución.
+   El mismo patrón, por separado, en `obtenerArtefactosAguasAbajo`
+   (reconstruía su PROPIO índice inline, sin usar `crearIndiceTopologico`
+   ni ningún contador) y en los `Array.find` de tramo-por-id de
+   `resolverDiametroComercialDeTramo` / `resolverPerdidaDistribuidaDeTramo`.
+
+Medido con el benchmark XXL (20 UF, 561 tramos, 420 terminales,
+`resolverEstadoModulo2` solo): arreglar 1+2 bajó 147→124 ms (~16 %);
+arreglar 3 (compartir `IndiceTopologico`) bajó a 50-78 ms según el punto
+exacto de la cadena -- pero el "tiempo por etapa" nuevo mostró que
+`perdidaDistribuida` seguía dominando (~27-34 ms de ~47-57 ms totales), lo
+que llevó al cuarto hallazgo:
+
+4. **La dominante -- exclusiva de `granularidadHidraulica: 'simplificada'`
+   (modo Rápido, preset por defecto de la app):**
+   `seleccionarTramosDeAcumulacion` (llamada desde
+   `acumularPerdidaDistribuidaDeCamino` Y desde
+   `acumularPerdidaLocalizadaDeCamino` -- **dos veces por terminal**)
+   pedía `identificarTramosRepresentativosDeLocales(proyecto)` **desde
+   cero cada vez**, sin ningún contexto. Esa función es, ella sola,
+   O(tramos²): recorre TODOS los tramos y, para cada uno, llama
+   `localUnicoDeTramo` (que internamente hace `obtenerArtefactosAguasAbajo`
+   -- otro traversal sin índice) y `buscarTramoPadre` (`Array.find` sobre
+   todos los tramos). Total real: **O(terminales·tramos²)** por
+   resolución. Medido en el navegador (dev build, granularidad
+   'simplificada', 21 UF, tras editar el desnivel de conexión): el mark
+   `resolverResolucionDeModulo2` pasó de **~13,8 s** a **~0,15 s** al
+   arreglar SÓLO este punto -- la causa directa y casi exclusiva del
+   "se cuelga" reportado por el usuario al editar presión en modo Rápido.
+   La fixture de escala de 01A/B/C usa `granularidadHidraulica: 'profesional'`
+   por defecto, así que ningún benchmark ni test previo había ejercitado
+   este camino a escala.
+
+### Fix -- mismo patrón para los cuatro: memoizar UNA vez por resolución
+
+Extendiendo `ContextoDeCalculoM2` (motor/tuberias/contextoDeCalculoM2.ts,
+el mismo objeto de 01B, sin cambiar su ciclo de vida ni su alcance: puro,
+local a una resolución, sin cache global, sin `WeakMap`, sin
+invalidación) con tres campos nuevos, cada uno con un getter que
+construye lazy la primera vez que se pide y reutiliza después:
+
+- `tramosEntrantesPorNodoDestino` (`obtenerTramosEntrantesIndexados`):
+  índice nodoDestinoId → tramos entrantes, usado por
+  `obtenerCaminoHaciaOrigen` (arregla 1) y por `buscarTramoPadre` dentro
+  de `identificarTramosRepresentativosDeLocales` (arregla parte de 4).
+- `indiceTopologico` (`obtenerIndiceTopologicoDeContexto`): el mismo
+  `IndiceTopologico` de 01A, ahora construido UNA vez y compartido entre
+  `resolverHidraulicaDeTramo`, `obtenerArtefactosAguasAbajo` (nuevo
+  parámetro opcional `indiceTopologico`, usado también por
+  `identificarTramosRepresentativosDeLocales`), y los `Array.find` de
+  tramo-por-id de `resolverDiametroComercialDeTramo` /
+  `resolverPerdidaDistribuidaDeTramo` (arregla 3).
+- `tramosRepresentativosDeLocales` (`obtenerTramosRepresentativosDeLocalesDeContexto`):
+  el `Map` completo de `identificarTramosRepresentativosDeLocales`,
+  calculado UNA vez por resolución y reutilizado por
+  `seleccionarTramosDeAcumulacion` en sus dos call sites (arregla 4, la de
+  mayor impacto).
+
+Todos los parámetros nuevos son **opcionales**, threadeados hasta el
+fondo de cada cadena de llamadas: ausentes ⇒ comportamiento previo byte a
+byte (lo que siguen haciendo los call sites puntuales de la UI que no
+pasan contexto, y todos los tests históricos sin cambios). El fix de 2
+(`resolverEntradasDeVerificacion`) es distinto: no usa `ContextoDeCalculoM2`
+porque esa función corre ANTES de que exista un contexto de M2 (es la
+que construye los inputs que luego arma `resolverEstadoModulo2`) -- en
+cambio construye dos `Map` LOCALES a esa llamada (`nodosTerminalesPorId`,
+`redPorNodoTerminalId`) una sola vez, reutilizados por las closures que
+antes recalculaban por terminal.
+
+### Hallazgo en React -- quinto, ya con el motor arreglado
+
+`ResultadoHidraulicoDeTramo` (sección "Tuberías", **exclusivamente**
+dimensionamiento Qc/DN/V/hf desde UI-01A/D-δ.72 -- la verificación de
+presión vive en su propia etapa) seguía re-renderizando sus ~20+
+`SeccionDeUnidadFuncional` completas ante CUALQUIER cambio de `proyecto`,
+incluidos los que sólo tocan presión (pelo de agua, desnivel, presión
+sobre acera) -- datos que ese árbol de render **nunca lee**. Auditado por
+`grep` sobre TODO `interfaz/paginas/**`: ningún archivo del árbol de
+Tuberías (`DistribucionGeneral`, `DistribucionSecundaria`,
+`SeccionDeUnidadFuncional`, `ConstructorDeMontantes`,
+`resolverFilaDeDimensionamiento`, `resolverControlDeDnDeTramo`,
+`resolverResultadoDeTramoParaUi`) referencia `Nodo.cota_m`,
+`parametros.desnivelConexion_m` ni `parametros.presionSobreAcera_m` --
+sólo `PanelDePresionDeModulo2.tsx` y `PanelDeModulo4.tsx` (secciones
+DISTINTAS) los leen. Y los mutadores correspondientes (`conCotaDeNodo`,
+`conDesnivelConexion`, `conParametro`) hacen spread superficial: sólo
+tocan `redHidraulica.nodos` o `parametros`, preservando intactas las
+referencias de `unidadesFuncionales` y `redHidraulica.tramos`.
+
+**Fix:** `React.memo(ResultadoHidraulicoDeTramoBase, sonPropsDeDimensionamientoEquivalentes)`.
+El comparador vive en su propio archivo
+(`interfaz/paginas/sonPropsDeDimensionamientoEquivalentes.ts`, sin JSX --
+mismo criterio que `duplicarUnidadFuncional.ts`, evita violar
+`react-refresh/only-export-components`) y compara por REFERENCIA:
+`unidadesFuncionales`, `redHidraulica?.tramos`, `configuracionHidraulica`,
+`modoTrabajo` (por margen de seguridad, aunque hoy no se lee en este
+árbol), `catalogoArtefactos`, `onCambiar`. No es una heurística ni un
+cache: es una comparación de referencias auditada contra lecturas reales,
+exactamente lo que el brief pide antes de introducir una dependency key
+(§12). Cualquier edición real (artefacto, UF, Tramo, granularidad) sigue
+reconstruyendo alguna de esas referencias y dispara el re-render normal.
+
+### Medido
+
+**Node (`resolverEstadoModulo2` solo, benchmark XXL, `localesPorUf=3`):**
+
+| UF | tramos | terminales | antes (01C) | después (01D) |
+| --- | ---: | ---: | ---: | ---: |
+| 8 | 225 | 168 | 27,3 ms | 16,9 ms (−38 %) |
+| 14 | 393 | 294 | 67,6 ms | 30,3 ms (−55 %) |
+| 20 | 561 | 420 | 147,2 ms | 46,9 ms (−68 %) |
+| 21 | 589 | 441 | 139,8 ms | 48,0 ms (−66 %) |
+
+**Navegador real (dev build sin minificar, React Profiler temporal, 21 UF,
+`granularidadHidraulica: 'simplificada'`, esquema `tanqueElevado`):**
+
+| Acción | antes de 01D | tras arreglar sólo el motor (fix 1-4) | tras agregar el memo de React |
+| --- | ---: | ---: | ---: |
+| Editar desnivel (1 `fill`) | ~15,7 s | ~2,3 s | **~1,0 s** |
+| `resolverResolucionDeModulo2` (mark interno) | ~13,8 s | ~0,15 s | ~0,15 s (sin cambio, ya no domina) |
+| Duplicar UF 20→21 | ~0,9-1,8 s | ~1,5-1,8 s (sin cambio: motor ya no dominaba) | ~1,5-1,8 s (sin cambio: SÍ debe re-renderizar) |
+| Agregar artefacto | -- | ~2,5-2,6 s | ~2,5-2,6 s (sin cambio: SÍ debe re-renderizar) |
+
+`Duplicar UF`/`Agregar artefacto` no bajan con el memo porque
+**correctamente** cambian `unidadesFuncionales` -- ese costo (~1-2,6 s a
+21 UF) es render legítimo de las secciones de UF que sí cambiaron, no
+trabajo evitable. Candidato a `PERF-SCALE-01E` (virtualizar/colapsar
+secciones de UF, ligado a `UI-M2-GROUP-01`) si la validación manual lo
+sigue sintiendo pesado -- no decidido acá, no hay evidencia de que sea
+percibido como "colgarse" (el reporte del usuario fue específicamente
+sobre pelo de agua/desnivel, ya resuelto).
+
+### Hallazgo adicional -- "384/441 motivos" (no arreglado, fuera de alcance)
+
+El fixture XXL de 20-21 UF reproduce, con `esquema: 'tanqueElevado'` +
+granularidad `simplificada`, un estado `incompleto` con exactamente un
+motivo por terminal (420/441) -- el mismo orden de magnitud que los "384
+motivos" del caso real del usuario. La causa observada es
+`perdidaDistribuidaIncompleta`/`sinCandidatoAdmisible`: con un único
+tronco de distribución cargando el caudal simultáneo agregado de 20+ UF,
+el Qc de ese tramo puede exceder la velocidad admisible de TODO el
+catálogo comercial disponible. Esto es un **límite de diseño/catálogo**
+(la topología real necesitaría más de un tronco, o un catálogo con
+diámetros mayores), no un bug de cálculo ni de performance -- se
+documenta como observación/hipótesis plausible del caso real, sin
+investigarlo más ni "arreglarlo" ocultando motivos (brief §15: nunca
+eliminar información para ganar performance). Si el usuario confirma que
+su proyecto real muestra el mismo patrón (todos los motivos del mismo
+tipo, concentrados en tramos troncales), es un candidato a un slice de
+diseño/catálogo separado, no de performance.
+
+### Equivalencia y regresión
+
+- `contextoDeCalculoM2.equivalencia.test.ts`: +3 casos por escenario
+  (`obtenerCaminoHaciaOrigen`, `obtenerArtefactosAguasAbajo`,
+  `identificarTramosRepresentativosDeLocales`, contexto ≡ sin contexto) +
+  1 escenario nuevo ("escala 5×3 · estimado + simplificada", el único que
+  ejercitaba 'simplificada' a escala) -- 42/42 verde.
+- `independenciaEstructuralDePresion.test.ts` (nuevo,
+  `motor/modulo2/`): sobre `resolverEstadoModulo2` de punta a punta (no
+  una función aislada), con `tanqueElevado`, en AMBAS granularidades --
+  editar pelo de agua o desnivel deja Qc/DN/V/hf byte-idénticos para
+  todos los terminales (excluye deliberadamente `desnivel_m`/
+  `presionResidual_mca`/`cumpleMinimo`, que SÍ deben cambiar).
+- `sonPropsDeDimensionamientoEquivalentes.test.ts` (nuevo): 8 casos --
+  mismas props exactas, pelo de agua, desnivel, presión sobre acera
+  (equivalentes); duplicar UF, editar longitud de un Tramo, cambiar
+  granularidad, distinto `catalogoArtefactos`/`onCambiar` (distintas).
+- `escalaDelMotor.regresion.test.ts`: 2 aserciones actualizadas para
+  reflejar la arquitectura nueva -- `indicesTopologicosCreados` pasa de
+  "igual a los cálculos reales (≈tramos)" a **"exactamente 1 por
+  resolución, sin importar la escala"** (verificado en 2 UF y 20 UF) -- y
+  1 caso nuevo: `construccionesTramosRepresentativos === 1` en
+  'simplificada' a 20 UF (antes hubiera sido ~2·terminales).
+- `resolucionesDeVerificacionPorEdicion.regresion.test.ts`: 1 aserción
+  actualizada. `obtenerArtefactosAguasAbajo` ahora comparte
+  `indicesTopologicosCreados` con la ruta hidráulica (antes tenía su
+  propio índice inline sin instrumentar) -- durante el build de
+  `duplicarUnidadFuncionalEnProyecto` (que llama
+  `obtenerArtefactosAguasAbajo` por cada Artefacto clonado, para
+  conectividad, SIN hidráulica) el contador ya no da 0. El invariante
+  real del test -- cero hidráulica durante el build -- lo siguen
+  cubriendo intactas las aserciones de `solicitudesHidraulicaDeTramo`/
+  `solicitudesDiametroComercialDeTramo === 0`.
+- Vitest **1686 / 1686** (1649 + 37 nuevos). Goldens **sin rebaseline**.
+- `tsc -b` / `npm run e2e:typecheck` / `npm run build` verdes. **ESLint
+  11 / 0 / 0** -- verificado contra baseline real (`git stash` +
+  `eslint .` sobre HEAD limpio): los 11 errores preexistentes son
+  idénticos, ninguno introducido por este slice.
+
+### E2E y fuzz
+
+- `escala-verificacion.spec.ts` ampliado de ~5 UF (4 duplicaciones) a
+  **~20 UF** (19 duplicaciones) + acción "Agregar artefacto" nueva
+  (brief §35: cubrir escala 20 UF explícitamente). Desktop (34,6 s) y
+  mobile (37,4 s) verdes contra build local -- más rápido que antes de
+  01D pese a cubrir 4× más escala.
+- Resto de la suite E2E dirigida (`smoke`, `catalogo-conectividad` 27
+  casos, `crash-observado`) verde contra build local, sin regresiones.
+- Fuzz Nivel A completo (se tocó motor + `MotorDemandaPantalla`/
+  `ResultadoHidraulicoDeTramo`, brief §36): `424242` 3×30 desktop;
+  históricos `34493241441-1:15` desktop+mobile, `34411681277-1:0`,
+  `34398035608-1` runs 0..12, `m7`, `m42`, `m99` -- todos verdes,
+  corridos en serie (un `--workers=1` de más al principio delató un
+  falso positivo por correr dos Playwright en paralelo por error propio,
+  no un bug de la app; se re-corrió limpio y en serie).
+
+### Instrumentación de diagnóstico -- retirada
+
+El `React.Profiler` temporal (`PerfProfiler`, gateado por
+`window.__IUAS_PERF__`) y el spec de Playwright que lo activaba se
+usaron exclusivamente para esta fase de profiling y se **eliminaron por
+completo** antes de cerrar el slice -- no queda ningún rastro en
+`src/` ni en `tests/e2e/`. La única instrumentación que permanece es la
+de CONTEO (mismo seam `instrumentacionTopologica.ts` de 01A/B, inerte por
+defecto), extendida con los 4 contadores nuevos descriptos arriba --
+siguiendo la convención ya establecida, no un framework nuevo.
+
+### M2 lazy / botón "Iniciar M2" -- no necesario
+
+Con el motor arreglado y el memo de React en su lugar, cargar M1 (agregar
+UF/artefactos) ya no dispara un costo evitable en M2: el único trabajo
+restante en `Duplicar UF`/`Agregar artefacto` es render legítimo de
+secciones que cambiaron. No hay evidencia de que "iniciar M2 bajo
+demanda" resuelva algo que el fix actual no resuelva ya -- no se
+implementa (brief §18: no esconder un motor/render ineficiente detrás de
+un botón; acá no hay ineficiencia que esconder).
+
+### Estado
+
+**D-δ.100 / PERF-SCALE-01D -- CERRADO.** Código nuevo en `src/`:
+`interfaz/paginas/sonPropsDeDimensionamientoEquivalentes.ts` (+`.test.ts`),
+`motor/modulo2/independenciaEstructuralDePresion.test.ts`,
+`scripts/perf/benchmarkEscalaXXL.perf.ts`. Modificados:
+`motor/tuberias/contextoDeCalculoM2.ts` (+3 campos/getters),
+`motor/tuberias/topologia/obtenerCaminoHaciaOrigen.ts`,
+`motor/tuberias/topologia/obtenerArtefactosAguasAbajo.ts` (+parámetro
+`indiceTopologico` opcional),
+`motor/tuberias/topologia/identificarTramoRepresentativoDeLocal.ts`
+(+parámetro `contexto` opcional +memo),
+`motor/tuberias/topologia/instrumentacionTopologica.ts` (+4 contadores),
+`motor/tuberias/resolverHidraulicaDeTramo.ts`,
+`motor/tuberias/resolverDiametroComercialDeTramo.ts`,
+`motor/tuberias/resolverPerdidaDistribuidaDeTramo.ts`,
+`motor/tuberias/presion/resolverPresionResidualDeCamino.ts` (+timers de
+diagnóstico gateados),
+`motor/tuberias/presion/seleccionarTramosDeAcumulacion.ts`,
+`motor/tuberias/presion/acumularPerdidaDistribuidaDeCamino.ts`,
+`motor/tuberias/presion/acumularPerdidaLocalizadaDeCamino.ts`,
+`interfaz/paginas/resolverEntradasDeVerificacion.ts`,
+`interfaz/paginas/resolverRedDeTerminal.ts` (+contador),
+`interfaz/paginas/resolverResultadoDeTramoParaUi.ts`,
+`interfaz/paginas/ResultadoHidraulicoDeTramo.tsx` (+`React.memo`),
+`motor/tuberias/contextoDeCalculoM2.equivalencia.test.ts`,
+`motor/tuberias/escalaDelMotor.regresion.test.ts`,
+`interfaz/paginas/resolucionesDeVerificacionPorEdicion.regresion.test.ts`,
+`tests/e2e/escala-verificacion.spec.ts`. Baseline: **Vitest 1686/1686**,
+`tsc -b` / `e2e:typecheck` / `build` verdes, **ESLint 11/0/0** (baseline
+sin cambios, verificado). E2E desktop+mobile verde contra build local.
+Fuzz Nivel A completo verde. Sin cambio de resultados hidráulicos, sin
+cache global, sin schema change, sin invalidation engine, sin worker, sin
+debounce.
+
+**PERF-SCALE-01: pendiente sólo la validación manual del usuario sobre
+el deploy** -- llegar a 20 UF, duplicar 20→21, agregar artefacto, teclear
+varias veces en "Pelo de agua mínimo" y en el desnivel, revisar si
+Verificación sigue mostrando cientos de motivos del mismo tipo. Según esa
+prueba: `PERF-SCALE-01: CERRADO`, o se abre `PERF-SCALE-01E` (render/DOM:
+virtualizar/colapsar secciones de UF) con la evidencia concreta que
+aporte -- no por intuición.
+
+**Siguiente:** push a `main`, deploy, QA Fuzz cloud 20×30 (seed vacía)
+sobre `main`, luego la validación manual de arriba.
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son
