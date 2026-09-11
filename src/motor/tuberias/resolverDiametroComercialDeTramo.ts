@@ -32,6 +32,11 @@
 import type { Proyecto } from '../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { resolverHidraulicaDeTramo } from './resolverHidraulicaDeTramo'
+import type { ContextoDeCalculoM2 } from './contextoDeCalculoM2'
+import {
+  registrarSolicitudDiametroComercialDeTramo,
+  registrarCalculoDiametroComercialDeTramo,
+} from './topologia/instrumentacionTopologica'
 import { obtenerSistemaDeTuberia, type SistemaDeTuberiaCatalogado } from './sistemaDeTuberia'
 import type { EntradaCatalogoTuberia } from './diametroComercial/obtenerCandidatosDeDiametroComercial'
 import { obtenerEntradasOrdenadasPorDiametroInterior } from './diametroComercial/obtenerEntradasOrdenadasPorDiametroInterior'
@@ -83,8 +88,41 @@ export function resolverDiametroComercialDeTramo(
   tramoId: string,
   catalogoArtefactos: readonly ArtefactoNormativo[],
   catalogoSistemasDeTuberia: readonly SistemaDeTuberiaCatalogado[],
+  // PERF-SCALE-01B: ver resolverHidraulicaDeTramo. Ausente ⇒ recálculo
+  // siempre. Presente ⇒ el diámetro comercial de este Tramo se resuelve una
+  // vez por resolución (y su resolverHidraulicaDeTramo también, vía el mismo
+  // contexto). Clave: sólo `tramoId` (el override manual `dnComercialAdoptado`
+  // vive en redHidraulica, inmutable durante la resolución).
+  contexto?: ContextoDeCalculoM2,
 ): ResultadoDiametroComercialDeTramo {
-  const resultadoHidraulico = resolverHidraulicaDeTramo(proyecto, tramoId, catalogoArtefactos)
+  registrarSolicitudDiametroComercialDeTramo()
+
+  const memoizado = contexto?.diametroComercialPorTramo.get(tramoId)
+  if (memoizado !== undefined) {
+    return memoizado
+  }
+
+  const resultado = calcularDiametroComercialDeTramo(
+    proyecto,
+    tramoId,
+    catalogoArtefactos,
+    catalogoSistemasDeTuberia,
+    contexto,
+  )
+  contexto?.diametroComercialPorTramo.set(tramoId, resultado)
+  return resultado
+}
+
+function calcularDiametroComercialDeTramo(
+  proyecto: Proyecto,
+  tramoId: string,
+  catalogoArtefactos: readonly ArtefactoNormativo[],
+  catalogoSistemasDeTuberia: readonly SistemaDeTuberiaCatalogado[],
+  contexto: ContextoDeCalculoM2 | undefined,
+): ResultadoDiametroComercialDeTramo {
+  registrarCalculoDiametroComercialDeTramo()
+
+  const resultadoHidraulico = resolverHidraulicaDeTramo(proyecto, tramoId, catalogoArtefactos, contexto)
 
   if (resultadoHidraulico.tipo === 'sinDemanda') {
     return { tipo: 'sinDemanda', qc_lps: 0 }

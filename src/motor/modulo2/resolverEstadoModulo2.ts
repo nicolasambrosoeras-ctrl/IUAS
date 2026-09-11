@@ -58,6 +58,8 @@ import {
   type CandidatoTerminal,
   type ResultadoTerminalMasDesfavorable,
 } from '../tuberias/presion/resolverTerminalMasDesfavorable'
+import { crearContextoDeCalculoM2 } from '../tuberias/contextoDeCalculoM2'
+import { registrarResolucionModulo2 } from '../tuberias/topologia/instrumentacionTopologica'
 
 type PerdidaDistribuidaIncompleta = Extract<ResultadoPresionResidualDeCamino, { tipo: 'perdidaDistribuidaIncompleta' }>
 type PerdidaLocalizadaIncompleta = Extract<ResultadoPresionResidualDeCamino, { tipo: 'perdidaLocalizadaIncompleta' }>
@@ -135,6 +137,11 @@ export function resolverEstadoModulo2(
   catalogoSistemasDeTuberia: readonly SistemaDeTuberiaCatalogado[],
   catalogoMateriales: readonly MaterialTuberia[],
 ): EstadoModulo2 {
+  // PERF-SCALE-01B / §17: contador de resoluciones completas de M2, inerte
+  // salvo bajo instrumentación (benchmark / tests). Cuenta cada entrada,
+  // incluso las que cortan temprano (noIniciado / error / incompleto).
+  registrarResolucionModulo2()
+
   const { redHidraulica } = proyecto
 
   // 'noIniciado' es un gate previo a todo lo demas, no un peldano mas de
@@ -194,6 +201,14 @@ export function resolverEstadoModulo2(
   // nunca uno por terminal (ver comentario del tipo mas arriba).
   const unidadesFuncionalesSinCotaIds = new Set<string>()
 
+  // PERF-SCALE-01B: UN contexto de cálculo para toda esta resolución. Cada
+  // terminal recorre su camino raíz→terminal; los Tramos troncales
+  // compartidos y los pedidos por varias etapas resuelven su hidráulica /
+  // diámetro comercial una sola vez y se reutilizan. Vive sólo hasta que
+  // esta función retorna -- sin invalidación, sin estado global: la próxima
+  // edición del Proyecto crea una resolución nueva con un contexto nuevo.
+  const contexto = crearContextoDeCalculoM2()
+
   for (const nodo of nodosTerminales) {
     const hfMedidorDelTerminal =
       typeof hfMedidor_mca === 'function' ? hfMedidor_mca(nodo.id) : hfMedidor_mca
@@ -205,6 +220,7 @@ export function resolverEstadoModulo2(
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
       catalogoMateriales,
+      contexto,
     )
 
     switch (resultado.tipo) {

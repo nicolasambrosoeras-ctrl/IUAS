@@ -15,6 +15,7 @@
 import type { Proyecto } from '../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { resolverDiametroComercialDeTramo } from './resolverDiametroComercialDeTramo'
+import type { ContextoDeCalculoM2 } from './contextoDeCalculoM2'
 import type { SistemaDeTuberiaCatalogado } from './sistemaDeTuberia'
 import type { MaterialTuberia } from './materialTuberia'
 import type { EntradaCatalogoTuberia } from './diametroComercial/obtenerCandidatosDeDiametroComercial'
@@ -83,12 +84,17 @@ export function resolverPerdidaDistribuidaDeTramo(
   catalogoArtefactos: readonly ArtefactoNormativo[],
   catalogoSistemasDeTuberia: readonly SistemaDeTuberiaCatalogado[],
   catalogoMateriales: readonly MaterialTuberia[],
+  // PERF-SCALE-01B: contexto de cálculo local a la resolución de M2 (se
+  // propaga a resolverDiametroComercialDeTramo / resolverHidraulicaDeTramo).
+  // Ausente ⇒ comportamiento previo byte a byte.
+  contexto?: ContextoDeCalculoM2,
 ): ResultadoPerdidaDistribuidaDeTramo {
   const resultadoComercial = resolverDiametroComercialDeTramo(
     proyecto,
     tramoId,
     catalogoArtefactos,
     catalogoSistemasDeTuberia,
+    contexto,
   )
 
   if (resultadoComercial.tipo === 'sinDemanda') {

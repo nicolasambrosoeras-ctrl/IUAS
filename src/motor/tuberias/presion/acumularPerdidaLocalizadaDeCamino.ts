@@ -64,6 +64,7 @@ import type { Tramo } from '../../../modelo/redHidraulica'
 import type { CaminoHaciaOrigen } from '../topologia/obtenerCaminoHaciaOrigen'
 import { resolverClasificacionDeTee } from '../topologia/resolverClasificacionDeTee'
 import { resolverDiametroComercialDeTramo } from '../resolverDiametroComercialDeTramo'
+import type { ContextoDeCalculoM2 } from '../contextoDeCalculoM2'
 import { resolverPerdidaLocalizadaDeTramo } from '../perdidaCarga/resolverPerdidaLocalizadaDeTramo'
 import { calcularPerdidaCargaLocalizada } from '../perdidaCarga/calcularPerdidaCargaLocalizada'
 import { seleccionarTramosDeAcumulacion } from './seleccionarTramosDeAcumulacion'
@@ -103,6 +104,10 @@ export function acumularPerdidaLocalizadaDeCamino(
   camino: CaminoHaciaOrigen,
   catalogoArtefactos: readonly ArtefactoNormativo[],
   catalogoSistemasDeTuberia: readonly SistemaDeTuberiaCatalogado[],
+  // PERF-SCALE-01B: contexto de cálculo local a la resolución -- memoiza
+  // hidráulica/diámetro por Tramo entre caminos y etapas. Ausente ⇒
+  // comportamiento previo byte a byte.
+  contexto?: ContextoDeCalculoM2,
 ): ResultadoPerdidaLocalizadaDeCamino {
   const redHidraulicaOpcional = proyecto.redHidraulica
   if (redHidraulicaOpcional === undefined) {
@@ -128,6 +133,7 @@ export function acumularPerdidaLocalizadaDeCamino(
       tramo.id,
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
+      contexto,
     )
 
     if (resultadoComercial.tipo === 'sinDemanda') {

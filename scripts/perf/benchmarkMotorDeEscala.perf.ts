@@ -94,6 +94,10 @@ describe('benchmark motor de escala (PERF-SCALE-01A)', () => {
       const topo = leerInstrumentacionTopologica()
       desactivarInstrumentacionTopologica()
 
+      const hitsHidraulica = topo.solicitudesHidraulicaDeTramo - topo.calculosHidraulicaDeTramo
+      const hitsDiametro = topo.solicitudesDiametroComercialDeTramo - topo.calculosDiametroComercialDeTramo
+      const ratioCalculo = (topo.calculosHidraulicaDeTramo / mag.tramos).toFixed(2)
+
       console.log(
         [
           `\n[${nivel}] UF=${mag.unidadesFuncionales} locales=${mag.locales} artefactos=${mag.artefactos}`,
@@ -102,6 +106,8 @@ describe('benchmark motor de escala (PERF-SCALE-01A)', () => {
           `     resolverResumenDeProyecto mediana ${mediana(resumenMs).toFixed(1)} ms`,
           `     índices topológicos construidos:        ${topo.indicesTopologicosCreados}   [distintos tramos: ${mag.tramos}]`,
           `     traversals DFS condición aguas abajo:   ${topo.traversalsCondicionAguasAbajo}`,
+          `     hidráulica de tramo   solicitudes ${topo.solicitudesHidraulicaDeTramo}  cálculos ${topo.calculosHidraulicaDeTramo}  hits ${hitsHidraulica}  [cálculos/tramo ${ratioCalculo}]`,
+          `     diámetro comercial    solicitudes ${topo.solicitudesDiametroComercialDeTramo}  cálculos ${topo.calculosDiametroComercialDeTramo}  hits ${hitsDiametro}`,
         ].join('\n'),
       )
     }

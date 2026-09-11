@@ -31,6 +31,7 @@ import type { SistemaDeTuberiaCatalogado } from '../sistemaDeTuberia'
 import type { MaterialTuberia } from '../materialTuberia'
 import type { CaminoHaciaOrigen } from '../topologia/obtenerCaminoHaciaOrigen'
 import { resolverPerdidaDistribuidaDeTramo } from '../resolverPerdidaDistribuidaDeTramo'
+import type { ContextoDeCalculoM2 } from '../contextoDeCalculoM2'
 import { seleccionarTramosDeAcumulacion } from './seleccionarTramosDeAcumulacion'
 
 export type MotivoTramoSinPerdida = 'sinDemanda' | 'sinCandidatoAdmisible' | 'sinLongitud'
@@ -82,6 +83,10 @@ export function acumularPerdidaDistribuidaDeCamino(
   // lineal en L, Δhf = (hf_base/longitud_base)·incremento se compone
   // aditivamente sin recalcular Qc/DN/V/friccion.
   incrementoLongitudPorTramoId?: ReadonlyMap<string, number>,
+  // PERF-SCALE-01B: contexto de cálculo local a la resolución -- memoiza
+  // hidráulica/diámetro por Tramo entre caminos y etapas. Ausente ⇒
+  // comportamiento previo byte a byte.
+  contexto?: ContextoDeCalculoM2,
 ): ResultadoPerdidaDistribuidaDeCamino {
   const porTramo: PerdidaDistribuidaPorTramo[] = []
   const tramosNoResueltos: { tramoId: string; motivo: MotivoTramoSinPerdida }[] = []
@@ -95,6 +100,7 @@ export function acumularPerdidaDistribuidaDeCamino(
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
       catalogoMateriales,
+      contexto,
     )
 
     switch (resultadoTramo.tipo) {

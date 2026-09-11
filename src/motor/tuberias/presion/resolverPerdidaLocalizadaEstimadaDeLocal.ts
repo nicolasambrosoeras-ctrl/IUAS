@@ -51,6 +51,7 @@ import type { RedDeTramo } from '../../../modelo/redHidraulica'
 import type { SistemaDeTuberiaCatalogado } from '../sistemaDeTuberia'
 import { obtenerKsDeAccesorio } from '../../../normativa/eras-2023/tabla-07-perdidas-localizadas'
 import { resolverDiametroComercialDeTramo } from '../resolverDiametroComercialDeTramo'
+import type { ContextoDeCalculoM2 } from '../contextoDeCalculoM2'
 import { calcularPerdidaCargaLocalizada } from '../perdidaCarga/calcularPerdidaCargaLocalizada'
 import { contarTerminalesFisicosDeLocal } from '../topologia/contarTerminalesFisicosDeLocal'
 
@@ -87,6 +88,10 @@ export function resolverPerdidaLocalizadaEstimadaDeLocal(
   red: RedDeTramo,
   catalogoArtefactos: readonly ArtefactoNormativo[],
   catalogoSistemasDeTuberia: readonly SistemaDeTuberiaCatalogado[],
+  // PERF-SCALE-01B: contexto de cálculo local a la resolución -- memoiza
+  // hidráulica/diámetro por Tramo entre caminos y etapas. Ausente ⇒
+  // comportamiento previo byte a byte.
+  contexto?: ContextoDeCalculoM2,
 ): ResultadoPerdidaLocalizadaEstimadaDeLocal {
   const { redHidraulica } = proyecto
   if (redHidraulica === undefined) {
@@ -139,6 +144,7 @@ export function resolverPerdidaLocalizadaEstimadaDeLocal(
       tramo.id,
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
+      contexto,
     )
 
     if (resultadoComercial.tipo === 'sinDemanda' || resultadoComercial.tipo === 'sinCandidatoAdmisible') {

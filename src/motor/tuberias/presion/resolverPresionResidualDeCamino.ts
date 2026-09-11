@@ -105,6 +105,7 @@ import {
   type MotivoTramoSinPerdidaLocalizadaEstimada,
 } from './resolverPerdidaLocalizadaEstimadaDeLocal'
 import { resolverBalanceDePresion } from './resolverBalanceDePresion'
+import type { ContextoDeCalculoM2 } from '../contextoDeCalculoM2'
 
 // Union discriminada por metodologia (D-delta.40) -- nunca un booleano
 // "esEstimado": cada variante trae exactamente los datos auditables que
@@ -224,6 +225,14 @@ export function resolverPresionResidualDeCamino(
   catalogoArtefactos: readonly ArtefactoNormativo[],
   catalogoSistemasDeTuberia: readonly SistemaDeTuberiaCatalogado[],
   catalogoMateriales: readonly MaterialTuberia[],
+  // PERF-SCALE-01B: contexto de cálculo local a la resolución de M2.
+  // resolverEstadoModulo2 crea UNO y lo pasa a este orquestador por cada
+  // terminal -- así los Tramos troncales compartidos entre caminos, y los
+  // Tramos pedidos por varias etapas del mismo camino (distribuida,
+  // localizada), resuelven su hidráulica/diámetro UNA sola vez por
+  // resolución. Ausente ⇒ comportamiento previo byte a byte (cada llamada
+  // recalcula): es lo que hacen los call sites puntuales de la UI.
+  contexto?: ContextoDeCalculoM2,
 ): ResultadoPresionResidualDeCamino {
   const { redHidraulica } = proyecto
   if (redHidraulica === undefined) {
@@ -332,6 +341,7 @@ export function resolverPresionResidualDeCamino(
     catalogoSistemasDeTuberia,
     catalogoMateriales,
     incrementoVerticalPorNivel.incrementoPorTramoId,
+    contexto,
   )
   if (perdidaDistribuida.tipo === 'incompleta') {
     return { tipo: 'perdidaDistribuidaIncompleta', tramosNoResueltos: perdidaDistribuida.tramosNoResueltos }
@@ -346,6 +356,7 @@ export function resolverPresionResidualDeCamino(
       camino,
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
+      contexto,
     )
     if (perdidaLocalizada.tipo === 'incompleta') {
       return { tipo: 'perdidaLocalizadaIncompleta', tramosNoResueltos: perdidaLocalizada.tramosNoResueltos }
@@ -379,6 +390,7 @@ export function resolverPresionResidualDeCamino(
         redDelTerminal,
         catalogoArtefactos,
         catalogoSistemasDeTuberia,
+        contexto,
       )
       if (perdidaEstimada.tipo === 'incompleta') {
         return { tipo: 'perdidaLocalizadaEstimadaIncompleta', tramosNoResueltos: perdidaEstimada.tramosNoResueltos }

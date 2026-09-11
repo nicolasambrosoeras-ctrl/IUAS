@@ -18,6 +18,11 @@ import { resolverSimultaneidadHidraulicaDeTramo } from './simultaneidad/resolver
 import type { ResultadoSimultaneidadHidraulicaDeTramo } from './simultaneidad/resolverSimultaneidadHidraulicaDeTramo'
 import { calcularPredimensionamientoDeTramo } from './predimensionamiento/calcularPredimensionamientoDeTramo'
 import type { PredimensionamientoDeTramo } from './predimensionamiento/calcularPredimensionamientoDeTramo'
+import type { ContextoDeCalculoM2 } from './contextoDeCalculoM2'
+import {
+  registrarSolicitudHidraulicaDeTramo,
+  registrarCalculoHidraulicaDeTramo,
+} from './topologia/instrumentacionTopologica'
 
 export type ResultadoHidraulicoDeTramo =
   | {
@@ -35,7 +40,33 @@ export function resolverHidraulicaDeTramo(
   proyecto: Proyecto,
   tramoId: string,
   catalogoArtefactos: readonly ArtefactoNormativo[],
+  // PERF-SCALE-01B: contexto de cálculo local a la resolución de M2. Ausente
+  // ⇒ se recalcula siempre (comportamiento previo byte a byte). Presente ⇒
+  // el resultado de este Tramo se calcula UNA vez por resolución y se
+  // reutiliza en todos los caminos y etapas siguientes. La clave es sólo
+  // `tramoId`: durante una resolución el Proyecto/catálogo son inmutables,
+  // así que no hay dos resultados legítimos distintos para el mismo Tramo.
+  contexto?: ContextoDeCalculoM2,
 ): ResultadoHidraulicoDeTramo {
+  registrarSolicitudHidraulicaDeTramo()
+
+  const memoizado = contexto?.hidraulicaPorTramo.get(tramoId)
+  if (memoizado !== undefined) {
+    return memoizado
+  }
+
+  const resultado = calcularHidraulicaDeTramo(proyecto, tramoId, catalogoArtefactos)
+  contexto?.hidraulicaPorTramo.set(tramoId, resultado)
+  return resultado
+}
+
+function calcularHidraulicaDeTramo(
+  proyecto: Proyecto,
+  tramoId: string,
+  catalogoArtefactos: readonly ArtefactoNormativo[],
+): ResultadoHidraulicoDeTramo {
+  registrarCalculoHidraulicaDeTramo()
+
   const referencias = obtenerArtefactosAguasAbajo(proyecto, tramoId)
   const resueltos = resolverArtefactosReferenciados(proyecto, referencias)
   const computables = filtrarArtefactosComputables(resueltos)
