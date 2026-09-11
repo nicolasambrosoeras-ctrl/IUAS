@@ -51,7 +51,13 @@ export default defineConfig({
   ...(usarPreviewLocal
     ? {
         webServer: {
-          command: 'npm run preview -- --port 4173 --strictPort',
+          // `vite preview` resuelve `command` como 'serve' (no 'build'), así
+          // que el `base: '/IUAS/'` de vite.config.ts no se aplica solo --
+          // sin este --base explícito, el preview sirve los assets en la
+          // raíz mientras el index.html del build ya construido referencia
+          // `/IUAS/assets/...`, y esa ruta cae al fallback SPA (devuelve
+          // index.html con Content-Type text/html en vez del bundle JS).
+          command: 'npm run preview -- --port 4173 --strictPort --base /IUAS/',
           url: 'http://localhost:4173/IUAS/',
           reuseExistingServer: !process.env.CI,
           timeout: 60_000,
