@@ -826,6 +826,71 @@ summary > h3 {
   overflow-x: auto;
 }
 
+/* UI-M2-GROUP-01 §11/§12 -- encabezado de grupo (un Local con sus filas
+   AF/AC) dentro de la tabla de dimensionamiento. NO es una fila de datos
+   (fondo distinto, sin bordes de celda de datos) ni un acordeón nuevo:
+   sólo agrupa visualmente las 1-2 filas siguientes bajo un mismo título. */
+.tabla-tecnica tr.m2-fila-grupo td {
+  padding: 0.5rem 0.7rem 0.15rem;
+  font-size: var(--fs-meta);
+  font-weight: var(--peso-semibold);
+  letter-spacing: 0.02em;
+  color: var(--color-texto-2);
+  border-bottom: none;
+  background: transparent;
+}
+
+.tabla-tecnica tr.m2-fila-grupo:first-child td {
+  padding-top: 0;
+}
+
+/* UI-M2-GROUP-01 §6/§10/§34 -- lista colapsable de Unidades Funcionales
+   (sólo aparece con >1 UF, §5). Header como control real (`<button>`),
+   nunca un div con onClick. Responsive: flechas/título/resumen pueden
+   envolver en mobile (§35) sin overflow horizontal. */
+.lista-uf {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-md);
+  margin-top: var(--esp-lg);
+}
+
+.lista-uf__item {
+  border: 1px solid var(--color-borde);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.lista-uf__cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--esp-sm);
+  width: 100%;
+  padding: var(--esp-sm) var(--esp-md);
+  background: var(--color-superficie-2);
+  border: none;
+  text-align: left;
+  min-height: 2.5rem;
+}
+
+.lista-uf__flecha {
+  opacity: 0.6;
+}
+
+.lista-uf__titulo {
+  font-weight: var(--peso-semibold);
+}
+
+.lista-uf__resumen {
+  color: var(--color-texto-3);
+  font-size: var(--fs-ayuda);
+}
+
+.lista-uf__item > section {
+  padding: 0 var(--esp-md) var(--esp-md);
+}
+
 /* --- Control de DN adoptado (↓ DN ↑ · Auto), UI-01C §31-32 ---
    Presentación compacta y coherente; conserva ↓/↑/Auto/manual, el
    disabled en los extremos y el comportamiento exacto (el motor consume

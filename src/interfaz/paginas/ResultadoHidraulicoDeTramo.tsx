@@ -9,7 +9,7 @@
 // validarProyecto (gate en MotorDemandaPantalla), así que redHidraulica,
 // si existe, ya es estructuralmente válida y sus referencias a Artefactos
 // ya existen.
-import { memo, useMemo } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { sonPropsDeDimensionamientoEquivalentes } from './sonPropsDeDimensionamientoEquivalentes'
 import { sonPropsDeSeccionDeUnidadFuncionalEquivalentes } from './sonPropsDeSeccionDeUnidadFuncionalEquivalentes'
 import type { GranularidadHidraulica, MaterialTuberiaId, MetodoPerdidaDistribuida, MetodoPerdidaLocalizada, Proyecto, TipoDeLocal } from '../../modelo/proyecto'
@@ -49,6 +49,7 @@ import { AccesoriosDeTramoEditor } from './AccesoriosDeTramoEditor'
 import { LocalYRedCard } from './LocalYRedCard'
 import { EncabezadoDeEtapa } from './EncabezadoDeEtapa'
 import { ConstructorDeMontantes } from './ConstructorDeMontantes'
+import { elegirElementoActivoTrasCambio } from './estadoDeElementoActivo'
 
 // Duplicado intencional de la etiqueta homónima en MotorDemandaPantalla.tsx
 // (mismo criterio que aplicarParticipacionCritA8: segundo consumidor
@@ -544,6 +545,10 @@ function SeccionDeUnidadFuncionalBase({
         clave: fila.tramoId,
         etiqueta: etiquetaLocal,
         red: fila.red,
+        grupo: {
+          id: local.id,
+          etiqueta: `${etiquetaLocal} · ${local.artefactos.length} ${local.artefactos.length === 1 ? 'artefacto' : 'artefactos'}`,
+        },
         fila: resolverFilaDeDimensionamiento(
           proyecto,
           fila.tramoId,
@@ -587,6 +592,124 @@ function SeccionDeUnidadFuncionalBase({
 }
 
 const SeccionDeUnidadFuncional = memo(SeccionDeUnidadFuncionalBase, sonPropsDeSeccionDeUnidadFuncionalEquivalentes)
+
+// UI-M2-GROUP-01 (§3-§10): jerarquía progresiva de Unidades Funcionales.
+//
+// - 1 UF (o 0): sin acordeón -- se renderiza tal cual como hoy (§5). No hay
+//   estado "activa" visible, no hay header colapsable.
+// - >1 UF: cada UF pasa a un header compacto colapsable; UNA sola UF activa
+//   por vez (§6/§7). El contenido de las UF no activas NO se monta (§9): no
+//   se instancia `SeccionDeUnidadFuncional` para ellas, así que ningún
+//   Local/AF/AC/editor de esa UF existe en el DOM mientras está colapsada.
+//
+// Estado 100% transitorio de UI (§7): vive en un useState local a este
+// componente, se pierde al desmontar Tuberías, nunca se persiste en
+// Proyecto ni se exporta. Detecta "UF nueva" comparando los ids de
+// `unidadesFuncionales` entre renders (useRef) -- agregar o duplicar una UF
+// cambia la referencia del array (igual que dispara el memo EXTERNO de
+// ResultadoHidraulicoDeTramo), así que ese cambio de referencia es la señal
+// de entrada al efecto; el contenido (ids agregados/quitados) decide qué UF
+// queda activa (elegirElementoActivoTrasCambio, compartida con Montantes).
+function ListaDeUnidadesFuncionales({
+  proyecto,
+  catalogoArtefactos,
+  filasPrincipalesDeLocales,
+  onCambiar,
+  contextoDeCalculo,
+}: {
+  proyecto: Proyecto
+  catalogoArtefactos: readonly ArtefactoNormativo[]
+  filasPrincipalesDeLocales: ReturnType<typeof identificarFilasPrincipalesDeLocales>
+  onCambiar: (proyecto: Proyecto) => void
+  contextoDeCalculo: ContextoDeCalculoM2
+}) {
+  const unidadesFuncionales = proyecto.unidadesFuncionales
+  const [ufActivaId, setUfActivaId] = useState<string | undefined>(() => unidadesFuncionales[0]?.id)
+  const idsAnterioresRef = useRef<readonly string[]>(unidadesFuncionales.map((uf) => uf.id))
+
+  useEffect(() => {
+    const idsActuales = unidadesFuncionales.map((uf) => uf.id)
+    const idsAnteriores = idsAnterioresRef.current
+    idsAnterioresRef.current = idsActuales
+    setUfActivaId((activa) => elegirElementoActivoTrasCambio(idsAnteriores, idsActuales, activa))
+  }, [unidadesFuncionales])
+
+  if (unidadesFuncionales.length <= 1) {
+    return (
+      <>
+        {unidadesFuncionales.map((uf) => (
+          <SeccionDeUnidadFuncional
+            key={uf.id}
+            proyecto={proyecto}
+            uf={uf}
+            catalogoArtefactos={catalogoArtefactos}
+            filasPrincipalesDeLocales={filasPrincipalesDeLocales}
+            onCambiar={onCambiar}
+            contextoDeCalculo={contextoDeCalculo}
+          />
+        ))}
+      </>
+    )
+  }
+
+  return (
+    <section className="lista-uf">
+      {unidadesFuncionales.map((uf) => {
+        const activa = uf.id === ufActivaId
+        return (
+          <div className="lista-uf__item" key={uf.id}>
+            <CabeceraDeUnidadFuncional uf={uf} activa={activa} onAbrir={() => setUfActivaId(uf.id)} />
+            {activa ? (
+              <SeccionDeUnidadFuncional
+                proyecto={proyecto}
+                uf={uf}
+                catalogoArtefactos={catalogoArtefactos}
+                filasPrincipalesDeLocales={filasPrincipalesDeLocales}
+                onCambiar={onCambiar}
+                contextoDeCalculo={contextoDeCalculo}
+              />
+            ) : null}
+          </div>
+        )
+      })}
+    </section>
+  )
+}
+
+// Header compacto de una UF colapsada/activa (§10): nombre + nivel + un
+// resumen barato (cantidad de Locales y de artefactos, derivados
+// directamente de `uf.locales` -- sin resolvers hidráulicos, §10 "no
+// ejecutar resolvers pesados sólo para decorar el header"). `<button>` real
+// con `aria-expanded` (§34): controla la UF activa por teclado, no depende
+// solo del ícono.
+function CabeceraDeUnidadFuncional({
+  uf,
+  activa,
+  onAbrir,
+}: {
+  uf: Proyecto['unidadesFuncionales'][number]
+  activa: boolean
+  onAbrir: () => void
+}) {
+  const nivelTexto = uf.nivel === undefined ? 'nivel sin clasificar' : nombreDeNivel(uf.nivel)
+  const cantidadLocales = uf.locales.length
+  const cantidadArtefactos = uf.locales.reduce((total, local) => total + local.artefactos.length, 0)
+
+  return (
+    <button type="button" className="lista-uf__cabecera" aria-expanded={activa} onClick={onAbrir}>
+      <span className="lista-uf__flecha" aria-hidden="true">
+        {activa ? '▼' : '▶'}
+      </span>
+      <span className="lista-uf__titulo">
+        {uf.nombre} · {nivelTexto}
+      </span>
+      <span className="lista-uf__resumen">
+        {cantidadLocales} {cantidadLocales === 1 ? 'local' : 'locales'} · {cantidadArtefactos}{' '}
+        {cantidadArtefactos === 1 ? 'artefacto' : 'artefactos'}
+      </span>
+    </button>
+  )
+}
 
 function formatearNumeroM(valor: number): string {
   return `${valor.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m`
@@ -659,17 +782,13 @@ function ResultadoHidraulicoDeTramoBase({
             onCambiar={onCambiar}
           />
 
-          {proyecto.unidadesFuncionales.map((uf) => (
-            <SeccionDeUnidadFuncional
-              key={uf.id}
-              proyecto={proyecto}
-              uf={uf}
-              catalogoArtefactos={catalogoArtefactos}
-              filasPrincipalesDeLocales={filasPrincipalesDeLocales}
-              onCambiar={onCambiar}
-              contextoDeCalculo={contextoDeCalculo}
-            />
-          ))}
+          <ListaDeUnidadesFuncionales
+            proyecto={proyecto}
+            catalogoArtefactos={catalogoArtefactos}
+            filasPrincipalesDeLocales={filasPrincipalesDeLocales}
+            onCambiar={onCambiar}
+            contextoDeCalculo={contextoDeCalculo}
+          />
         </>
       )}
     </details>

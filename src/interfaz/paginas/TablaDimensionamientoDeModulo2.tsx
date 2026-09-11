@@ -64,6 +64,16 @@ export type EntradaDeTabla = {
   // solo el texto de DN (fila.dnTexto).
   readonly controlDn?: ControlDeDnDeTramo | undefined
   readonly onCambiarDnAdoptado?: ((denominacion: string | undefined) => void) | undefined
+  // UI-M2-GROUP-01 (§11/§12): agrupación visual de filas por Local -- AF y
+  // AC de un mismo Local ya NO se leen como dos puntos físicos distintos,
+  // sino como dos redes del mismo Local. Cuando dos entradas consecutivas
+  // comparten `grupo.id` se pinta UN solo encabezado de grupo antes de la
+  // primera; NO es un acordeón nuevo (§11: "Local no es otro nivel
+  // colapsable en este slice") -- ambas filas quedan igual de visibles y
+  // editables que antes, solo con un título compartido arriba. Ausente
+  // (undefined) en Distribución general/secundaria y en Segmentos de
+  // montante: ahí cada fila sigue siendo su propia entidad, sin cambios.
+  readonly grupo?: { readonly id: string; readonly etiqueta: string } | undefined
 }
 
 function CeldaLongitud({ entrada }: { entrada: EntradaDeTabla }) {
@@ -139,12 +149,19 @@ export function TablaDimensionamientoDeModulo2({
           </tr>
         </thead>
         <tbody>
-          {entradas.map((entrada) => {
+          {entradas.map((entrada, indice) => {
             const { fila } = entrada
             const tieneDetalle = entrada.renderDetalle !== undefined
             const expandida = filasExpandidas.has(entrada.clave)
+            const grupoAnterior = indice === 0 ? undefined : entradas[indice - 1]!.grupo?.id
+            const mostrarEncabezadoDeGrupo = entrada.grupo !== undefined && entrada.grupo.id !== grupoAnterior
             return (
               <Fragment key={entrada.clave}>
+                {mostrarEncabezadoDeGrupo ? (
+                  <tr className="m2-fila-grupo">
+                    <td colSpan={CANTIDAD_DE_COLUMNAS}>{entrada.grupo!.etiqueta}</td>
+                  </tr>
+                ) : null}
                 <tr>
                   <td>
                     {tieneDetalle ? (
