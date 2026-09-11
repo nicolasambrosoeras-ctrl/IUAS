@@ -1882,6 +1882,78 @@ salvo bug inequívoco o decisión roja explícita.
     del usuario sobre el deploy (`a=1 → a=2 → a=1`, Qc + velocidad de
     montante + velocidad de alimentación general).
 
+- **D-δ.105 — UI-M2-GROUP-02: pulido de acordeones (0 o 1 abierto) +
+  jerarquía visual Local → Red.** Slice UI/UX acotado; hidráulica,
+  fórmulas, M1/M3/M4, schema, reconciliación y performance del motor sin
+  cambios.
+  - **Acordeones (§1):** la regla de UI-M2-GROUP-01 era "siempre queda
+    uno abierto" (un click sólo podía CAMBIAR cuál). Pasa a "0 o 1
+    abierto": el mismo `<button>` header que ya controlaba la UF/montante
+    activa ahora alterna -- click en el elemento ya abierto lo cierra
+    (`setUfActivaId((activa) => (activa === uf.id ? undefined : uf.id))`
+    en `ListaDeUnidadesFuncionales`, mismo patrón en
+    `ConstructorDeMontantes` para `montanteActivoId`). El estado
+    `string | undefined` ya lo soportaba desde UI-M2-GROUP-01 (
+    `elegirElementoActivoTrasCambio` devuelve `undefined` cuando
+    corresponde) -- no hizo falta tocar `estadoDeElementoActivo.ts`, sólo
+    el `onClick` de cada header. Crear/duplicar una UF o crear un montante
+    sigue dejando el nuevo activo/abierto (sin cambios: pasa por el mismo
+    efecto de "elemento nuevo" de UI-M2-GROUP-01). Unmount real preservado
+    también en el estado "0 abiertas": ningún `SeccionDeUnidadFuncional`
+    ni `MontanteCardCuerpo` se monta si `activaId === undefined`, mismo
+    mecanismo condicional en JSX que ya existía (no hay unmount nuevo que
+    escribir).
+  - **Jerarquía visual Local → Red (§2):** en la tabla de dimensionamiento
+    de una UF, el encabezado de grupo del Local ("Baño 1 · 4 artefactos")
+    quedaba con `--fs-meta` (0.75rem) y `--color-texto-2` (gris medio) --
+    MÁS chico y MÁS claro que sus propias filas hijas AF/AC ("Baño 1 · 4
+    puntos"), que heredaban el color/tamaño de texto por defecto de la
+    tabla (oscuro, `--fs-body`). Invertía la jerarquía real. Fix: 1)
+    `EntradaDeTabla.grupo` pasa de `{ id, etiqueta: string }` (una cadena
+    concatenada) a `{ id, nombre, meta? }` para poder pintar cada parte
+    distinto; 2) el encabezado de grupo se pinta en dos `<span>`:
+    `.m2-fila-grupo__nombre` (nombre del Local, `--color-texto`,
+    `--peso-semibold`, `--fs-body` -- un punto más grande que las filas
+    hijas) y `.m2-fila-grupo__meta` (cantidad de artefactos,
+    `--color-texto-2`, `--fs-meta`, sin cambios); 3) las filas AF/AC de un
+    Local agrupado reciben la clase `m2-fila-agrupada` en su `<tr>`
+    (`entrada.grupo !== undefined`) y bajan a `--fs-ayuda` (0.8125rem) +
+    `--color-texto-2` en su primera celda -- Distribución general/
+    secundaria y Segmentos de montante no pasan `grupo`, así que no
+    reciben la clase y conservan su estilo de fila normal (no son hijas de
+    nada). Pills AF azul/celeste y AC salmón (`BadgeDeRed`), indentación y
+    layout de card sin cambios -- sólo tipografía/color de texto.
+  - **No se tocó:** ningún resolver del motor, `sonPropsDe*Equivalentes`
+    (comparadores de memo), `Proyecto`/schema, ni las reglas M3/M4.
+  - **Tests:** `ResultadoHidraulicoDeTramo.agrupacionUf.test.ts` (2 casos
+    SSR actualizados: el encabezado de grupo ahora se verifica por los dos
+    `<span>` `__nombre`/`__meta` en vez de una cadena concatenada; la
+    transición interactiva de acordeón sigue fuera del alcance de SSR,
+    igual que en UI-M2-GROUP-01 -- la cubre el E2E). `tests/e2e/
+    multi-uf.spec.ts` (+2 casos): click en la UF ya abierta la cierra (0
+    UF montadas, sin heading ni tabla en el DOM) y, desde "0 abiertas",
+    abrir una la deja sola. `tests/e2e/montantes.spec.ts` (+1 caso):
+    mismo patrón para montantes -- cerrar el activo deja 0 `.montante-
+    card__cuerpo` montados, abrir el otro desde cero deja exactamente 1.
+    Vitest **1750/1750** (sin cambio de total: 2 tests existentes
+    reescritos, no agregados -- la cobertura nueva de interacción vive en
+    E2E, mismo criterio que UI-M2-GROUP-01); `tsc`/`e2e:typecheck`/`build`
+    verdes; ESLint **11/0/0** sin cambios (baseline idéntico). E2E
+    dirigido (`multi-uf.spec.ts` + `montantes.spec.ts`, 13/13) y `smoke.spec.ts`
+    verdes desktop contra build local. Verificación visual manual (captura
+    de pantalla del build local): "Baño 1" en negro/semibold domina sobre
+    "Baño 1 · 4 puntos [Agua fría]"/"[Agua caliente]" en gris, confirmado.
+  - **Performance:** sin cambios de fondo -- el beneficio de UI-M2-GROUP-01
+    (máximo un cuerpo pesado montado, nunca reintroducir todos los
+    elementos en DOM) se preserva intacto; "0 activos" monta MENOS que
+    "1 activo", nunca más. No se corrió fuzz Nivel A completo (§5 del
+    brief: no se tocó estado estructural del Proyecto, sólo estado
+    transitorio de UI y presentación) -- se corrió un fuzz proporcional
+    (seed `778899`, 3 runs × 25 pasos, desktop) contra el build local
+    antes del push.
+  - **Estado:** `UI-M2-GROUP-02: CERRADO — pendiente validación manual`
+    del usuario sobre el deploy.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
