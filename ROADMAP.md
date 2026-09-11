@@ -1791,6 +1791,97 @@ salvo bug inequívoco o decisión roja explícita.
     unmount real, documentar candidato futuro `PERF-SCALE-UI-02` (no
     decidir ni implementar sin que el usuario priorice esa escala).
 
+- **D-δ.104 — FIX-M2-A-PROP-01: cambiar `a` (Tipología de proyecto)
+  actualizaba Qc en Demanda pero dejaba DN/V stale en Tuberías
+  (Alimentación general y Montantes).** Regresión de correctitud
+  hidráulica reportada por el usuario en producción tras UI-M2-GROUP-01:
+  Qc SÍ cambiaba al pasar de `a=1` a `a=2` (Demanda/M1, sin memo), pero
+  el diámetro/velocidad de la Alimentación general y de los montantes
+  quedaban con el valor previo al cambio. La fórmula de simultaneidad
+  (`Qmax = Σ(n·qu)`, `Kc = 1/√(n-1)`, `K = Kc·a`, `Qc = Qmax·K`) y
+  CRIT-A14 (regla especial de `aEfectivo` para vivienda multifamiliar,
+  `determinarAEfectivo.ts`) **no se tocaron** — no era un bug de fórmula.
+  - **Causa raíz — CASO A (memo no invalida), no motor:**
+    `sonPropsDeDimensionamientoEquivalentes` (`src/interfaz/paginas/
+    sonPropsDeDimensionamientoEquivalentes.ts`), el comparador de
+    `React.memo` de `ResultadoHidraulicoDeTramo` introducido en
+    PERF-SCALE-01D (commit `b4b535b`) para evitar re-render de
+    dimensionamiento ante ediciones que sólo afectan presión, enumeraba
+    explícitamente los campos de `Proyecto` que el árbol de Tuberías lee
+    (`unidadesFuncionales`, `redHidraulica.tramos`, `nodos.tee`,
+    `configuracionHidraulica`, `modoTrabajo`, `montantes`) pero omitía
+    `proyecto.parametros.tipoDeProyecto` — leído directamente por
+    `resolverHidraulicaDeTramo.ts` (`resolverSimultaneidadHidraulicaDeTramo
+    (proyecto.parametros.tipoDeProyecto, aportes)`) para el `aEfectivo`/Qc
+    de cada Tramo. Como `conTipoDeProyecto` sólo reconstruye
+    `proyecto.parametros` (spread superficial), todos los campos que el
+    comparador SÍ miraba seguían siendo `===` que antes → el memo
+    devolvía `true` → React se saltaba por completo el render de
+    `ResultadoHidraulicoDeTramoBase` (Alimentación general, Montantes,
+    UF) aunque `proyecto` hubiera cambiado de referencia. El mismo
+    olvido existía, redundantemente, en el comparador anidado por-UF
+    `sonPropsDeSeccionDeUnidadFuncionalEquivalentes` (PERF-SCALE-01E).
+    UI-M2-GROUP-01 fue una pista falsa: no toca ningún comparador de
+    memo ni introduce cache nueva (confirmado en el propio mensaje de
+    `73ca5d2`); sólo agrega montaje condicional dentro del mismo árbol
+    que ya estaba bloqueado desde PERF-SCALE-01D.
+  - **Motor limpio, sólo UI stale:** `resolverHidraulicaDeTramo`,
+    `ContextoDeCalculoM2` (recreado por identidad de `proyecto` vía
+    `useMemo`, PERF-SCALE-01C/01D) y los índices topológicos compartidos
+    de PERF-SCALE-01D no tienen ninguna dependencia stale ni cache
+    cruzado entre resoluciones — si el árbol vuelve a renderizar, el
+    motor siempre calcula Qc/DN/V frescos a partir del `proyecto` actual.
+  - **Fix quirúrgico:** agregar
+    `prev.proyecto.parametros.tipoDeProyecto === next.proyecto.parametros.tipoDeProyecto`
+    a ambos comparadores (`sonPropsDeDimensionamientoEquivalentes.ts`,
+    `sonPropsDeSeccionDeUnidadFuncionalEquivalentes.ts`). Ninguna fórmula,
+    modelo, UI ni responsabilidad M1-M4 cambió; PERF-SCALE-01D y
+    UI-M2-GROUP-01 no se revirtieron ni se regresaron (siguen evitando
+    el re-render ante ediciones que sólo afectan presión/pelo de agua/
+    desnivel — cubierto por los tests preexistentes de ambos archivos).
+  - **Propagación verificada:** Alimentación general y montantes cuya
+    demanda aguas abajo depende de la topología recalculan correctamente;
+    `a` es un parámetro de `Proyecto` (no por-UF — CRIT-A14/D-β.2, ver
+    PENDIENTES-DE-ARQUITECTURA.md "Ubicación conceptual del coeficiente
+    de mayoración `a`"), así que un cambio de tipología afecta a todos
+    los tramos con n>1 del proyecto, nunca sólo a un montante aislado.
+    AC comparte la misma infraestructura de M2 que AF (mismo motor,
+    mismo comparador) — no se reabrieron reglas M3/M4.
+  - **DN/V:** el fixture end-to-end (11 artefactos, `t-general` +
+    montante con 2 Locales) muestra un salto real de DN comercial al
+    duplicar `a` (25 mm → 40 mm, V 2,9 → 2,2 m/s) — Qc duplicado empuja
+    a un DN mayor, nunca menor; el test de motor
+    (`resolverHidraulicaDeTramo.propagacionA.test.ts`) cubre también la
+    propiedad `V = Q/A` y, si el DN no cruza umbral, que V se duplica
+    exactamente junto con Q.
+  - **Tests nuevos:** `sonPropsDeDimensionamientoEquivalentes.test.ts`
+    y `sonPropsDeSeccionDeUnidadFuncionalEquivalentes.test.ts` (+1 caso
+    cada uno: cambiar `tipoDeProyecto` → DISTINTAS/debe re-renderizar).
+    `resolverHidraulicaDeTramo.propagacionA.test.ts` (nuevo, 4 casos):
+    Qc global M1 duplica exacto de `a=1` a `a=2`; `t-general` (alimentación
+    general) y `t-af-bano` (rama tipo montante) duplican Qc de forma
+    independiente; invariante `V = Q/A` con el Di real de cada candidato
+    y verificación del salto de DN. Deliberadamente NO se usó
+    `viviendaMultifamiliar` como fixture de `a=2` — con una sola UF,
+    CRIT-A14 le da `aEfectivo=1` (igual que `a=1`) y el test daría un
+    falso negativo sin bug real; se usó `oficinaPublica` (`a=2` base, sin
+    la regla especial) para no reabrir ese criterio. `tests/e2e/
+    propagacion-a.spec.ts` (nuevo, 2 casos, E2E real de UI): Qc, V y DN
+    de Alimentación general cambian al pasar de `a=1` a `a=2` y
+    revierten exactamente al volver a `a=1` (sin cache unidireccional);
+    V de un montante con 2 Locales asignados también cambia. Vitest
+    **1750/1750** (1744 + 6); `tsc`/`e2e:typecheck`/`build` verdes;
+    ESLint **11/0/0** sin cambios (baseline idéntico).
+  - **Nota de verificación:** el E2E nuevo confirmó, corriendo contra
+    producción (URL por defecto de `baseURLEfectiva` sin
+    `IUAS_BASE_URL`), que el bug está efectivamente presente en el
+    deploy actual antes de este fix, y confirmó contra el build local
+    (`IUAS_PREVIEW=1 IUAS_BASE_URL=http://localhost:4173/IUAS/`) que el
+    fix lo resuelve.
+  - **Estado:** `FIX-M2-A-PROP-01: CERRADO — pendiente validación manual`
+    del usuario sobre el deploy (`a=1 → a=2 → a=1`, Qc + velocidad de
+    montante + velocidad de alimentación general).
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
