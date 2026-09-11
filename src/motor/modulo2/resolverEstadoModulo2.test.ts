@@ -164,7 +164,7 @@ describe('resolverEstadoModulo2 — noIniciado', () => {
       catalogoMaterialesTuberia,
     )
 
-    expect(resultado).toEqual({ estado: 'noIniciado' })
+    expect(resultado).toEqual({ estado: 'noIniciado', candidatos: [] })
   })
 
   it('redHidraulica presente pero vacia (sin nodos) NO es noIniciado -- ya esta "iniciada", cae en incompleto', () => {
@@ -179,7 +179,11 @@ describe('resolverEstadoModulo2 — noIniciado', () => {
       catalogoMaterialesTuberia,
     )
 
-    expect(resultado).toEqual({ estado: 'incompleto', motivos: [{ tipo: 'sinTerminalesHidraulicos' }] })
+    expect(resultado).toEqual({
+      estado: 'incompleto',
+      motivos: [{ tipo: 'sinTerminalesHidraulicos' }],
+      candidatos: [],
+    })
   })
 })
 
@@ -196,16 +200,19 @@ describe('resolverEstadoModulo2 — incompleto (falta informacion legitima)', ()
       catalogoMaterialesTuberia,
     )
 
-    expect(resultado).toEqual({
-      estado: 'incompleto',
-      motivos: [
-        {
-          tipo: 'perdidaDistribuidaIncompleta',
-          nodoId: 'terminal',
-          tramosNoResueltos: [{ tramoId: 't0', motivo: 'sinLongitud' }],
-        },
-      ],
-    })
+    expect(resultado.estado).toBe('incompleto')
+    if (resultado.estado !== 'incompleto') return
+    expect(resultado.motivos).toEqual([
+      {
+        tipo: 'perdidaDistribuidaIncompleta',
+        nodoId: 'terminal',
+        tramosNoResueltos: [{ tramoId: 't0', motivo: 'sinLongitud' }],
+      },
+    ])
+    // PERF-SCALE-01C: candidatos expone el resultado crudo por terminal --
+    // 1 entrada (único terminal del fixture), con el mismo tipo que motivó
+    // la incompletitud.
+    expect(resultado.candidatos).toEqual([{ nodoId: 'terminal', resultado: expect.objectContaining({ tipo: 'perdidaDistribuidaIncompleta' }) }])
   })
 
   it('falta Pdisponible -> incompleto, nunca error', () => {
@@ -220,7 +227,11 @@ describe('resolverEstadoModulo2 — incompleto (falta informacion legitima)', ()
       catalogoMaterialesTuberia,
     )
 
-    expect(resultado).toEqual({ estado: 'incompleto', motivos: [{ tipo: 'presionDisponibleNoProvista' }] })
+    expect(resultado).toEqual({
+      estado: 'incompleto',
+      motivos: [{ tipo: 'presionDisponibleNoProvista' }],
+      candidatos: [],
+    })
   })
 
   it('falta hfMedidor_mca -> incompleto, nunca error', () => {
@@ -235,10 +246,10 @@ describe('resolverEstadoModulo2 — incompleto (falta informacion legitima)', ()
       catalogoMaterialesTuberia,
     )
 
-    expect(resultado).toEqual({
-      estado: 'incompleto',
-      motivos: [{ tipo: 'balanceIncompleto', nodoId: 'terminal', terminosFaltantes: ['hfMedidor'] }],
-    })
+    expect(resultado.estado).toBe('incompleto')
+    if (resultado.estado !== 'incompleto') return
+    expect(resultado.motivos).toEqual([{ tipo: 'balanceIncompleto', nodoId: 'terminal', terminosFaltantes: ['hfMedidor'] }])
+    expect(resultado.candidatos).toEqual([{ nodoId: 'terminal', resultado: expect.objectContaining({ tipo: 'balanceIncompleto' }) }])
   })
 
   it('modo detallado, accesorios sin relevar (undefined) -> incompleto con motivo perdidaLocalizadaIncompleta, impide completo', () => {
@@ -253,16 +264,16 @@ describe('resolverEstadoModulo2 — incompleto (falta informacion legitima)', ()
       catalogoMaterialesTuberia,
     )
 
-    expect(resultado).toEqual({
-      estado: 'incompleto',
-      motivos: [
-        {
-          tipo: 'perdidaLocalizadaIncompleta',
-          nodoId: 'terminal',
-          tramosNoResueltos: [{ tramoId: 't0', motivo: 'sinRelevar' }],
-        },
-      ],
-    })
+    expect(resultado.estado).toBe('incompleto')
+    if (resultado.estado !== 'incompleto') return
+    expect(resultado.motivos).toEqual([
+      {
+        tipo: 'perdidaLocalizadaIncompleta',
+        nodoId: 'terminal',
+        tramosNoResueltos: [{ tramoId: 't0', motivo: 'sinRelevar' }],
+      },
+    ])
+    expect(resultado.candidatos).toEqual([{ nodoId: 'terminal', resultado: expect.objectContaining({ tipo: 'perdidaLocalizadaIncompleta' }) }])
   })
 
   it('cobertura fisica incompleta (artefacto normativo de M1 sin referencia en redHidraulica) -> incompleto', () => {
@@ -697,10 +708,12 @@ describe("resolverEstadoModulo2 — cota por UnidadFuncional en granularidadHidr
       catalogoMaterialesTuberia,
     )
 
-    expect(resultado).toEqual({
-      estado: 'incompleto',
-      motivos: [{ tipo: 'unidadFuncionalSinCotaDeReferencia', unidadFuncionalId: 'uf-1' }],
-    })
+    expect(resultado.estado).toBe('incompleto')
+    if (resultado.estado !== 'incompleto') return
+    expect(resultado.motivos).toEqual([{ tipo: 'unidadFuncionalSinCotaDeReferencia', unidadFuncionalId: 'uf-1' }])
+    // PERF-SCALE-01C: candidatos trae las 3 entradas (una por terminal de
+    // la UF), aunque motivos las haya deduplicado a un único motivo.
+    expect(resultado.candidatos).toHaveLength(3)
   })
 
   it('UF CON cotaHidraulicaReferencia_m -> completo, sin pedir cota individual a ninguno de los 3 terminales', () => {
