@@ -112,14 +112,33 @@ export type DiagnosticoTerminalFueraDeAlcanceModulo2 = {
   readonly artefactoIdCatalogo: string
 }
 
+// PERF-SCALE-01C: `candidatos` expone el resultado CRUDO por terminal
+// (mismo `resolverPresionResidualDeCamino` que ya se ejecutó para decidir
+// `estado`) para que un consumidor de UI (PanelDePresionDeModulo2) pueda
+// armar su tabla/terminal-crítico sin volver a recorrer el árbol de
+// presión de cada terminal por su cuenta. `[]` en las ramas que cortan
+// ANTES de iterar terminales (noIniciado, error estructural, sin
+// terminales, sin Pdisponible) -- exactamente los casos en que un
+// consumidor tampoco tendría nada que iterar. Es un dato DERIVADO, no
+// hidráulico nuevo: no cambia qué calcula el motor, sólo evita que lo
+// vuelvan a pedir.
 export type EstadoModulo2 =
-  | { readonly estado: 'noIniciado' }
-  | { readonly estado: 'incompleto'; readonly motivos: readonly DiagnosticoIncompletitudModulo2[] }
-  | { readonly estado: 'error'; readonly problemas: readonly DiagnosticoErrorModulo2[] }
+  | { readonly estado: 'noIniciado'; readonly candidatos: readonly CandidatoTerminal[] }
+  | {
+      readonly estado: 'incompleto'
+      readonly motivos: readonly DiagnosticoIncompletitudModulo2[]
+      readonly candidatos: readonly CandidatoTerminal[]
+    }
+  | {
+      readonly estado: 'error'
+      readonly problemas: readonly DiagnosticoErrorModulo2[]
+      readonly candidatos: readonly CandidatoTerminal[]
+    }
   | {
       readonly estado: 'completo'
       readonly terminalMasDesfavorable: TerminalDeterminado
       readonly terminalesFueraDeAlcance: readonly DiagnosticoTerminalFueraDeAlcanceModulo2[]
+      readonly candidatos: readonly CandidatoTerminal[]
     }
 
 export function resolverEstadoModulo2(
@@ -150,7 +169,7 @@ export function resolverEstadoModulo2(
   // documenta asi, ver modelo/redHidraulica). Una red presente aunque
   // vacia YA es "iniciada" -- cae en las etapas siguientes, nunca aca.
   if (redHidraulica === undefined) {
-    return { estado: 'noIniciado' }
+    return { estado: 'noIniciado', candidatos: [] }
   }
 
   // Integridad estructural PRIMERO, sin excepcion: el resto del pipeline
@@ -167,12 +186,13 @@ export function resolverEstadoModulo2(
     return {
       estado: 'error',
       problemas: problemasEstructurales.map((problema) => ({ tipo: 'problemaDeValidacion' as const, problema })),
+      candidatos: [],
     }
   }
 
   const nodosTerminales = redHidraulica.nodos.filter((nodo) => nodo.referencia?.tipo === 'artefacto')
   if (nodosTerminales.length === 0) {
-    return { estado: 'incompleto', motivos: [{ tipo: 'sinTerminalesHidraulicos' }] }
+    return { estado: 'incompleto', motivos: [{ tipo: 'sinTerminalesHidraulicos' }], candidatos: [] }
   }
 
   const motivos: DiagnosticoIncompletitudModulo2[] = []
@@ -189,11 +209,17 @@ export function resolverEstadoModulo2(
     // a mano el resto del pipeline (camino/desnivel/perdidas) que esa
     // funcion ya compone -- mismo criterio de "componer, no duplicar".
     motivos.push({ tipo: 'presionDisponibleNoProvista' })
-    return { estado: 'incompleto', motivos }
+    return { estado: 'incompleto', motivos, candidatos: [] }
   }
 
   const errores: DiagnosticoErrorModulo2[] = []
-  const candidatos: CandidatoTerminal[] = []
+  const candidatosCompletos: CandidatoTerminal[] = []
+  // PERF-SCALE-01C: resultado CRUDO de CADA terminal (uno por nodo,
+  // cualquiera sea `resultado.tipo`) -- se expone en `EstadoModulo2.candidatos`
+  // para que un consumidor de UI no tenga que recorrer el árbol de presión
+  // una segunda vez. Distinto de `candidatosCompletos` (sólo 'balanceCompleto',
+  // la entrada de resolverTerminalMasDesfavorable).
+  const candidatosPorTerminal: CandidatoTerminal[] = []
   const terminalesFueraDeAlcance: DiagnosticoTerminalFueraDeAlcanceModulo2[] = []
   // D-delta.46: varios terminales de la MISMA UF reportan
   // independientemente 'unidadFuncionalSinCotaDeReferencia' -- se
@@ -222,6 +248,7 @@ export function resolverEstadoModulo2(
       catalogoMateriales,
       contexto,
     )
+    candidatosPorTerminal.push({ nodoId: nodo.id, resultado })
 
     switch (resultado.tipo) {
       case 'topologiaNoResoluble':
@@ -266,7 +293,7 @@ export function resolverEstadoModulo2(
         motivos.push({ tipo: 'balanceIncompleto', nodoId: nodo.id, terminosFaltantes: resultado.terminosFaltantes })
         break
       case 'balanceCompleto':
-        candidatos.push({ nodoId: nodo.id, resultado })
+        candidatosCompletos.push({ nodoId: nodo.id, resultado })
         break
     }
   }
@@ -276,22 +303,26 @@ export function resolverEstadoModulo2(
   }
 
   if (errores.length > 0) {
-    return { estado: 'error', problemas: errores }
+    return { estado: 'error', problemas: errores, candidatos: candidatosPorTerminal }
   }
   if (motivos.length > 0) {
-    return { estado: 'incompleto', motivos }
+    return { estado: 'incompleto', motivos, candidatos: candidatosPorTerminal }
   }
-  if (candidatos.length === 0) {
+  if (candidatosCompletos.length === 0) {
     // Todo terminal existente quedo excluido por falta de
     // presionMinima_kgcm2 publicada -- no hay ningun candidato real con
     // el que determinar un terminal critico. Nunca se declara 'completo'
     // sin un terminalMasDesfavorable real (ver comentario de archivo).
-    return { estado: 'incompleto', motivos: [{ tipo: 'sinTerminalesConPresionMinimaPublicada' }] }
+    return {
+      estado: 'incompleto',
+      motivos: [{ tipo: 'sinTerminalesConPresionMinimaPublicada' }],
+      candidatos: candidatosPorTerminal,
+    }
   }
 
-  const terminalMasDesfavorable = resolverTerminalMasDesfavorable(candidatos)
+  const terminalMasDesfavorable = resolverTerminalMasDesfavorable(candidatosCompletos)
   if (terminalMasDesfavorable.tipo !== 'determinado') {
-    // Precondicion imposible: candidatos contiene EXCLUSIVAMENTE
+    // Precondicion imposible: candidatosCompletos contiene EXCLUSIVAMENTE
     // resultados 'balanceCompleto' (ver el switch de arriba), asi que
     // resolverTerminalMasDesfavorable no puede excluir a ninguno --
     // 'candidatoProvisional'/'sinCandidatoDeterminable' aca serian una
@@ -301,5 +332,5 @@ export function resolverEstadoModulo2(
     )
   }
 
-  return { estado: 'completo', terminalMasDesfavorable, terminalesFueraDeAlcance }
+  return { estado: 'completo', terminalMasDesfavorable, terminalesFueraDeAlcance, candidatos: candidatosPorTerminal }
 }

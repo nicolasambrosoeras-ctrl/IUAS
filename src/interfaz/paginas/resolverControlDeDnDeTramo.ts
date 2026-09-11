@@ -10,6 +10,7 @@ import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia
 import { obtenerSistemaDeTuberia } from '../../motor/tuberias/sistemaDeTuberia'
 import { obtenerEntradasOrdenadasPorDiametroInterior } from '../../motor/tuberias/diametroComercial/obtenerEntradasOrdenadasPorDiametroInterior'
 import { resolverDiametroComercialDeTramo } from '../../motor/tuberias/resolverDiametroComercialDeTramo'
+import type { ContextoDeCalculoM2 } from '../../motor/tuberias/contextoDeCalculoM2'
 
 export type ControlDeDnDeTramo = {
   // Hay un DN comercial resoluble para este Tramo (con o sin override).
@@ -43,10 +44,19 @@ export function resolverControlDeDnDeTramo(
   proyecto: Proyecto,
   tramoId: string,
   catalogoArtefactos: readonly ArtefactoNormativo[],
+  // PERF-SCALE-01C: ver resolverResultadoDeTramoParaUi. Ausente ⇒
+  // comportamiento previo byte a byte.
+  contexto?: ContextoDeCalculoM2,
 ): ControlDeDnDeTramo {
   let resultado
   try {
-    resultado = resolverDiametroComercialDeTramo(proyecto, tramoId, catalogoArtefactos, catalogoSistemasDeTuberia)
+    resultado = resolverDiametroComercialDeTramo(
+      proyecto,
+      tramoId,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      contexto,
+    )
   } catch {
     return NO_DISPONIBLE
   }

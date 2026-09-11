@@ -15,6 +15,7 @@ import { catalogoMaterialesTuberia } from '../../motor/tuberias/materialTuberia'
 import { contarTerminalesFisicosDeLocal } from '../../motor/tuberias/topologia/contarTerminalesFisicosDeLocal'
 import { resolverPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolverPerdidaDistribuidaDeTramo'
 import { resolverPerdidaLocalizadaEstimadaDeLocal } from '../../motor/tuberias/presion/resolverPerdidaLocalizadaEstimadaDeLocal'
+import type { ContextoDeCalculoM2 } from '../../motor/tuberias/contextoDeCalculoM2'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 import { resolverResultadoDeTramoParaUi } from './resolverResultadoDeTramoParaUi'
 import type { ClasificacionVelocidad } from './clasificarVelocidadParaUi'
@@ -73,9 +74,15 @@ export function resolverFilaDeDimensionamiento(
   catalogoArtefactos: readonly ArtefactoNormativo[],
   // Local+Red del Tramo representativo: habilita sumar la hf localizada
   // estimada y contar "N puntos". Ausente para la Distribución general.
-  contexto?: { readonly unidadFuncionalId: string; readonly localId: string; readonly red: RedDeTramo },
+  contextoLocal?: { readonly unidadFuncionalId: string; readonly localId: string; readonly red: RedDeTramo },
+  // PERF-SCALE-01C: contexto de cálculo local al render (mismo
+  // ContextoDeCalculoM2 de 01B). Colapsa las 2-3 resoluciones de hidráulica/
+  // diámetro que este mismo Tramo recibía por fila (resolverResultadoDeTramoParaUi
+  // + esta misma función + resolverControlDeDnDeTramo, todas del lado del
+  // llamador) a UNA sola. Ausente ⇒ comportamiento previo byte a byte.
+  contextoDeCalculo?: ContextoDeCalculoM2,
 ): FilaDeDimensionamiento {
-  const ui = resolverResultadoDeTramoParaUi(proyecto, tramoId, catalogoArtefactos)
+  const ui = resolverResultadoDeTramoParaUi(proyecto, tramoId, catalogoArtefactos, contextoDeCalculo)
 
   let hfDistribuida_mca: number | undefined
   try {
@@ -85,6 +92,7 @@ export function resolverFilaDeDimensionamiento(
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
       catalogoMaterialesTuberia,
+      contextoDeCalculo,
     )
     if (n3.tipo === 'conPerdidaDistribuida') {
       hfDistribuida_mca = n3.hf_m
@@ -95,21 +103,22 @@ export function resolverFilaDeDimensionamiento(
 
   let hfLocalizadaEstimada_mca: number | undefined
   let nPuntos = 0
-  if (contexto !== undefined && proyecto.redHidraulica !== undefined) {
+  if (contextoLocal !== undefined && proyecto.redHidraulica !== undefined) {
     nPuntos = contarTerminalesFisicosDeLocal(
       proyecto.redHidraulica,
-      contexto.unidadFuncionalId,
-      contexto.localId,
-      contexto.red,
+      contextoLocal.unidadFuncionalId,
+      contextoLocal.localId,
+      contextoLocal.red,
     )
     if (proyecto.configuracionHidraulica.metodoPerdidaLocalizada === 'estimado') {
       const estimada = resolverPerdidaLocalizadaEstimadaDeLocal(
         proyecto,
-        contexto.unidadFuncionalId,
-        contexto.localId,
-        contexto.red,
+        contextoLocal.unidadFuncionalId,
+        contextoLocal.localId,
+        contextoLocal.red,
         catalogoArtefactos,
         catalogoSistemasDeTuberia,
+        contextoDeCalculo,
       )
       if (estimada.tipo !== 'incompleta') {
         hfLocalizadaEstimada_mca = estimada.hf_m
@@ -137,7 +146,7 @@ export function resolverFilaDeDimensionamiento(
     estado,
     estadoTexto: ETIQUETA_ESTADO[estado],
     nPuntos,
-    artefactos: contexto !== undefined ? nombresDeArtefactosAguasAbajo(proyecto, catalogoArtefactos, tramoId) : '',
+    artefactos: contextoLocal !== undefined ? nombresDeArtefactosAguasAbajo(proyecto, catalogoArtefactos, tramoId) : '',
     errorDelMotor: ui.errorDelMotor,
   }
 }

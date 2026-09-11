@@ -6,7 +6,7 @@
 // artefactos. Gate de validación antes de calcular, y visualización
 // completa del ResultadoDeCalculo. No recalcula: solo llama a
 // validarProyecto y calcularSimultaneidad y muestra lo que devuelven.
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { Proyecto, UnidadFuncional, Local, TipoDeLocal, RegimenLocal, Artefacto } from '../../modelo/proyecto'
 import type { ConectividadFisica, RedDeTramo } from '../../modelo/redHidraulica'
 import type { ResultadoDeCalculo, Paso, ValorCalculado } from '../../modelo/resultado'
@@ -45,6 +45,7 @@ import { PanelDePresionDeModulo2 } from './PanelDePresionDeModulo2'
 import { NavegacionDeSecciones, SeccionDeTrabajo } from './NavegacionDeSecciones'
 import { MetodologiaYFuentesTecnicas } from './MetodologiaYFuentesTecnicas'
 import { resolverResumenDeProyecto } from './resolverResumenDeProyecto'
+import { resolverResolucionDeModulo2 } from './resolverResolucionDeModulo2'
 import './sistema-visual.css'
 import './navegacionUI.css'
 import './demandaM1.css'
@@ -1625,6 +1626,23 @@ export function MotorDemandaPantalla() {
   const demandaValida = erroresDemanda.length === 0
   const erroresPosteriores = erroresDeModulosPosteriores(validacion)
 
+  // PERF-SCALE-01C: UNA sola resolución de M2 por Proyecto, compartida
+  // entre el resumen de la sidebar y el panel de Verificación hidráulica
+  // -- antes cada uno la resolvía por su cuenta (2 resolverEstadoModulo2 +
+  // un tercer recorrido de presión en el panel, PERF-SCALE-01B §17).
+  // Memoizada por identidad de `proyecto`: un cambio de estado LOCAL de
+  // este componente (diálogo de reinicio, UF colapsada) no crea una
+  // referencia nueva de `proyecto`, así que NO dispara un recálculo --
+  // sólo una edición real del Proyecto lo hace. Igual que el
+  // ContextoDeCalculoM2 de 01B, no es un cache global: vive sólo mientras
+  // dura esta identidad de `proyecto`, se descarta con la siguiente.
+  // Sólo se calcula si M1 puede calcular Qc (demandaValida) -- mismo gate
+  // que ya usaba el resumen; un error de M2/M3/M4 no lo impide.
+  const resolucionM2 = useMemo(
+    () => (demandaValida ? resolverResolucionDeModulo2(proyecto, catalogoArtefactos, coeficientesMayoracion) : undefined),
+    [proyecto, demandaValida],
+  )
+
   // UI-01C (D-δ.74): resumen compacto del proyecto para la sidebar. Se
   // arma en el punto de composición a partir de resultados YA existentes
   // (calcularSimultaneidad / resolverEstadoModulo2 / resolverEstadoModulo4),
@@ -1632,7 +1650,7 @@ export function MotorDemandaPantalla() {
   // Qc (demandaValida): un error de M2/M3/M4 no lo impide -- cada métrica
   // ya cae a "Pendiente" por su cuenta.
   const resumen = demandaValida
-    ? resolverResumenDeProyecto(proyecto, catalogoArtefactos, coeficientesMayoracion)
+    ? resolverResumenDeProyecto(proyecto, catalogoArtefactos, coeficientesMayoracion, resolucionM2?.estadoModulo2)
     : undefined
 
   // UI-01A (D-δ.72): shell de dos columnas (índice + contenido). El flujo
@@ -1736,6 +1754,7 @@ export function MotorDemandaPantalla() {
                   proyecto={proyecto}
                   catalogoArtefactos={catalogoArtefactos}
                   onCambiar={setProyecto}
+                  resolucionM2={resolucionM2}
                 />
               </SeccionDeTrabajo>
             </>

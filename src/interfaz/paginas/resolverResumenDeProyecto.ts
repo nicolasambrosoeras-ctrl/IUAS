@@ -19,7 +19,7 @@ import type { TipoProyectoNormativo } from '../../normativa/eras-2023/coeficient
 import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia'
 import { catalogoMaterialesTuberia } from '../../motor/tuberias/materialTuberia'
 import { calcularSimultaneidad } from '../../motor/demanda/simultaneidad/calcularSimultaneidad'
-import { resolverEstadoModulo2 } from '../../motor/modulo2/resolverEstadoModulo2'
+import { resolverEstadoModulo2, type EstadoModulo2 } from '../../motor/modulo2/resolverEstadoModulo2'
 import { resolverEstadoModulo4 } from '../../motor/modulo4/resolverEstadoModulo4'
 import { textoValorCalculado } from '../../presentacion/desarrolloDelCalculoDemanda'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
@@ -55,6 +55,11 @@ export function resolverResumenDeProyecto(
   proyecto: Proyecto,
   catalogoArtefactos: readonly ArtefactoNormativo[],
   coeficientesMayoracion: readonly TipoProyectoNormativo[],
+  // PERF-SCALE-01C: si el llamador ya resolvió M2 para este mismo Proyecto
+  // (MotorDemandaPantalla comparte una resolución entre sidebar y el panel
+  // de verificación), se reutiliza en vez de recalcular. Ausente ⇒
+  // comportamiento previo byte a byte (resuelve M2 acá mismo, como siempre).
+  estadoM2PreCalculado?: EstadoModulo2,
 ): ResumenDeProyecto {
   // --- Qc (Módulo 1) ---
   let qc: CampoResumen = PENDIENTE
@@ -86,19 +91,24 @@ export function resolverResumenDeProyecto(
   // --- Margen crítico (verificación de Módulo 2) ---
   let margenCritico: CampoResumen = PENDIENTE
   let margenCumple: boolean | undefined
-  const { presionDisponible_mca, hfMedidorDeTerminal, proyectoParaVerificacion } = resolverEntradasDeVerificacion(
-    proyecto,
-    catalogoArtefactos,
-    coeficientesMayoracion,
-  )
-  const estadoM2 = resolverEstadoModulo2(
-    proyectoParaVerificacion,
-    presionDisponible_mca,
-    hfMedidorDeTerminal,
-    catalogoArtefactos,
-    catalogoSistemasDeTuberia,
-    catalogoMaterialesTuberia,
-  )
+  let estadoM2: EstadoModulo2
+  if (estadoM2PreCalculado !== undefined) {
+    estadoM2 = estadoM2PreCalculado
+  } else {
+    const { presionDisponible_mca, hfMedidorDeTerminal, proyectoParaVerificacion } = resolverEntradasDeVerificacion(
+      proyecto,
+      catalogoArtefactos,
+      coeficientesMayoracion,
+    )
+    estadoM2 = resolverEstadoModulo2(
+      proyectoParaVerificacion,
+      presionDisponible_mca,
+      hfMedidorDeTerminal,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+  }
   if (estadoM2.estado === 'completo') {
     const margen = estadoM2.terminalMasDesfavorable.margen_mca
     margenCritico = { tipo: 'valor', texto: formatearMca(margen) }

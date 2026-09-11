@@ -11,6 +11,7 @@ import { catalogoMaterialesTuberia } from '../../motor/tuberias/materialTuberia'
 import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia'
 import { resolverPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolverPerdidaDistribuidaDeTramo'
 import type { ResultadoPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolverPerdidaDistribuidaDeTramo'
+import type { ContextoDeCalculoM2 } from '../../motor/tuberias/contextoDeCalculoM2'
 import type { ResultadoVerificacionVelocidad } from '../../motor/tuberias/velocidad/verificarVelocidadAdmisible'
 import { clasificarVelocidadParaUi, type ClasificacionVelocidad } from './clasificarVelocidadParaUi'
 import { obtenerArtefactosAguasAbajo } from '../../motor/tuberias/topologia/obtenerArtefactosAguasAbajo'
@@ -217,6 +218,12 @@ export function resolverResultadoDeTramoParaUi(
   proyecto: Proyecto,
   tramoId: string,
   catalogoArtefactos: readonly ArtefactoNormativo[],
+  // PERF-SCALE-01C: contexto de cálculo local al render (mismo
+  // ContextoDeCalculoM2 de 01B) -- evita recalcular la hidráulica/diámetro
+  // de este Tramo si otro consumidor de la misma tabla/render ya lo pidió
+  // (p. ej. resolverFilaDeDimensionamiento, resolverControlDeDnDeTramo).
+  // Ausente ⇒ comportamiento previo byte a byte.
+  contexto?: ContextoDeCalculoM2,
 ): ResultadoDeTramoParaUi {
   try {
     const referencias = obtenerArtefactosAguasAbajo(proyecto, tramoId)
@@ -228,6 +235,7 @@ export function resolverResultadoDeTramoParaUi(
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
       catalogoMaterialesTuberia,
+      contexto,
     )
     // n hidraulico efectivo: expuesto directamente por
     // ResultadoPerdidaDistribuidaDeTramo (N3, D-delta.34).

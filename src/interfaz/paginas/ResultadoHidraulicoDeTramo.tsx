@@ -9,7 +9,9 @@
 // validarProyecto (gate en MotorDemandaPantalla), así que redHidraulica,
 // si existe, ya es estructuralmente válida y sus referencias a Artefactos
 // ya existen.
+import { useMemo } from 'react'
 import type { GranularidadHidraulica, MaterialTuberiaId, MetodoPerdidaDistribuida, MetodoPerdidaLocalizada, Proyecto, TipoDeLocal } from '../../modelo/proyecto'
+import { crearContextoDeCalculoM2, type ContextoDeCalculoM2 } from '../../motor/tuberias/contextoDeCalculoM2'
 import type { ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import type { MaterialTuberia } from '../../motor/tuberias/materialTuberia'
@@ -372,10 +374,13 @@ function DistribucionGeneral({
   proyecto,
   catalogoArtefactos,
   onCambiar,
+  contextoDeCalculo,
 }: {
   proyecto: Proyecto
   catalogoArtefactos: readonly ArtefactoNormativo[]
   onCambiar: (proyecto: Proyecto) => void
+  // PERF-SCALE-01C: ver comentario de ResultadoHidraulicoDeTramo.
+  contextoDeCalculo: ContextoDeCalculoM2
 }) {
   const filas = identificarFilasDistribucionGeneral(proyecto)
   if (filas.length === 0) {
@@ -388,17 +393,20 @@ function DistribucionGeneral({
     clave: fila.tramoId,
     etiqueta: fila.etiqueta,
     red: fila.red,
-    fila: resolverFilaDeDimensionamiento(proyecto, fila.tramoId, catalogoArtefactos),
+    fila: resolverFilaDeDimensionamiento(proyecto, fila.tramoId, catalogoArtefactos, undefined, contextoDeCalculo),
     longitudEditable: true,
     onCambiarLongitud: (longitud_m) => onCambiar(conLongitudDeTramo(proyecto, fila.tramoId, longitud_m)),
-    controlDn: resolverControlDeDnDeTramo(proyecto, fila.tramoId, catalogoArtefactos),
+    controlDn: resolverControlDeDnDeTramo(proyecto, fila.tramoId, catalogoArtefactos, contextoDeCalculo),
     onCambiarDnAdoptado: (denominacion) => onCambiar(conDnComercialAdoptadoDeTramo(proyecto, fila.tramoId, denominacion)),
     renderDetalle: modoDetallado
       ? () => (
           <AccesoriosDeTramoEditor
             proyecto={proyecto}
             tramoId={fila.tramoId}
-            velocidadReal_mps={resolverResultadoDeTramoParaUi(proyecto, fila.tramoId, catalogoArtefactos).velocidadReal_mps}
+            velocidadReal_mps={
+              resolverResultadoDeTramoParaUi(proyecto, fila.tramoId, catalogoArtefactos, contextoDeCalculo)
+                .velocidadReal_mps
+            }
             onCambiar={onCambiar}
           />
         )
@@ -442,10 +450,13 @@ function DistribucionSecundaria({
   proyecto,
   catalogoArtefactos,
   onCambiar,
+  contextoDeCalculo,
 }: {
   proyecto: Proyecto
   catalogoArtefactos: readonly ArtefactoNormativo[]
   onCambiar: (proyecto: Proyecto) => void
+  // PERF-SCALE-01C: ver comentario de ResultadoHidraulicoDeTramo.
+  contextoDeCalculo: ContextoDeCalculoM2
 }) {
   const filas = identificarFilasDistribucionSecundaria(proyecto)
   if (filas.length === 0) {
@@ -457,17 +468,20 @@ function DistribucionSecundaria({
     clave: fila.tramoId,
     etiqueta: fila.etiqueta,
     red: fila.red,
-    fila: resolverFilaDeDimensionamiento(proyecto, fila.tramoId, catalogoArtefactos),
+    fila: resolverFilaDeDimensionamiento(proyecto, fila.tramoId, catalogoArtefactos, undefined, contextoDeCalculo),
     longitudEditable: true,
     onCambiarLongitud: (longitud_m) => onCambiar(conLongitudDeTramo(proyecto, fila.tramoId, longitud_m)),
-    controlDn: resolverControlDeDnDeTramo(proyecto, fila.tramoId, catalogoArtefactos),
+    controlDn: resolverControlDeDnDeTramo(proyecto, fila.tramoId, catalogoArtefactos, contextoDeCalculo),
     onCambiarDnAdoptado: (denominacion) => onCambiar(conDnComercialAdoptadoDeTramo(proyecto, fila.tramoId, denominacion)),
     renderDetalle: modoDetallado
       ? () => (
           <AccesoriosDeTramoEditor
             proyecto={proyecto}
             tramoId={fila.tramoId}
-            velocidadReal_mps={resolverResultadoDeTramoParaUi(proyecto, fila.tramoId, catalogoArtefactos).velocidadReal_mps}
+            velocidadReal_mps={
+              resolverResultadoDeTramoParaUi(proyecto, fila.tramoId, catalogoArtefactos, contextoDeCalculo)
+                .velocidadReal_mps
+            }
             onCambiar={onCambiar}
           />
         )
@@ -493,12 +507,17 @@ function SeccionDeUnidadFuncional({
   catalogoArtefactos,
   filasPrincipalesDeLocales,
   onCambiar,
+  contextoDeCalculo,
 }: {
   proyecto: Proyecto
   uf: Proyecto['unidadesFuncionales'][number]
   catalogoArtefactos: readonly ArtefactoNormativo[]
   filasPrincipalesDeLocales: ReturnType<typeof identificarFilasPrincipalesDeLocales>
   onCambiar: (proyecto: Proyecto) => void
+  // PERF-SCALE-01C: ver comentario de ResultadoHidraulicoDeTramo. Se
+  // pasa la MISMA instancia a cada UF (el componente se invoca una vez
+  // por Unidad Funcional en el mismo render).
+  contextoDeCalculo: ContextoDeCalculoM2
 }) {
   const ordinales = derivarOrdinalesDeLocal(uf.locales)
   const esProfesional = proyecto.configuracionHidraulica.granularidadHidraulica === 'profesional'
@@ -515,16 +534,18 @@ function SeccionDeUnidadFuncional({
         clave: fila.tramoId,
         etiqueta: etiquetaLocal,
         red: fila.red,
-        fila: resolverFilaDeDimensionamiento(proyecto, fila.tramoId, catalogoArtefactos, {
-          unidadFuncionalId: uf.id,
-          localId: local.id,
-          red: fila.red,
-        }),
+        fila: resolverFilaDeDimensionamiento(
+          proyecto,
+          fila.tramoId,
+          catalogoArtefactos,
+          { unidadFuncionalId: uf.id, localId: local.id, red: fila.red },
+          contextoDeCalculo,
+        ),
         longitudEditable: !esProfesional,
         onCambiarLongitud: esProfesional
           ? undefined
           : (longitud_m) => onCambiar(conLongitudDeTramo(proyecto, fila.tramoId, longitud_m)),
-        controlDn: resolverControlDeDnDeTramo(proyecto, fila.tramoId, catalogoArtefactos),
+        controlDn: resolverControlDeDnDeTramo(proyecto, fila.tramoId, catalogoArtefactos, contextoDeCalculo),
         onCambiarDnAdoptado: (denominacion) =>
           onCambiar(conDnComercialAdoptadoDeTramo(proyecto, fila.tramoId, denominacion)),
         renderDetalle: () => (
@@ -572,6 +593,19 @@ export function ResultadoHidraulicoDeTramo({
   const filasPrincipalesDeLocales = identificarFilasPrincipalesDeLocales(proyecto)
   const auditoria = auditarCoberturaFisica(proyecto)
 
+  // PERF-SCALE-01C: un único ContextoDeCalculoM2 (01B) para TODO este
+  // render de Tuberías -- Distribución general, Distribución secundaria y
+  // cada Unidad Funcional pedían la hidráulica/diámetro del mismo Tramo
+  // 2-3 veces por fila (resolverResultadoDeTramoParaUi + resolverFilaDeDimensionamiento
+  // + resolverControlDeDnDeTramo, cada uno por su cuenta). Memoizado por
+  // identidad de `proyecto`: vive sólo mientras no cambie, igual que la
+  // resolución compartida de Verificación -- no es un cache global.
+  // `proyecto` es la clave de invalidación intencional: crearContextoDeCalculoM2()
+  // no lo lee (crea un Map vacío), pero el contexto debe ser uno NUEVO cada
+  // vez que cambia el Proyecto -- nunca reutilizarse entre resoluciones.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const contextoDeCalculo = useMemo(() => crearContextoDeCalculoM2(), [proyecto])
+
   return (
     <details open>
       {/* UI-01A (D-δ.72): esta sección queda centrada en el
@@ -593,9 +627,19 @@ export function ResultadoHidraulicoDeTramo({
         />
       ) : (
         <>
-          <DistribucionGeneral proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} onCambiar={onCambiar} />
+          <DistribucionGeneral
+            proyecto={proyecto}
+            catalogoArtefactos={catalogoArtefactos}
+            onCambiar={onCambiar}
+            contextoDeCalculo={contextoDeCalculo}
+          />
 
-          <DistribucionSecundaria proyecto={proyecto} catalogoArtefactos={catalogoArtefactos} onCambiar={onCambiar} />
+          <DistribucionSecundaria
+            proyecto={proyecto}
+            catalogoArtefactos={catalogoArtefactos}
+            onCambiar={onCambiar}
+            contextoDeCalculo={contextoDeCalculo}
+          />
 
           <ConstructorDeMontantes
             proyecto={proyecto}
@@ -611,6 +655,7 @@ export function ResultadoHidraulicoDeTramo({
               catalogoArtefactos={catalogoArtefactos}
               filasPrincipalesDeLocales={filasPrincipalesDeLocales}
               onCambiar={onCambiar}
+              contextoDeCalculo={contextoDeCalculo}
             />
           ))}
         </>

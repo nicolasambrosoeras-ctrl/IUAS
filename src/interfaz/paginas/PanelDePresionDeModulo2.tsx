@@ -65,6 +65,7 @@ import { resolverInfoCotaDeTerminal } from './resolverInfoCotaDeTerminal'
 import { filtrarCandidatosParaTerminalCritico } from './filtrarCandidatosParaTerminalCritico'
 import { resolverRedDeTerminal } from './resolverRedDeTerminal'
 import { resolverEntradasDeVerificacion } from './resolverEntradasDeVerificacion'
+import type { ResolucionDeModulo2 } from './resolverResolucionDeModulo2'
 import { resolverCoherenciaDeCotasDeTanque } from '../../motor/modulo4/resolverCoherenciaDeCotasDeTanque'
 import { ETIQUETA_RED } from './humanizarModulo2'
 import { ordenarCandidatosParaListado } from './ordenarCandidatosParaListado'
@@ -118,10 +119,18 @@ export function PanelDePresionDeModulo2({
   proyecto,
   catalogoArtefactos,
   onCambiar,
+  resolucionM2,
 }: {
   proyecto: Proyecto
   catalogoArtefactos: readonly ArtefactoNormativo[]
   onCambiar: (proyecto: Proyecto) => void
+  // PERF-SCALE-01C: si el llamador (MotorDemandaPantalla) ya resolvió M2
+  // para este mismo Proyecto -- compartido con el resumen de la sidebar --
+  // se reutiliza en vez de volver a resolver entradas/M2 acá. Ausente ⇒
+  // comportamiento previo byte a byte (este panel resuelve todo por su
+  // cuenta, como antes de 01C -- así siguen funcionando los tests de este
+  // componente y cualquier otro montaje standalone).
+  resolucionM2?: ResolucionDeModulo2 | undefined
 }) {
   // M4-G (D-δ.68): el origen hidráulico, la presión disponible en la raíz
   // y la pérdida de medidores por terminal se DERIVAN del Proyecto
@@ -139,7 +148,7 @@ export function PanelDePresionDeModulo2({
     proyectoParaVerificacion,
     perdidasDeMedidoresDeTerminal,
     hfMedidorDeTerminal,
-  } = resolverEntradasDeVerificacion(proyecto, catalogoArtefactos, coeficientesMayoracion)
+  } = resolucionM2?.entradas ?? resolverEntradasDeVerificacion(proyecto, catalogoArtefactos, coeficientesMayoracion)
 
   // CRIT-A39 (D-δ.79): en modo Rápido + tanque elevado simple el balance
   // consume el pelo de agua mínimo ESTIMADO (cota de raíz sustituida), sin
@@ -158,30 +167,42 @@ export function PanelDePresionDeModulo2({
       (nodo) => !proyecto.redHidraulica!.tramos.some((tramo) => tramo.nodoDestinoId === nodo.id),
     ) ?? []
 
-  const estadoModulo2 = resolverEstadoModulo2(
-    proyectoVerif,
-    presionDisponible_mca,
-    hfMedidorDeTerminal,
-    catalogoArtefactos,
-    catalogoSistemasDeTuberia,
-    catalogoMaterialesTuberia,
-  )
+  const estadoModulo2 =
+    resolucionM2?.estadoModulo2 ??
+    resolverEstadoModulo2(
+      proyectoVerif,
+      presionDisponible_mca,
+      hfMedidorDeTerminal,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
 
-  const candidatos: CandidatoTerminal[] =
-    presionDisponible_mca === undefined
-      ? []
-      : nodosTerminales.map((nodo) => ({
-          nodoId: nodo.id,
-          resultado: resolverPresionResidualDeCamino(
-            proyectoVerif,
-            nodo.id,
-            presionDisponible_mca,
-            hfMedidorDeTerminal(nodo.id),
-            catalogoArtefactos,
-            catalogoSistemasDeTuberia,
-            catalogoMaterialesTuberia,
-          ),
-        }))
+  // PERF-SCALE-01B/01C: resolverEstadoModulo2 YA recorrió el árbol de
+  // presión de cada terminal (con su propio ContextoDeCalculoM2 interno) y
+  // expone ese resultado crudo en `estadoModulo2.candidatos` -- no hace
+  // falta un tercer recorrido acá. Única excepción: 'error' estructural
+  // (validarRedHidraulica falla ANTES de iterar terminales, así que
+  // `candidatos` viene vacío ahí) -- se preserva el recorrido independiente
+  // para ese caso degenerado, exactamente como se comportaba este panel
+  // antes de 01C (equivalencia byte a byte, incluido ese borde).
+  const candidatos: readonly CandidatoTerminal[] =
+    estadoModulo2.estado === 'error'
+      ? presionDisponible_mca === undefined
+        ? []
+        : nodosTerminales.map((nodo) => ({
+            nodoId: nodo.id,
+            resultado: resolverPresionResidualDeCamino(
+              proyectoVerif,
+              nodo.id,
+              presionDisponible_mca,
+              hfMedidorDeTerminal(nodo.id),
+              catalogoArtefactos,
+              catalogoSistemasDeTuberia,
+              catalogoMaterialesTuberia,
+            ),
+          }))
+      : estadoModulo2.candidatos
 
   const candidatosParaTerminalCritico = filtrarCandidatosParaTerminalCritico(candidatos)
   const terminalMasDesfavorable =
