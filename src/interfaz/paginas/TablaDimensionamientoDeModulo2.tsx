@@ -73,7 +73,11 @@ export type EntradaDeTabla = {
   // editables que antes, solo con un título compartido arriba. Ausente
   // (undefined) en Distribución general/secundaria y en Segmentos de
   // montante: ahí cada fila sigue siendo su propia entidad, sin cambios.
-  readonly grupo?: { readonly id: string; readonly etiqueta: string } | undefined
+  // UI-M2-GROUP-02 §2: `nombre` y `meta` separados (no una única cadena
+  // concatenada) para poder pintar al Local padre con mayor jerarquía
+  // visual (negro/semibold) que su metadato secundario (gris) y que las
+  // filas hijas AF/AC.
+  readonly grupo?: { readonly id: string; readonly nombre: string; readonly meta?: string } | undefined
 }
 
 function CeldaLongitud({ entrada }: { entrada: EntradaDeTabla }) {
@@ -159,10 +163,15 @@ export function TablaDimensionamientoDeModulo2({
               <Fragment key={entrada.clave}>
                 {mostrarEncabezadoDeGrupo ? (
                   <tr className="m2-fila-grupo">
-                    <td colSpan={CANTIDAD_DE_COLUMNAS}>{entrada.grupo!.etiqueta}</td>
+                    <td colSpan={CANTIDAD_DE_COLUMNAS}>
+                      <span className="m2-fila-grupo__nombre">{entrada.grupo!.nombre}</span>
+                      {entrada.grupo!.meta !== undefined ? (
+                        <span className="m2-fila-grupo__meta"> · {entrada.grupo!.meta}</span>
+                      ) : null}
+                    </td>
                   </tr>
                 ) : null}
-                <tr>
+                <tr className={entrada.grupo !== undefined ? 'm2-fila-agrupada' : undefined}>
                   <td>
                     {tieneDetalle ? (
                       <details

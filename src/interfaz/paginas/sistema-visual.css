@@ -829,19 +829,43 @@ summary > h3 {
 /* UI-M2-GROUP-01 §11/§12 -- encabezado de grupo (un Local con sus filas
    AF/AC) dentro de la tabla de dimensionamiento. NO es una fila de datos
    (fondo distinto, sin bordes de celda de datos) ni un acordeón nuevo:
-   sólo agrupa visualmente las 1-2 filas siguientes bajo un mismo título. */
+   sólo agrupa visualmente las 1-2 filas siguientes bajo un mismo título.
+   UI-M2-GROUP-02 §2 -- el Local padre debe dominar visualmente sobre sus
+   filas hijas AF/AC (antes quedaba más chico/gris que ellas, invirtiendo
+   la jerarquía real): `__nombre` en color/peso de texto primario y un
+   punto más grande que el cuerpo de las filas hijas; `__meta` (cantidad de
+   artefactos) secundario, igual que antes. */
 .tabla-tecnica tr.m2-fila-grupo td {
   padding: 0.5rem 0.7rem 0.15rem;
-  font-size: var(--fs-meta);
-  font-weight: var(--peso-semibold);
   letter-spacing: 0.02em;
-  color: var(--color-texto-2);
   border-bottom: none;
   background: transparent;
 }
 
 .tabla-tecnica tr.m2-fila-grupo:first-child td {
   padding-top: 0;
+}
+
+.m2-fila-grupo__nombre {
+  font-size: var(--fs-body);
+  font-weight: var(--peso-semibold);
+  color: var(--color-texto);
+}
+
+.m2-fila-grupo__meta {
+  font-size: var(--fs-meta);
+  font-weight: 400;
+  color: var(--color-texto-2);
+}
+
+/* Filas hijas (AF/AC) de un Local agrupado: peso visual menor que su
+   encabezado de grupo -- gris medio, un punto más chico que el cuerpo de
+   tabla por defecto. Sólo aplica a filas CON `grupo` (Local -> Red);
+   Distribución general/secundaria y Segmentos de montante no reciben esta
+   clase y conservan su estilo de fila normal (no son hijas de nada). */
+.tabla-tecnica tr.m2-fila-agrupada > td:first-child {
+  font-size: var(--fs-ayuda);
+  color: var(--color-texto-2);
 }
 
 /* UI-M2-GROUP-01 §6/§10/§34 -- lista colapsable de Unidades Funcionales
