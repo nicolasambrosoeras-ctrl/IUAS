@@ -165,7 +165,7 @@ export function acumularPerdidaLocalizadaDeCamino(
     return { tipo: 'resuelto', hfTee_m, velocidadReal_mps }
   }
 
-  const { tramosRelevables, tramosRamal } = seleccionarTramosDeAcumulacion(proyecto, camino)
+  const { tramosRelevables, tramosRamal } = seleccionarTramosDeAcumulacion(proyecto, camino, contexto)
 
   for (const tramo of tramosRelevables) {
     // Tee (CRIT-A31): se evalúa antes que los accesorios propios del

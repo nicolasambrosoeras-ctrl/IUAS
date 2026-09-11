@@ -9,7 +9,11 @@
 import type { Proyecto } from '../../../modelo/proyecto'
 import type { Tramo } from '../../../modelo/redHidraulica'
 import type { CaminoHaciaOrigen } from '../topologia/obtenerCaminoHaciaOrigen'
-import { identificarTramosRepresentativosDeLocales } from '../topologia/identificarTramoRepresentativoDeLocal'
+import {
+  identificarTramosRepresentativosDeLocales,
+  obtenerTramosRepresentativosDeLocalesDeContexto,
+} from '../topologia/identificarTramoRepresentativoDeLocal'
+import type { ContextoDeCalculoM2 } from '../contextoDeCalculoM2'
 
 export type SeleccionDeTramosDeAcumulacion = {
   // Tramos que siempre exigen su propia longitud_m/accesorios: en
@@ -31,12 +35,21 @@ export type SeleccionDeTramosDeAcumulacion = {
 export function seleccionarTramosDeAcumulacion(
   proyecto: Proyecto,
   camino: CaminoHaciaOrigen,
+  // PERF-SCALE-01D: contexto de cálculo local a la resolución -- memoiza
+  // `identificarTramosRepresentativosDeLocales` UNA vez por resolución en
+  // vez de una vez POR TERMINAL (se llama desde acumularPerdidaDistribuidaDeCamino
+  // Y acumularPerdidaLocalizadaDeCamino). Ausente ⇒ comportamiento previo
+  // byte a byte.
+  contexto?: ContextoDeCalculoM2,
 ): SeleccionDeTramosDeAcumulacion {
   if (proyecto.configuracionHidraulica.granularidadHidraulica === 'profesional') {
     return { tramosRelevables: camino.tramos, tramosRamal: [] }
   }
 
-  const representativos = identificarTramosRepresentativosDeLocales(proyecto)
+  const representativos =
+    contexto === undefined
+      ? identificarTramosRepresentativosDeLocales(proyecto)
+      : obtenerTramosRepresentativosDeLocalesDeContexto(contexto, proyecto)
   const indice = camino.tramos.findIndex((tramo) => representativos.has(tramo.id))
 
   if (indice === -1) {

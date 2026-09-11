@@ -42,6 +42,36 @@ export interface ContadoresTopologicos {
   // la ventana medida -- para contar resoluciones completas por edición
   // (§17 del brief) sin logging permanente.
   readonly resolucionesModulo2: number
+  // PERF-SCALE-01D. Cuántos PASOS de `obtenerCaminoHaciaOrigen` se
+  // ejecutaron (una iteración del while = un `Array.filter` sobre TODOS
+  // los tramos del Proyecto, no solo los del camino). Sin índice de
+  // "tramos entrantes por nodo", el costo de un camino de profundidad d es
+  // O(d·tramos) en vez de O(d): este contador expone esa multiplicación
+  // sin necesitar cronometrar. Se incrementa una vez por iteración del
+  // bucle, tanto si termina en una raíz como si corta por
+  // multiplesTramosEntrantes/ciclo.
+  readonly pasosCaminoHaciaOrigen: number
+  // PERF-SCALE-01D. Cuántas veces se invocó `resolverRedDeTerminal`: mismo
+  // patrón de costo que el anterior (un `Array.find` sobre TODOS los
+  // tramos por invocación, sin índice), invocada una vez por terminal en
+  // cada resolución de M2 (vía `hfMedidorDeTerminal`/
+  // `perdidasDeMedidoresDeTerminal`).
+  readonly resolucionesRedDeTerminal: number
+  // PERF-SCALE-01D. Cuántas veces se ejecutó identificarTramosRepresentativosDeLocales
+  // DE CERO (cache miss del contexto). Sólo importa con granularidadHidraulica
+  // 'simplificada': antes de PERF-SCALE-01D, `seleccionarTramosDeAcumulacion`
+  // la recalculaba una vez POR TERMINAL (y otra vez para pérdida localizada);
+  // con el contexto compartido debe colapsar a 1 por resolución sin importar
+  // cuántos terminales tenga el Proyecto.
+  readonly construccionesTramosRepresentativos: number
+  // PERF-SCALE-01D. Milisegundos acumulados por ETAPA dentro de
+  // resolverPresionResidualDeCamino (sumados sobre TODOS los terminales de
+  // la ventana medida), sólo para diagnóstico de profiling -- diagnóstico
+  // temporal para encontrar el hotspot real a escala 20+ UF sin depender de
+  // un profiler externo. Claves usadas por el benchmark:
+  // 'referenciasYCota', 'desnivelEIncremento', 'perdidaDistribuida',
+  // 'perdidaLocalizada', 'balance'.
+  readonly tiemposMsPorEtapa: Readonly<Record<string, number>>
 }
 
 let activo = false
@@ -52,6 +82,10 @@ let calculosHidraulicaDeTramo = 0
 let solicitudesDiametroComercialDeTramo = 0
 let calculosDiametroComercialDeTramo = 0
 let resolucionesModulo2 = 0
+let pasosCaminoHaciaOrigen = 0
+let resolucionesRedDeTerminal = 0
+let construccionesTramosRepresentativos = 0
+let tiemposMsPorEtapa: Record<string, number> = {}
 
 function reiniciarContadores(): void {
   indicesTopologicosCreados = 0
@@ -61,6 +95,10 @@ function reiniciarContadores(): void {
   solicitudesDiametroComercialDeTramo = 0
   calculosDiametroComercialDeTramo = 0
   resolucionesModulo2 = 0
+  pasosCaminoHaciaOrigen = 0
+  resolucionesRedDeTerminal = 0
+  construccionesTramosRepresentativos = 0
+  tiemposMsPorEtapa = {}
 }
 
 export function activarInstrumentacionTopologica(): void {
@@ -85,6 +123,10 @@ export function leerInstrumentacionTopologica(): ContadoresTopologicos {
     solicitudesDiametroComercialDeTramo,
     calculosDiametroComercialDeTramo,
     resolucionesModulo2,
+    pasosCaminoHaciaOrigen,
+    resolucionesRedDeTerminal,
+    construccionesTramosRepresentativos,
+    tiemposMsPorEtapa: { ...tiemposMsPorEtapa },
   }
 }
 
@@ -128,4 +170,35 @@ export function registrarResolucionModulo2(): void {
   if (activo) {
     resolucionesModulo2 += 1
   }
+}
+
+export function registrarPasoCaminoHaciaOrigen(): void {
+  if (activo) {
+    pasosCaminoHaciaOrigen += 1
+  }
+}
+
+export function registrarResolucionRedDeTerminal(): void {
+  if (activo) {
+    resolucionesRedDeTerminal += 1
+  }
+}
+
+export function registrarConstruccionTramosRepresentativos(): void {
+  if (activo) {
+    construccionesTramosRepresentativos += 1
+  }
+}
+
+export function acumularTiempoMsPorEtapa(etapa: string, ms: number): void {
+  if (activo) {
+    tiemposMsPorEtapa[etapa] = (tiemposMsPorEtapa[etapa] ?? 0) + ms
+  }
+}
+
+// Gate para que un llamador evite incluso el `performance.now()` de medición
+// por etapa (más fino que las llamadas GRUESAS del resto de este seam)
+// mientras la instrumentación está inactiva -- costo cero en producción.
+export function instrumentacionTopologicaActiva(): boolean {
+  return activo
 }

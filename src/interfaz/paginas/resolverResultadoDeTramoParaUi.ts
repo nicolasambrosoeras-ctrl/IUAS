@@ -11,7 +11,7 @@ import { catalogoMaterialesTuberia } from '../../motor/tuberias/materialTuberia'
 import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia'
 import { resolverPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolverPerdidaDistribuidaDeTramo'
 import type { ResultadoPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolverPerdidaDistribuidaDeTramo'
-import type { ContextoDeCalculoM2 } from '../../motor/tuberias/contextoDeCalculoM2'
+import { obtenerIndiceTopologicoDeContexto, type ContextoDeCalculoM2 } from '../../motor/tuberias/contextoDeCalculoM2'
 import type { ResultadoVerificacionVelocidad } from '../../motor/tuberias/velocidad/verificarVelocidadAdmisible'
 import { clasificarVelocidadParaUi, type ClasificacionVelocidad } from './clasificarVelocidadParaUi'
 import { obtenerArtefactosAguasAbajo } from '../../motor/tuberias/topologia/obtenerArtefactosAguasAbajo'
@@ -226,7 +226,18 @@ export function resolverResultadoDeTramoParaUi(
   contexto?: ContextoDeCalculoM2,
 ): ResultadoDeTramoParaUi {
   try {
-    const referencias = obtenerArtefactosAguasAbajo(proyecto, tramoId)
+    // PERF-SCALE-01D: reutiliza el IndiceTopologico compartido de
+    // `contexto` (si hay uno) en vez de que `obtenerArtefactosAguasAbajo`
+    // reconstruya el suyo propio en cada fila -- esta función se llama una
+    // vez POR TRAMO en cada render de la tabla de dimensionamiento; a 20+
+    // UF (500+ tramos) esa reconstrucción por fila era el hotspot medido
+    // de `ResultadoHidraulicoDeTramo` (~1 s por render). Ausente ⇒
+    // comportamiento previo byte a byte.
+    const indiceTopologico =
+      contexto !== undefined && proyecto.redHidraulica !== undefined
+        ? obtenerIndiceTopologicoDeContexto(contexto, proyecto.redHidraulica)
+        : undefined
+    const referencias = obtenerArtefactosAguasAbajo(proyecto, tramoId, indiceTopologico)
     const artefactosTexto = formatearNumero(referencias.length, 'conteo')
 
     const resultadoPerdida = resolverPerdidaDistribuidaDeTramo(

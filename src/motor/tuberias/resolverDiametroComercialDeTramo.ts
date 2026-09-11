@@ -32,7 +32,7 @@
 import type { Proyecto } from '../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { resolverHidraulicaDeTramo } from './resolverHidraulicaDeTramo'
-import type { ContextoDeCalculoM2 } from './contextoDeCalculoM2'
+import { obtenerIndiceTopologicoDeContexto, type ContextoDeCalculoM2 } from './contextoDeCalculoM2'
 import {
   registrarSolicitudDiametroComercialDeTramo,
   registrarCalculoDiametroComercialDeTramo,
@@ -140,7 +140,15 @@ function calcularDiametroComercialDeTramo(
   // explorar, pero el incumplimiento se muestra tal cual, brief §5). Qc no
   // cambia. Si la denominación no existe en el sistema actual (cambio de
   // material/sistema), se ignora y sigue el camino automático.
-  const tramo = proyecto.redHidraulica?.tramos.find((candidatoTramo) => candidatoTramo.id === tramoId)
+  //
+  // PERF-SCALE-01D: con contexto, reutiliza el IndiceTopologico compartido
+  // de esta resolución (tramosPorId) en vez de un `Array.find` sobre TODOS
+  // los tramos del Proyecto en cada llamada real (ausente ⇒ comportamiento
+  // previo byte a byte).
+  const tramo =
+    contexto === undefined || proyecto.redHidraulica === undefined
+      ? proyecto.redHidraulica?.tramos.find((candidatoTramo) => candidatoTramo.id === tramoId)
+      : obtenerIndiceTopologicoDeContexto(contexto, proyecto.redHidraulica).tramosPorId.get(tramoId)
   const entradasOrdenadasParaOverride =
     tramo?.dnComercialAdoptado !== undefined
       ? obtenerEntradasOrdenadasPorDiametroInterior(sistema)

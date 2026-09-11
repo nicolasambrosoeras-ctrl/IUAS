@@ -10,7 +10,9 @@
 // caliente de esa misma canilla (D-δ.48).
 import type { Proyecto } from '../../modelo/proyecto'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
+import { registrarResolucionRedDeTerminal } from '../../motor/tuberias/topologia/instrumentacionTopologica'
 
 export function resolverRedDeTerminal(proyecto: Proyecto, nodoId: string): RedDeTramo | undefined {
+  registrarResolucionRedDeTerminal()
   return proyecto.redHidraulica?.tramos.find((tramo) => tramo.nodoDestinoId === nodoId)?.red
 }

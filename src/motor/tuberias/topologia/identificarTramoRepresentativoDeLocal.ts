@@ -26,14 +26,28 @@
 import type { Proyecto } from '../../../modelo/proyecto'
 import type { Nodo, RedHidraulica, Tramo } from '../../../modelo/redHidraulica'
 import { obtenerArtefactosAguasAbajo } from './obtenerArtefactosAguasAbajo'
+import {
+  obtenerIndiceTopologicoDeContexto,
+  obtenerTramosEntrantesIndexados,
+  type ContextoDeCalculoM2,
+} from '../contextoDeCalculoM2'
+import { registrarConstruccionTramosRepresentativos } from './instrumentacionTopologica'
 
 export type IdentidadDeLocal = {
   readonly unidadFuncionalId: string
   readonly localId: string
 }
 
-function localUnicoDeTramo(proyecto: Proyecto, tramoId: string): IdentidadDeLocal | undefined {
-  const referencias = obtenerArtefactosAguasAbajo(proyecto, tramoId)
+function localUnicoDeTramo(
+  proyecto: Proyecto,
+  tramoId: string,
+  contexto: ContextoDeCalculoM2 | undefined,
+): IdentidadDeLocal | undefined {
+  const indiceTopologico =
+    contexto === undefined || proyecto.redHidraulica === undefined
+      ? undefined
+      : obtenerIndiceTopologicoDeContexto(contexto, proyecto.redHidraulica)
+  const referencias = obtenerArtefactosAguasAbajo(proyecto, tramoId, indiceTopologico)
   if (referencias.length === 0) {
     return undefined
   }
@@ -49,8 +63,20 @@ function localUnicoDeTramo(proyecto: Proyecto, tramoId: string): IdentidadDeLoca
   return { unidadFuncionalId: primera.unidadFuncionalId, localId: primera.localId }
 }
 
-function buscarTramoPadre(redHidraulica: RedHidraulica, tramo: Tramo): Tramo | undefined {
-  return redHidraulica.tramos.find((candidato) => candidato.nodoDestinoId === tramo.nodoOrigenId)
+// PERF-SCALE-01D: con contexto, reutiliza el índice nodoDestinoId->entrantes
+// compartido de esta resolución (ver contextoDeCalculoM2.ts) en vez de un
+// `Array.find` sobre TODOS los tramos por cada Tramo del Proyecto. Ausente ⇒
+// comportamiento previo byte a byte.
+function buscarTramoPadre(
+  redHidraulica: RedHidraulica,
+  tramo: Tramo,
+  contexto: ContextoDeCalculoM2 | undefined,
+): Tramo | undefined {
+  if (contexto === undefined) {
+    return redHidraulica.tramos.find((candidato) => candidato.nodoDestinoId === tramo.nodoOrigenId)
+  }
+  const entrantes = obtenerTramosEntrantesIndexados(contexto, redHidraulica.tramos).get(tramo.nodoOrigenId)
+  return entrantes?.[0]
 }
 
 // Clasificación estructural de un Tramo como perteneciente a la
@@ -82,7 +108,15 @@ function clasificarTramoDeDistribucionGeneral(
 // para que un consumidor de un camino puntual (acumuladores de pérdida)
 // pueda preguntar `representativos.has(tramoId)` en O(1) sin recorrer todo
 // el grafo por cada Tramo del camino.
-export function identificarTramosRepresentativosDeLocales(proyecto: Proyecto): ReadonlyMap<string, IdentidadDeLocal> {
+export function identificarTramosRepresentativosDeLocales(
+  proyecto: Proyecto,
+  // PERF-SCALE-01D: contexto de cálculo local a la resolución (ver
+  // contextoDeCalculoM2.ts) -- se propaga a `obtenerArtefactosAguasAbajo` y
+  // al índice de tramos entrantes para no reconstruirlos por cada Tramo.
+  // Ausente ⇒ comportamiento previo byte a byte.
+  contexto?: ContextoDeCalculoM2,
+): ReadonlyMap<string, IdentidadDeLocal> {
+  registrarConstruccionTramosRepresentativos()
   const { redHidraulica } = proyecto
   if (redHidraulica === undefined) {
     return new Map()
@@ -100,14 +134,16 @@ export function identificarTramosRepresentativosDeLocales(proyecto: Proyecto): R
       continue
     }
 
-    const identidad = localUnicoDeTramo(proyecto, tramo.id)
+    const identidad = localUnicoDeTramo(proyecto, tramo.id, contexto)
     if (identidad === undefined) {
       continue
     }
 
-    const padre = buscarTramoPadre(redHidraulica, tramo)
+    const padre = buscarTramoPadre(redHidraulica, tramo, contexto)
     const padreEsMismoLocal =
-      padre !== undefined && !esDeDistribucionGeneral(padre) && localUnicoDeTramo(proyecto, padre.id) !== undefined
+      padre !== undefined &&
+      !esDeDistribucionGeneral(padre) &&
+      localUnicoDeTramo(proyecto, padre.id, contexto) !== undefined
     if (padreEsMismoLocal) {
       continue
     }
@@ -116,4 +152,19 @@ export function identificarTramosRepresentativosDeLocales(proyecto: Proyecto): R
   }
 
   return representativos
+}
+
+// PERF-SCALE-01D: memoiza el resultado COMPLETO en `contexto` (una sola vez
+// por resolución) -- se llama una vez POR TERMINAL desde
+// `seleccionarTramosDeAcumulacion` (una vez para pérdida distribuida, otra
+// para localizada), y en 'simplificada' es el hotspot dominante a escala
+// 20+ UF si se recalcula desde cero cada vez.
+export function obtenerTramosRepresentativosDeLocalesDeContexto(
+  contexto: ContextoDeCalculoM2,
+  proyecto: Proyecto,
+): ReadonlyMap<string, IdentidadDeLocal> {
+  if (contexto.tramosRepresentativosDeLocales === undefined) {
+    contexto.tramosRepresentativosDeLocales = identificarTramosRepresentativosDeLocales(proyecto, contexto)
+  }
+  return contexto.tramosRepresentativosDeLocales
 }

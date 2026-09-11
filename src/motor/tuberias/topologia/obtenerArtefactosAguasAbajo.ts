@@ -4,11 +4,20 @@
 // la mitad topologica de CRIT-A11 (conjunto de consumos aguas abajo), no el
 // criterio completo (ver PENDIENTES-DE-ARQUITECTURA.md, seccion D-delta).
 import type { Proyecto } from '../../../modelo/proyecto'
-import type { ReferenciaDeArtefacto, Tramo } from '../../../modelo/redHidraulica'
+import type { ReferenciaDeArtefacto } from '../../../modelo/redHidraulica'
+import { crearIndiceTopologico, type IndiceTopologico } from './indiceTopologico'
 
 export function obtenerArtefactosAguasAbajo(
   proyecto: Proyecto,
   tramoId: string,
+  // PERF-SCALE-01D: índice topológico ya construido para ESTA resolución
+  // (ver contextoDeCalculoM2.ts). Esta función construía su PROPIO índice
+  // (nodosPorId/tramosSalientesPorNodo) desde cero en cada llamada --
+  // redundante con el que resolverHidraulicaDeTramo ya arma/comparte para
+  // el resto del cálculo del mismo Tramo. Ausente ⇒ comportamiento previo
+  // byte a byte (se construye un índice nuevo acá): lo que siguen haciendo
+  // el resto de los call sites (fuera del motor de presión de M2).
+  indiceTopologico?: IndiceTopologico,
 ): readonly ReferenciaDeArtefacto[] {
   const { redHidraulica } = proyecto
 
@@ -20,20 +29,15 @@ export function obtenerArtefactosAguasAbajo(
     throw new Error('obtenerArtefactosAguasAbajo requiere un proyecto con redHidraulica definida')
   }
 
-  const tramoInicial = redHidraulica.tramos.find((tramo) => tramo.id === tramoId)
+  const indice = indiceTopologico ?? crearIndiceTopologico(redHidraulica)
+  const tramoInicial = indice.tramosPorId.get(tramoId)
 
   if (tramoInicial === undefined) {
     throw new Error(`obtenerArtefactosAguasAbajo: no existe ningun tramo con id "${tramoId}"`)
   }
 
-  const nodosPorId = new Map(redHidraulica.nodos.map((nodo) => [nodo.id, nodo]))
-
-  const tramosSalientesPorNodo = new Map<string, Tramo[]>()
-  redHidraulica.tramos.forEach((tramo) => {
-    const salientes = tramosSalientesPorNodo.get(tramo.nodoOrigenId) ?? []
-    salientes.push(tramo)
-    tramosSalientesPorNodo.set(tramo.nodoOrigenId, salientes)
-  })
+  const nodosPorId = indice.nodosPorId
+  const tramosSalientesPorNodo = indice.tramosSalientesPorNodo
 
   const nodosVisitados = new Set<string>()
   const clavesDeParticipantesVistos = new Set<string>()

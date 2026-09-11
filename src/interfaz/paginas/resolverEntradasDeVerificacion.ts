@@ -14,7 +14,7 @@ import type { Proyecto } from '../../modelo/proyecto'
 import { ESQUEMAS_DE_ABASTECIMIENTO } from '../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import type { TipoProyectoNormativo } from '../../normativa/eras-2023/coeficientes-mayoracion'
-import type { Nodo, ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
+import type { Nodo, ReferenciaDeArtefacto, RedDeTramo } from '../../modelo/redHidraulica'
 import { resolverOrigenHidraulicoEfectivo } from '../../motor/modulo4/resolverOrigenHidraulico'
 import {
   resolverPeloDeAguaMinimoEfectivo,
@@ -26,7 +26,6 @@ import {
   type OrigenHidraulicoDeMedidores,
   type PerdidasDeMedidoresParaTerminal,
 } from '../../motor/modulo3/resolverPerdidasDeMedidoresParaTerminal'
-import { resolverRedDeTerminal } from './resolverRedDeTerminal'
 
 type OrigenEfectivo = ReturnType<typeof resolverOrigenHidraulicoEfectivo>
 
@@ -146,14 +145,26 @@ export function resolverEntradasDeVerificacion(
   const nodosTerminales = proyecto.redHidraulica?.nodos.filter(esTerminalDeArtefacto) ?? []
   const estadoModulo3 = resolverEstadoModulo3(proyecto, catalogoArtefactos, coeficientesMayoracion)
 
+  // PERF-SCALE-01D: ambos índices se construyen UNA sola vez por llamada a
+  // resolverEntradasDeVerificacion y se reutilizan para cada terminal, en
+  // vez de que `perdidasDeMedidoresDeTerminal` (invocada una vez POR
+  // terminal desde el loop de resolverEstadoModulo2) repita un
+  // `Array.find` sobre TODOS los terminales y otro sobre TODOS los tramos
+  // -- O(terminales·(terminales+tramos)) colapsa a O(terminales+tramos).
+  const nodosTerminalesPorId = new Map(nodosTerminales.map((nodo) => [nodo.id, nodo]))
+  const redPorNodoTerminalId = new Map<string, RedDeTramo>()
+  for (const tramo of proyecto.redHidraulica?.tramos ?? []) {
+    redPorNodoTerminalId.set(tramo.nodoDestinoId, tramo.red)
+  }
+
   const perdidasDeMedidoresDeTerminal = (
     nodoTerminalId: string,
   ): PerdidasDeMedidoresParaTerminal | undefined => {
     if (origenHidraulico === undefined) {
       return undefined
     }
-    const nodo = nodosTerminales.find((n) => n.id === nodoTerminalId)
-    const red = resolverRedDeTerminal(proyecto, nodoTerminalId)
+    const nodo = nodosTerminalesPorId.get(nodoTerminalId)
+    const red = redPorNodoTerminalId.get(nodoTerminalId)
     if (nodo === undefined || red === undefined) {
       return undefined
     }

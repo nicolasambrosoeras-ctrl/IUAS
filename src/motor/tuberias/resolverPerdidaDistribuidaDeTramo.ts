@@ -15,7 +15,7 @@
 import type { Proyecto } from '../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import { resolverDiametroComercialDeTramo } from './resolverDiametroComercialDeTramo'
-import type { ContextoDeCalculoM2 } from './contextoDeCalculoM2'
+import { obtenerIndiceTopologicoDeContexto, type ContextoDeCalculoM2 } from './contextoDeCalculoM2'
 import type { SistemaDeTuberiaCatalogado } from './sistemaDeTuberia'
 import type { MaterialTuberia } from './materialTuberia'
 import type { EntradaCatalogoTuberia } from './diametroComercial/obtenerCandidatosDeDiametroComercial'
@@ -122,7 +122,12 @@ export function resolverPerdidaDistribuidaDeTramo(
     throw new Error('resolverPerdidaDistribuidaDeTramo requiere un proyecto con redHidraulica definida')
   }
 
-  const tramo = redHidraulica.tramos.find((candidatoTramo) => candidatoTramo.id === tramoId)
+  // PERF-SCALE-01D: mismo reemplazo de `Array.find` por el IndiceTopologico
+  // compartido de esta resolución (ver resolverDiametroComercialDeTramo.ts).
+  const tramo =
+    contexto === undefined
+      ? redHidraulica.tramos.find((candidatoTramo) => candidatoTramo.id === tramoId)
+      : obtenerIndiceTopologicoDeContexto(contexto, redHidraulica).tramosPorId.get(tramoId)
   if (tramo === undefined) {
     // Inalcanzable en la práctica: resolverDiametroComercialDeTramo ya
     // resolvió exitosamente sobre este tramoId.

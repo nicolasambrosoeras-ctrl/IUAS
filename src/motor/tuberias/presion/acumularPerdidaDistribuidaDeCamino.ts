@@ -91,7 +91,7 @@ export function acumularPerdidaDistribuidaDeCamino(
   const porTramo: PerdidaDistribuidaPorTramo[] = []
   const tramosNoResueltos: { tramoId: string; motivo: MotivoTramoSinPerdida }[] = []
 
-  const { tramosRelevables } = seleccionarTramosDeAcumulacion(proyecto, camino)
+  const { tramosRelevables } = seleccionarTramosDeAcumulacion(proyecto, camino, contexto)
 
   for (const tramo of tramosRelevables) {
     const resultadoTramo = resolverPerdidaDistribuidaDeTramo(

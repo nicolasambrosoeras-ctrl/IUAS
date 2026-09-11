@@ -19,6 +19,8 @@
 // red sigue siendo valida como estructura; simplemente no es resoluble
 // por el alcance hidraulico actual.
 import type { Nodo, RedHidraulica, Tramo } from '../../../modelo/redHidraulica'
+import { registrarPasoCaminoHaciaOrigen } from './instrumentacionTopologica'
+import { obtenerTramosEntrantesIndexados, type ContextoDeCalculoM2 } from '../contextoDeCalculoM2'
 
 export type CaminoHaciaOrigen = {
   readonly tipo: 'camino'
@@ -59,8 +61,18 @@ export type ResultadoCaminoHaciaOrigen = CaminoHaciaOrigen | CaminoHaciaOrigenNo
 export function obtenerCaminoHaciaOrigen(
   redHidraulica: RedHidraulica,
   nodoTerminalId: string,
+  // PERF-SCALE-01D: contexto de cálculo local a la resolución de M2 (mismo
+  // parámetro opcional que el resto del árbol de presión, ver
+  // contextoDeCalculoM2.ts). Presente -> el índice nodoDestinoId->entrantes
+  // se construye UNA vez para toda la resolución y este traversal deja de
+  // ser O(profundidad·tramos) para pasar a O(profundidad). Ausente ->
+  // comportamiento previo byte a byte (cada llamada escanea todos los
+  // tramos): lo que siguen haciendo los call sites puntuales y los tests.
+  contexto?: ContextoDeCalculoM2,
 ): ResultadoCaminoHaciaOrigen {
   const nodosPorId = new Map(redHidraulica.nodos.map((nodo) => [nodo.id, nodo]))
+  const tramosEntrantesPorNodoDestino =
+    contexto === undefined ? undefined : obtenerTramosEntrantesIndexados(contexto, redHidraulica.tramos)
 
   const nodoTerminal = nodosPorId.get(nodoTerminalId)
   if (nodoTerminal === undefined) {
@@ -81,7 +93,11 @@ export function obtenerCaminoHaciaOrigen(
   let nodoActualId = nodoTerminalId
 
   for (;;) {
-    const tramosEntrantes = redHidraulica.tramos.filter((tramo) => tramo.nodoDestinoId === nodoActualId)
+    registrarPasoCaminoHaciaOrigen()
+    const tramosEntrantes =
+      tramosEntrantesPorNodoDestino === undefined
+        ? redHidraulica.tramos.filter((tramo) => tramo.nodoDestinoId === nodoActualId)
+        : (tramosEntrantesPorNodoDestino.get(nodoActualId) ?? [])
 
     if (tramosEntrantes.length === 0) {
       // nodoActual no tiene tramo entrante: es una raiz de alimentacion.

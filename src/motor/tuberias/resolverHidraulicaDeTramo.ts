@@ -13,6 +13,7 @@ import { filtrarArtefactosHidraulicamenteActivos } from './participacion/filtrar
 import { aplicarParticipacionCritA8 } from './participacion/aplicarParticipacionCritA8'
 import { resolverAportesHidraulicosDeTramo } from './aporte/resolverAportesHidraulicosDeTramo'
 import { crearIndiceTopologico } from './topologia/indiceTopologico'
+import { obtenerIndiceTopologicoDeContexto } from './contextoDeCalculoM2'
 import { resolverCondicionesHidraulicasDeCaudalAguasAbajo } from './caudal/resolverCondicionesHidraulicasAguasAbajo'
 import { resolverSimultaneidadHidraulicaDeTramo } from './simultaneidad/resolverSimultaneidadHidraulicaDeTramo'
 import type { ResultadoSimultaneidadHidraulicaDeTramo } from './simultaneidad/resolverSimultaneidadHidraulicaDeTramo'
@@ -55,7 +56,7 @@ export function resolverHidraulicaDeTramo(
     return memoizado
   }
 
-  const resultado = calcularHidraulicaDeTramo(proyecto, tramoId, catalogoArtefactos)
+  const resultado = calcularHidraulicaDeTramo(proyecto, tramoId, catalogoArtefactos, contexto)
   contexto?.hidraulicaPorTramo.set(tramoId, resultado)
   return resultado
 }
@@ -64,31 +65,45 @@ function calcularHidraulicaDeTramo(
   proyecto: Proyecto,
   tramoId: string,
   catalogoArtefactos: readonly ArtefactoNormativo[],
+  // PERF-SCALE-01D: mismo contexto de cálculo local a la resolución --
+  // permite reutilizar el IndiceTopologico entre los distintos Tramos de
+  // ESTA resolución en vez de reconstruirlo por cada uno (ver
+  // contextoDeCalculoM2.ts). Ausente ⇒ comportamiento previo byte a byte
+  // (se construye un índice nuevo en cada llamada).
+  contexto?: ContextoDeCalculoM2,
 ): ResultadoHidraulicoDeTramo {
   registrarCalculoHidraulicaDeTramo()
 
-  const referencias = obtenerArtefactosAguasAbajo(proyecto, tramoId)
-  const resueltos = resolverArtefactosReferenciados(proyecto, referencias)
-  const computables = filtrarArtefactosComputables(resueltos)
-
   const { redHidraulica } = proyecto
   if (redHidraulica === undefined) {
-    // Inalcanzable en la practica: obtenerArtefactosAguasAbajo ya lanzo
-    // mas arriba si redHidraulica fuera undefined. Chequeo necesario
-    // unicamente para el angostamiento de tipos de TypeScript en las
-    // llamadas siguientes, que requieren RedHidraulica sin undefined.
+    // Inalcanzable en la practica: obtenerArtefactosAguasAbajo (mas abajo)
+    // tambien lo exige. Chequeo necesario unicamente para el angostamiento
+    // de tipos de TypeScript en las llamadas siguientes, que requieren
+    // RedHidraulica sin undefined.
     throw new Error('resolverHidraulicaDeTramo requiere un proyecto con redHidraulica definida')
   }
 
   // PERF-SCALE-01A: la condición hidráulica topológica de CADA artefacto
   // aguas abajo de `tramoId` se resuelve UNA vez, en un solo traversal DFS
-  // sobre un índice construido acá -- no una vez por artefacto (con
-  // reconstrucción de índice + DFS propio) dentro de
-  // filtrarArtefactosHidraulicamenteActivos y de
-  // resolverAportesHidraulicosDeTramo, que era el hotspot medido. El Map se
-  // comparte entre ambas etapas; el resultado es idéntico al del
+  // sobre un índice -- no una vez por artefacto (con reconstrucción de
+  // índice + DFS propio) dentro de filtrarArtefactosHidraulicamenteActivos y
+  // de resolverAportesHidraulicosDeTramo, que era el hotspot medido. El Map
+  // se comparte entre ambas etapas; el resultado es idéntico al del
   // clasificador puntual por construcción.
-  const indiceTopologico = crearIndiceTopologico(redHidraulica)
+  //
+  // PERF-SCALE-01D: con contexto, ese índice además se comparte entre TODOS
+  // los Tramos de esta resolución (se construye una sola vez, no una por
+  // Tramo distinto calculado) -- medido en escala 20 UF: ~561 reconstrucciones
+  // redundantes del mismo índice por resolución. `obtenerArtefactosAguasAbajo`
+  // reconstruía el SUYO propio (nodosPorId/tramosSalientesPorNodo) desde
+  // cero en cada llamada; ahora reutiliza el mismo índice compartido.
+  const indiceTopologico =
+    contexto === undefined ? crearIndiceTopologico(redHidraulica) : obtenerIndiceTopologicoDeContexto(contexto, redHidraulica)
+
+  const referencias = obtenerArtefactosAguasAbajo(proyecto, tramoId, indiceTopologico)
+  const resueltos = resolverArtefactosReferenciados(proyecto, referencias)
+  const computables = filtrarArtefactosComputables(resueltos)
+
   const condicionesAguasAbajo = resolverCondicionesHidraulicasDeCaudalAguasAbajo(indiceTopologico, tramoId)
 
   const activos = filtrarArtefactosHidraulicamenteActivos(

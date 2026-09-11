@@ -38,6 +38,9 @@
 // históricos.
 import type { ResultadoHidraulicoDeTramo } from './resolverHidraulicaDeTramo'
 import type { ResultadoDiametroComercialDeTramo } from './resolverDiametroComercialDeTramo'
+import type { RedHidraulica, Tramo } from '../../modelo/redHidraulica'
+import { crearIndiceTopologico, type IndiceTopologico } from './topologia/indiceTopologico'
+import type { IdentidadDeLocal } from './topologia/identificarTramoRepresentativoDeLocal'
 
 export interface ContextoDeCalculoM2 {
   // tramoId -> resultado de resolverHidraulicaDeTramo para ese Tramo en ESTA
@@ -47,11 +50,82 @@ export interface ContextoDeCalculoM2 {
   // en ESTA resolución (incluye el override manual `dnComercialAdoptado`, que
   // vive en redHidraulica y por tanto es parte de la entrada inmutable).
   readonly diametroComercialPorTramo: Map<string, ResultadoDiametroComercialDeTramo>
+  // PERF-SCALE-01D. nodoDestinoId -> tramos ENTRANTES a ese nodo, para ESTA
+  // resolución. Vacío hasta el primer uso real (ver
+  // `obtenerTramosEntrantesIndexados`): `obtenerCaminoHaciaOrigen` lo
+  // construye una sola vez, la primera vez que camina un árbol de esta
+  // resolución, y lo reutiliza para los demás terminales -- reemplaza un
+  // `Array.filter` sobre TODOS los tramos POR CADA PASO de CADA camino
+  // (O(terminales·profundidad·tramos)) por un `Map.get` (O(terminales·
+  // profundidad) tras una construcción única O(tramos)).
+  readonly tramosEntrantesPorNodoDestino: Map<string, readonly Tramo[]>
+  // PERF-SCALE-01D. El IndiceTopologico (nodosPorId/tramosPorId/
+  // tramosSalientesPorNodo, ver topologia/indiceTopologico.ts) construido
+  // para ESTA resolución. Su propio comentario de diseño (PERF-SCALE-01A)
+  // dice "se materializa UNA vez por resolución", pero sin este campo
+  // `calcularHidraulicaDeTramo` lo reconstruía una vez POR CADA Tramo
+  // distinto calculado (≈tramos veces, no una) -- mutable únicamente para
+  // memoizar esa construcción única; nunca se muta su contenido.
+  indiceTopologico: IndiceTopologico | undefined
+  // PERF-SCALE-01D. Resultado de `identificarTramosRepresentativosDeLocales`
+  // para ESTA resolución, memoizado. Sólo importa con
+  // `granularidadHidraulica: 'simplificada'`: `seleccionarTramosDeAcumulacion`
+  // lo pedía desde CERO en cada llamada, y se llama una vez POR TERMINAL
+  // desde `acumularPerdidaDistribuidaDeCamino` Y otra vez desde
+  // `acumularPerdidaLocalizadaDeCamino` -- a escala 20+ UF, con
+  // `identificarTramosRepresentativosDeLocales` internamente O(tramos²) (un
+  // traversal aguas abajo sin índice por cada Tramo del Proyecto), esto era
+  // O(terminales·tramos²): el hotspot real detrás del freeze de varios
+  // segundos al editar un dato de presión en modo Rápido. `undefined` hasta
+  // el primer uso.
+  tramosRepresentativosDeLocales: ReadonlyMap<string, IdentidadDeLocal> | undefined
 }
 
 export function crearContextoDeCalculoM2(): ContextoDeCalculoM2 {
   return {
     hidraulicaPorTramo: new Map(),
     diametroComercialPorTramo: new Map(),
+    tramosEntrantesPorNodoDestino: new Map(),
+    indiceTopologico: undefined,
+    tramosRepresentativosDeLocales: undefined,
   }
+}
+
+// Construye (la primera vez que se pide, dentro de esta resolución) el
+// IndiceTopologico de `redHidraulica`, y lo devuelve. Mismo supuesto que el
+// resto de este contexto: `redHidraulica` es inmutable mientras dura la
+// resolución, así que un único índice es válido para todos los Tramos.
+export function obtenerIndiceTopologicoDeContexto(
+  contexto: ContextoDeCalculoM2,
+  redHidraulica: RedHidraulica,
+): IndiceTopologico {
+  if (contexto.indiceTopologico === undefined) {
+    contexto.indiceTopologico = crearIndiceTopologico(redHidraulica)
+  }
+  return contexto.indiceTopologico
+}
+
+// Construye (la primera vez que se pide, dentro de esta resolución) el
+// índice nodoDestinoId -> tramos entrantes, y lo devuelve. `tramos` debe ser
+// siempre `redHidraulica.tramos` de ESTE Proyecto -- inmutable mientras dura
+// la resolución (mismo supuesto que el resto de este contexto). Un
+// `redHidraulica` sin tramos dejaría el índice vacío indefinidamente; eso es
+// correcto (no hay nada que indexar) y barato de detectar de nuevo en la
+// próxima llamada.
+export function obtenerTramosEntrantesIndexados(
+  contexto: ContextoDeCalculoM2,
+  tramos: readonly Tramo[],
+): Map<string, readonly Tramo[]> {
+  const indice = contexto.tramosEntrantesPorNodoDestino
+  if (indice.size === 0) {
+    for (const tramo of tramos) {
+      const entrantes = indice.get(tramo.nodoDestinoId) as Tramo[] | undefined
+      if (entrantes === undefined) {
+        indice.set(tramo.nodoDestinoId, [tramo])
+      } else {
+        entrantes.push(tramo)
+      }
+    }
+  }
+  return indice
 }

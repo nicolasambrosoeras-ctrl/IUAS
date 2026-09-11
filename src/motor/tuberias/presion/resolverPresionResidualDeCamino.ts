@@ -106,6 +106,10 @@ import {
 } from './resolverPerdidaLocalizadaEstimadaDeLocal'
 import { resolverBalanceDePresion } from './resolverBalanceDePresion'
 import type { ContextoDeCalculoM2 } from '../contextoDeCalculoM2'
+import {
+  acumularTiempoMsPorEtapa,
+  instrumentacionTopologicaActiva,
+} from '../topologia/instrumentacionTopologica'
 
 // Union discriminada por metodologia (D-delta.40) -- nunca un booleano
 // "esEstimado": cada variante trae exactamente los datos auditables que
@@ -241,7 +245,12 @@ export function resolverPresionResidualDeCamino(
     throw new Error('resolverPresionResidualDeCamino requiere un proyecto con redHidraulica definida')
   }
 
-  const camino = obtenerCaminoHaciaOrigen(redHidraulica, nodoTerminalId)
+  const medicionCaminoActiva = instrumentacionTopologicaActiva()
+  const t0Camino = medicionCaminoActiva ? performance.now() : 0
+  const camino = obtenerCaminoHaciaOrigen(redHidraulica, nodoTerminalId, contexto)
+  if (medicionCaminoActiva) {
+    acumularTiempoMsPorEtapa('camino', performance.now() - t0Camino)
+  }
   if (camino.tipo !== 'camino') {
     return { tipo: 'topologiaNoResoluble', detalle: camino }
   }
@@ -253,6 +262,11 @@ export function resolverPresionResidualDeCamino(
   if (referencia === undefined || referencia.tipo !== 'artefacto') {
     return { tipo: 'terminalSinArtefacto', nodoId: nodoTerminal.id }
   }
+
+  // PERF-SCALE-01D: instrumentación de profiling por etapa (diagnóstico,
+  // gate a costo cero en producción vía instrumentacionTopologicaActiva()).
+  const medicionActiva = instrumentacionTopologicaActiva()
+  const t0ReferenciasYCota = medicionActiva ? performance.now() : 0
 
   const unidadFuncional = proyecto.unidadesFuncionales.find((uf) => uf.id === referencia.unidadFuncionalId)
   const local = unidadFuncional?.locales.find((l) => l.id === referencia.localId)
@@ -321,6 +335,11 @@ export function resolverPresionResidualDeCamino(
     }
   }
 
+  if (medicionActiva) {
+    acumularTiempoMsPorEtapa('referenciasYCota', performance.now() - t0ReferenciasYCota)
+  }
+  const t0DesnivelEIncremento = medicionActiva ? performance.now() : 0
+
   const desnivel = resolverDesnivelDeCamino(caminoParaDesnivel)
   if (desnivel.tipo === 'incompleto') {
     return { tipo: 'desnivelIncompleto', nodosSinCota: desnivel.nodosSinCota }
@@ -334,6 +353,11 @@ export function resolverPresionResidualDeCamino(
   // (D-δ.46) y Δz lo capturo mas arriba; esto es SOLO el caño vertical.
   const incrementoVerticalPorNivel = resolverIncrementoVerticalPorNivel(proyecto, camino, unidadFuncional)
 
+  if (medicionActiva) {
+    acumularTiempoMsPorEtapa('desnivelEIncremento', performance.now() - t0DesnivelEIncremento)
+  }
+  const t0PerdidaDistribuida = medicionActiva ? performance.now() : 0
+
   const perdidaDistribuida = acumularPerdidaDistribuidaDeCamino(
     proyecto,
     camino,
@@ -343,9 +367,14 @@ export function resolverPresionResidualDeCamino(
     incrementoVerticalPorNivel.incrementoPorTramoId,
     contexto,
   )
+  if (medicionActiva) {
+    acumularTiempoMsPorEtapa('perdidaDistribuida', performance.now() - t0PerdidaDistribuida)
+  }
   if (perdidaDistribuida.tipo === 'incompleta') {
     return { tipo: 'perdidaDistribuidaIncompleta', tramosNoResueltos: perdidaDistribuida.tramosNoResueltos }
   }
+
+  const t0PerdidaLocalizada = medicionActiva ? performance.now() : 0
 
   let hfLocalizada: TrazaHfLocalizada
   let coberturaHfLocalizada: { readonly tipo: 'completa' | 'estimada'; readonly hf_mca: number }
@@ -393,6 +422,9 @@ export function resolverPresionResidualDeCamino(
         contexto,
       )
       if (perdidaEstimada.tipo === 'incompleta') {
+        if (medicionActiva) {
+          acumularTiempoMsPorEtapa('perdidaLocalizada', performance.now() - t0PerdidaLocalizada)
+        }
         return { tipo: 'perdidaLocalizadaEstimadaIncompleta', tramosNoResueltos: perdidaEstimada.tramosNoResueltos }
       }
 
@@ -405,6 +437,10 @@ export function resolverPresionResidualDeCamino(
       }
       coberturaHfLocalizada = { tipo: 'estimada', hf_mca: perdidaEstimada.hf_m }
     }
+  }
+
+  if (medicionActiva) {
+    acumularTiempoMsPorEtapa('perdidaLocalizada', performance.now() - t0PerdidaLocalizada)
   }
 
   const traza: TrazaDeCamino = {
