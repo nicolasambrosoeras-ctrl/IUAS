@@ -106,6 +106,22 @@ describe('sonPropsDeDimensionamientoEquivalentes (PERF-SCALE-01D)', () => {
     )
   })
 
+  // FIX-M2-A-PROP-01: cambiar el tipo de proyecto (coeficiente de
+  // simultaneidad `a`) reconstruye únicamente `proyecto.parametros` -- el
+  // motor de M2 lee `tipoDeProyecto` para Qc/DN/V de cada tramo, así que
+  // Tuberías/Montantes (dentro de este árbol) no deben quedarse con el
+  // dimensionamiento de antes.
+  it('cambiar tipoDeProyecto (coeficiente de simultaneidad a) -> DISTINTAS (debe re-renderizar)', () => {
+    const onCambiar = vi.fn()
+    const editado = {
+      ...proyectoInicial,
+      parametros: { ...proyectoInicial.parametros, tipoDeProyecto: 'centroComercial' as const },
+    }
+    expect(sonPropsDeDimensionamientoEquivalentes(propsDe(proyectoInicial, onCambiar), propsDe(editado, onCambiar))).toBe(
+      false,
+    )
+  })
+
   it('distinto catalogoArtefactos u onCambiar -> DISTINTAS', () => {
     const onCambiarA = vi.fn()
     const onCambiarB = vi.fn()

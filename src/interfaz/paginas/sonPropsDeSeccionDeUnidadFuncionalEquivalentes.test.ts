@@ -134,6 +134,23 @@ describe('sonPropsDeSeccionDeUnidadFuncionalEquivalentes (PERF-SCALE-01E)', () =
     ).toBe(false)
   })
 
+  // FIX-M2-A-PROP-01: cambiar el tipo de proyecto (coeficiente de
+  // simultaneidad `a`) reconstruye únicamente `proyecto.parametros` -- el
+  // motor lee `tipoDeProyecto` para Qc/DN/V de cada tramo de esta UF.
+  it('cambiar tipoDeProyecto (coeficiente de simultaneidad a) -> DISTINTAS (debe re-renderizar)', () => {
+    const onCambiar = vi.fn()
+    const editado: Proyecto = {
+      ...proyectoInicial,
+      parametros: { ...proyectoInicial.parametros, tipoDeProyecto: 'centroComercial' },
+    }
+    expect(
+      sonPropsDeSeccionDeUnidadFuncionalEquivalentes(
+        propsDe(proyectoInicial, ufOriginalId, onCambiar),
+        propsDe(editado, ufOriginalId, onCambiar),
+      ),
+    ).toBe(false)
+  })
+
   it('esta misma UF pasa a ser OTRA (uf) -> DISTINTAS', () => {
     const onCambiar = vi.fn()
     const otraUfId = proyectoInicial.unidadesFuncionales[0]!.id
