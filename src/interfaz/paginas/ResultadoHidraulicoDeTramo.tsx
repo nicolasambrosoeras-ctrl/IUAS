@@ -547,7 +547,8 @@ function SeccionDeUnidadFuncionalBase({
         red: fila.red,
         grupo: {
           id: local.id,
-          etiqueta: `${etiquetaLocal} · ${local.artefactos.length} ${local.artefactos.length === 1 ? 'artefacto' : 'artefactos'}`,
+          nombre: etiquetaLocal,
+          meta: `${local.artefactos.length} ${local.artefactos.length === 1 ? 'artefacto' : 'artefactos'}`,
         },
         fila: resolverFilaDeDimensionamiento(
           proyecto,
@@ -597,10 +598,12 @@ const SeccionDeUnidadFuncional = memo(SeccionDeUnidadFuncionalBase, sonPropsDeSe
 //
 // - 1 UF (o 0): sin acordeón -- se renderiza tal cual como hoy (§5). No hay
 //   estado "activa" visible, no hay header colapsable.
-// - >1 UF: cada UF pasa a un header compacto colapsable; UNA sola UF activa
-//   por vez (§6/§7). El contenido de las UF no activas NO se monta (§9): no
-//   se instancia `SeccionDeUnidadFuncional` para ellas, así que ningún
-//   Local/AF/AC/editor de esa UF existe en el DOM mientras está colapsada.
+// - >1 UF: cada UF pasa a un header compacto colapsable; 0 o 1 UF activa
+//   por vez (UI-M2-GROUP-02 §1: click en la UF ya abierta la cierra, es
+//   válido que todas queden condensadas). El contenido de las UF no
+//   activas NO se monta (§9): no se instancia `SeccionDeUnidadFuncional`
+//   para ellas, así que ningún Local/AF/AC/editor de esa UF existe en el
+//   DOM mientras está colapsada -- ni tampoco mientras ninguna está activa.
 //
 // Estado 100% transitorio de UI (§7): vive en un useState local a este
 // componente, se pierde al desmontar Tuberías, nunca se persiste en
@@ -658,7 +661,11 @@ function ListaDeUnidadesFuncionales({
         const activa = uf.id === ufActivaId
         return (
           <div className="lista-uf__item" key={uf.id}>
-            <CabeceraDeUnidadFuncional uf={uf} activa={activa} onAbrir={() => setUfActivaId(uf.id)} />
+            <CabeceraDeUnidadFuncional
+              uf={uf}
+              activa={activa}
+              onAbrir={() => setUfActivaId((activaActual) => (activaActual === uf.id ? undefined : uf.id))}
+            />
             {activa ? (
               <SeccionDeUnidadFuncional
                 proyecto={proyecto}

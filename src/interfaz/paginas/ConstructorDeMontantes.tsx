@@ -385,6 +385,8 @@ export function ConstructorDeMontantes({
   const [eligiendoRed, setEligiendoRed] = useState(false)
   const montantesRaw = proyecto.montantes
   const montantes = montantesRaw ?? []
+  // UI-M2-GROUP-02 §1: 0 o 1 montante activo -- onAbrir (abajo) alterna, no
+  // sólo abre; es válido que ningún montante quede desarrollado.
   const [montanteActivoId, setMontanteActivoId] = useState<string | undefined>(() => montantes[0]?.id)
   const idsAnterioresRef = useRef<readonly string[]>(montantes.map((m) => m.id))
 
@@ -450,7 +452,9 @@ export function ConstructorDeMontantes({
               catalogoArtefactos={catalogoArtefactos}
               montanteId={montante.id}
               activo={montante.id === montanteActivoId}
-              onAbrir={() => setMontanteActivoId(montante.id)}
+              onAbrir={() =>
+                setMontanteActivoId((activo) => (activo === montante.id ? undefined : montante.id))
+              }
               onCambiar={onCambiar}
             />
           ))}
