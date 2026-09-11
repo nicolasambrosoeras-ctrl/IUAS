@@ -7,9 +7,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { proyectoInicial } from './proyectoDeEjemplo'
-import { conCotaDeNodo } from './actualizarRedHidraulica'
+import { conCotaDeNodo, conTeeDeNodo } from './actualizarRedHidraulica'
 import { conDesnivelConexion, conPresionSobreAcera } from './actualizarParametrosDeConexion'
 import { duplicarUnidadFuncionalEnProyecto } from './duplicarUnidadFuncional'
+import { conMontanteNuevo } from './montantesDelProyecto'
 import { sonPropsDeDimensionamientoEquivalentes, type PropsDeDimensionamiento } from './sonPropsDeDimensionamientoEquivalentes'
 
 function propsDe(proyecto: typeof proyectoInicial, onCambiar: () => void): PropsDeDimensionamiento {
@@ -76,6 +77,30 @@ describe('sonPropsDeDimensionamientoEquivalentes (PERF-SCALE-01D)', () => {
       ...proyectoInicial,
       configuracionHidraulica: { ...proyectoInicial.configuracionHidraulica, granularidadHidraulica: 'profesional' as const },
     }
+    expect(sonPropsDeDimensionamientoEquivalentes(propsDe(proyectoInicial, onCambiar), propsDe(editado, onCambiar))).toBe(
+      false,
+    )
+  })
+
+  // FIX-MONTANTE-ADD-01: agregar un montante nuevo reconstruye únicamente
+  // `Proyecto.montantes` -- ConstructorDeMontantes (dentro de este árbol) no
+  // debe quedarse con el render viejo.
+  it('agregar un montante nuevo (Proyecto.montantes) -> DISTINTAS (debe re-renderizar)', () => {
+    const onCambiar = vi.fn()
+    const { proyecto: editado } = conMontanteNuevo(proyectoInicial, 'AF')
+    expect(sonPropsDeDimensionamientoEquivalentes(propsDe(proyectoInicial, onCambiar), propsDe(editado, onCambiar))).toBe(
+      false,
+    )
+  })
+
+  // FIX-MONTANTE-ADD-01: configurar la tee de un nodo reconstruye únicamente
+  // `redHidraulica.nodos` (nunca `.tramos`) -- TeeDeNodoEditor (dentro de
+  // DerivacionesDeMontante, dentro de este árbol) lee `Nodo.tee` y no debe
+  // quedarse con el checkbox sin marcar tras elegirlo.
+  it('configurar la tee de un nodo (Nodo.tee) -> DISTINTAS (debe re-renderizar)', () => {
+    const onCambiar = vi.fn()
+    const nodoId = proyectoInicial.redHidraulica!.nodos[0]!.id
+    const editado = conTeeDeNodo(proyectoInicial, nodoId, { tipo: 'entradaCentral' })
     expect(sonPropsDeDimensionamientoEquivalentes(propsDe(proyectoInicial, onCambiar), propsDe(editado, onCambiar))).toBe(
       false,
     )

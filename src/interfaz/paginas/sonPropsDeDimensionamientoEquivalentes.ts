@@ -32,13 +32,47 @@
 // método de pérdida/granularidad) reconstruye `unidadesFuncionales` y/o
 // `redHidraulica.tramos` y/o `configuracionHidraulica` -- el comparador
 // vuelve `false` y React re-renderiza normalmente.
+//
+// FIX-MONTANTE-ADD-01: `proyecto.montantes` también se compara por
+// referencia. `conMontanteNuevo`/`conNombreDeMontante`/etc. (montantesDelProyecto.ts,
+// reconciliarMontante.ts) sólo reconstruyen `Proyecto.montantes` -- no tocan
+// `unidadesFuncionales` ni `redHidraulica.tramos` cuando el alta todavía no
+// tiene Locales/segmentos -- así que sin esta comparación el comparador
+// consideraba las props equivalentes y ConstructorDeMontantes (dentro de
+// este árbol) nunca mostraba el montante recién creado.
+//
+// Mismo hallazgo para `Nodo.tee`: TeeDeNodoEditor (dentro de
+// DerivacionesDeMontante, dentro de este mismo árbol) lee `redHidraulica.nodos`
+// y `conTeeDeNodo` (actualizarRedHidraulica.ts) sólo reconstruye `nodos` --
+// nunca `tramos` -- así que sin comparar `tee` por nodo, el checkbox de tee
+// quedaba visualmente sin marcar tras elegirlo. NO se compara `nodos` por
+// referencia entera: ese array se reconstruye (nuevo `.map`) también cuando
+// sólo cambia `Nodo.cota_m` (conCotaDeNodo, editado desde Verificación/Módulo 4,
+// una sección DISTINTA) y comparar el array completo reintroduciría el
+// re-render que este memo existe para evitar. `sonNodosDeTeeEquivalentes`
+// compara sólo el campo `tee` de cada nodo, que es el único que este árbol
+// lee.
 import type { Proyecto } from '../../modelo/proyecto'
+import type { Nodo } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 
 export type PropsDeDimensionamiento = {
   readonly proyecto: Proyecto
   readonly catalogoArtefactos: readonly ArtefactoNormativo[]
   readonly onCambiar: (proyecto: Proyecto) => void
+}
+
+function sonNodosDeTeeEquivalentes(
+  prevNodos: readonly Nodo[] | undefined,
+  nextNodos: readonly Nodo[] | undefined,
+): boolean {
+  if (prevNodos === nextNodos) {
+    return true
+  }
+  if (prevNodos === undefined || nextNodos === undefined || prevNodos.length !== nextNodos.length) {
+    return false
+  }
+  return prevNodos.every((nodo, indice) => nodo.tee === nextNodos[indice]!.tee)
 }
 
 export function sonPropsDeDimensionamientoEquivalentes(
@@ -48,8 +82,10 @@ export function sonPropsDeDimensionamientoEquivalentes(
   return (
     prev.proyecto.unidadesFuncionales === next.proyecto.unidadesFuncionales &&
     prev.proyecto.redHidraulica?.tramos === next.proyecto.redHidraulica?.tramos &&
+    sonNodosDeTeeEquivalentes(prev.proyecto.redHidraulica?.nodos, next.proyecto.redHidraulica?.nodos) &&
     prev.proyecto.configuracionHidraulica === next.proyecto.configuracionHidraulica &&
     prev.proyecto.modoTrabajo === next.proyecto.modoTrabajo &&
+    prev.proyecto.montantes === next.proyecto.montantes &&
     prev.catalogoArtefactos === next.catalogoArtefactos &&
     prev.onCambiar === next.onCambiar
   )
