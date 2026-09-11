@@ -1419,6 +1419,55 @@ salvo bug inequívoco o decisión roja explícita.
   - **Siguiente:** QA Fuzz cloud 20×30 (seed vacía) sobre `main`; luego
     prueba manual del usuario en producción; según ella, `PERF-SCALE-01C`.
 
+- **D-δ.99 — PERF-SCALE-01C: orquestación de cálculo M2 en React.** Tercer
+  slice del P1 `PERF-SCALE-01`. QA Fuzz cloud post-01B 20×30 verde; prueba
+  manual post-01B: lag seguía perceptible pese al motor ya rápido (D-δ.98).
+  **Duplicaciones confirmadas:** `resolverEstadoModulo2` se llamaba 2×
+  por re-render (sidebar + `PanelDePresionDeModulo2`, ningún `useMemo`);
+  el panel además hacía un 3er recorrido completo del árbol de presión
+  (bucle `candidatos` sin contexto) para reconstruir datos que
+  `resolverEstadoModulo2` ya había calculado; el panel de Tuberías
+  resolvía cada Tramo hasta 3× por fila (mismo Tramo, 3 llamadas
+  independientes sin compartir nada). Las 3 tablas de dimensionamiento
+  cubren Tramos disjuntos entre sí (no hay redundancia cruzada, sólo
+  intra-fila). `Duplicar UF` NO agregaba duplicación propia (build ya
+  publicaba un único Proyecto, 0 estados intermedios) -- el costo era
+  enteramente el re-render posterior. **Fix:** `resolverResolucionDeModulo2`
+  (nuevo, punto único que compone entradas+M2), memoizado por
+  `useMemo(..., [proyecto, demandaValida])` en `MotorDemandaPantalla` y
+  compartido con `resolverResumenDeProyecto` (param opcional) y
+  `PanelDePresionDeModulo2` (prop opcional) -- ausente en ambos ⇒
+  comportamiento previo byte a byte. `EstadoModulo2` gana `candidatos:
+  readonly CandidatoTerminal[]` (resultado crudo por terminal ya
+  calculado, `[]` en las ramas que cortan antes de iterar) -- el panel lo
+  lee en vez de recorrer de nuevo, salvo `estado==='error'` estructural
+  (recorrido preservado idéntico, equivalencia byte a byte en ese borde).
+  `ResultadoHidraulicoDeTramo` crea UN `ContextoDeCalculoM2` (01B) por
+  render y lo comparte entre las 3 tablas de dimensionamiento. Sin cache
+  global, sin persistencia en Proyecto, sin schema change -- mismo
+  principio que 01B, extendido de "una función" a "un render". **Métricas
+  (fixture M):** `resolucionesModulo2` 2→**1**; recorridos de presión
+  extra 1→**0**; cálculos reales de dimensionamiento 591→**393**; re-render
+  compuesto ~852 ms→**~207 ms** (≈4,1×) -- para Pelo de agua, tanque,
+  agregar artefacto y el re-render posterior a duplicar UF (mismo patrón
+  arquitectónico en las 4). **Dependencias de Pelo de agua (analizado, sin
+  rediseñar):** editar la cota de raíz sólo afecta la etapa de presión
+  (Qc/DN/V/hf no leen `Nodo.cota_m`); el pipeline sigue recalculando todo
+  el Proyecto por falta de invalidación incremental -- candidato a
+  `PERF-SCALE-01D` si la prueba manual lo justifica, no decidido acá.
+  **Equivalencia:** `PanelDePresionDeModulo2.test.ts` y
+  `ResultadoHidraulicoDeTramo.test.ts` (`renderToStaticMarkup`, 19 casos
+  cada uno) verdes SIN CAMBIOS -- ejercitan la ruta de fallback byte a
+  byte. Vitest **1649 / 1649** (1648 + 1); `tsc` / `e2e:typecheck` /
+  `build` verdes; ESLint **11/0/0** (baseline; 1
+  `eslint-disable-next-line react-hooks/exhaustive-deps` justificado).
+  E2E `escala-verificacion.spec.ts` + suite M2 existente, desktop+mobile,
+  verdes contra build local. `v0.4.0-beta.5` sin mover; sin `beta.6`.
+  **PERF-SCALE-01C: CERRADO — pendiente validación manual para cerrar
+  PERF-SCALE-01 (o abrir 01D con evidencia).**
+  - **Siguiente:** QA Fuzz cloud 20×30 (seed vacía) sobre `main`; luego
+    prueba manual del usuario en producción.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /

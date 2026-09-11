@@ -11622,6 +11622,206 @@ cargar tanque, editar "Pelo de agua mínimo" y desnivel). Según esa prueba:
 `PERF-SCALE-01` se cierra, o se confirma que **`PERF-SCALE-01C` es
 necesario** (evidencia de motor ya lo indica).
 
+## D-δ.99 -- PERF-SCALE-01C: orquestación de cálculo M2 en React -- una resolución compartida por Proyecto -- CERRADO
+
+Tercer slice de `PERF-SCALE-01` (P1). QA Fuzz cloud post-01B 20×30 seed
+vacía **TODO VERDE** (informado por el usuario); prueba manual post-01B
+confirmó que el lag seguía siendo perceptible pese al motor ya rápido
+(D-δ.98: `resolverEstadoModulo2` ~75 ms warm en el fixture M). Objetivo
+acotado: **resolver M2 UNA sola vez por Proyecto actualizado y compartir
+el mismo resultado derivado entre sidebar, panel de presión y
+dimensionamiento** -- sin tocar fórmulas, sin cambiar resultados
+hidráulicos, sin reabrir M2-TOPO, sin debounce.
+
+### Duplicaciones confirmadas (arqueología)
+
+1. **`resolverEstadoModulo2` se llamaba 2 veces por re-render**: sidebar
+   (`resolverResumenDeProyecto`) y `PanelDePresionDeModulo2`, cada uno
+   resolviendo `resolverEntradasDeVerificacion` + `resolverEstadoModulo2`
+   por su cuenta -- ningún componente usaba `useMemo`.
+2. **`PanelDePresionDeModulo2` hacía un TERCER recorrido completo** del
+   árbol de presión (`nodosTerminales.map(resolverPresionResidualDeCamino)`,
+   **sin** el `ContextoDeCalculoM2` de 01B) para reconstruir exactamente
+   los mismos datos por terminal que `resolverEstadoModulo2` ya había
+   calculado internamente, sólo para armar la tabla "Ver todos los
+   terminales" y el terminal crítico -- `EstadoModulo2` no exponía esos
+   resultados crudos.
+3. **El panel de Tuberías (`ResultadoHidraulicoDeTramo`) resolvía cada
+   Tramo hasta 3 veces por fila**, sin compartir nada entre sí:
+   `resolverFilaDeDimensionamiento` → `resolverResultadoDeTramoParaUi` →
+   `resolverPerdidaDistribuidaDeTramo` (1), la misma función llamando de
+   nuevo a `resolverPerdidaDistribuidaDeTramo` directo (2), y
+   `resolverControlDeDnDeTramo` → `resolverDiametroComercialDeTramo` (3).
+   Las 3 tablas (Distribución general / secundaria / por Unidad Funcional)
+   cubren Tramos **disjuntos** entre sí -- la redundancia es intra-fila,
+   no cruzada entre tablas.
+4. **`Duplicar unidad funcional` NO agregaba duplicación propia**:
+   `duplicarUnidadFuncionalEnProyecto` construye la UF copia completa y
+   publica un único `Proyecto` final (0 resoluciones, 0 estados
+   intermedios durante el build, ~36 ms) -- el costo percibido era
+   enteramente el mismo re-render fan-out de (1)+(2)+(3) de arriba, ahora
+   corregido.
+
+### Solución
+
+- **`resolverResolucionDeModulo2`** (`interfaz/paginas/resolverResolucionDeModulo2.ts`,
+  nuevo): punto único que compone `resolverEntradasDeVerificacion` +
+  `resolverEstadoModulo2` -- exactamente la misma composición que cada
+  consumidor hacía por separado, ahora en un solo lugar.
+  `MotorDemandaPantalla` la memoiza con `useMemo(..., [proyecto, demandaValida])`
+  y pasa el resultado a `resolverResumenDeProyecto` (nuevo parámetro
+  opcional `estadoM2PreCalculado`) y a `PanelDePresionDeModulo2` (nuevo
+  prop opcional `resolucionM2`). Ausente en ambos ⇒ comportamiento previo
+  byte a byte (siguen resolviendo por su cuenta) -- así funcionan sin
+  cambios los tests de estos componentes y cualquier montaje standalone.
+- **`EstadoModulo2` gana un campo derivado `candidatos: readonly CandidatoTerminal[]`**
+  (motor/modulo2/resolverEstadoModulo2.ts): el resultado CRUDO por
+  terminal (el mismo `resolverPresionResidualDeCamino` que ya se ejecutó
+  para decidir `estado`), `[]` en las ramas que cortan ANTES de iterar
+  terminales (`noIniciado`, error estructural, sin terminales, sin
+  Pdisponible). Es un dato derivado, no hidráulico nuevo: no cambia qué
+  calcula el motor, sólo evita que un consumidor de UI lo vuelva a pedir.
+  `PanelDePresionDeModulo2` arma su tabla/terminal-crítico leyendo
+  `estadoModulo2.candidatos` en vez de un bucle propio -- **excepto**
+  cuando `estado === 'error'` (estructural, el único caso en que el
+  campo viene `[]` porque el loop no llegó a correr), donde preserva el
+  recorrido independiente de siempre para no cambiar ni un bit ese borde
+  degenerado (equivalencia byte a byte, incluido ese caso).
+- **`ResultadoHidraulicoDeTramo` crea UN `ContextoDeCalculoM2`** (01B) por
+  render (`useMemo(..., [proyecto])`) y lo threadea, como parámetro
+  opcional, a `resolverFilaDeDimensionamiento` → `resolverResultadoDeTramoParaUi`
+  / `resolverPerdidaDistribuidaDeTramo` / `resolverPerdidaLocalizadaEstimadaDeLocal`,
+  y a `resolverControlDeDnDeTramo` → `resolverDiametroComercialDeTramo`.
+  La MISMA instancia se pasa a `DistribucionGeneral`, `DistribucionSecundaria`
+  y cada `SeccionDeUnidadFuncional` (una por UF). Ausente ⇒ comportamiento
+  previo byte a byte.
+- Ningún cache global, ninguna persistencia en `Proyecto`, ningún schema
+  change. Ambos `useMemo` viven sólo mientras `proyecto` no cambie de
+  referencia -- exactamente el mismo principio que el `ContextoDeCalculoM2`
+  de 01B, extendido de "una función" a "un render".
+
+### Identidad de `proyecto`
+
+Verificado: `proyecto` es `useState` en `MotorDemandaPantalla`, nunca se
+muta in-place (todo el código de dominio usa spread/inmutabilidad); los
+demás estados locales del componente (`confirmandoReinicio`,
+`idsColapsadas`, `generacionDeProyecto`, diálogos) son variables de estado
+**separadas** que no recrean `proyecto`. Consecuencia: `useMemo(..., [proyecto])`
+no sólo comparte trabajo DENTRO de un mismo render por edición -- también
+salta el recálculo completo cuando cambia un estado puramente local (abrir
+el diálogo de reiniciar, colapsar una UF), algo que antes de 01C
+recalculaba M2 igual, sin motivo.
+
+### Métricas por edición (fixture de escala M, 393 tramos / 294 terminales)
+
+| Acción | `resolverEstadoModulo2` antes → después | Recorridos de presión extra antes → después | Cálculos reales de dimensionamiento antes → después | Tiempo compuesto antes → después |
+| --- | --- | --- | --- | --- |
+| Pelo de agua mínimo | 2 → **1** | 1 (bucle `candidatos`) → **0** | 591 → **393** | ~852 ms → **~207 ms** (≈4,1×) |
+| Editar dato de tanque | 2 → **1** | 1 → **0** | 591 → **393** | ~852 ms → **~207 ms** |
+| Agregar artefacto | 2 → **1** | 1 → **0** | 591 → **393** | ~852 ms → **~207 ms** |
+| Duplicar UF (build) | 0 → **0** | 0 → **0** | 0 → **0** | ~36 ms (sin cambios: nunca fue el cuello de botella) |
+| Duplicar UF (re-render posterior) | 2 → **1** | 1 → **0** | 591 → **393** | ~852 ms → **~207 ms** |
+
+Las 4 acciones de edición dan el MISMO patrón porque todas terminan en el
+mismo re-render one-page: la causa era arquitectónica (fan-out de render),
+no específica de ningún input. Duplicar UF es la única acción con un paso
+propio (el build), que ya era gratis desde antes.
+
+### Benchmark compuesto (`resolverResolucionDeModulo2` + sidebar + Tuberías, fixture M, misma máquina)
+
+| | ANTES 01C | DESPUÉS 01C |
+| --- | --- | --- |
+| `resolucionesModulo2` | 2 | **1** |
+| índices topológicos / resolución completa | 3435 | **786** |
+| tiempo de un re-render completo | ~852 ms | **~207 ms** (≈4,1×) |
+
+Compuesto con la mejora de motor de 01B (≈8× sobre `resolverEstadoModulo2`
+aislado) y de 01A (≈15-33× sobre el hotspot original), la mejora
+acumulada desde antes de PERF-SCALE-01 es de dos órdenes de magnitud.
+
+### Equivalencia
+
+- `resolverEstadoModulo2.test.ts`: 19/19 verde; los 7 casos que comparaban
+  el objeto completo (`toEqual`) se actualizaron para incluir el nuevo
+  campo `candidatos` (mecánico, sin cambiar qué verifican -- ver
+  `resolverEstadoModulo2` en el diff).
+- `PanelDePresionDeModulo2.test.ts` (19 casos, `renderToStaticMarkup`) y
+  `ResultadoHidraulicoDeTramo.test.ts` (19 casos, `renderToStaticMarkup`)
+  **verdes sin cambios**: ninguno pasa los nuevos props opcionales
+  (`resolucionM2`, contexto de cálculo), así que ejercitan exactamente la
+  ruta de fallback byte a byte -- la prueba más fuerte de que el HTML
+  renderizado no cambió.
+- Argumento de cobertura para el árbol de presión: `resolverEstadoModulo2`
+  es una función pura de los resultados por terminal de
+  `resolverPresionResidualDeCamino` (sólo agrega/clasifica); si esos
+  resultados por terminal son los mismos (lo son: mismo Proyecto, mismos
+  catálogos, mismo contexto interno de 01B), el estado agregado también.
+- Vitest completo **1649 / 1649** (1648 + 1: el nuevo test de
+  redundancia intra-fila de dimensionamiento). Goldens **sin rebaseline**.
+
+### Dependencias de "Pelo de agua mínimo" (análisis, sin rediseñar)
+
+Editar `Pelo de agua mínimo` cambia únicamente `Nodo.cota_m` de la raíz.
+Trazado el pipeline: Qc (M1) no lee cotas; `resolverHidraulicaDeTramo` /
+`resolverDiametroComercialDeTramo` / `resolverPerdidaDistribuidaDeTramo`
+(distribuida) / pérdida localizada (detallada o estimada) tampoco leen
+`Nodo.cota_m` en ningún punto de su cálculo (Qc, DN, V, hf dependen de
+caudal/diámetro/longitud/material, nunca de elevación) -- **sólo**
+`resolverDesnivelDeCamino` / `resolverBalanceDePresion` (la etapa de
+presión) dependen de la cota. Conclusión: editar el pelo de agua **no
+debería** disparar ningún recálculo de Qc/DN/V/hf -- sólo el balance de
+presión. Hoy SÍ los recalcula (una vez, gracias a 01B/01C, pero los
+recalcula) porque el pipeline no tiene invalidación incremental por
+dependencia de campo -- resuelve todo el Proyecto de nuevo cada vez,
+simplemente ya no lo hace 2-3 veces. **No se implementa invalidación
+incremental en este slice** (fuera de alcance explícito, brief §pelo de
+agua). Si, tras la prueba manual del usuario, el lag remanente resulta
+significativo y se confirma que Pelo de agua sigue recalculando etapas
+independientes de ese dato de forma perceptible, corresponde
+`PERF-SCALE-01D` (cálculo incremental por dependencia), NO decidido acá.
+
+### Nuevo hotspot dominante
+
+Ya no hay una duplicación de orquestación conocida. El costo restante de
+un re-render (~207 ms en M) es el trabajo hidráulico genuino de una
+resolución completa (393 tramos × pipeline completo, una vez) más el
+dimensionamiento (también una vez) -- exactamente el mínimo indispensable
+dado que el pipeline recalcula todo el Proyecto por edición (ver
+"Dependencias de Pelo de agua" arriba). Reducirlo más exige invalidación
+incremental (01D), no más deduplicación de llamadas (ya agotada).
+
+### Estado
+
+**D-δ.99 / PERF-SCALE-01C -- CERRADO.** Código nuevo en `src/`:
+`interfaz/paginas/resolverResolucionDeModulo2.ts`,
+`interfaz/paginas/resolucionesDeDimensionamientoPorEdicion.regresion.test.ts`.
+Modificados: `motor/modulo2/resolverEstadoModulo2.ts` (+`candidatos`),
+`motor/modulo2/resolverEstadoModulo2.test.ts`,
+`interfaz/paginas/resolverResumenDeProyecto.ts`,
+`interfaz/paginas/PanelDePresionDeModulo2.tsx`,
+`interfaz/paginas/MotorDemandaPantalla.tsx`,
+`interfaz/paginas/ResultadoHidraulicoDeTramo.tsx`,
+`interfaz/paginas/resolverResultadoDeTramoParaUi.ts`,
+`interfaz/paginas/resolverControlDeDnDeTramo.ts`,
+`interfaz/paginas/resolverFilaDeDimensionamiento.ts`,
+`interfaz/paginas/resolucionesDeVerificacionPorEdicion.regresion.test.ts`
+(actualizado a la arquitectura nueva: 1 resolución, no 2). Baseline:
+**Vitest 1649 / 1649**, `tsc -b` / `npm run e2e:typecheck` / `npm run
+build` verdes, **ESLint 11 / 0 / 0** (baseline sin cambios; requirió un
+`eslint-disable-next-line react-hooks/exhaustive-deps` justificado -- el
+factory de `useMemo` no lee `proyecto` pero necesita invalidarse con él).
+E2E `escala-verificacion.spec.ts` (desktop+mobile) + suite M2 existente
+(montantes, catálogo-conectividad, modo-de-trabajo, reiniciar-cálculo,
+responsive) desktop, todas verdes contra un build local. `v0.4.0-beta.5`
+sin mover; sin `beta.6`. Snapshot `resguardo-documentacion/` intacto.
+
+**Siguiente:** QA Fuzz cloud 20×30 (seed vacía) sobre `main`; luego
+prueba manual del usuario en producción (agregar UF hasta ~9-14, agregar
+artefactos, cargar tanque, editar "Pelo de agua mínimo" y desnivel).
+Según esa prueba: `PERF-SCALE-01: CERRADO`, o se documenta evidencia
+concreta para `PERF-SCALE-01D` (cálculo incremental) -- no se abre por
+intuición.
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son
