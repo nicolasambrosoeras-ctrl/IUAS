@@ -92,6 +92,49 @@ describe('PERF-SCALE-01A — regresión estructural de escala', () => {
     expect(ratioGrande).toBeLessThan(ratioChico * 1.6)
   })
 
+  // --- PERF-SCALE-01B: el contexto de cálculo local colapsa la redundancia
+  // cross-camino / cross-etapa. Las SOLICITUDES de diámetro comercial por
+  // Tramo siguen siendo un múltiplo de los tramos (cada etapa del pipeline
+  // y cada camino de terminal pide el diámetro de sus Tramos), pero los
+  // CÁLCULOS reales -- y con ellos el trabajo caro de resolverHidraulicaDeTramo:
+  // índice topológico + DFS aguas abajo -- ya no pueden pasar de uno por
+  // Tramo distinto por resolución.
+  it('los cálculos hidráulicos reales por Tramo colapsan a ≤ 1 por Tramo distinto (memo local)', () => {
+    const { magnitudes, contadores } = medirResolucionDeModulo2({ cantidadUf: 14, localesPorUf: 3 })
+
+    // Clave del memo = tramoId ⇒ como mucho un cálculo real por Tramo distinto.
+    expect(contadores.calculosHidraulicaDeTramo).toBeLessThanOrEqual(magnitudes.tramos)
+    expect(contadores.calculosDiametroComercialDeTramo).toBeLessThanOrEqual(magnitudes.tramos)
+
+    // Y de hecho casi todos los Tramos participan de algún camino de
+    // terminal en el fixture de escala: el cálculo real NO es una fracción
+    // pequeña de los tramos (si lo fuera, algo estaría podando de más).
+    expect(contadores.calculosHidraulicaDeTramo).toBeGreaterThan(magnitudes.tramos * 0.5)
+
+    // resolverHidraulicaDeTramo sólo se alcanza cuando resolverDiametroComercialDeTramo
+    // hace un cálculo real (su memo corta antes en los hits): un cálculo de
+    // diámetro ⇔ un cálculo de hidráulica ⇔ un índice ⇔ un traversal batch.
+    expect(contadores.solicitudesHidraulicaDeTramo).toBe(contadores.calculosDiametroComercialDeTramo)
+    expect(contadores.calculosHidraulicaDeTramo).toBe(contadores.calculosDiametroComercialDeTramo)
+    expect(contadores.indicesTopologicosCreados).toBe(contadores.calculosHidraulicaDeTramo)
+    expect(contadores.traversalsCondicionAguasAbajo).toBe(contadores.calculosHidraulicaDeTramo)
+
+    // El memo está absorbiendo redundancia real: hay MUCHAS más solicitudes
+    // de diámetro que cálculos (antes de 01B eran iguales: ~2058 = ~2058,
+    // ~5,2·tramos). Si alguien quita el threading del contexto, solicitudes
+    // ≡ cálculos y esta cota se rompe.
+    expect(contadores.solicitudesDiametroComercialDeTramo).toBeGreaterThan(
+      contadores.calculosDiametroComercialDeTramo * 2,
+    )
+    const hits = contadores.solicitudesDiametroComercialDeTramo - contadores.calculosDiametroComercialDeTramo
+    expect(hits).toBeGreaterThan(0)
+  })
+
+  it('una sola resolverEstadoModulo2 cuenta como UNA resolución completa', () => {
+    const { contadores } = medirResolucionDeModulo2({ cantidadUf: 6, localesPorUf: 2 })
+    expect(contadores.resolucionesModulo2).toBe(1)
+  })
+
   it('la ruta caliente de M2 NO llama al clasificador puntual determinarCondicionHidraulicaDeCaudal', () => {
     const spy = vi.spyOn(clasificadorPuntual, 'determinarCondicionHidraulicaDeCaudal')
     const proyecto = generarProyectoDeEscala({ cantidadUf: 6, localesPorUf: 2 })
