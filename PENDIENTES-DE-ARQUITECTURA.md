@@ -12538,6 +12538,207 @@ completo.
 manual del usuario (abajo), luego QA Fuzz cloud 20×30 (seed vacía) sobre
 `main` -- sólo si el usuario lo autoriza explícitamente.
 
+## D-δ.103 -- UI-M2-GROUP-01: jerarquía progresiva de UF en Tuberías + Montantes compactos + unmount real -- CERRADO
+
+Slice Nivel B (UI funcional + estado transitorio + render/unmount, sin
+tocar fórmulas hidráulicas, topología ni responsabilidades M1/M2/M3/M4).
+Arranca después de PERF-SCALE-01A-E y FIX-MONTANTE-ADD-01 cerrados, con
+QA Fuzz cloud post-01E (20×30, seed vacía) **verde** confirmado por el
+usuario.
+
+### Motivación -- evidencia manual a ~60 UF
+
+Stress test real del usuario: ~60 UF, cientos de Locales, ~500+
+artefactos. Acciones tan distintas como duplicar Local, agregar UF,
+agregar Local, agregar artefacto, cambiar tipo de artefacto o agregar
+montante tardaban todas **~5,5 s por igual** -- que acciones tan
+distintas cuesten lo mismo apunta al tamaño del árbol UI/DOM montado de
+"Tuberías" (no a un cálculo específico, que PERF-SCALE-01D/E ya
+optimizaron). Además la interfaz se vuelve difícil de operar: cientos de
+filas AF/AC planas antes de llegar al dimensionamiento.
+
+Principio aplicado (no nuevo, pero formalizado acá): *la jerarquía existe
+en el modelo, la interfaz sólo muestra la complejidad necesaria*. Una UF
+simple no paga complejidad visual; la jerarquía aparece sólo cuando hace
+falta (>1 UF, >1 montante).
+
+### Diseño -- Unidades Funcionales en Tuberías
+
+`ListaDeUnidadesFuncionales` (nuevo, dentro de
+`interfaz/paginas/ResultadoHidraulicoDeTramo.tsx`) reemplaza el `.map`
+directo de `proyecto.unidadesFuncionales` que antes montaba una
+`SeccionDeUnidadFuncional` por UF sin condición:
+
+- **≤1 UF:** rama simple -- exactamente el mismo `.map` de antes, sin
+  ningún wrapper ni control adicional. Cero cambio de comportamiento
+  visual para el caso más común (proyecto de 1 UF).
+- **>1 UF:** cada UF pasa a un `<button>` real (`.lista-uf__cabecera`,
+  `aria-expanded`) con nombre + nivel + resumen barato (`N locales · M
+  artefactos`, derivado de `uf.locales` sin ningún resolver hidráulico).
+  Una sola UF "activa" (`useState<string | undefined>` local al
+  componente); `SeccionDeUnidadFuncional` **sólo se instancia para la UF
+  activa** -- las demás no montan Local, AF, AC, `LocalYRedCard`, tee ni
+  accesorios: unmount real, no `display:none`.
+
+Detección de "UF nueva" (agregar/duplicar en M1, fuera del árbol de M2):
+`useEffect` con dependencia en `proyecto.unidadesFuncionales` (la
+referencia cambia exactamente cuando el array de UF cambia -- mismo
+gatillo que ya usaba el memo externo de PERF-SCALE-01D/E) + un
+`useRef<readonly string[]>` con los ids del render anterior. La
+selección del nuevo activo la resuelve una función pura compartida,
+`elegirElementoActivoTrasCambio` (nueva,
+`interfaz/paginas/estadoDeElementoActivo.ts`): si aparecieron ids nuevos,
+el último nuevo gana (alta/duplicado); si no, y el activo actual ya no
+existe (se eliminó), se reposiciona de forma determinística (el id que
+ocupaba su misma posición, o el último disponible). Recibe sólo arrays
+de ids -- no acopla esta lógica de interfaz a `UnidadFuncional` ni a
+`Montante`, y por eso la reutiliza también `ConstructorDeMontantes` sin
+duplicar la regla.
+
+Transiciones cubiertas explícitamente (unit SSR + E2E, ver más abajo):
+1 UF → 2 UF (aparece el acordeón, la nueva queda activa), 2 UF → 1 UF
+(vuelve al modo simple), eliminar la UF activa (se reposiciona sola).
+
+### Diseño -- Local agrupa AF/AC
+
+`TablaDimensionamientoDeModulo2.tsx` (`EntradaDeTabla`) gana un campo
+opcional `grupo?: { id, etiqueta }`. Cuando dos entradas consecutivas
+comparten `grupo.id`, se pinta un único `<tr class="m2-fila-grupo">`
+(colSpan completo) antes de la primera fila del grupo -- las filas AF/AC
+siguen siendo dos `<tr>` independientes, igual de editables que antes;
+esto NO es un acordeón nuevo ni cambia `TablaDimensionamientoDeModulo2`
+para sus otros consumidores (Distribución general/secundaria, Segmentos
+de montante siguen sin pasar `grupo`, cero cambio visual ahí).
+`SeccionDeUnidadFuncionalBase` arma `grupo: { id: local.id, etiqueta:
+"<Local> · N artefactos" }` para cada fila de cada Local -- la cantidad
+es `local.artefactos.length` (física, del Local), nunca AF+AC sumadas.
+
+### Diseño -- Montantes compactos
+
+`ConstructorDeMontantes.tsx`: `+ Agregar montante` se movió al
+encabezado de la sección (antes, al final, después de recorrer todas las
+cards). `MontanteCard` se partió en dos:
+
+- `MontanteCardCabecera` -- **siempre montada** (incluso colapsada):
+  `<button aria-expanded>` con nombre (o fallback), `BadgeDeRed`, resumen
+  "N locales · M segmentos" derivado de `proyectarMontante` (la misma
+  proyección que ya se calculaba siempre antes -- sin costo nuevo).
+- `MontanteCardCuerpo` -- Locales alimentados + `AgregarLocal` +
+  Segmentos + Derivaciones (Tee) + input de renombrar + "Borrar
+  montante" (ahora acción secundaria del cuerpo, ya no domina el
+  header). **Sólo se monta si el montante está activo** -- mismo
+  unmount real que las UF.
+
+Un montante activo por vez, misma `elegirElementoActivoTrasCambio`
+(dependencia efecto: `proyecto.montantes` crudo, NO el `?? []` de
+fallback -- ese crea un array nuevo cada render y dispararía el efecto
+siempre; el `?? []` se aplica DENTRO del efecto). Con 1 solo montante
+queda activo por defecto (`useState` inicial = `montantes[0]?.id`): se
+ve exactamente igual que antes, sin fricción.
+
+Copy de "sin Locales disponibles" (`AgregarLocal`): antes mostraba
+siempre el mismo texto largo aunque el montante ya tuviera Locales
+asignados y sólo no quedaran más candidatos. Ahora distingue
+`tieneLocalesAsignados` (prop nueva, viene de
+`proyeccion.localesServidos.length > 0`): con Locales ya asignados y sin
+candidatos → "Sin más locales disponibles" (compacto); sin ningún Local
+y sin candidatos → la explicación completa de antes.
+
+### Regresión FIX-MONTANTE-ADD-01 -- auditada, no reabierta
+
+Ningún comparador de memo (`sonPropsDeDimensionamientoEquivalentes`,
+`sonPropsDeSeccionDeUnidadFuncionalEquivalentes`) se tocó en este slice:
+el unmount de UF/montantes colapsados es montaje condicional en JSX
+(`activo ? <X/> : null`), no un `React.memo` nuevo -- no hay superficie
+nueva de "qué lee este comparador" para auditar. Guardias verificadas en
+tests unitarios + `montantes.spec.ts` (sin modificar sus aserciones
+existentes) + `multi-uf.spec.ts`: crear AF, crear AC, cambiar entre
+montantes, editar tee, renombrar, agregar/quitar Local, borrar montante
+-- todas siguen reactivas.
+
+### Hidráulica -- invariante confirmado
+
+Ningún cálculo (demanda, Qc, DN, Di, V, Reynolds, hf, presión, terminal
+crítico) se tocó. Colapsar/expandir una UF o un montante es estado de
+`useState` puramente local a un componente de presentación -- nunca
+dispara `onCambiar` ni muta `Proyecto`. `montantes.spec.ts` (5/5,
+desktop+mobile) verifica que el flujo de datos M2-TOPO-C completo
+(alta, Locales, segmentos, tee, borrado) sigue produciendo los mismos
+resultados.
+
+### No implementado en este slice (pendiente futuro, no decisión roja)
+
+- **`UI-M1-MULTINIVEL-01`** (Nivel real entre UF y Local): los
+  componentes de este slice (`ListaDeUnidadesFuncionales`,
+  `CabeceraDeUnidadFuncional`) están escritos sin asumir "UF === nivel
+  físico" en su contrato, pero no se crea ningún dato ni UI de Nivel
+  ahora. Cuando exista, se espera que se inserte como una capa
+  intermedia dentro de la UF activa, sin rehacer el acordeón de UF ni el
+  de Montantes.
+- **Duplicar Local** -- pendiente, paquete separado.
+- **Virtualización** (`react-window` o similar) -- no se agregó ninguna
+  dependencia nueva; se priorizó medir cuánto alcanza el unmount real
+  primero. Si a escala extrema (~60 UF) sigue habiendo cuello, candidato
+  futuro `PERF-SCALE-UI-02` (sólo si el usuario prioriza esa escala).
+- Lazy-loading de Módulos completos, router, store global nuevo,
+  persistencia del estado expandido: fuera de alcance por diseño (no son
+  necesarios para resolver este slice y cada uno es una decisión
+  arquitectónica transversal propia).
+
+### QA
+
+- Vitest **1744/1744** (1719 + 25 nuevos: `estadoDeElementoActivo.test.ts`
+  10 casos, `ResultadoHidraulicoDeTramo.agrupacionUf.test.ts` 9 casos,
+  `ConstructorDeMontantes.componente.test.ts` +7 casos wrt baseline
+  01E). `tsc -b`, `e2e:typecheck`, `build` verdes. ESLint **11/0/0**
+  -- baseline idéntico, verificado ANTES de tocar código y confirmado sin
+  cambios al cerrar.
+- E2E nuevo `tests/e2e/multi-uf.spec.ts` (5 casos: 1 UF sin acordeón;
+  duplicar dispara la UF nueva activa y colapsa la original; abrir la
+  UF original, editar una longitud, volver a la otra UF -- el contenido
+  se desmonta -- y volver a abrir confirma que la edición persiste en
+  `Proyecto` pese al unmount; eliminar la UF activa reposiciona sola;
+  escala ~30-31 UF con sólo una `SeccionDeUnidadFuncional` montada a la
+  vez) -- verde desktop+mobile contra build local (`npx vite --port 5173`,
+  ver nota de infraestructura abajo).
+- `montantes.spec.ts` (5/5, sin tocar sus aserciones) y
+  `reiniciar-calculo.spec.ts` (2/2) y `agregar-uf-vacia-escala.spec.ts`
+  (spec pre-existente de PERF-SCALE-01E, sin modificar) verdes
+  desktop+mobile contra build local -- confirman que la agrupación no
+  rompió ningún flujo previo, incluido el caso de escala que ese spec ya
+  cubría.
+
+**Nota de infraestructura E2E local (no bloqueante, documentada para el
+próximo que necesite correr E2E local contra este slice):** al validar
+localmente se detectó que `npx vite preview --base /IUAS/` en Git Bash
+(MSYS) puede reescribir el argumento `/IUAS/` como una ruta de
+filesystem de Windows (expansión de path de MSYS), rompiendo el
+`--base` real y sirviendo `index.html` para cualquier asset (404 lógico
+disfrazado de 200 en `vite preview`, SPA fallback). El workaround usado
+para este slice fue validar contra `npx vite --port 5173` (servidor de
+desarrollo, `base` siempre `/`, mismo código fuente sin minificar) en
+vez de `vite preview`; el comportamiento de producción real (con
+`/IUAS/` como base) se verifica en el deploy de GitHub Pages, que no
+pasa por este problema (el hosting sirve bajo `/IUAS/` directamente, sin
+pasar por `vite preview`). `playwright.config.ts` ya tenía
+`--base /IUAS/` correctamente citado en su comando `webServer` desde
+`b8e1ac8`; el problema observado es específico de invocar `vite preview`
+manualmente desde Git Bash con el argumento sin escapar.
+
+### Estado
+
+**D-δ.103 / UI-M2-GROUP-01 -- CERRADO, pendiente validación manual del
+usuario** sobre el deploy: caso 1 UF (¿se siente igual de directo?),
+crear/duplicar UF (¿la nueva toma foco?, ¿es más fácil navegar?),
+~30-60 UF (¿sólo una UF desarrollada?, ¿cómo se siente una acción simple
+comparada con los ~5,5 s previos?), Montantes AF/AC (crear, cambiar
+entre ellos, renombrar, ¿ocupa mucho menos espacio?).
+
+**Siguiente:** push a `main`, deploy, smoke de producción, validación
+manual del usuario (arriba). Si a ~60 UF una acción simple sigue lenta
+pese al unmount real, documentar (no implementar sin decisión del
+usuario) el candidato `PERF-SCALE-UI-02`.
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son

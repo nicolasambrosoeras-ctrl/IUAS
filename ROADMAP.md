@@ -1681,6 +1681,116 @@ salvo bug inequívoco o decisión roja explícita.
     duplicar UF), luego QA Fuzz cloud 20×30 (seed vacía) sobre `main`
     -- sólo si el usuario lo autoriza explícitamente.
 
+- **D-δ.103 — UI-M2-GROUP-01: jerarquía progresiva de Unidades Funcionales
+  en Tuberías + Montantes compactos + unmount real.** QA Fuzz cloud
+  post-PERF-SCALE-01E 20×30 seed vacía **TODO VERDE** (confirmado por el
+  usuario). Nueva evidencia manual: proyecto de stress (~60 UF, ~500+
+  artefactos) donde acciones tan distintas como duplicar Local, agregar
+  UF, agregar artefacto o agregar montante tardaban todas ~5,5 s por
+  igual -- señal de que el cuello es el tamaño del árbol UI/DOM montado
+  de Tuberías, no un cálculo específico; además la propia interfaz se
+  vuelve difícil de operar con cientos de filas AF/AC planas. Principio
+  aplicado: "la jerarquía existe en el modelo, la interfaz sólo muestra
+  la complejidad necesaria" -- una UF simple no paga complejidad visual;
+  la jerarquía aparece sólo con >1 UF.
+  - **UF (Tuberías):** con exactamente 1 UF, sin cambios -- se renderiza
+    igual que antes (`ListaDeUnidadesFuncionales`, rama `length <= 1`).
+    Con >1 UF, cada UF pasa a un header compacto colapsable
+    (`.lista-uf__cabecera`, `<button>` real con `aria-expanded`); UNA
+    sola UF activa por vez, con **unmount real** de las demás -- ninguna
+    UF colapsada instancia `SeccionDeUnidadFuncional` (no hay Local, AF,
+    AC, editor de tee ni accesorios de esa UF en el DOM). Agregar/duplicar
+    una UF la deja activa/expandida automáticamente y colapsa las demás;
+    eliminar la UF activa selecciona otra de forma determinística (la que
+    ocupaba su misma posición, o la última); volver a 1 UF vuelve al modo
+    simple sin acordeón. Estado 100% transitorio de interfaz (`useState`
+    local a `ListaDeUnidadesFuncionales`): nunca se persiste en
+    `Proyecto`, no exporta, no afecta el cálculo hidráulico.
+  - **Local agrupa AF/AC (§11/§12):** dentro de la tabla de
+    dimensionamiento de una UF, las filas AF/AC de un mismo Local ya no
+    se leen como dos puntos físicos sueltos -- `TablaDimensionamientoDeModulo2`
+    admite un `grupo` opcional por entrada y pinta un encabezado
+    compartido ("Baño 1 · 4 artefactos") antes de la primera fila del
+    grupo. Sin acordeón nuevo: ambas filas (AF/AC) siguen tan visibles y
+    editables como antes, sólo con un título común arriba. La cantidad
+    mostrada es la física del Local (`local.artefactos.length`); AF y AC
+    conservan sus propias cantidades hidráulicas sin sumarse.
+    Distribución general/secundaria y Segmentos de montante no pasan
+    `grupo`: sin cambios visuales ahí.
+  - **Montantes compactos (§13-§19):** `+ Agregar montante` se movió al
+    encabezado de la sección (ya no hay que recorrer las cards
+    existentes para crear una). Cada `MontanteCard` se partió en
+    `MontanteCardCabecera` (siempre montada: nombre, badge de red,
+    resumen "N locales · M segmentos") y `MontanteCardCuerpo` (Locales
+    alimentados, Segmentos, Derivaciones/Tee, renombrar, borrar -- **sólo
+    montado si el montante está activo**, mismo unmount real que las UF).
+    Un solo montante activo por vez, misma lógica de selección que las
+    UF; con 1 solo montante queda abierto sin fricción (igual que antes).
+    Renombrar y borrar pasan a ser acciones del cuerpo expandido (§19,
+    ya no dominan el header). Copy de "sin Locales disponibles" (§18)
+    distingue ahora si el montante ya tiene Locales asignados (mensaje
+    compacto "Sin más locales disponibles") de si nunca tuvo ninguno
+    (explicación completa).
+  - **Selección de "activo" compartida:** `elegirElementoActivoTrasCambio`
+    (nuevo, `estadoDeElementoActivo.ts`) centraliza la regla "el nuevo
+    elemento queda activo; si se elimina el activo, se elige el que
+    ocupaba su misma posición o el último" -- usada igual por la lista de
+    UF y por Montantes (misma regla, un solo lugar, sin duplicar lógica
+    de UI en dos componentes). Recibe sólo arrays de ids, no domain
+    objects: no acopla esta lógica de interfaz a `UnidadFuncional`/
+    `Montante`.
+  - **Regresión FIX-MONTANTE-ADD-01:** auditada explícitamente antes de
+    tocar nada -- ningún comparador de memo existente
+    (`sonPropsDeDimensionamientoEquivalentes`,
+    `sonPropsDeSeccionDeUnidadFuncionalEquivalentes`) se modificó en este
+    slice; el unmount de UF/montantes colapsados es montaje condicional
+    en JSX, no un memo nuevo. Guardias cubiertas en tests/E2E: crear AF,
+    crear AC, cambiar entre montantes, editar tee, renombrar, agregar/
+    quitar Local, borrar montante -- todas siguen reactivas.
+  - **Hidráulica intacta:** ningún cálculo (demanda, Qc, DN, Di, V, hf,
+    presión) se tocó; colapsar/expandir una UF o un montante no ejecuta
+    ningún callback hidráulico ni muta `Proyecto` -- es exclusivamente
+    estado de UI. `montantes.spec.ts` (5/5, sin cambios de aserciones
+    salvo las nuevas) confirma que el flujo de datos M2-TOPO-C sigue
+    intacto.
+  - **No implementado en este slice (documentado como pendiente futuro,
+    no decisión roja):** `UI-M1-MULTINIVEL-01` (insertar `Nivel` real
+    entre UF y Local -- los componentes de este slice están escritos para
+    no asumir "UF === nivel físico", pero no se crea ningún dato ni UI de
+    Nivel ahora), `Duplicar Local`, virtualización (`react-window` u
+    similar -- no se agregó ninguna dependencia; se prioriza medir cuánto
+    alcanza el unmount real primero), lazy-loading de Módulos, router.
+  - **Tests:** `estadoDeElementoActivo.test.ts` (nuevo, 10 casos, la
+    regla de selección pura). `ResultadoHidraulicoDeTramo.agrupacionUf.test.ts`
+    (nuevo, 9 casos SSR: 1 UF sin acordeón, >1 UF con una activa y unmount
+    real del contenido de la colapsada, agrupación de Local con AF+AC).
+    `ConstructorDeMontantes.componente.test.ts` (+7 casos: header en el
+    encabezado de la sección, 2 montantes con unmount real del cuerpo
+    colapsado, 1 montante sin fricción, ambos copys de §18). Vitest
+    **1744/1744** (1719 + 25); `tsc`/`e2e:typecheck`/`build` verdes;
+    ESLint **11/0/0** sin cambios (baseline idéntico, verificado antes de
+    tocar código). E2E nuevo `tests/e2e/multi-uf.spec.ts` (5 casos: 1 UF
+    sin acordeón, duplicar dispara la UF activa correcta, abrir/cerrar
+    con edición que persiste tras el unmount, eliminar la UF activa
+    selecciona otra, escala ~30 UF con sólo una desarrollada) verde
+    desktop+mobile contra build local; `montantes.spec.ts` 5/5 desktop+
+    mobile; `reiniciar-calculo.spec.ts` y `agregar-uf-vacia-escala.spec.ts`
+    (el spec de escala pre-existente de PERF-SCALE-01E, sin modificar)
+    también verdes desktop+mobile con el acordeón activo -- confirman que
+    la agrupación no rompió ningún flujo previo.
+  - **Performance:** no se repitió el profiling exhaustivo de
+    PERF-SCALE-01D/E (Nivel B, no algorítmico) -- el E2E de escala
+    confirma que a ~30-31 UF sólo se monta 1 `SeccionDeUnidadFuncional` a
+    la vez (antes, las 30-31). Medición de milisegundos en una
+    instalación real queda para la validación manual del usuario.
+  - **Estado:** `UI-M2-GROUP-01: CERRADO — pendiente validación manual`
+    del usuario sobre el deploy (caso 1 UF, varias UF con foco en la
+    nueva, ~30-60 UF, Montantes AF/AC).
+  - **Siguiente:** push a `main`, deploy, smoke de producción, validación
+    manual del usuario; si a 60 UF una acción simple sigue lenta pese al
+    unmount real, documentar candidato futuro `PERF-SCALE-UI-02` (no
+    decidir ni implementar sin que el usuario priorice esa escala).
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
