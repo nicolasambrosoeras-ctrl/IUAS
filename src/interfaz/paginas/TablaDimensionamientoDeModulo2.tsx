@@ -179,11 +179,22 @@ export function TablaDimensionamientoDeModulo2({
                         onToggle={(evento) => alternarFila(entrada.clave, evento.currentTarget.open)}
                       >
                         <summary>
-                          {entrada.etiqueta}
+                          {/* UI-M2-RESP-POLISH-01: con `grupo` definido (fila
+                              agrupada Local→Red), el nombre del Local ya se
+                              pintó UNA vez en el encabezado del grupo
+                              (`.m2-fila-grupo__nombre`) -- repetirlo acá es
+                              redundante. `entrada.etiqueta` sigue intacto
+                              (sólo se omite su render visible): el
+                              aria-label de longitud y cualquier otro
+                              consumidor de la entrada no cambian. Fuera de
+                              un grupo (Distribución general/secundaria,
+                              Segmentos de montante) el comportamiento es
+                              exactamente el de antes. */}
+                          {entrada.grupo === undefined ? entrada.etiqueta : null}
                           {fila.nPuntos > 0 ? (
                             <small style={{ opacity: 0.6 }}>
-                              {' '}
-                              · {fila.nPuntos} {fila.nPuntos === 1 ? 'punto' : 'puntos'}
+                              {entrada.grupo === undefined ? ' · ' : ''}
+                              {fila.nPuntos} {fila.nPuntos === 1 ? 'punto' : 'puntos'}
                             </small>
                           ) : null}
                         </summary>
