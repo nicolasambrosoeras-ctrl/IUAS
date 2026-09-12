@@ -1954,6 +1954,86 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `UI-M2-GROUP-02: CERRADO — pendiente validación manual`
     del usuario sobre el deploy.
 
+- **D-δ.106 — UI-M1-MULTINIVEL-01: una Unidad Funcional puede tener uno o
+  más niveles físicos.** Slice estructural, no sólo UI: nueva entidad
+  `Nivel` en el modelo (`docs/adr/ADR-0002-nivel-fisico-dentro-de-unidad-funcional.md`).
+  Antes, `UnidadFuncional` mezclaba identidad de uso (nombre) con plano
+  físico (`nivel`/`cotaHidraulicaReferencia_m`/`locales` directamente en la
+  UF) -- asumía implícitamente 1 UF = 1 nivel, falso para casas (PB+PA),
+  dúplex (P11+P12) o locales con entrepiso.
+  - **Modelo:** `nivel`, `cotaHidraulicaReferencia_m` y `locales` se mueven
+    de `UnidadFuncional` a la nueva entidad `Nivel` (`id`, `nombre`,
+    `nivel?`, `cotaHidraulicaReferencia_m?`, `locales`).
+    `UnidadFuncional.niveles: readonly Nivel[]` reemplaza esos tres campos;
+    toda UF tiene siempre >= 1 nivel, sin excepción ni flag de "modo
+    simple". Decisión de modelo (Opción A, niveles anidados con Nivel
+    dueño de los Locales, vs. Opción B, `Local.nivelId`): ver ADR-0002 --
+    A emergió con evidencia clara del código existente (Locales ya vivían
+    embebidos en la UF; Opción B habría introducido el único caso de
+    referencia-por-id del modelo y el único estado imposible nuevo, Local
+    huérfano sin nivel válido) y no ameritó decisión roja.
+  - **GEOM-COTA-01** se reencuadra de `UF → Local → Artefacto` a
+    `Nivel → Local → Artefacto`: misma fórmula
+    (`resolverCotaHidraulicaEfectivaDeArtefacto`/`resolverCotaPisoDeLocal`),
+    ahora reciben un `Nivel` en vez de la UF. Nuevo helper
+    `resolverNivelDeLocal` (`resolverCotaHidraulicaDeArtefacto.ts`) resuelve
+    qué Nivel de una UF posee un Local dado; `localesDeUnidadFuncional`
+    aplana los Locales de todos los niveles de una UF (reemplaza el acceso
+    directo `uf.locales` en todo el motor/validación).
+  - **M2** (`resolverPresionResidualDeCamino`, `resolverIncrementoVerticalPorNivel`,
+    `reconciliarMontante`, `resolverInfoCotaDeTerminal`,
+    `resolverFilaDeTerminalParaTabla`) resuelve el Nivel del Local de cada
+    terminal antes de derivar la cota -- nunca infiere de la UF completa.
+    Montantes/topología sin cambios: `Tramo.montanteId` sigue siendo la
+    única fuente de pertenencia física; Nivel es geometría/organización,
+    no topología.
+  - **Duplicar UF** (`duplicarUnidadFuncional.ts`) copia TODOS los niveles
+    de la UF, cada uno con id nuevo (antes copiaba el único nivel
+    implícito); Locales/Artefactos se clonan igual que antes (D-δ.50/51:
+    sin copiar topología M2 física, DN manual, ni longitudes relevadas).
+  - **M1 (UI):** con un único nivel se ve y edita exactamente igual que
+    antes (mismos 3 campos Nombre/Nivel/Cota, sin acordeón ni card extra
+    -- `NivelFormulario` con `esUnico=true` no agrega chrome). Con 2+
+    niveles, cada uno es su propia sub-card (`.m1-nivel`) con nombre
+    editable, sus propios campos Nivel/Cota, sus propios Locales y
+    "+ Agregar local", más "Eliminar nivel" (oculto con un único nivel --
+    una UF nunca queda con 0 niveles). "+ Agregar nivel" en la cabecera de
+    la UF, junto a "Duplicar". Nuevos módulos testeables extraídos de
+    `MotorDemandaPantalla.tsx` (mismo patrón que
+    `agregarUnidadFuncional.ts`/`duplicarUnidadFuncional.ts`):
+    `agregarNivelAUnidadFuncional.ts` (nivel/cota default = mismo criterio
+    que `crearUnidadFuncionalVacia`, sin copiar Locales) y
+    `eliminarNivelDeUnidadFuncional.ts` (desconecta conectividad física de
+    los Locales del nivel antes de borrarlo, mismo criterio D-δ.47 que
+    eliminar un Local suelto).
+  - **No implementado, documentado como pendiente (ADR-0002 §4):** mover un
+    Local entre niveles (sigue siendo eliminar/recrear manual) y reordenar
+    niveles (drag & drop) -- ninguno de los dos era parte del alcance
+    mínimo.
+  - **Tests:** migración mecánica de ~110 archivos (producción + tests)
+    que construían `UF.locales`/`UF.nivel`/`UF.cotaHidraulicaReferencia_m`
+    directamente, más cobertura nueva dedicada
+    (`unidadFuncionalMultinivel.test.ts`: agregar/eliminar nivel,
+    reconciliación M2 al eliminar, herencia de cota Nivel→Local→Artefacto
+    en una UF de 2 niveles, `resolverNivelDeLocal`, resumen multinivel; +1
+    caso de duplicación multinivel en `duplicarUnidadFuncional.test.ts`).
+    Vitest **1766/1766** (1750 baseline + 16 nuevos, 0 removidos);
+    `tsc -b`/`e2e:typecheck`/`build` verdes; ESLint **11/0/0** (mismo
+    baseline, sin regresión). Nuevo `tests/e2e/multinivel.spec.ts` (5/5):
+    UF simple sin chrome extra, agregar segundo nivel (card propia +
+    "Eliminar nivel"), agregar Local dentro del segundo nivel con cota
+    efectiva derivada de ESE nivel (`+3,XX m`, nunca del primero),
+    eliminar nivel, duplicar UF de 2 niveles (la copia trae ambos, nace
+    colapsada como toda copia de M1). E2E dirigido verde en **desktop**
+    contra el dev server local (`npx vite --port 5173`, workaround
+    documentado en `PENDIENTES-DE-ARQUITECTURA.md` D-δ.103 para el bug de
+    MSYS/Git Bash con `vite preview --base`): `smoke` + `multi-uf` +
+    `cotas-heredadas` + `montantes` + `propagacion-a` (17/17) +
+    `multinivel` (5/5) -- **mobile no corrido en esta pasada**, queda para
+    el gate de QA cloud habitual del usuario.
+  - **Estado:** `UI-M1-MULTINIVEL-01: CERRADO — pendiente validación manual`
+    del usuario sobre el deploy.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /

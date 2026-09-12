@@ -12739,6 +12739,76 @@ manual del usuario (arriba). Si a ~60 UF una acción simple sigue lenta
 pese al unmount real, documentar (no implementar sin decisión del
 usuario) el candidato `PERF-SCALE-UI-02`.
 
+## D-δ.106 -- UI-M1-MULTINIVEL-01: `Nivel` como entidad dentro de `UnidadFuncional` -- CERRADO
+
+Slice estructural (modelo + M1 + GEOM-COTA-01 + M2), no sólo UI. Decisión
+de modelo consolidada en `docs/adr/ADR-0002-nivel-fisico-dentro-de-unidad-funcional.md`
+-- este apartado registra el detalle incremental; el ADR es la fuente de
+la decisión arquitectónica de fondo.
+
+### Arqueología previa a implementar
+
+`UnidadFuncional` (antes) tenía `nivel?: number`,
+`cotaHidraulicaReferencia_m?: number` y `locales: readonly Local[]`
+directamente -- asumía 1 UF = 1 nivel físico. Los Locales ya vivían
+embebidos en la UF (array directo, nunca una colección referenciada por
+id) desde antes de este slice; GEOM-COTA-01 (D-δ.86) ya modelaba la cota
+como una cadena de herencia UF → Local → Artefacto
+(`resolverCotaHidraulicaDeArtefacto.ts`). Ningún call site relevado
+(M1, M2, duplicación, validación) asumía que un Local pudiera referenciar
+su padre por id en vez de vivir dentro de él.
+
+### Decisión de modelo (sin decisión roja)
+
+Opción A (niveles anidados, `Nivel.locales`) vs. Opción B
+(`Local.nivelId`) -- ver criterios completos en ADR-0002 §2.3. Se
+implementó A sin detenerse a pedir aprobación porque emergió con
+evidencia clara: extiende el patrón ya existente (Locales embebidos, no
+referenciados), evita el único estado imposible nuevo que introduciría B
+(Local huérfano con `nivelId` colgado tras borrar su Nivel), y hace
+trivial la reconciliación de "eliminar nivel" (filtrar `niveles`, sin
+pasada de limpieza adicional).
+
+### Migración
+
+`nivel`, `cotaHidraulicaReferencia_m`, `locales` se mueven de
+`UnidadFuncional` a `Nivel`. Sin persistencia real todavía (`PERSIST` no
+implementado), así que no hizo falta migración de datos guardados --
+sólo de fixtures/factories de test y de los dos generadores de datos de
+producción reutilizados por tests (`proyectoDeEjemplo.ts`,
+`generarProyectoDeEscala.ts`). Superficie migrada: ~28 archivos de
+producción (modelo, motor, interfaz, validación) + ~80 archivos de test
+que construían la forma vieja directamente -- todos ahora compilan y
+pasan contra la forma nueva, sin doble fuente de verdad (`UF.cota`
+legacy conviviendo con `Nivel.cota` en ningún punto del código final).
+
+**Trampa de TypeScript encontrada durante la migración (documentada para
+el próximo slice que reestructure un tipo así):** el spread de objeto
+`{ ...uf, cotaHidraulicaReferencia_m: x }` NO dispara excess-property-check
+de TypeScript cuando el resultado se infiere (a diferencia de un literal
+asignado directamente a una variable tipada) -- permite construir un
+objeto con una propiedad que ya no existe en el tipo sin que `tsc` lo
+marque, porque `uf` sigue siendo estructuralmente compatible con
+`UnidadFuncional` (la propiedad extra simplemente se ignora en el
+chequeo). Un test (`verificacionTerminalCriticoPorUF.aceptacion.test.ts`)
+compilaba limpio con exactamente ese bug y fallaba en runtime (el override
+de cota nunca se aplicaba). Se corrigió y se barrió el resto del repo con
+`grep` dirigido a ese patrón (`...uf, nivel:` / `...uf, cotaHidraulicaReferencia_m:`
+/ `...uf, locales:`) antes de dar la migración por cerrada -- `tsc` verde
+no fue suficiente evidencia por sí solo, hizo falta correr Vitest completo.
+
+### Estado
+
+**D-δ.106 / UI-M1-MULTINIVEL-01 -- CERRADO, pendiente validación manual
+del usuario** sobre el deploy: UF de un único nivel (¿se ve igual que
+antes?), agregar un segundo nivel a una UF (casa PB/PA: cota 0,00/3,00,
+un Local en cada nivel), M2 reconoce los Locales de ambos niveles con la
+cota correcta, duplicar una UF de 2 niveles.
+
+**Siguiente:** push a `main`, deploy, smoke de producción, validación
+manual del usuario (arriba). Pendientes explícitos no resueltos por este
+slice (ADR-0002 §4): mover un Local entre niveles, reordenar niveles.
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son
