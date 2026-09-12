@@ -13183,6 +13183,120 @@ hidráulico, integración transversal ni reconciliación estructural.
 
 **D-δ.110 / FIX-M3-RESP-02-ACS-01 -- CERRADO.**
 
+## D-δ.111 — UI-M2-MONTANTE-COMPACT-01: compactación del editor de Montantes
+
+Slice UI/responsive (Nivel C). Objetivo: reducir la altura vertical del
+cuerpo expandido de cada Montante sin cambiar motor, schema, topología,
+reconciliación ni cálculo.
+
+### Arqueología
+
+`ConstructorDeMontantes.tsx` / `constructorDeMontantes.css`
+(`MontanteCardCuerpo`): el cuerpo combinaba Nombre + "Borrar montante" en
+una sola fila (`.montante-card__editar`), seguido de "Locales
+alimentados" (+ `AgregarLocal`) y "Segmentos"
+(`TablaDimensionamientoDeModulo2`, componente COMPARTIDO con
+Distribución general/secundaria y las secciones de UF -- no se tocó). Los
+gaps venían principalmente de: `h4` de cada sección con margin-top
+redundante (`--esp-sm`) sumado al `gap` del contenedor flex del cuerpo
+(doble espaciado), y la acción destructiva compitiendo visualmente con
+Nombre en la misma fila. La tabla de Segmentos ya usaba scroll horizontal
+LOCAL correcto (`.tabla-scroll { overflow-x: auto }`) -- confirmado con
+el E2E ya existente "la card de montante no desborda la página en
+viewports angostos"; no había overflow de documento que corregir ahí.
+
+### Cambio visual
+
+**Antes:** Nombre + Borrar montante (misma fila) → Locales alimentados →
+Segmentos → Derivaciones. **Después:** Nombre (sección propia) → Locales
+alimentados (+ Agregar local, sin prefijo "+") → Segmentos →
+Derivaciones → **Eliminar montante** (renombrado, al final del cuerpo,
+separado por un borde sutil tipo "zona de peligro"). El header
+(nombre/pill de red/resumen/toggle) no se tocó.
+
+### Densidad
+
+`h4` de cada `.montante-card__seccion` pasa de `margin: var(--esp-sm) 0
+var(--esp-xs)` a `margin: 0 0 var(--esp-xs)` (el espaciado entre bloques
+ya lo da el `gap: var(--esp-sm)` del `.montante-card__cuerpo` -- tenerlo
+en ambos lados duplicaba el espacio). La regla de `h4` de Derivaciones,
+que duplicaba exactamente la misma declaración con el mismo problema, se
+eliminó (ya hereda de `.montante-card__seccion h4` -- la sección de
+Derivaciones lleva esa misma clase).
+
+### Eliminar montante
+
+Renombrado desde "Borrar montante" -- consistencia con "Eliminar
+nivel"/"Eliminar local"/"Eliminar unidad funcional"/"Eliminar artefacto"
+de M1 (clase `m1-btn-eliminar`, `demandaM1.css`). Estilo de hover de
+error (`--color-error-suave`/`--color-error-borde`/`--color-error`)
+duplicado localmente en `constructorDeMontantes.css` en vez de importar
+CSS entre módulos por dos reglas. Posición: último hijo del cuerpo,
+después de Segmentos/Derivaciones/aviso, en su propia fila con
+`border-top` sutil -- sigue siendo `.ui-btn--fantasma`, no un botón rojo
+dominante. Comportamiento (`borrarMontante` de `reconciliarMontante.ts`)
+sin cambios.
+
+### Segmentos mobile
+
+Investigado sin encontrar bug real (ver Arqueología): `.tabla-scroll` ya
+contiene el overflow horizontal localmente. No se aplicó ninguna de las
+estrategias B/C (grid responsive / cards por segmento) porque la
+estrategia A (tabla + wrapper local) ya funcionaba correctamente. No se
+tocó el componente compartido `TablaDimensionamientoDeModulo2`.
+
+### Funcionalidad
+
+Sin cambios: `agregarLocalAMontante`, `quitarLocalDeMontante`,
+`borrarMontante`, `conNombreDeMontante`, `montantesDelProyecto.ts` --
+mismas firmas, mismos call-sites, sólo reordenados/renombrados en JSX.
+
+### Hidráulica
+
+Sin cambios. Ningún resultado de Qc/DN/V/hf/presión se ve afectado;
+reordenar visualmente el cuerpo del Montante no dispara `onCambiar`.
+
+### Harness de fuzz
+
+`tests/e2e/qa/acciones.ts`: la acción `borrarMontante` buscaba el botón
+por el texto "Borrar montante" -- actualizada a "Eliminar montante" (si
+no, hubiera quedado permanentemente no-aplicable, sin que ningún test
+lo detectara automáticamente hasta la próxima corrida de fuzz).
+
+### Tests
+
++3 unitarios (`ConstructorDeMontantes.componente.test.ts`, describe
+`UI-M2-MONTANTE-COMPACT-01`): copy "Eliminar montante" (no "Borrar
+montante"); orden Nombre → Locales alimentados → Segmentos → Eliminar
+montante; selector de Local sin prefijo "+" (con el aria-label intacto
+para E2E/fuzz). +2 E2E (`montantes.spec.ts`, mismo describe): header
+intacto (nombre/pill/resumen/`aria-expanded`) + orden real en el DOM
+(`Nombre` → `.montante-card__seccion h4` → `.montante-card__pie` como
+último hijo directo del cuerpo) + Segmentos visibles + sin overflow de
+documento @ 390px; eliminar el montante desde el botón reposicionado
+sigue funcionando igual. Ambos E2E corridos desktop+mobile. Vitest
+**1784/1784** (1781 + 3); `tsc -b`/`e2e:typecheck`/`build` verdes; ESLint
+**11/0/0** (mismo baseline). E2E dirigido **52/52**
+(`montantes`/`m2-resp-polish`/`multinivel`/`responsive`/
+`propagacion-a`/`smoke`) desktop+mobile contra build local. Sin fuzz
+cloud Nivel A (no se tocó motor).
+
+### Responsive
+
+Verificado a 390px/360px/1280px: sin overflow de documento, header
+envuelve con elegancia, Nombre/Locales/Segmentos/Eliminar legibles en
+mobile.
+
+### Riesgo
+
+**Nivel C** — UI/responsive puro, sin cambio de dominio, cálculo ni
+reconciliación.
+
+### Estado
+
+**D-δ.111 / UI-M2-MONTANTE-COMPACT-01 -- CERRADO, pendiente validación
+manual del usuario.**
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son

@@ -2201,6 +2201,56 @@ salvo bug inequívoco o decisión roja explícita.
   - **Riesgo:** Nivel B (test-only, sin cambio de producto).
   - **Estado:** `FIX-M3-RESP-02-ACS-01: CERRADO`.
 
+- **D-δ.111 — UI-M2-MONTANTE-COMPACT-01: compactación del cuerpo
+  expandido de Montante.** Slice puramente visual/responsive (Nivel C),
+  sin cambios de motor, schema, topología, reconciliación ni cálculo.
+  - **Problema:** con el cuerpo del Montante expandido (Nombre + Borrar
+    montante en una fila, luego Locales alimentados y Segmentos), la
+    tarjeta tenía baja densidad de información -- especialmente notorio
+    en mobile con varios montantes.
+  - **Cambio:** reordenamiento fijo del cuerpo -- Nombre (sección propia,
+    ya no comparte fila con la acción destructiva) → Locales alimentados
+    (+ Agregar local) → Segmentos → Derivaciones → **Eliminar montante**
+    al final, separado por un borde sutil ("zona de peligro"). Renombre
+    "Borrar montante" → "Eliminar montante" para alinear con la
+    convención ya usada por M1 (Eliminar nivel/local/unidad
+    funcional/artefacto, clase `m1-btn-eliminar`) -- estilo duplicado
+    localmente en `constructorDeMontantes.css` (hover de error) en vez de
+    importar CSS entre módulos. El `<h4>` de cada sección perdió su
+    margin-top redundante (ya separado por el `gap` del contenedor
+    flexible). Copy del selector de Local: "+ Agregar local:" →
+    "Agregar local:" -- el "+" sugería un botón de confirmar que no
+    existe (seleccionar ya agrega directo).
+  - **Segmentos en mobile:** investigado, sin bug real. `.tabla-scroll`
+    (`overflow-x: auto`) ya contiene el scroll horizontal de forma local,
+    sin desbordar el documento (confirmado por el E2E existente "la card
+    de montante no desborda la página en viewports angostos" y el nuevo
+    test de esta entrada). No se tocó `TablaDimensionamientoDeModulo2`
+    (componente compartido con Distribución general/secundaria y las
+    secciones de UF) para no ampliar el alcance de este slice.
+  - **Harness de fuzz:** `tests/e2e/qa/acciones.ts` buscaba el texto
+    "Borrar montante" para la acción `borrarMontante` -- actualizado a
+    "Eliminar montante" (si no, esa acción hubiera quedado permanentemente
+    no-aplicable en el fuzz).
+  - **Funcionalidad:** sin cambios -- mismos callbacks
+    (`agregarLocalAMontante`/`quitarLocalDeMontante`/`borrarMontante`/
+    `conNombreDeMontante`), sólo reordenados/renombrados en JSX.
+  - **Tests:** +3 unitarios (`ConstructorDeMontantes.componente.test.ts`:
+    copy "Eliminar montante", orden Nombre→Locales→Segmentos→Eliminar,
+    selector sin "+") y +2 E2E (`montantes.spec.ts`,
+    `UI-M2-MONTANTE-COMPACT-01`: header intacto + orden real del DOM +
+    "Eliminar montante" como último hijo + sin overflow @ 390px;
+    eliminar desde el botón reposicionado). Vitest **1784/1784** (1781 +
+    3); `tsc -b`/`e2e:typecheck`/`build` verdes; ESLint **11/0/0** (mismo
+    baseline). E2E dirigido **52/52**
+    (`montantes`/`m2-resp-polish`/`multinivel`/`responsive`/
+    `propagacion-a`/`smoke`) desktop+mobile contra build local.
+  - **Hidráulica:** sin cambios -- ningún resultado de Qc/DN/V/hf/presión
+    se ve afectado; colapsar/expandir/reordenar visualmente no dispara
+    `onCambiar`.
+  - **Estado:** `UI-M2-MONTANTE-COMPACT-01: CERRADO — pendiente
+    validación manual` del usuario sobre el deploy.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
