@@ -115,8 +115,14 @@
   padding: var(--esp-sm) var(--esp-md);
 }
 
+/* UI-M2-RESP-POLISH-01 (re-diagnóstico): con 3 acciones ("Duplicar",
+   "+ Agregar nivel", "Eliminar unidad funcional") esta fila no envolvía en
+   mobile -- forzaba overflow horizontal de TODA la página (el bug
+   documentado en D-δ.107 como ".m2-fila-agrupada" era en realidad este:
+   M2 por sí solo no desborda, ver PENDIENTES-DE-ARQUITECTURA.md). */
 .m1-uf__acciones {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--esp-xs);
   flex: none;
 }
@@ -504,6 +510,18 @@
 
   .m1-uf__cabecera {
     align-items: flex-start;
+  }
+
+  /* UI-M2-RESP-POLISH-01 (re-diagnóstico, ver arriba): `flex-wrap: wrap`
+     por sí solo en `.m1-uf__acciones` no alcanza -- como flex item de
+     `.m1-uf__cabecera` con `flex: none`, el navegador sigue calculando su
+     ancho intrínseco como si sus 3 botones entraran en una sola línea
+     (max-content), así que nunca llega a angostarse lo suficiente como
+     para que SU PROPIO wrap entre en juego. Forzarla a su propia fila
+     completa (mismo patrón que `.m1-uf__meta`/`.m1-uf__resumen` arriba) la
+     acota al ancho real disponible, y ahí sí sus botones envuelven. */
+  .m1-uf__acciones {
+    flex-basis: 100%;
   }
 
   /* Cabecera de Nivel apilada (FIX-M1-MULTINIVEL-BASE-LEVEL-01 §18): el
