@@ -2057,6 +2057,53 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `FIX-M1-MULTINIVEL-BASE-LEVEL-01: CERRADO — pendiente
     validación manual` del usuario sobre el deploy.
 
+- **D-δ.108 — UI-M1-DUPLICAR-LOCAL-01: duplicar un Local dentro del mismo
+  Nivel.** Acción `Duplicar local` en cada card de M1, junto a `Eliminar
+  local`. Clonado profundo (nuevo `local.id` + nuevo `id` por cada
+  Artefacto) que queda dentro del MISMO `nivel.id`, insertado inmediatamente
+  después del original. Reutiliza exactamente el mismo procedimiento que
+  `duplicarUnidadFuncionalEnProyecto` ya usaba por cada Local al duplicar
+  una UF completa (D-δ.50/51) -- `duplicarLocal` y `redesObjetivoParaClon`
+  se exportaron de `duplicarUnidadFuncional.ts` (su comentario ya
+  anticipaba este incremento) y se reutilizan tal cual en el nuevo
+  `duplicarLocalEnNivel.ts`, sin reimplementar CAT-CONN-01 ni la
+  sincronización topológica.
+  - **Herencia (GEOM-COTA-01):** el spread superficial de `duplicarLocal`
+    ya garantiza que un Local sin override de cota siga sin override en la
+    copia (sigue heredando el Nivel), y que un override explícito (cota de
+    Local, altura de Artefacto) se copie tal cual -- sin materializar
+    ningún default. No hizo falta código nuevo para esto.
+  - **Nombre de la copia:** `Local` no tiene campo `nombre` propio -- el
+    título ya es 100% derivado (`etiquetasDeLocales`, numera por tipo y
+    posición: "Baño 1"/"Baño 2"). Duplicar un "Baño" simplemente agrega
+    otro Local `tipo: 'bano'` al mismo Nivel; el mecanismo YA existente
+    renumera ambos automáticamente. Sin campo nuevo, sin "copia" hardcoded,
+    sin decisión roja.
+  - **M2:** la copia NO hereda `Tramo`, `montanteId`, tee, DN manual ni
+    longitud del original -- sus terminales se sincronizan como
+    "bootstrap" (mismo camino que un Local recién creado), con Redes
+    tomadas de la conectividad DISEÑADA del artefacto original
+    (`conectividadElegida`, o la topología real si no hay override
+    explícito). `backfillLongitudesDePredimensionamiento` sólo lleva los
+    Tramos nuevos a un valor típico, nunca copia el relevamiento real.
+  - **Tests:** `duplicarLocalEnNivel.test.ts` (13 casos: duplicación
+    simple + posición + repetición + independencia; herencia/overrides;
+    multinivel -- copia sólo en el Nivel del original; conectividad física
+    de la copia -- válida, sin ids reutilizados, sin montante/DN/longitud
+    heredados; recálculo de demanda -- Kc indeterminado con n=1 se
+    resuelve al duplicar a n=2). `tests/e2e/duplicar-local.spec.ts` (2
+    casos: independencia editando/eliminando artefactos de la copia;
+    duplicar dentro de un segundo Nivel). Se corrigió `multinivel.spec.ts`
+    (`exact: true` en el selector "Duplicar" de la UF -- ahora ambiguo por
+    substring contra "Duplicar local"; sin ese fix rompía un test
+    preexistente, detectado corriendo la suite completa antes de cerrar).
+    Vitest **1781/1781** (1768 + 13); `tsc -b`/`e2e:typecheck`/`build`
+    verdes; ESLint **11/0/0**. E2E `duplicar-local.spec.ts` **4/4**
+    desktop+mobile; `multinivel.spec.ts` **14/14** desktop+mobile tras el
+    fix del selector.
+  - **Estado:** `UI-M1-DUPLICAR-LOCAL-01: CERRADO — pendiente validación
+    manual` del usuario sobre el deploy.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /

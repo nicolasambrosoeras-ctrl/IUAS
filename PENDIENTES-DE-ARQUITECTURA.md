@@ -12871,6 +12871,90 @@ la regla.
 **D-δ.107 / FIX-M1-MULTINIVEL-BASE-LEVEL-01 -- CERRADO, pendiente
 validación manual del usuario.**
 
+## D-δ.108 -- UI-M1-DUPLICAR-LOCAL-01: duplicar un Local dentro del mismo Nivel -- CERRADO
+
+Slice Nivel B/estructural acotado. Agrega `Duplicar local` en cada card de
+Local de M1 (junto a `Eliminar local`), copiando el Local y sus
+Artefactos dentro del MISMO Nivel, inmediatamente después del original.
+
+### Arqueología
+
+`Local` (`src/modelo/proyecto/index.ts`) no tiene campo `nombre` propio
+-- `id`, `tipo`, `regimen?`, `cotaPiso_m?`, `artefactos`. El título visible
+en M1 (`etiquetasDeLocales`, `MotorDemandaPantalla.tsx`) es 100% derivado:
+cuenta Locales por `tipo` dentro del Nivel y numera sólo si hay 2+ del
+mismo tipo ("Baño" vs. "Baño 1"/"Baño 2"). `duplicarUnidadFuncional.ts`
+ya tenía TODO el procedimiento necesario, resuelto para D-δ.50/51 al
+duplicar una UF completa: `duplicarLocal` (clonado profundo, ids nuevos
+para el Local y cada Artefacto) y `redesObjetivoParaClon` (CAT-CONN-01:
+Redes objetivo de cada Artefacto clonado, desde `conectividadElegida` o
+la topología real del original) -- ambas privadas, con un comentario que
+literalmente anticipaba este incremento ("no se exportan como
+abstracción reutilizable para Locales, eso queda para cuando exista
+duplicarLocal como incremento propio").
+
+### Decisión (sin decisión roja)
+
+Dado que (1) el nombre del Local ya es derivado y se renumera solo sin
+tocar código, y (2) el procedimiento de clonado + CAT-CONN + sincronización
+topológica ya existe y es directamente reutilizable, no hubo ninguna
+alternativa plausible que produjera un comportamiento distinto que
+ameritara plantear una decisión roja -- se exportaron `duplicarLocal` y
+`redesObjetivoParaClon` de `duplicarUnidadFuncional.ts` y se reutilizaron
+tal cual en el nuevo `duplicarLocalEnNivel.ts`
+(`duplicarLocalEnNivelDeUnidadFuncionalEnProyecto`), aplicando el mismo
+procedimiento a UN Local en vez de a todos los de una UF.
+
+### GEOM-COTA-01 / M2
+
+Sin código nuevo para herencia: el spread superficial de `duplicarLocal`
+ya deja sin override a una copia cuyo original no lo tenía (sigue
+heredando el Nivel) y copia tal cual cualquier override explícito
+(`cotaPiso_m` del Local, `alturaHidraulicaSobrePiso_m` de un Artefacto).
+M2: la copia nunca hereda `Tramo`, `montanteId`, tee, DN manual ni
+longitud relevada del original -- sus terminales se sincronizan como
+"bootstrap" (mismo camino que un Local recién creado),
+`backfillLongitudesDePredimensionamiento` sólo los lleva a un valor
+típico inicial.
+
+### Regresión detectada y corregida antes de cerrar
+
+`tests/e2e/multinivel.spec.ts` tenía `uf.getByRole('button', { name:
+'Duplicar' })` (sin `exact: true`) para el botón de nivel UF -- el
+nuevo "Duplicar local" matchea por substring y volvió ese selector
+ambiguo (strict-mode violation de Playwright). Se detectó corriendo la
+suite completa de E2E antes de cerrar (no sólo el spec nuevo) y se
+corrigió con `exact: true`. Los demás Locators `page.getByRole('button',
+{ name: 'Duplicar' }).first()` en otros specs no se tocaron -- siguen
+resolviendo correctamente por orden del DOM (el botón de UF se declara
+antes que cualquier Local en el árbol).
+
+### Hallazgo colateral, ya documentado, NO relacionado con este slice
+
+Al correr `multi-uf.spec.ts` completo en mobile reapareció el overflow
+preexistente de la tabla de M2 (`.m2-fila-agrupada`, D-δ.107) en el test
+de duplicar una UF -- mismo bug ya registrado, no introducido por este
+slice (no se tocó M2).
+
+### Tests
+
+`duplicarLocalEnNivel.test.ts` (13 casos): duplicación simple + posición
+inmediata + duplicación repetida + independencia de mutación; herencia
+sin materializar defaults + overrides explícitos copiados; multinivel
+(copia sólo en el Nivel del original); conectividad física de la copia
+(válida, sin nodos/tramos reutilizados, sin montante/DN/longitud
+heredados); recálculo de demanda (Kc indeterminado con n=1 se resuelve
+al duplicar a n=2, sin hardcodear la fórmula). `tests/e2e/duplicar-local.spec.ts`
+(2 casos, desktop+mobile): independencia editando/eliminando artefactos
+de la copia; duplicar dentro de un segundo Nivel sin conectividad física
+heredada. Vitest **1781/1781** (1768 + 13); `tsc -b`/`e2e:typecheck`/`build`
+verdes; ESLint **11/0/0** (mismo baseline).
+
+### Estado
+
+**D-δ.108 / UI-M1-DUPLICAR-LOCAL-01 -- CERRADO, pendiente validación
+manual del usuario.**
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son
