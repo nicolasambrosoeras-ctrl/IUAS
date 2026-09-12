@@ -38,7 +38,7 @@
 // modulo produce). "Dos UFs en el mismo piso" no acumula: cada camino
 // deriva su propio ΔLvertical del nivel de SU terminal, nunca de cuantas
 // UFs existan.
-import type { Proyecto, UnidadFuncional } from '../../../modelo/proyecto'
+import type { Nivel, Proyecto } from '../../../modelo/proyecto'
 import type { Nodo, Tramo } from '../../../modelo/redHidraulica'
 import type { CaminoHaciaOrigen } from '../topologia/obtenerCaminoHaciaOrigen'
 
@@ -111,13 +111,13 @@ function clasificarTramoDeDistribucionGeneral(
 export function resolverIncrementoVerticalPorNivel(
   proyecto: Proyecto,
   camino: CaminoHaciaOrigen,
-  unidadFuncional: UnidadFuncional,
+  nivelDeUf: Pick<Nivel, 'nivel'>,
 ): IncrementoVerticalPorNivel {
   if (proyecto.configuracionHidraulica.granularidadHidraulica !== 'simplificada') {
-    return { ...SIN_INCREMENTO, nivel: unidadFuncional.nivel }
+    return { ...SIN_INCREMENTO, nivel: nivelDeUf.nivel }
   }
 
-  const { nivel } = unidadFuncional
+  const { nivel } = nivelDeUf
   if (nivel === undefined || nivel <= 0) {
     // PB (0) o UF sin clasificar: sin caño vertical adicional. La longitud
     // base sigue rigiendo tal cual (CRIT-A20: ausencia != 0, pero un

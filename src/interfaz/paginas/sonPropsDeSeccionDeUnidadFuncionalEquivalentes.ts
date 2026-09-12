@@ -13,8 +13,8 @@
 // TeeDeNodoEditor, AccesoriosDeTramoEditor, resolverFilaDeDimensionamiento,
 // resolverControlDeDnDeTramo, resolverResultadoDeTramoParaUi,
 // construirArbolDeLocal) leen de `Proyecto` -- grep confirmado, sólo:
-//   - `uf` (la propia Unidad Funcional: nombre, nivel, cota, locales,
-//     artefactos)
+//   - `uf` (la propia Unidad Funcional: nombre, niveles -- cada uno con su
+//     nombre/nivel/cota/locales/artefactos, UI-M1-MULTINIVEL-01)
 //   - `proyecto.redHidraulica.tramos` (longitud, accesorios, DN adoptado,
 //     montanteId)
 //   - `proyecto.redHidraulica.nodos` -- SOLO el campo `tee` (TeeDeNodoEditor)

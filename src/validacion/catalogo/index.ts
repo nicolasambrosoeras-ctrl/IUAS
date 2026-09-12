@@ -2,6 +2,7 @@
 // Recibe el catálogo por parámetro y no importa directamente un paquete normativo.
 
 import type { Proyecto } from '../../modelo/proyecto';
+import { localesDeUnidadFuncional } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto';
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos';
 import type { TipoProyectoNormativo } from '../../normativa/eras-2023/coeficientes-mayoracion';
 import { crearProblema, type ProblemaValidacion } from '../codigos';
@@ -28,7 +29,7 @@ export function validarReferenciasDeCatalogo(
   }
 
   proyecto.unidadesFuncionales.forEach((uf, indiceUf) => {
-    uf.locales.forEach((local, indiceLocal) => {
+    localesDeUnidadFuncional(uf).forEach((local, indiceLocal) => {
       local.artefactos.forEach((artefacto, indiceArtefacto) => {
         if (!idsDeCatalogo.has(artefacto.artefactoId)) {
           problemas.push(

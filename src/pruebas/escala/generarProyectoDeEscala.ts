@@ -35,6 +35,8 @@ import type {
   UnidadFuncional,
 } from '../../modelo/proyecto'
 import type { Nodo, RedHidraulica, ReferenciaDeArtefacto, Tramo } from '../../modelo/redHidraulica'
+import { localesDeUnidadFuncional } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
+import { nombreDeNivel } from '../../interfaz/paginas/nivelUnidadFuncional'
 
 export interface FormaDeEscala {
   // Unidades funcionales del proyecto.
@@ -80,9 +82,9 @@ export interface MagnitudesDeEscala {
 
 export function contarMagnitudesDeEscala(proyecto: Proyecto): MagnitudesDeEscala {
   const red = proyecto.redHidraulica
-  const locales = proyecto.unidadesFuncionales.reduce((suma, uf) => suma + uf.locales.length, 0)
+  const locales = proyecto.unidadesFuncionales.reduce((suma, uf) => suma + localesDeUnidadFuncional(uf).length, 0)
   const artefactos = proyecto.unidadesFuncionales.reduce(
-    (suma, uf) => suma + uf.locales.reduce((s, l) => s + l.artefactos.length, 0),
+    (suma, uf) => suma + localesDeUnidadFuncional(uf).reduce((s, l) => s + l.artefactos.length, 0),
     0,
   )
   const terminales = red === undefined ? 0 : red.nodos.filter((n) => n.referencia?.tipo === 'artefacto').length
@@ -175,9 +177,15 @@ export function generarProyectoDeEscala(forma: FormaDeEscala): Proyecto {
     unidadesFuncionales.push({
       id: ufId,
       nombre: `Unidad funcional ${u}`,
-      nivel,
-      cotaHidraulicaReferencia_m: 3 * nivel,
-      locales,
+      niveles: [
+        {
+          id: `nivel-${u}`,
+          nombre: nombreDeNivel(nivel),
+          nivel,
+          cotaHidraulicaReferencia_m: 3 * nivel,
+          locales,
+        },
+      ],
     })
   }
 

@@ -33,6 +33,7 @@
 // (p. ej. se llama de nuevo sobre un artefacto parcialmente conectado),
 // esa Red se reporta en redesConectadas sin crear una conexión duplicada.
 import type { Proyecto } from '../../modelo/proyecto'
+import { localesDeUnidadFuncional } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import type { Nodo, RedDeTramo, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
 import { hallarNodoDeInsercionDeLocal } from '../../motor/tuberias/topologia/hallarNodoDeInsercionDeLocal'
 import { generarId } from './generarId'
@@ -78,7 +79,7 @@ export function sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(
   }
 
   const unidadFuncional = proyecto.unidadesFuncionales.find((uf) => uf.id === unidadFuncionalId)
-  const local = unidadFuncional?.locales.find((l) => l.id === localId)
+  const local = (unidadFuncional === undefined ? undefined : localesDeUnidadFuncional(unidadFuncional))?.find((l) => l.id === localId)
   const artefactoInstancia = local?.artefactos.find((a) => a.id === artefactoInstanciaId)
   if (artefactoInstancia === undefined) {
     return { tipo: 'artefactoInexistente' }

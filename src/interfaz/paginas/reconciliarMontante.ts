@@ -53,9 +53,12 @@
 //    quitarlo lo reengancha de vuelta a la raíz canónica fuera del
 //    montante. Nunca se pierde longitud/accesorios/DN manual del feed (el
 //    Tramo viaja entero, sólo cambia su `nodoOrigenId`).
-import type { Local, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
+import type { Local, Nivel, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
 import type { Nodo, RedDeTramo, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
-import { resolverCotaPisoDeLocal } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
+import {
+  resolverCotaPisoDeLocal,
+  resolverNivelDeLocal,
+} from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import { resolverPeloDeAguaMinimoEfectivo } from '../../motor/modulo4/resolverPeloDeAguaMinimoDeTanque'
 import { obtenerArtefactosAguasAbajo } from '../../motor/tuberias/topologia/obtenerArtefactosAguasAbajo'
 import { asegurarRaizAC, asegurarRaizAF } from './asegurarRaizDeRed'
@@ -148,13 +151,14 @@ function buscarLocal(
   proyecto: Proyecto,
   unidadFuncionalId: string,
   localId: string,
-): { readonly unidadFuncional: UnidadFuncional; readonly local: Local } | undefined {
+): { readonly unidadFuncional: UnidadFuncional; readonly nivel: Nivel; readonly local: Local } | undefined {
   const unidadFuncional = proyecto.unidadesFuncionales.find((uf) => uf.id === unidadFuncionalId)
-  const local = unidadFuncional?.locales.find((l) => l.id === localId)
-  if (unidadFuncional === undefined || local === undefined) {
+  const nivel = unidadFuncional === undefined ? undefined : resolverNivelDeLocal(unidadFuncional, localId)
+  const local = nivel?.locales.find((l) => l.id === localId)
+  if (unidadFuncional === undefined || nivel === undefined || local === undefined) {
     return undefined
   }
-  return { unidadFuncional, local }
+  return { unidadFuncional, nivel, local }
 }
 
 function cotaDePisoDeLocalServido(proyecto: Proyecto, servido: LocalServido): number | undefined {
@@ -162,7 +166,7 @@ function cotaDePisoDeLocalServido(proyecto: Proyecto, servido: LocalServido): nu
   if (encontrado === undefined) {
     return undefined
   }
-  return resolverCotaPisoDeLocal(encontrado.unidadFuncional, encontrado.local)
+  return resolverCotaPisoDeLocal(encontrado.nivel, encontrado.local)
 }
 
 // Un segmento del montante es "libremente resegmentable" (RD-1) cuando NO
@@ -470,7 +474,7 @@ export function agregarLocalAMontante(
     return { tipo: 'localSinFeedConectable' }
   }
 
-  const zNuevo = resolverCotaPisoDeLocal(encontrado.unidadFuncional, encontrado.local)
+  const zNuevo = resolverCotaPisoDeLocal(encontrado.nivel, encontrado.local)
 
   const cadena = reconstruirCadena(rh, montanteId)
   const cotasPorNodo = cadena

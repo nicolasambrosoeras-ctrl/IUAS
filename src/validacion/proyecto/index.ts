@@ -2,6 +2,7 @@
 // No consulta catálogo normativo ni emite texto visible.
 
 import type { Proyecto } from '../../modelo/proyecto';
+import { localesDeUnidadFuncional } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto';
 import { crearProblema, type ProblemaValidacion } from '../codigos';
 
 export function validarInvariantesDeProyecto(
@@ -10,13 +11,14 @@ export function validarInvariantesDeProyecto(
   const problemas: ProblemaValidacion[] = [];
 
   proyecto.unidadesFuncionales.forEach((uf, indiceUf) => {
-    if (uf.locales.length === 0) {
+    const locales = localesDeUnidadFuncional(uf);
+    if (locales.length === 0) {
       problemas.push(
-        crearProblema('proyectoUnidadFuncionalSinLocales', `unidadesFuncionales[${indiceUf}]`, uf.locales.length),
+        crearProblema('proyectoUnidadFuncionalSinLocales', `unidadesFuncionales[${indiceUf}]`, locales.length),
       );
     }
 
-    uf.locales.forEach((local, indiceLocal) => {
+    locales.forEach((local, indiceLocal) => {
       const campoLocal = `unidadesFuncionales[${indiceUf}].locales[${indiceLocal}]`;
 
       if (local.regimen === undefined) {
@@ -50,7 +52,7 @@ export function validarInvariantesDeProyecto(
   // estado del dominio -- ver calcularCoeficienteDeSimultaneidad). Se
   // bloquea acá, antes de llegar al motor.
   const totalArtefactosComputables = proyecto.unidadesFuncionales
-    .flatMap((uf) => uf.locales)
+    .flatMap((uf) => localesDeUnidadFuncional(uf))
     .flatMap((local) => local.artefactos)
     .filter((artefacto) => artefacto.origen === 'normativo').length;
 

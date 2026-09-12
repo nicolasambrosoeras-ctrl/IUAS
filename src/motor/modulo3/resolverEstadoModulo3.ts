@@ -36,6 +36,7 @@
 //    "todos cumplen". Cuando exista una verificación independiente real se
 //    agregará entonces, no antes.
 import type { Proyecto } from '../../modelo/proyecto'
+import { localesDeUnidadFuncional } from '../tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import type { TipoProyectoNormativo } from '../../normativa/eras-2023/coeficientes-mayoracion'
 import type { ProblemaValidacion } from '../../validacion/codigos'
@@ -147,7 +148,7 @@ export function resolverEstadoModulo3(
 
   // --- medidor general: Qc global del proyecto (CRIT-A5) ---
   const nComputable = proyecto.unidadesFuncionales
-    .flatMap((unidadFuncional) => unidadFuncional.locales)
+    .flatMap((unidadFuncional) => localesDeUnidadFuncional(unidadFuncional))
     .flatMap((local) => local.artefactos)
     .filter((artefacto) => artefacto.origen === 'normativo')
     .reduce((total, artefacto) => total + artefacto.cantidad, 0)

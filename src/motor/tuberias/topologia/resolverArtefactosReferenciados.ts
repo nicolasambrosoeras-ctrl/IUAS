@@ -5,6 +5,7 @@
 // y simultaneidad, que hoy viven fusionadas dentro de calcularSimultaneidad.
 import type { Artefacto, Local, Proyecto, UnidadFuncional } from '../../../modelo/proyecto'
 import type { ReferenciaDeArtefacto } from '../../../modelo/redHidraulica'
+import { localesDeUnidadFuncional } from '../geometria/resolverCotaHidraulicaDeArtefacto'
 
 export interface ArtefactoResuelto {
   readonly referencia: ReferenciaDeArtefacto
@@ -33,7 +34,7 @@ function resolverUnaReferencia(proyecto: Proyecto, referencia: ReferenciaDeArtef
     )
   }
 
-  const local = unidadFuncional.locales.find((local) => local.id === referencia.localId)
+  const local = localesDeUnidadFuncional(unidadFuncional).find((local) => local.id === referencia.localId)
 
   if (local === undefined) {
     throw new Error(

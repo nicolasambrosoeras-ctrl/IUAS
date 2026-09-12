@@ -24,14 +24,26 @@ function pluralizar(cantidad: number, singular: string, plural: string): string 
 }
 
 export function resumenDeUnidadFuncional(uf: UnidadFuncional): ResumenDeUnidadFuncional {
-  const cantidadLocales = uf.locales.length
-  const cantidadArtefactos = uf.locales.reduce(
+  const locales = uf.niveles.flatMap((nivel) => nivel.locales)
+  const cantidadLocales = locales.length
+  const cantidadArtefactos = locales.reduce(
     (total, local) => total + local.artefactos.reduce((suma, artefacto) => suma + artefacto.cantidad, 0),
     0,
   )
+  // UI-M1-MULTINIVEL-01: una UF simple (el caso histórico) sigue mostrando
+  // el nivel único tal cual (sección 32 del brief: la UF sigue contando
+  // como UF, los niveles no se suman como si fueran UF); con 2+ niveles no
+  // hay un único "nivel" que resumir, así que se muestra la cantidad.
+  const primerNivel = uf.niveles[0]
+  const nivelTexto =
+    uf.niveles.length === 1 && primerNivel !== undefined
+      ? primerNivel.nivel === undefined
+        ? 'Sin clasificar'
+        : nombreDeNivel(primerNivel.nivel)
+      : `${uf.niveles.length} niveles`
   return {
     nombre: uf.nombre,
-    nivelTexto: uf.nivel === undefined ? 'Sin clasificar' : nombreDeNivel(uf.nivel),
+    nivelTexto,
     cantidadLocales,
     cantidadArtefactos,
     localesTexto: pluralizar(cantidadLocales, 'local', 'locales'),

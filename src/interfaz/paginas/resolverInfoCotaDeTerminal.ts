@@ -6,14 +6,16 @@
 import type { Proyecto } from '../../modelo/proyecto'
 import type { Nodo, ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
 import { conCotaDeNodo } from './actualizarRedHidraulica'
+import { resolverNivelDeLocal } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 
 // Discriminada por GranularidadHidraulica: 'individual' es el contrato
 // previo sin cambios (profesional -- Nodo.cota_m editable en la
-// tarjeta). 'deUF' es de solo lectura: el valor viene de
-// UnidadFuncional.cotaHidraulicaReferencia_m (simplificada), que se
-// edita en "Datos del proyecto", nunca en el panel de presión --
-// mostrarlo editable ahí sugeriría falsamente que hay una cota propia
-// de este terminal participando del cálculo.
+// tarjeta). 'deUF' es de solo lectura: el valor viene del Nivel
+// (Nivel.cotaHidraulicaReferencia_m, ex UnidadFuncional antes de
+// UI-M1-MULTINIVEL-01) del Local de ese terminal (simplificada), que se
+// edita en M1, nunca en el panel de presión -- mostrarlo editable ahí
+// sugeriría falsamente que hay una cota propia de este terminal
+// participando del cálculo.
 export type InfoCotaDeTerminal =
   | { readonly tipo: 'individual'; readonly cota_m: number | undefined; readonly onCambiarCota: (cota_m: number | undefined) => void }
   | { readonly tipo: 'deUF'; readonly nombreUF: string; readonly cota_m: number | undefined }
@@ -40,10 +42,14 @@ export function resolverInfoCotaDeTerminal(
     const unidadFuncional = proyecto.unidadesFuncionales.find(
       (uf) => uf.id === nodoDelTerminal.referencia.unidadFuncionalId,
     )
+    const nivel =
+      unidadFuncional === undefined
+        ? undefined
+        : resolverNivelDeLocal(unidadFuncional, nodoDelTerminal.referencia.localId)
     return {
       tipo: 'deUF',
       nombreUF: unidadFuncional?.nombre ?? nodoDelTerminal.referencia.unidadFuncionalId,
-      cota_m: unidadFuncional?.cotaHidraulicaReferencia_m,
+      cota_m: nivel?.cotaHidraulicaReferencia_m,
     }
   }
 

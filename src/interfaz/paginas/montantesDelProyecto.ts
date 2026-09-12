@@ -14,6 +14,7 @@
 //     proyección que consumirá VIS-TOPO (§19/§30): no se persiste ninguna
 //     lista paralela de tramos ni de Locales.
 import type { Local, Proyecto, TipoDeLocal, UnidadFuncional } from '../../modelo/proyecto'
+import { localesDeUnidadFuncional } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import {
   derivarLocalesServidos,
@@ -50,7 +51,7 @@ function claveLocal(unidadFuncionalId: string, localId: string): string {
 // id técnico. El ordinal numera por tipo dentro de la UF, igual que el
 // resto de Módulo 2 (derivarOrdinalesDeLocal).
 export function etiquetaHumanaDeLocal(uf: UnidadFuncional, local: Local): string {
-  const ordinal = derivarOrdinalesDeLocal(uf.locales).get(local.id)
+  const ordinal = derivarOrdinalesDeLocal(localesDeUnidadFuncional(uf)).get(local.id)
   const base = `${ETIQUETA_TIPO_DE_LOCAL[local.tipo]}${ordinal === undefined ? '' : ` ${ordinal}`}`
   return `${base} · ${uf.nombre}`
 }
@@ -174,7 +175,7 @@ export function localesOfreciblesParaMontante(proyecto: Proyecto, montanteId: st
   const tomados = localesTomadosEnRed(proyecto, montante.red)
   const ofrecibles: LocalOfrecible[] = []
   for (const uf of proyecto.unidadesFuncionales) {
-    for (const local of uf.locales) {
+    for (const local of localesDeUnidadFuncional(uf)) {
       const clave = claveLocal(uf.id, local.id)
       if (tomados.has(clave)) {
         continue
@@ -235,7 +236,7 @@ export type MontanteProyectado = {
 function etiquetarServidos(proyecto: Proyecto, servidos: readonly LocalServido[]): readonly LocalServidoProyectado[] {
   return servidos.map((servido) => {
     const uf = proyecto.unidadesFuncionales.find((candidata) => candidata.id === servido.unidadFuncionalId)
-    const local = uf?.locales.find((candidato) => candidato.id === servido.localId)
+    const local = (uf === undefined ? undefined : localesDeUnidadFuncional(uf))?.find((candidato) => candidato.id === servido.localId)
     const etiqueta =
       uf !== undefined && local !== undefined
         ? etiquetaHumanaDeLocal(uf, local)
@@ -378,7 +379,7 @@ export function etiquetaDeSalidaDeMontante(
   if (servidos.length === 1) {
     const servido = servidos[0]!
     const uf = proyecto.unidadesFuncionales.find((candidata) => candidata.id === servido.unidadFuncionalId)
-    const local = uf?.locales.find((candidato) => candidato.id === servido.localId)
+    const local = (uf === undefined ? undefined : localesDeUnidadFuncional(uf))?.find((candidato) => candidato.id === servido.localId)
     return uf !== undefined && local !== undefined ? etiquetaHumanaDeLocal(uf, local) : 'Salida sin destino'
   }
   return 'Ramal a varios Locales'

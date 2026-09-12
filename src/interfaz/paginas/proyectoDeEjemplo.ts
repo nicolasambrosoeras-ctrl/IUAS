@@ -31,59 +31,65 @@ export const proyectoInicial: Proyecto = {
     {
       id: 'uf-1',
       nombre: 'Unidad funcional 1',
-      // PB: cota de PISO por defecto de ese nivel = 0,00 m (GEOM-UX-01,
-      // 3·nivel). La cota hidráulica efectiva de cada terminal se deriva
-      // sumando la altura hidráulica sobre piso del artefacto (Tabla IUAS
-      // del tipo, salvo override): p.ej. ducha 0 + 2,00 = 2,00 m; bidet
-      // 0 + 0,40 = 0,40 m. Ningún Local ni artefacto de este ejemplo trae
-      // override -- todo se deriva.
-      nivel: 0,
-      cotaHidraulicaReferencia_m: 0,
-      locales: [
+      niveles: [
         {
-          id: 'local-bano',
-          tipo: 'bano',
-          regimen: 'domiciliario',
-          artefactos: [
-            { id: 'artefacto-bano-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
-            { id: 'artefacto-bano-2', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' },
-            { id: 'artefacto-bano-3', artefactoId: 'bidet', cantidad: 1, origen: 'normativo' },
-            { id: 'artefacto-bano-4', artefactoId: 'inodoroDeposito', cantidad: 1, origen: 'normativo' },
-          ],
-        },
-        {
-          id: 'local-cocina',
-          tipo: 'cocina',
-          regimen: 'domiciliario',
-          artefactos: [
-            { id: 'artefacto-cocina-1', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' },
-            { id: 'artefacto-cocina-2', artefactoId: 'maquinaLavavajillas', cantidad: 1, origen: 'normativo' },
-          ],
-        },
-        {
-          id: 'local-lavadero',
-          tipo: 'lavadero',
-          regimen: 'domiciliario',
-          artefactos: [
-            { id: 'artefacto-lavadero-1', artefactoId: 'piletaDeLavar', cantidad: 1, origen: 'normativo' },
-            { id: 'artefacto-lavadero-2', artefactoId: 'maquinaLavarropas', cantidad: 1, origen: 'normativo' },
-          ],
-        },
-        {
-          id: 'local-toilette',
-          tipo: 'toilette',
-          regimen: 'domiciliario',
-          artefactos: [
-            { id: 'artefacto-toilette-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
-            { id: 'artefacto-toilette-2', artefactoId: 'inodoroDeposito', cantidad: 1, origen: 'normativo' },
-          ],
-        },
-        {
-          id: 'local-patio',
-          tipo: 'jardin',
-          regimen: 'domiciliario',
-          artefactos: [
-            { id: 'artefacto-patio-1', artefactoId: 'canillaDeServicio', cantidad: 1, origen: 'normativo' },
+          id: 'nivel-1',
+          nombre: 'PB',
+          // PB: cota de PISO por defecto de ese nivel = 0,00 m (GEOM-UX-01,
+          // 3·nivel). La cota hidráulica efectiva de cada terminal se deriva
+          // sumando la altura hidráulica sobre piso del artefacto (Tabla IUAS
+          // del tipo, salvo override): p.ej. ducha 0 + 2,00 = 2,00 m; bidet
+          // 0 + 0,40 = 0,40 m. Ningún Local ni artefacto de este ejemplo trae
+          // override -- todo se deriva.
+          nivel: 0,
+          cotaHidraulicaReferencia_m: 0,
+          locales: [
+            {
+              id: 'local-bano',
+              tipo: 'bano',
+              regimen: 'domiciliario',
+              artefactos: [
+                { id: 'artefacto-bano-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
+                { id: 'artefacto-bano-2', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' },
+                { id: 'artefacto-bano-3', artefactoId: 'bidet', cantidad: 1, origen: 'normativo' },
+                { id: 'artefacto-bano-4', artefactoId: 'inodoroDeposito', cantidad: 1, origen: 'normativo' },
+              ],
+            },
+            {
+              id: 'local-cocina',
+              tipo: 'cocina',
+              regimen: 'domiciliario',
+              artefactos: [
+                { id: 'artefacto-cocina-1', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' },
+                { id: 'artefacto-cocina-2', artefactoId: 'maquinaLavavajillas', cantidad: 1, origen: 'normativo' },
+              ],
+            },
+            {
+              id: 'local-lavadero',
+              tipo: 'lavadero',
+              regimen: 'domiciliario',
+              artefactos: [
+                { id: 'artefacto-lavadero-1', artefactoId: 'piletaDeLavar', cantidad: 1, origen: 'normativo' },
+                { id: 'artefacto-lavadero-2', artefactoId: 'maquinaLavarropas', cantidad: 1, origen: 'normativo' },
+              ],
+            },
+            {
+              id: 'local-toilette',
+              tipo: 'toilette',
+              regimen: 'domiciliario',
+              artefactos: [
+                { id: 'artefacto-toilette-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
+                { id: 'artefacto-toilette-2', artefactoId: 'inodoroDeposito', cantidad: 1, origen: 'normativo' },
+              ],
+            },
+            {
+              id: 'local-patio',
+              tipo: 'jardin',
+              regimen: 'domiciliario',
+              artefactos: [
+                { id: 'artefacto-patio-1', artefactoId: 'canillaDeServicio', cantidad: 1, origen: 'normativo' },
+              ],
+            },
           ],
         },
       ],

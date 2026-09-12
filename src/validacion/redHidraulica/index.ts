@@ -15,6 +15,7 @@ import { idsAccesorioDeTramo } from '../../modelo/redHidraulica';
 import { crearProblema, type ProblemaValidacion } from '../codigos';
 import { calcularDiferenciaDeCota } from '../../motor/tuberias/geometria/calcularDiferenciaDeCota';
 import { esLongitudGeometricamenteValida } from '../../motor/tuberias/geometria/esLongitudGeometricamenteValida';
+import { localesDeUnidadFuncional } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto';
 
 // M2-TOPO-C: integridad referencial de las identidades semánticas de
 // montante (Proyecto.montantes) y de las referencias `Tramo.montanteId`.
@@ -368,7 +369,7 @@ export function validarRedHidraulica(proyecto: Proyecto): readonly ProblemaValid
     const { unidadFuncionalId, localId, artefactoId } = nodo.referencia;
 
     const unidadFuncional = proyecto.unidadesFuncionales.find((uf) => uf.id === unidadFuncionalId);
-    const local = unidadFuncional?.locales.find((local) => local.id === localId);
+    const local = unidadFuncional === undefined ? undefined : localesDeUnidadFuncional(unidadFuncional).find((local) => local.id === localId);
     const artefacto = local?.artefactos.find((artefacto) => artefacto.id === artefactoId);
 
     if (artefacto === undefined) {

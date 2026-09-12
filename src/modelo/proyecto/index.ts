@@ -85,21 +85,34 @@ export type Local = {
   artefactos: readonly Artefacto[];
 };
 
-export type UnidadFuncional = {
+// UI-M1-MULTINIVEL-01: un nivel físico dentro de una Unidad Funcional (PB,
+// PA, Piso 11, Piso 12, entrepiso, subsuelo...). Antes de este slice estos
+// campos vivían directamente en `UnidadFuncional` (una UF = un único plano
+// físico); ahora una UF puede tener 1..N niveles, cada uno con su propia
+// identidad, etiqueta, cota y Locales. Los Locales SIEMPRE pertenecen a
+// exactamente un Nivel (nunca directamente a la UF) -- evita el estado
+// imposible de un Local "huérfano" sin nivel: borrar un Nivel borra sus
+// Locales con él, no requiere reconciliación de una referencia suelta.
+export type Nivel = {
   id: string;
+  // Nombre humano del nivel físico ("Planta Baja", "Piso 12", "Entrepiso").
+  // Distinto de la etiqueta/`nivel` numérica -- ver `nivel` más abajo. Para
+  // una UF de un único nivel este campo no se expone en UI (sección 9 del
+  // brief UI-M1-MULTINIVEL-01): sólo importa visualmente cuando hay 2+
+  // niveles y hace falta distinguirlos.
   nombre: string;
-  // Nivel/planta de la UF (D-δ.46): convención IUAS, PB=0, Piso 1=1,
-  // Piso 2=2... Representación numérica para no limitar la cantidad de
-  // pisos con una unión cerrada. Opcional: proyectos existentes o UFs
-  // todavía sin clasificar no tienen nivel -- ausencia nunca equivale a
-  // PB (0), es "sin clasificar todavía". Ver
+  // Nivel/planta (D-δ.46, ahora del Nivel en vez de la UF): convención
+  // IUAS, PB=0, Piso 1=1, Piso 2=2... Representación numérica para no
+  // limitar la cantidad de pisos con una unión cerrada. Opcional: niveles
+  // todavía sin clasificar no tienen nivel -- ausencia nunca equivale a PB
+  // (0), es "sin clasificar todavía". Ver
   // interfaz/paginas/nivelUnidadFuncional.ts (nombreDeNivel,
   // calcularCotaHidraulicaDefaultDeNivel).
   nivel?: number;
-  // Cota de PISO terminado de referencia de la UF, en metros respecto del
+  // Cota de PISO terminado de referencia del Nivel, en metros respecto del
   // datum del Proyecto (misma convención que Nodo.cota_m). GEOM-UX-01
   // (D-δ.86) reencuadró este campo: ya NO es "una cota representativa del
-  // punto hidráulico" -- es la cota del PISO de la UF. La cota hidráulica
+  // punto hidráulico" -- es la cota del PISO del Nivel. La cota hidráulica
   // efectiva de cada terminal se DERIVA sumando, sobre esta cota de piso
   // (o sobre el override de piso del Local, si lo hay), la altura
   // hidráulica sobre piso del artefacto (override explícito o Tabla IUAS
@@ -117,6 +130,19 @@ export type UnidadFuncional = {
   // aporta la Tabla IUAS por tipo en vez de exigirse relevada.
   cotaHidraulicaReferencia_m?: number;
   locales: readonly Local[];
+};
+
+export type UnidadFuncional = {
+  id: string;
+  // Identidad de USO/consumo de la UF (departamento, casa, local
+  // comercial...) -- distinta del nombre de cada Nivel físico que contiene
+  // (UI-M1-MULTINIVEL-01, sección 11: "no usar UF como sinónimo de piso").
+  nombre: string;
+  // 1..N niveles físicos. Toda UF tiene SIEMPRE al menos un Nivel -- una UF
+  // "simple" (el caso histórico, la gran mayoría) es simplemente una UF con
+  // `niveles.length === 1`, sin ninguna entidad ni concepto adicional; la
+  // jerarquía visual de niveles sólo aparece en UI cuando hay 2+.
+  niveles: readonly Nivel[];
 };
 
 export type ParametrosProyecto = {

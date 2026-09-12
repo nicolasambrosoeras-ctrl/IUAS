@@ -14,5 +14,12 @@ export function nombreDeUnidadFuncional(proyecto: Proyecto, unidadFuncionalId: s
   if (uf === undefined) {
     return 'Unidad funcional (no encontrada)'
   }
-  return uf.nivel === undefined ? uf.nombre : `${uf.nombre} · ${nombreDeNivel(uf.nivel)}`
+  // UI-M1-MULTINIVEL-01: con un único nivel (el caso histórico) se sigue
+  // mostrando igual que antes; con 2+ niveles no hay un único nivel que
+  // anexar al nombre.
+  const primerNivel = uf.niveles[0]
+  if (uf.niveles.length !== 1 || primerNivel === undefined || primerNivel.nivel === undefined) {
+    return uf.nombre
+  }
+  return `${uf.nombre} · ${nombreDeNivel(primerNivel.nivel)}`
 }

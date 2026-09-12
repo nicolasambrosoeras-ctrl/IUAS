@@ -86,7 +86,10 @@ import {
   type CaminoHaciaOrigenNoResoluble,
 } from '../topologia/obtenerCaminoHaciaOrigen'
 import { resolverDesnivelDeCamino } from '../geometria/resolverDesnivelDeCamino'
-import { resolverCotaHidraulicaEfectivaDeArtefacto } from '../geometria/resolverCotaHidraulicaDeArtefacto'
+import {
+  resolverCotaHidraulicaEfectivaDeArtefacto,
+  resolverNivelDeLocal,
+} from '../geometria/resolverCotaHidraulicaDeArtefacto'
 import {
   acumularPerdidaDistribuidaDeCamino,
   type MotivoTramoSinPerdida,
@@ -269,7 +272,8 @@ export function resolverPresionResidualDeCamino(
   const t0ReferenciasYCota = medicionActiva ? performance.now() : 0
 
   const unidadFuncional = proyecto.unidadesFuncionales.find((uf) => uf.id === referencia.unidadFuncionalId)
-  const local = unidadFuncional?.locales.find((l) => l.id === referencia.localId)
+  const nivel = unidadFuncional === undefined ? undefined : resolverNivelDeLocal(unidadFuncional, referencia.localId)
+  const local = nivel?.locales.find((l) => l.id === referencia.localId)
   const artefactoInstancia = local?.artefactos.find((a) => a.id === referencia.artefactoId)
   if (artefactoInstancia === undefined) {
     // Referencia que no resuelve: precondicion imposible tras
@@ -280,14 +284,14 @@ export function resolverPresionResidualDeCamino(
         `Artefacto (uf="${referencia.unidadFuncionalId}", local="${referencia.localId}", artefacto="${referencia.artefactoId}")`,
     )
   }
-  if (unidadFuncional === undefined || local === undefined) {
+  if (unidadFuncional === undefined || nivel === undefined || local === undefined) {
     // Inalcanzable: artefactoInstancia solo resuelve si local existe, que
-    // a su vez solo existe si unidadFuncional existe (ver la cadena de
-    // `?.` de arriba) -- chequeo explicito unicamente para el
+    // a su vez solo existe si nivel/unidadFuncional existen (ver la
+    // cadena de `?.` de arriba) -- chequeo explicito unicamente para el
     // angostamiento de tipos de TypeScript (GEOM-UX-01,
-    // resolverCotaHidraulicaEfectivaDeArtefacto necesita UF y Local ya
+    // resolverCotaHidraulicaEfectivaDeArtefacto necesita Nivel y Local ya
     // angostados mas abajo).
-    throw new Error('resolverPresionResidualDeCamino: inconsistencia interna (unidadFuncional/local indefinidos)')
+    throw new Error('resolverPresionResidualDeCamino: inconsistencia interna (unidadFuncional/nivel/local indefinidos)')
   }
 
   const artefactoIdCatalogo = artefactoInstancia.artefactoId
@@ -320,7 +324,7 @@ export function resolverPresionResidualDeCamino(
   // alimentacion ya cargado.
   let caminoParaDesnivel = camino
   if (camino.raizId !== camino.terminalId) {
-    const cotaEfectiva_m = resolverCotaHidraulicaEfectivaDeArtefacto(unidadFuncional, local, artefactoInstancia)
+    const cotaEfectiva_m = resolverCotaHidraulicaEfectivaDeArtefacto(nivel, local, artefactoInstancia)
     if (cotaEfectiva_m === undefined) {
       // La UF (o el Local) de este terminal no tiene cota de piso
       // resoluble. Se deduplica por UF en resolverEstadoModulo2 -- ver
@@ -351,7 +355,7 @@ export function resolverPresionResidualDeCamino(
   // sobre hfDistribuida sin recalcular Qc/DN/V/friccion (hf lineal en L).
   // Ortogonal al efecto geometrico: la cota terminal ya trae 1+3·nivel
   // (D-δ.46) y Δz lo capturo mas arriba; esto es SOLO el caño vertical.
-  const incrementoVerticalPorNivel = resolverIncrementoVerticalPorNivel(proyecto, camino, unidadFuncional)
+  const incrementoVerticalPorNivel = resolverIncrementoVerticalPorNivel(proyecto, camino, nivel)
 
   if (medicionActiva) {
     acumularTiempoMsPorEtapa('desnivelEIncremento', performance.now() - t0DesnivelEIncremento)

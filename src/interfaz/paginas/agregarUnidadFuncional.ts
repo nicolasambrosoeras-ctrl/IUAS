@@ -12,20 +12,30 @@
 // resuelven exactamente igual antes y después).
 import type { Proyecto, UnidadFuncional } from '../../modelo/proyecto'
 import { generarId } from './generarId'
-import { calcularCotaHidraulicaDefaultDeNivel } from './nivelUnidadFuncional'
+import { calcularCotaHidraulicaDefaultDeNivel, nombreDeNivel } from './nivelUnidadFuncional'
 
 // D-δ.46: nivel inicial por orden de creación (UF1→PB, UF2→Piso1...) -- solo
 // un default de creación, el nivel sigue siendo completamente editable
 // después (puede haber varias UF en un mismo piso, ninguna en otro,
 // subsuelos, etc., ver PENDIENTES-DE-ARQUITECTURA.md D-δ.46).
+//
+// UI-M1-MULTINIVEL-01: toda UF nace con exactamente UN nivel físico (el
+// caso simple, la gran mayoría) -- multinivel se agrega explícitamente
+// después con "+ Agregar nivel", nunca por defecto.
 export function crearUnidadFuncionalVacia(unidadesFuncionalesExistentes: readonly UnidadFuncional[]): UnidadFuncional {
   const nivel = unidadesFuncionalesExistentes.length
   return {
     id: generarId('uf'),
     nombre: `Unidad funcional ${unidadesFuncionalesExistentes.length + 1}`,
-    nivel,
-    cotaHidraulicaReferencia_m: calcularCotaHidraulicaDefaultDeNivel(nivel),
-    locales: [],
+    niveles: [
+      {
+        id: generarId('nivel'),
+        nombre: nombreDeNivel(nivel),
+        nivel,
+        cotaHidraulicaReferencia_m: calcularCotaHidraulicaDefaultDeNivel(nivel),
+        locales: [],
+      },
+    ],
   }
 }
 

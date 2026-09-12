@@ -54,6 +54,7 @@
 // CRIT-A33) y la selección por Tabla N°6 son responsabilidad de
 // `seleccionarMedidorIndividual` — este módulo no las repite.
 import type { Proyecto, TipoProvisionACS } from '../../modelo/proyecto'
+import { localesDeUnidadFuncional } from '../tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import type { ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import {
@@ -168,7 +169,7 @@ export function resolverAlcancesDeMedidoresIndividuales(
     }
 
     const consumos: ConsumoConContexto[] = []
-    for (const local of unidadFuncional.locales) {
+    for (const local of localesDeUnidadFuncional(unidadFuncional)) {
       for (const artefacto of local.artefactos) {
         // Computabilidad: sólo artefactos normativos (mismo criterio que el
         // resto del motor; `origen: 'usuario'` es un estado reservado no

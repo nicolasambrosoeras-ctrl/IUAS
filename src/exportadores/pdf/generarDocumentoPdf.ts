@@ -7,6 +7,7 @@ import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import type { Content, TDocumentDefinitions } from 'pdfmake/interfaces'
 import type { Local, Proyecto, RegimenLocal, TipoDeLocal, UnidadFuncional } from '../../modelo/proyecto'
+import { localesDeUnidadFuncional } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import type { Paso, ResultadoDeCalculo, Verificacion } from '../../modelo/resultado'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
@@ -144,7 +145,10 @@ function renderizarLocal(local: Local): Content {
 
 function renderizarUnidadFuncional(uf: UnidadFuncional): Content {
   return {
-    stack: [{ text: `Unidad funcional: ${uf.nombre}`, style: 'subseccion' }, ...uf.locales.map(renderizarLocal)],
+    stack: [
+      { text: `Unidad funcional: ${uf.nombre}`, style: 'subseccion' },
+      ...localesDeUnidadFuncional(uf).map(renderizarLocal),
+    ],
     margin: [0, 0, 0, 8],
   }
 }

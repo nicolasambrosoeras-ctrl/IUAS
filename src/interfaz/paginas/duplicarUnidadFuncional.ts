@@ -3,7 +3,7 @@
 // vitest corre con environment 'node' (vite.config.ts), sin DOM ni
 // testing-library configurados, y este archivo no necesita ninguno de los
 // dos.
-import type { Artefacto, Local, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
+import type { Artefacto, Local, Nivel, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import { determinarConectividadFisica } from '../../motor/tuberias/caudal/determinarConectividadFisica'
 import { redesDeConectividadFisica } from '../../motor/tuberias/topologia/resolverConectividadInicialDeArtefacto'
@@ -27,21 +27,25 @@ function duplicarLocal(local: Local): Local {
   return { ...local, id: generarId('local'), artefactos: local.artefactos.map(duplicarArtefacto) }
 }
 
-// nivel/cotaHidraulicaReferencia_m (D-δ.46) se preservan tal cual por el
+// UI-M1-MULTINIVEL-01: nombre/nivel/cotaHidraulicaReferencia_m del Nivel
+// (D-δ.46, ahora del Nivel en vez de la UF) se preservan tal cual por el
 // spread -- mismo criterio que cualquier otro campo no listado acá
-// explícitamente (ver comentario de archivo: "copia profunda", no una
-// reasignación de identidad/posición). Duplicar una UF asume que la
-// copia representa la MISMA unidad física (mismo nivel, misma cota) que
-// el usuario luego edita a mano si corresponde -- no hay ninguna regla
-// de negocio que determine automáticamente un nivel "siguiente" para una
-// copia (a diferencia de agregarUnidadFuncional, que sí ordena por
-// cantidad ya existente).
+// explícitamente. Duplicar un Nivel asume que la copia representa el
+// MISMO plano físico (mismo nivel, misma cota) que el usuario luego edita
+// a mano si corresponde.
+function duplicarNivel(nivel: Nivel): Nivel {
+  return { ...nivel, id: generarId('nivel'), locales: nivel.locales.map(duplicarLocal) }
+}
+
+// Duplicar una UF copia TODOS sus niveles (sección 25 del brief
+// UI-M1-MULTINIVEL-01), no solo el primero -- una UF dúplex se duplica
+// como otra UF dúplex, nunca colapsada a un único nivel.
 export function duplicarUnidadFuncional(unidadFuncional: UnidadFuncional): UnidadFuncional {
   return {
     ...unidadFuncional,
     id: generarId('uf'),
     nombre: `${unidadFuncional.nombre} (copia)`,
-    locales: unidadFuncional.locales.map(duplicarLocal),
+    niveles: unidadFuncional.niveles.map(duplicarNivel),
   }
 }
 
@@ -126,33 +130,39 @@ export function duplicarUnidadFuncionalEnProyecto(
     return resultado
   }
 
-  // `copia.locales[li].artefactos[ai]` corresponde 1:1 con
-  // `original.locales[li].artefactos[ai]` (duplicarUnidadFuncional mapea en
-  // orden, sin filtrar ni reordenar).
-  copia.locales.forEach((localCopia, li) => {
-    const localOriginal = original.locales[li]
-    if (localOriginal === undefined) {
+  // `copia.niveles[ni].locales[li].artefactos[ai]` corresponde 1:1 con
+  // `original.niveles[ni].locales[li].artefactos[ai]` (duplicarUnidadFuncional
+  // mapea en orden, sin filtrar ni reordenar, en los tres niveles de anidado).
+  copia.niveles.forEach((nivelCopia, ni) => {
+    const nivelOriginal = original.niveles[ni]
+    if (nivelOriginal === undefined) {
       return
     }
-    localCopia.artefactos.forEach((artefactoClonado, ai) => {
-      const artefactoOriginal = localOriginal.artefactos[ai]
-      if (artefactoOriginal === undefined) {
+    nivelCopia.locales.forEach((localCopia, li) => {
+      const localOriginal = nivelOriginal.locales[li]
+      if (localOriginal === undefined) {
         return
       }
-      const redes = redesObjetivoParaClon(proyecto, original.id, localOriginal.id, artefactoOriginal)
-      if (redes.length === 0) {
-        return
-      }
-      const sincronizacion = sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(
-        resultado,
-        copia.id,
-        localCopia.id,
-        artefactoClonado.id,
-        redes,
-      )
-      if (sincronizacion.tipo === 'sincronizado') {
-        resultado = sincronizacion.proyecto
-      }
+      localCopia.artefactos.forEach((artefactoClonado, ai) => {
+        const artefactoOriginal = localOriginal.artefactos[ai]
+        if (artefactoOriginal === undefined) {
+          return
+        }
+        const redes = redesObjetivoParaClon(proyecto, original.id, localOriginal.id, artefactoOriginal)
+        if (redes.length === 0) {
+          return
+        }
+        const sincronizacion = sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas(
+          resultado,
+          copia.id,
+          localCopia.id,
+          artefactoClonado.id,
+          redes,
+        )
+        if (sincronizacion.tipo === 'sincronizado') {
+          resultado = sincronizacion.proyecto
+        }
+      })
     })
   })
 

@@ -6,6 +6,7 @@
 import type { Proyecto } from '../../modelo/proyecto'
 import { quitarConectividadFisicaDeArtefacto } from './quitarConectividadFisicaDeArtefacto'
 import { podarNodosSinSalida } from './podarNodosSinSalida'
+import { localesDeUnidadFuncional } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 
 export function quitarConectividadFisicaDeUnidadFuncional(proyecto: Proyecto, unidadFuncionalId: string): Proyecto {
   const unidad = proyecto.unidadesFuncionales.find((uf) => uf.id === unidadFuncionalId)
@@ -13,7 +14,7 @@ export function quitarConectividadFisicaDeUnidadFuncional(proyecto: Proyecto, un
     return proyecto
   }
 
-  const sinArtefactos = unidad.locales.reduce(
+  const sinArtefactos = localesDeUnidadFuncional(unidad).reduce(
     (proyectoParcial, local) =>
       local.artefactos.reduce(
         (siguiente, artefacto) =>

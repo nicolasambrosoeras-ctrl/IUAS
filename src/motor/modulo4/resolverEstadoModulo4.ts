@@ -53,6 +53,7 @@
 //    dice que la capacidad adoptada cubre la RTD calculada y, con dos
 //    tanques, los mínimos de §2.11.3).
 import type { Proyecto } from '../../modelo/proyecto'
+import { localesDeUnidadFuncional } from '../tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import type { TipoProyectoNormativo } from '../../normativa/eras-2023/coeficientes-mayoracion'
 import {
@@ -163,7 +164,7 @@ export function resolverEstadoModulo4(entrada: EntradaEstadoModulo4): EstadoModu
   // se compone el motor de demanda real, nunca se recalcula ni se redondea.
   let qc_lps: number | undefined
   const nComputable = proyecto.unidadesFuncionales
-    .flatMap((unidadFuncional) => unidadFuncional.locales)
+    .flatMap((unidadFuncional) => localesDeUnidadFuncional(unidadFuncional))
     .flatMap((local) => local.artefactos)
     .filter((artefacto) => artefacto.origen === 'normativo')
     .reduce((total, artefacto) => total + artefacto.cantidad, 0)

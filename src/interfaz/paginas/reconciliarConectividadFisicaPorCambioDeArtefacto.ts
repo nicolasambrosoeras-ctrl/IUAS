@@ -30,6 +30,7 @@
 // agrega nada. El caller aplica el cambio funcional y ESTA reconciliación
 // en un único updater, sin render intermedio inconsistente (brief §26).
 import type { Proyecto } from '../../modelo/proyecto'
+import { localesDeUnidadFuncional } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import { resolverConectividadInicialDeArtefacto } from '../../motor/tuberias/topologia/resolverConectividadInicialDeArtefacto'
 import { quitarConectividadFisicaDeArtefacto } from './quitarConectividadFisicaDeArtefacto'
@@ -50,7 +51,7 @@ export function reconciliarConectividadFisicaPorCambioDeArtefacto(
   }
 
   const unidadFuncional = proyecto.unidadesFuncionales.find((uf) => uf.id === unidadFuncionalId)
-  const local = unidadFuncional?.locales.find((l) => l.id === localId)
+  const local = (unidadFuncional === undefined ? undefined : localesDeUnidadFuncional(unidadFuncional))?.find((l) => l.id === localId)
   const artefacto = local?.artefactos.find((a) => a.id === artefactoInstanciaId)
   if (artefacto === undefined) {
     return proyecto

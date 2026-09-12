@@ -1,6 +1,7 @@
 import { calcularCoeficienteDeSimultaneidad } from './calcularCoeficienteDeSimultaneidad'
 import type { Advertencia, Paso, ResultadoDeCalculo, ValorCalculado } from '../../../modelo/resultado'
 import type { Proyecto } from '../../../modelo/proyecto'
+import { localesDeUnidadFuncional } from '../../tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import type { ArtefactoNormativo } from '../../../normativa/eras-2023/catalogo-artefactos'
 import type { TipoProyectoNormativo } from '../../../normativa/eras-2023/coeficientes-mayoracion'
 
@@ -24,7 +25,7 @@ export function calcularSimultaneidad(
   // de inodoro por válvula automática, solo ese artefacto participa; en
   // cualquier otro caso (incluye noDomiciliario) participan todos.
   const artefactosParticipantes = entrada.proyecto.unidadesFuncionales
-    .flatMap((unidad) => unidad.locales)
+    .flatMap((unidad) => localesDeUnidadFuncional(unidad))
     .flatMap((local) => {
       const artefactosConValvulaAutomatica = local.artefactos.filter((artefacto) => {
         const artefactoNormativo = buscarArtefactoNormativo(artefacto.artefactoId)

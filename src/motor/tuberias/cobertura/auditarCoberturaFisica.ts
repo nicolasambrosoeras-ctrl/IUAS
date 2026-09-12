@@ -7,6 +7,7 @@
 // existen y redHidraulica sobre como estan conectados.
 import type { Proyecto } from '../../../modelo/proyecto'
 import type { ReferenciaDeArtefacto } from '../../../modelo/redHidraulica'
+import { localesDeUnidadFuncional } from '../geometria/resolverCotaHidraulicaDeArtefacto'
 
 export interface AuditoriaDeCoberturaFisica {
   readonly completa: boolean
@@ -32,7 +33,7 @@ export function auditarCoberturaFisica(proyecto: Proyecto): AuditoriaDeCobertura
 
   const artefactosSinReferencia: ReferenciaDeArtefacto[] = []
   for (const unidadFuncional of proyecto.unidadesFuncionales) {
-    for (const local of unidadFuncional.locales) {
+    for (const local of localesDeUnidadFuncional(unidadFuncional)) {
       for (const artefacto of local.artefactos) {
         if (artefacto.origen !== 'normativo') {
           continue

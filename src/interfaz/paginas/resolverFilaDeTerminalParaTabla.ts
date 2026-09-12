@@ -11,6 +11,7 @@ import type { CandidatoTerminal } from '../../motor/tuberias/presion/resolverTer
 import { nombreDeArtefacto, ETIQUETA_RED } from './humanizarModulo2'
 import { nombreDeNivel } from './nivelUnidadFuncional'
 import { resolverRedDeTerminal } from './resolverRedDeTerminal'
+import { resolverNivelDeLocal } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 
 const ETIQUETA_TIPO_DE_LOCAL: Readonly<Record<string, string>> = {
   bano: 'Baño',
@@ -77,8 +78,9 @@ export function resolverFilaDeTerminalParaTabla(
   candidato: CandidatoTerminal,
 ): FilaDeTerminal {
   const uf = proyecto.unidadesFuncionales.find((u) => u.id === referencia.unidadFuncionalId)
-  const local = uf?.locales.find((l) => l.id === referencia.localId)
-  const nivelTexto = uf?.nivel === undefined ? 'nivel sin clasificar' : nombreDeNivel(uf.nivel)
+  const nivel = uf === undefined ? undefined : resolverNivelDeLocal(uf, referencia.localId)
+  const local = nivel?.locales.find((l) => l.id === referencia.localId)
+  const nivelTexto = nivel?.nivel === undefined ? 'nivel sin clasificar' : nombreDeNivel(nivel.nivel)
   const localTexto = local === undefined ? '' : ` · ${ETIQUETA_TIPO_DE_LOCAL[local.tipo] ?? local.tipo}`
   const ubicacion = `${uf?.nombre ?? referencia.unidadFuncionalId} · ${nivelTexto}${localTexto}`
 
