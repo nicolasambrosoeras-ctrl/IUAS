@@ -180,6 +180,29 @@
   margin: 0;
 }
 
+/* --- Nivel físico dentro de una UF (UI-M1-MULTINIVEL-01) ---
+   Con un único nivel (`.m1-nivel--unico`, el caso histórico) no lleva
+   chrome propio -- se ve igual que el formulario UF de siempre (sección 9
+   del brief). Con 2+ niveles, cada uno es su propia sub-card agrupada. */
+.m1-nivel:not(.m1-nivel--unico) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-sm);
+  padding: var(--esp-md);
+  border: 1px solid var(--color-borde);
+  border-left: 3px solid var(--color-borde-fuerte);
+  border-radius: var(--radio-card);
+  background: var(--color-superficie-2);
+}
+
+.m1-nivel__cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-sm);
+}
+
 /* --- Card por Local --- */
 .m1-local {
   display: flex;

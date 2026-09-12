@@ -7,7 +7,7 @@
 // completa del ResultadoDeCalculo. No recalcula: solo llama a
 // validarProyecto y calcularSimultaneidad y muestra lo que devuelven.
 import { useMemo, useRef, useState } from 'react'
-import type { Proyecto, UnidadFuncional, Local, TipoDeLocal, RegimenLocal, Artefacto } from '../../modelo/proyecto'
+import type { Proyecto, UnidadFuncional, Nivel, Local, TipoDeLocal, RegimenLocal, Artefacto } from '../../modelo/proyecto'
 import type { ConectividadFisica, RedDeTramo } from '../../modelo/redHidraulica'
 import type { ResultadoDeCalculo, Paso, ValorCalculado } from '../../modelo/resultado'
 import type { ProblemaValidacion, AlcanceValidacion } from '../../validacion'
@@ -38,6 +38,8 @@ import { obtenerPoliticaDeConectividad } from '../../normativa/eras-2023/catalog
 import { quitarConectividadFisicaDeArtefacto } from './quitarConectividadFisicaDeArtefacto'
 import { reconciliarConectividadFisicaPorCambioDeArtefacto } from './reconciliarConectividadFisicaPorCambioDeArtefacto'
 import { quitarConectividadFisicaDeLocal } from './quitarConectividadFisicaDeLocal'
+import { eliminarNivelDeUnidadFuncionalEnProyecto } from './eliminarNivelDeUnidadFuncional'
+import { agregarNivelAUnidadFuncional } from './agregarNivelAUnidadFuncional'
 import { quitarConectividadFisicaDeUnidadFuncional } from './quitarConectividadFisicaDeUnidadFuncional'
 import { ResultadoHidraulicoDeTramo } from './ResultadoHidraulicoDeTramo'
 import { PanelDeMedidoresDeModulo3 } from './PanelDeMedidoresDeModulo3'
@@ -53,7 +55,10 @@ import './demandaM1.css'
 import { parsearCota } from './parsearCota'
 import { calcularCotaHidraulicaDefaultDeNivel, nombreDeNivel } from './nivelUnidadFuncional'
 import { obtenerAlturaHidraulicaIuas, AYUDA_ALTURA_HIDRAULICA_IUAS } from '../../normativa/eras-2023/catalogo-artefactos/alturasHidraulicasIuas'
-import { resolverCotaHidraulicaEfectivaDeArtefacto } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
+import {
+  resolverCotaHidraulicaEfectivaDeArtefacto,
+  resolverNivelDeLocal,
+} from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import { resumenDeUnidadFuncional } from './resumenDeUnidadFuncional'
 import { sugerirArtefactoParaLocal } from './sugerenciaDeArtefacto'
 import { SelectorDeModoDeTrabajo } from './SelectorDeModoDeTrabajo'
@@ -473,7 +478,13 @@ function LocalFormulario({
       unidadesFuncionales: proyecto.unidadesFuncionales.map((uf) =>
         uf.id !== unidadFuncionalId
           ? uf
-          : { ...uf, locales: uf.locales.map((l) => (l.id !== local.id ? l : { ...l, artefactos })) },
+          : {
+              ...uf,
+              niveles: uf.niveles.map((nivel) => ({
+                ...nivel,
+                locales: nivel.locales.map((l) => (l.id !== local.id ? l : { ...l, artefactos })),
+              })),
+            },
       ),
     }
   }
@@ -678,11 +689,12 @@ function LocalFormulario({
   // el prefijo es redundante (ya es una card de Local).
   const tituloLocal = etiqueta.replace(/^Local:\s*/, '')
 
-  // GEOM-UX-01 §11: jerarquía de cotas. La UF aporta la cota de piso
-  // heredable; el Local puede tener override; cada artefacto deriva su
-  // cota hidráulica efectiva de la cadena.
+  // GEOM-UX-01 §11: jerarquía de cotas. El Nivel (UI-M1-MULTINIVEL-01, ex
+  // UF) aporta la cota de piso heredable; el Local puede tener override;
+  // cada artefacto deriva su cota hidráulica efectiva de la cadena.
   const unidadFuncional = proyecto.unidadesFuncionales.find((u) => u.id === unidadFuncionalId)
-  const cotaHeredadaUF_m = unidadFuncional?.cotaHidraulicaReferencia_m
+  const nivelDelLocal = unidadFuncional === undefined ? undefined : resolverNivelDeLocal(unidadFuncional, local.id)
+  const cotaHeredadaUF_m = nivelDelLocal?.cotaHidraulicaReferencia_m
   function cambiarCotaPisoDeLocal(cotaPiso_m: number | undefined) {
     if (cotaPiso_m === undefined) {
       const localSinCotaPiso: Local = { ...local }
@@ -760,8 +772,8 @@ function LocalFormulario({
             editorAltura={{
               alturaSugeridaIuas_m: obtenerAlturaHidraulicaIuas(artefacto.artefactoId),
               cotaEfectiva_m:
-                unidadFuncional !== undefined
-                  ? resolverCotaHidraulicaEfectivaDeArtefacto(unidadFuncional, local, artefacto)
+                nivelDelLocal !== undefined
+                  ? resolverCotaHidraulicaEfectivaDeArtefacto(nivelDelLocal, local, artefacto)
                   : undefined,
               onCambiar: (altura_m) => {
                 if (altura_m === undefined) {
@@ -823,16 +835,19 @@ function LocalFormulario({
                   ? uf
                   : {
                       ...uf,
-                      locales: uf.locales.map((l) =>
-                        l.id !== local.id
-                          ? l
-                          : {
-                              ...l,
-                              artefactos: l.artefactos.map((a) =>
-                                a.id === artefacto.id ? conTipoDeArtefactoCambiado(a, nuevoArtefactoId) : a,
-                              ),
-                            },
-                      ),
+                      niveles: uf.niveles.map((nivel) => ({
+                        ...nivel,
+                        locales: nivel.locales.map((l) =>
+                          l.id !== local.id
+                            ? l
+                            : {
+                                ...l,
+                                artefactos: l.artefactos.map((a) =>
+                                  a.id === artefacto.id ? conTipoDeArtefactoCambiado(a, nuevoArtefactoId) : a,
+                                ),
+                              },
+                        ),
+                      })),
                     },
               ),
             }
@@ -873,11 +888,14 @@ function LocalFormulario({
                   ? uf
                   : {
                       ...uf,
-                      locales: uf.locales.map((l) =>
-                        l.id !== local.id
-                          ? l
-                          : { ...l, artefactos: l.artefactos.filter((a) => a.id !== artefacto.id) },
-                      ),
+                      niveles: uf.niveles.map((nivel) => ({
+                        ...nivel,
+                        locales: nivel.locales.map((l) =>
+                          l.id !== local.id
+                            ? l
+                            : { ...l, artefactos: l.artefactos.filter((a) => a.id !== artefacto.id) },
+                        ),
+                      })),
                     },
               ),
             })
@@ -978,6 +996,10 @@ function UnidadFuncionalFormulario({
   // del orden ni del estado de colapso.
   const contenidoId = `uf-contenido-${uf.id}`
 
+  function agregarNivel() {
+    onCambiar(agregarNivelAUnidadFuncional(uf))
+  }
+
   return (
     <section className={colapsada ? 'm1-uf m1-uf--colapsada' : 'm1-uf'}>
       <div className="m1-uf__cabecera">
@@ -1014,6 +1036,9 @@ function UnidadFuncionalFormulario({
           <button type="button" className="ui-btn--fantasma" onClick={onDuplicar}>
             Duplicar
           </button>
+          <button type="button" className="ui-btn--fantasma" onClick={agregarNivel}>
+            + Agregar nivel
+          </button>
           {mostrarEliminar ? (
             <button type="button" className="m1-btn-eliminar" onClick={onEliminar}>
               Eliminar unidad funcional
@@ -1042,27 +1067,32 @@ function UnidadFuncionalFormulario({
   )
 }
 
-// UX-01 / UI-01D: detalle editable de una UF (campos + Locales + acciones).
-// Se monta sólo con la UF expandida; se separó de la cabecera para que el
-// conditional rendering del colapso quede legible y para no repetir la
-// jerarquía JSX previa a este slice.
-function CuerpoDeUnidadFuncional({
-  uf,
+// UI-M1-MULTINIVEL-01: campos + Locales + acciones de UN nivel físico. Se
+// usa tanto para una UF simple (un único Nivel, `esUnico=true`: sin chrome
+// extra, se ve como el formulario UF de siempre -- sección 9 del brief) como
+// para cada Nivel de una UF multinivel (`esUnico=false`: card propia con
+// nombre editable y "Eliminar nivel").
+function NivelFormulario({
+  nivel,
+  esUnico,
   proyecto,
+  unidadFuncionalId,
   onCambiar,
   onCambiarProyecto,
-  onAlternarColapso,
+  onEliminarNivel,
 }: {
-  uf: UnidadFuncional
+  nivel: Nivel
+  esUnico: boolean
   proyecto: Proyecto
-  onCambiar: (uf: UnidadFuncional) => void
+  unidadFuncionalId: string
+  onCambiar: (nivel: Nivel) => void
   onCambiarProyecto: (proyecto: Proyecto) => void
-  onAlternarColapso: () => void
+  onEliminarNivel: (() => void) | undefined
 }) {
-  const locales = uf.locales
+  const locales = nivel.locales
 
   function cambiarLocales(locales: readonly Local[]) {
-    onCambiar({ ...uf, locales })
+    onCambiar({ ...nivel, locales })
   }
 
   function agregarLocal() {
@@ -1081,59 +1111,78 @@ function CuerpoDeUnidadFuncional({
   const etiquetas = etiquetasDeLocales(locales)
 
   return (
-    <>
+    <div className={esUnico ? 'm1-nivel m1-nivel--unico' : 'm1-nivel'}>
+      {esUnico ? null : (
+        <div className="m1-nivel__cabecera">
+          <label>
+            Nombre del nivel:{' '}
+            <input
+              type="text"
+              aria-label="Nombre del nivel"
+              value={nivel.nombre}
+              onChange={(evento) => onCambiar({ ...nivel, nombre: evento.target.value })}
+            />
+          </label>
+          {onEliminarNivel === undefined ? null : (
+            <button type="button" className="m1-btn-eliminar" onClick={onEliminarNivel}>
+              Eliminar nivel
+            </button>
+          )}
+        </div>
+      )}
       <div className="m1-uf__campos">
-        <label>
-          Nombre:{' '}
-          <input
-            type="text"
-            aria-label="Nombre de la unidad funcional"
-            value={uf.nombre}
-            onChange={(evento) => onCambiar({ ...uf, nombre: evento.target.value })}
-          />
-        </label>
         <label>
           Nivel:{' '}
           <select
-            value={uf.nivel ?? ''}
+            value={nivel.nivel ?? ''}
             onChange={(evento) => {
               if (evento.target.value === '') {
-                const { nivel: _nivel, ...ufSinNivel } = uf
-                onCambiar(ufSinNivel)
+                const { nivel: _nivel, ...nivelSinNivel } = nivel
+                onCambiar(nivelSinNivel)
                 return
               }
-              const nivel = Number(evento.target.value)
+              const valorNivel = Number(evento.target.value)
               // D-δ.46: cambiar explícitamente el nivel siempre actualiza la
               // cota al default de ese nivel (preferencia simple del brief,
               // sin dirty-tracking) -- después el usuario puede editarla.
-              onCambiar({ ...uf, nivel, cotaHidraulicaReferencia_m: calcularCotaHidraulicaDefaultDeNivel(nivel) })
+              onCambiar({
+                ...nivel,
+                nivel: valorNivel,
+                cotaHidraulicaReferencia_m: calcularCotaHidraulicaDefaultDeNivel(valorNivel),
+              })
             }}
           >
             <option value="">— sin clasificar —</option>
-            {opcionesDeNivel(uf.nivel).map((nivel) => (
-              <option key={nivel} value={nivel}>
-                {nombreDeNivel(nivel)}
+            {opcionesDeNivel(nivel.nivel).map((valorNivel) => (
+              <option key={valorNivel} value={valorNivel}>
+                {nombreDeNivel(valorNivel)}
               </option>
             ))}
           </select>
         </label>
-        <label title="Cota del piso terminado de la unidad funcional respecto de la referencia del proyecto (0 = nivel de vereda).">
-          Cota de piso de la unidad funcional [m]:{' '}
+        <label
+          title={
+            esUnico
+              ? 'Cota del piso terminado de la unidad funcional respecto de la referencia del proyecto (0 = nivel de vereda).'
+              : 'Cota del piso terminado de este nivel respecto de la referencia del proyecto (0 = nivel de vereda).'
+          }
+        >
+          {esUnico ? 'Cota de piso de la unidad funcional [m]:' : 'Cota de piso del nivel [m]:'}{' '}
           <input
             type="number"
             step="any"
-            value={uf.cotaHidraulicaReferencia_m ?? ''}
+            value={nivel.cotaHidraulicaReferencia_m ?? ''}
             onChange={(evento) => {
               const resultado = parsearCota(evento.target.value)
               if (resultado === 'ignorar') {
                 return
               }
               if (resultado === undefined) {
-                const { cotaHidraulicaReferencia_m: _cotaAnterior, ...ufSinCota } = uf
-                onCambiar(ufSinCota)
+                const { cotaHidraulicaReferencia_m: _cotaAnterior, ...nivelSinCota } = nivel
+                onCambiar(nivelSinCota)
                 return
               }
-              onCambiar({ ...uf, cotaHidraulicaReferencia_m: resultado })
+              onCambiar({ ...nivel, cotaHidraulicaReferencia_m: resultado })
             }}
             style={{ width: '5rem' }}
           />
@@ -1154,7 +1203,7 @@ function CuerpoDeUnidadFuncional({
             local={local}
             etiqueta={etiquetas[indice] ?? `Local: ${ETIQUETA_TIPO_DE_LOCAL[local.tipo]}`}
             proyecto={proyecto}
-            unidadFuncionalId={uf.id}
+            unidadFuncionalId={unidadFuncionalId}
             onCambiar={(localActualizado) =>
               cambiarLocales(locales.map((l) => (l.id === local.id ? localActualizado : l)))
             }
@@ -1165,13 +1214,18 @@ function CuerpoDeUnidadFuncional({
               // de bifurcación exclusiva del Local (que ya no puede reutilizar
               // ningún consumidor futuro, a diferencia de la baja de un solo
               // Artefacto) para no dejar topología muerta en redHidraulica.
-              const proyectoSinConectividad = quitarConectividadFisicaDeLocal(proyecto, uf.id, local.id)
+              const proyectoSinConectividad = quitarConectividadFisicaDeLocal(proyecto, unidadFuncionalId, local.id)
               onCambiarProyecto({
                 ...proyectoSinConectividad,
                 unidadesFuncionales: proyectoSinConectividad.unidadesFuncionales.map((unidad) =>
-                  unidad.id !== uf.id
+                  unidad.id !== unidadFuncionalId
                     ? unidad
-                    : { ...unidad, locales: unidad.locales.filter((l) => l.id !== local.id) },
+                    : {
+                        ...unidad,
+                        niveles: unidad.niveles.map((n) =>
+                          n.id !== nivel.id ? n : { ...n, locales: n.locales.filter((l) => l.id !== local.id) },
+                        ),
+                      },
                 ),
               })
             }}
@@ -1182,6 +1236,73 @@ function CuerpoDeUnidadFuncional({
       <button type="button" className="m1-agregar-contextual" onClick={agregarLocal}>
         + Agregar local
       </button>
+    </div>
+  )
+}
+
+// UX-01 / UI-01D: detalle editable de una UF (Nombre + Niveles + acciones).
+// Se monta sólo con la UF expandida; se separó de la cabecera para que el
+// conditional rendering del colapso quede legible y para no repetir la
+// jerarquía JSX previa a este slice.
+//
+// UI-M1-MULTINIVEL-01: con un único Nivel (el caso histórico, la gran
+// mayoría) se ve prácticamente igual que antes -- NivelFormulario con
+// `esUnico=true` no agrega ningún acordeón ni card extra (sección 9 del
+// brief). Con 2+ Niveles, cada uno se muestra como su propia sección
+// agrupada, en el orden en que fueron creados (sección 49: nunca se
+// reordena por cota).
+function CuerpoDeUnidadFuncional({
+  uf,
+  proyecto,
+  onCambiar,
+  onCambiarProyecto,
+  onAlternarColapso,
+}: {
+  uf: UnidadFuncional
+  proyecto: Proyecto
+  onCambiar: (uf: UnidadFuncional) => void
+  onCambiarProyecto: (proyecto: Proyecto) => void
+  onAlternarColapso: () => void
+}) {
+  function cambiarNivel(nivelActualizado: Nivel) {
+    onCambiar({ ...uf, niveles: uf.niveles.map((n) => (n.id === nivelActualizado.id ? nivelActualizado : n)) })
+  }
+
+  // Sección 14/27 del brief: una UF siempre conserva al menos 1 nivel -- la
+  // acción "Eliminar nivel" ni siquiera se ofrece (onEliminarNivel
+  // undefined) mientras quede uno solo.
+  function eliminarNivel(nivelId: string) {
+    onCambiarProyecto(eliminarNivelDeUnidadFuncionalEnProyecto(proyecto, uf.id, nivelId))
+  }
+
+  const esUnico = uf.niveles.length === 1
+
+  return (
+    <>
+      <div className="m1-uf__campos">
+        <label>
+          Nombre:{' '}
+          <input
+            type="text"
+            aria-label="Nombre de la unidad funcional"
+            value={uf.nombre}
+            onChange={(evento) => onCambiar({ ...uf, nombre: evento.target.value })}
+          />
+        </label>
+      </div>
+
+      {uf.niveles.map((nivel) => (
+        <NivelFormulario
+          key={nivel.id}
+          nivel={nivel}
+          esUnico={esUnico}
+          proyecto={proyecto}
+          unidadFuncionalId={uf.id}
+          onCambiar={cambiarNivel}
+          onCambiarProyecto={onCambiarProyecto}
+          onEliminarNivel={esUnico ? undefined : () => eliminarNivel(nivel.id)}
+        />
+      ))}
 
       {/* Control inferior (sección 10): tras cargar una UF larga, el usuario
           la cierra sin volver a subir a la cabecera. Alterna exactamente el

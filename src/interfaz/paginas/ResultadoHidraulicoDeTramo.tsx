@@ -41,7 +41,8 @@ import {
 } from './actualizarRedHidraulica'
 import { denominacionesComercialesDelSistema, resolverControlDeDnDeTramo } from './resolverControlDeDnDeTramo'
 import { resolverModoDeTrabajo } from './modoDeTrabajo'
-import { nombreDeNivel } from './nivelUnidadFuncional'
+import { resumenDeUnidadFuncional } from './resumenDeUnidadFuncional'
+import { localesDeUnidadFuncional } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import { resolverResultadoDeTramoParaUi } from './resolverResultadoDeTramoParaUi'
 import { resolverFilaDeDimensionamiento } from './resolverFilaDeDimensionamiento'
 import { TablaDimensionamientoDeModulo2, type EntradaDeTabla } from './TablaDimensionamientoDeModulo2'
@@ -530,13 +531,20 @@ function SeccionDeUnidadFuncionalBase({
   // por Unidad Funcional en el mismo render).
   contextoDeCalculo: ContextoDeCalculoM2
 }) {
-  const ordinales = derivarOrdinalesDeLocal(uf.locales)
+  const locales = localesDeUnidadFuncional(uf)
+  const ordinales = derivarOrdinalesDeLocal(locales)
   const esProfesional = proyecto.configuracionHidraulica.granularidadHidraulica === 'profesional'
-  const nivelTexto = uf.nivel === undefined ? 'nivel sin clasificar' : nombreDeNivel(uf.nivel)
+  const nivelTexto = resumenDeUnidadFuncional(uf).nivelTexto
+  // UI-M1-MULTINIVEL-01: la cota sólo se resume acá cuando la UF tiene un
+  // único nivel -- con 2+ niveles cada uno puede tener su propia cota, no
+  // hay un valor único que mostrar en esta cabecera.
+  const primerNivel = uf.niveles[0]
   const cotaTexto =
-    uf.cotaHidraulicaReferencia_m === undefined ? '' : ` · cota ${formatearNumeroM(uf.cotaHidraulicaReferencia_m)}`
+    uf.niveles.length !== 1 || primerNivel === undefined || primerNivel.cotaHidraulicaReferencia_m === undefined
+      ? ''
+      : ` · cota ${formatearNumeroM(primerNivel.cotaHidraulicaReferencia_m)}`
 
-  const entradas: EntradaDeTabla[] = uf.locales.flatMap((local) => {
+  const entradas: EntradaDeTabla[] = locales.flatMap((local) => {
     const ordinal = ordinales.get(local.id)
     const etiquetaLocal = `${ETIQUETA_TIPO_DE_LOCAL[local.tipo]} ${ordinal ?? ''}`.trim()
     return filasPrincipalesDeLocales
@@ -685,8 +693,8 @@ function ListaDeUnidadesFuncionales({
 
 // Header compacto de una UF colapsada/activa (§10): nombre + nivel + un
 // resumen barato (cantidad de Locales y de artefactos, derivados
-// directamente de `uf.locales` -- sin resolvers hidráulicos, §10 "no
-// ejecutar resolvers pesados sólo para decorar el header"). `<button>` real
+// directamente de los Locales de sus Niveles -- sin resolvers hidráulicos,
+// §10 "no ejecutar resolvers pesados sólo para decorar el header"). `<button>` real
 // con `aria-expanded` (§34): controla la UF activa por teclado, no depende
 // solo del ícono.
 function CabeceraDeUnidadFuncional({
@@ -698,9 +706,10 @@ function CabeceraDeUnidadFuncional({
   activa: boolean
   onAbrir: () => void
 }) {
-  const nivelTexto = uf.nivel === undefined ? 'nivel sin clasificar' : nombreDeNivel(uf.nivel)
-  const cantidadLocales = uf.locales.length
-  const cantidadArtefactos = uf.locales.reduce((total, local) => total + local.artefactos.length, 0)
+  const resumen = resumenDeUnidadFuncional(uf)
+  const nivelTexto = resumen.nivelTexto
+  const cantidadLocales = resumen.cantidadLocales
+  const cantidadArtefactos = localesDeUnidadFuncional(uf).reduce((total, local) => total + local.artefactos.length, 0)
 
   return (
     <button type="button" className="lista-uf__cabecera" aria-expanded={activa} onClick={onAbrir}>
