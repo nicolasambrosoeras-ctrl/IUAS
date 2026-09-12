@@ -1,5 +1,5 @@
 // GEOM-UX-01 §25 — jerarquía de cotas en la UI de M1: el Local hereda la
-// cota de piso de la UF, el artefacto muestra su altura sugerida IUAS y su
+// cota de piso de su Nivel (FIX-M1-MULTINIVEL-BASE-LEVEL-01), el artefacto muestra su altura sugerida IUAS y su
 // cota hidráulica efectiva; personalizar el Local re-deriva todos sus
 // hijos, personalizar un artefacto sólo lo afecta a él, y restablecer /
 // cambiar de tipo limpian el override.
@@ -19,7 +19,7 @@ test.describe('GEOM-UX-01 · cotas hidráulicas heredadas (M1)', () => {
     // Primer Local del demo = Baño (uf-1 está PB -> cota de piso 0).
     const bano = page.locator('.m1-local').first()
     const cotaLocal = bano.locator('> .m1-cota')
-    await expect(cotaLocal).toContainText('hereda UF: +0,00 m')
+    await expect(cotaLocal).toContainText('hereda nivel: +0,00 m')
 
     // Primer artefacto del Baño = Lavatorio: altura sugerida IUAS 0,90 y
     // cota hidráulica efectiva 0 + 0,90 = +0,90 m.
@@ -45,10 +45,10 @@ test.describe('GEOM-UX-01 · cotas hidráulicas heredadas (M1)', () => {
     await expect(cotaLavatorio).toContainText('Cota hidráulica efectiva: +3,90 m')
     await expect(cotaDucha).toContainText('Cota hidráulica efectiva: +5,00 m')
 
-    // --- Restablecer el Local -> vuelve a heredar la UF ---
+    // --- Restablecer el Local -> vuelve a heredar el Nivel ---
     await cotaLocal.getByRole('button', { name: 'Restablecer' }).click()
     await estabilizar(page)
-    await expect(cotaLocal).toContainText('hereda UF: +0,00 m')
+    await expect(cotaLocal).toContainText('hereda nivel: +0,00 m')
     await expect(cotaLavatorio).toContainText('Cota hidráulica efectiva: +0,90 m')
     await expect(cotaDucha).toContainText('Cota hidráulica efectiva: +2,00 m')
 

@@ -126,6 +126,39 @@ describe('eliminarNivelDeUnidadFuncionalEnProyecto', () => {
     expect(resultado).toBe(proyecto)
   })
 
+  // FIX-M1-MULTINIVEL-BASE-LEVEL-01: el nivel base (niveles[0]) es
+  // permanente -- protegido por el propio helper de dominio, no sólo por
+  // la UI que no ofrece la acción para él.
+  it('el nivel base (niveles[0]) nunca se elimina, aunque la UF tenga varios niveles adicionales', () => {
+    const uf = ufDePrueba({
+      niveles: [nivel('nivel-base', { nombre: 'PB' }), nivel('nivel-b', { nombre: 'PA' })],
+    })
+    const proyecto = proyectoCon([uf])
+
+    const resultado = eliminarNivelDeUnidadFuncionalEnProyecto(proyecto, 'uf-1', 'nivel-base')
+
+    expect(resultado).toBe(proyecto)
+    expect(resultado.unidadesFuncionales[0]!.niveles.map((n) => n.id)).toEqual(['nivel-base', 'nivel-b'])
+  })
+
+  it('con 3 niveles, eliminar el del medio preserva el base primero y el último sigue eliminable', () => {
+    const uf = ufDePrueba({
+      niveles: [nivel('nivel-a'), nivel('nivel-b'), nivel('nivel-c')],
+    })
+    const proyecto = proyectoCon([uf])
+
+    const sinB = eliminarNivelDeUnidadFuncionalEnProyecto(proyecto, 'uf-1', 'nivel-b')
+    expect(sinB.unidadesFuncionales[0]!.niveles.map((n) => n.id)).toEqual(['nivel-a', 'nivel-c'])
+
+    // El base sigue protegido incluso después de eliminar un adicional.
+    const intentoBase = eliminarNivelDeUnidadFuncionalEnProyecto(sinB, 'uf-1', 'nivel-a')
+    expect(intentoBase).toBe(sinB)
+
+    // El último adicional restante sigue siendo eliminable normalmente.
+    const soloBase = eliminarNivelDeUnidadFuncionalEnProyecto(sinB, 'uf-1', 'nivel-c')
+    expect(soloBase.unidadesFuncionales[0]!.niveles.map((n) => n.id)).toEqual(['nivel-a'])
+  })
+
   it('reconciliación M2: desconecta la conectividad física de los Locales del nivel eliminado -- sin referencias huérfanas', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
