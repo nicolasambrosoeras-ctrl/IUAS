@@ -1,303 +1,310 @@
-# HANDOFF DE CONTEXTO
-
-## OBJETIVO DEL SLICE
-
-HYD-EST-01 Nivel A: reemplazar hf estimada agregada/Vref por pérdidas de
-singularidades del camino usando velocidades reales actuales; DN manual,
-Auto y presión deben reaccionar. Terminar QA, fuzz/cloud, push y Pages
-antes de declarar cierre. Este archivo es un checkpoint, NO un cierre.
-
-## CONTINUIDAD ENTRE AGENTES (Codex → Claude)
-
-Sesión de Codex agotó cuota en dos momentos:
-
-1. Dejó un checkpoint local `ac0d839` (motor Estimadas path-aware +
-   integración de presión/UI + 88/88 tests dirigidos verdes + `tsc -b`
-   verde), sin pushear deliberadamente.
-2. Después de `ac0d839`, siguió trabajando y dejó **sin commit** 7
-   archivos (+133/-27): memoización por UF sensible a tees compartidas,
-   adaptación de baselines/fixtures al nuevo modelo, y un fixture nuevo
-   (`ejemploConBifurcacionesDefinidas.ts`).
-
-Claude auditó ese trabajo sin commit archivo por archivo (diff completo +
-lectura del fixture nuevo) antes de tocar nada: los 7 cambios eran
-coherentes, completos y correctos — no había ediciones a medio terminar.
-Se preservaron **tal cual**, con una sola corrección: en
-`auditoriaTransversalM1M4.baseline.test.ts`, el test "SNAPSHOT" (no
-tocado por Codex en esa tanda) seguía esperando el margen del crítico
-histórico `-17,664 m.c.a.`, pero `canonico()` ya usaba por defecto el
-fixture con bifurcaciones explícitas (que agrega tramos reales a los
-caminos AF/AC) — el margen real pasó a `-20,164 m.c.a.`, un resultado
-legítimo del nuevo modelo, no una regresión. Se actualizó el valor y el
-comentario explicativo. Commit de continuación:
-`cf0e113 test: adaptar baselines y memoizacion a HYD-EST path-aware`.
+# HANDOFF — HYD-EST-01
 
 ## BASE
 
-Rama `main`. HEAD inicial y `origin/main` verificados con fetch:
-`85c3e08cd99467d28c90c20b0624b4f46ea6c96c`.
+- HEAD inicial de la consigna (base de todo el slice): `85c3e08`
+  (`docs: registrar UI-M2-MONTANTE-COMPACT-01 (D-delta.111)`).
+- Checkpoint de Codex (motor + integración, no pusheado en su momento):
+  `ac0d839` (`checkpoint: integrar nucleo HYD-EST por recorrido (QA
+  pendiente)`).
+- HEAD final de esta sesión, **pusheado y verificado == `origin/main`**:
+  `3c67d5a`.
+- Tree: limpio.
 
-Cadena de commits de este slice sobre esa base:
-1. `ac0d839` — checkpoint de Codex (motor + integración, no pusheado).
-2. `cf0e113` — Claude: preserva y estabiliza el trabajo sin commit de
-   Codex + corrige el snapshot desactualizado. Vitest 1797/1797.
-3. `7b73e3d` — docs: D-δ.112 en ROADMAP.md.
-4. `f81fc23` — test: E2E dirigido `tests/e2e/hydEst.spec.ts`.
+Cadena completa de commits del slice, todos sobre `85c3e08`:
 
-`origin/main` sigue en `85c3e08` — **todavía no pusheado** (pendiente
-del gate de fuzz, ver más abajo).
+```
+85c3e08  (base — D-δ.111)
+ac0d839  checkpoint: integrar nucleo HYD-EST por recorrido (QA pendiente)      [Codex]
+cf0e113  test: adaptar baselines y memoizacion a HYD-EST path-aware            [Claude]
+7b73e3d  docs: registrar HYD-EST-01 (D-delta.112)                             [Claude]
+f81fc23  test: E2E dirigido de HYD-EST-01 (DN->V->hf y fan-out incompleto)     [Claude]
+a2f84d6  docs: actualizar HANDOFF-CONTEXT.md tras estabilizar HYD-EST-01       [Claude]
+3c67d5a  docs: cerrar gate de fuzz de HYD-EST-01 (20x30 + 6 seeds, 38/38)      [Claude]  ← HEAD == origin/main
+```
 
-## DECISIONES CERRADAS (no reabrir)
+## TRANSICIÓN CODEX → CLAUDE
 
-- Fan-out 1→N (`derivacionMultipleNoModelada`): hf localizada y presión
-  de ESE camino quedan incompletas; nunca fallback agregado ni cadena
-  ficticia de tees. El resto de los resultados determinables se sigue
-  mostrando.
-- Singularidad terminal K=1,35 **por terminal físico**, exclusiva de su
-  camino, con la V de su propio tramo alimentador. Sustituye la
-  cardinalidad "una por Local/Red" de D-δ.45 (D-δ.45 queda superado
-  SÓLO en esa cardinalidad/base de velocidad, no en el coeficiente).
-- Se conserva K tee = 3,00 (sin clasificar recta/lateral — el rediseño
-  de D-δ.90 sigue diferido a M2-TOPO-01, NO se reabrió), K llave = 9,18,
-  K terminal = 1,35. Ninguna Tabla N°7 nueva.
-- Detalladas intacto; sin accesorios persistidos, reductores automáticos
-  ni topología inventada. Un cambio de DN nunca agrega un accesorio de
-  reducción automáticamente.
+Codex agotó cuota dos veces: dejó el checkpoint `ac0d839` (sin push,
+deliberado) con el motor Estimadas path-aware, la integración de
+presión/UI, y 88/88 tests dirigidos verdes; después siguió trabajando y
+dejó **sin commit** 7 archivos (+133/-27):
+`auditoriaTransversalM1M4.baseline.test.ts`,
+`resolverResumenDeProyecto.test.ts`,
+`sonPropsDeSeccionDeUnidadFuncionalEquivalentes.{ts,test.ts}`,
+`escalaDelMotor.regresion.test.ts`,
+`verificacionLongitudVerticalPorNivel.test.ts`, y el fixture nuevo
+`src/pruebas/fixtures/ejemploConBifurcacionesDefinidas.ts`.
 
-## MODELO HIDRÁULICO FINAL (implementado y verificado)
+Claude auditó ese trabajo sin commit **archivo por archivo** (diff
+completo + lectura íntegra del fixture nuevo) antes de tocar nada. Los 7
+cambios eran coherentes, completos y correctos — ninguna edición a medio
+terminar. **Todo se preservó tal cual**, con una única corrección: en
+`auditoriaTransversalM1M4.baseline.test.ts`, el test "SNAPSHOT" (que
+Codex no tocó en esa tanda) seguía esperando el margen histórico del
+crítico `-17,664 m.c.a.`, pero `canonico()` ya usaba por defecto el
+fixture con bifurcaciones explícitas (agrega tramos reales a los
+caminos AF/AC) → el margen real había pasado a `-20,164 m.c.a.`, un
+resultado **legítimo** del nuevo modelo, no una regresión. Se corrigió
+el valor esperado y el comentario explicativo (commit `cf0e113`).
 
-`src/motor/tuberias/presion/resolverPerdidaLocalizadaEstimadaDeCamino.ts`
-recorre `camino.tramos` desde la raíz del Local hasta el terminal. En
-cada tramo:
-- si es la entrada común del grupo (Local, Red) → suma la llave de paso
-  (K=9,18) con la V de ESE tramo;
-- si su nodo de origen tiene 1 tramo entrante y 2 salientes (tee real
-  1→2) → suma una singularidad de tee (K=3,00) con la V del tramo
-  SALIENTE recorrido (CRIT-A31, sin clasificar recta/lateral);
-- si es el último tramo del camino (alimenta directo al terminal) →
-  suma la singularidad terminal (K=1,35) con la V de ese tramo.
+Por qué se preservó y no se reescribió: cada archivo tenía una intención
+clara y verificable contra el modelo ya cerrado (fan-out incompleto,
+singularidad por terminal, memoización por dependencia física real), y
+los tests pasaban tras la corrección puntual — no había motivo para
+descartar trabajo correcto.
 
-Un fan-out 1→N (más de 2 salientes desde un nodo con 1 entrante) se
-diagnostica ANTES de calcular componentes y devuelve `incompleta` con
-motivo `derivacionMultipleNoModelada` — nunca hf parcial ni ficticia.
+## MODELO HIDRÁULICO FINAL
 
-Verificado numéricamente (script de scratch, no persistido, sobre el
-fixture `hydEst.fixture.ts` con 4 terminales en 2 ramas explícitas):
-variando el DN del tramo `intermedio-a` (rama de terminal-0/terminal-1):
+Implementado en
+`src/motor/tuberias/presion/resolverPerdidaLocalizadaEstimadaDeCamino.ts`.
 
-| DN      | V (m/s) | hf distribuida | hf localizada terminal-0 (misma rama) | hf localizada terminal-2 (rama independiente) |
-|---------|---------|-----------------|----------------------------------------|--------------------------------------------------|
-| 20 mm   | 3,070   | 1,427           | 4,184                                   | 3,136                                             |
-| 25 mm   | 1,965   | 0,481           | 3,333                                   | 3,136                                             |
-| 32 mm   | 1,183   | 0,140           | 2,957                                   | 3,136                                             |
-| 50 mm   | 0,486   | 0,016           | 2,779                                   | 3,136                                             |
-| 75 mm   | 0,215   | 0,002           | 2,750                                   | 3,136                                             |
-| 110 mm  | 0,100   | 0,000           | 2,744                                   | 3,136                                             |
-| 125 mm  | 0,081   | 0,000           | 2,744                                   | 3,136                                             |
+**Antes (D-δ.40/D-δ.45):** agregado por `(Local, Red)` — `n-1` tees
+K=3,00 + una llave de paso K=9,18 + **una** singularidad terminal
+K=1,35, todas calculadas sobre la velocidad de referencia **máxima**
+(`V_ref`) entre todos los terminales físicos del grupo.
 
-Confirma el contrato exacto pedido: al crecer el DN, V y hf distribuida
-de la rama caen y se aplanan (nunca forzadas a 0 si no corresponde); la
-hf localizada de la MISMA rama cae y se aplana con ellas (no queda
-congelada por una Vref terminal global); la rama independiente
-(terminal-2) permanece exactamente en `3,136` en todas las filas —
-independencia de ramales confirmada.
+**Ahora:** resolución **por camino**, recorriendo la topología real
+desde la raíz del Local hasta cada terminal físico
+(`obtenerCaminoHaciaOrigen`). En cada tramo del camino:
+- si es la entrada común del grupo (Local, Red) → llave de paso (K=9,18)
+  con la V de ESE tramo;
+- si su nodo de origen tiene 1 tramo entrante y exactamente 2 salientes
+  (tee real 1→2) → singularidad de tee (K=3,00) con la V del tramo
+  SALIENTE recorrido (convención CRIT-A31, sin clasificar recta/lateral);
+- si es el último tramo (alimenta directo al terminal) → singularidad
+  terminal (K=1,35) con la V de ESE tramo.
 
-## MEMOIZACIÓN POR UF
+Un fan-out 1→N (nodo con 1 entrante y >2 salientes) se diagnostica
+**antes** de calcular componentes y devuelve `incompleta` con motivo
+`derivacionMultipleNoModelada` — nunca hf parcial ni ficticia.
+
+## COEFICIENTES (Tabla de K — sin cambios de valor, sólo de base de velocidad/cardinalidad)
+
+| Singularidad | K | Origen | Qué cambió |
+|---|---|---|---|
+| Tee 1→2 | 3,00 (`teeEntradaCentralSalidasLaterales`) | D-δ.40, conservador, sin clasificar recta/lateral | Antes: `n-1` veces con `V_ref` máxima del grupo. Ahora: una vez por cada tee real que el camino atraviesa, con la V del tramo saliente recorrido (CRIT-A31) — **no cambió el K, cambió a cuántas y con qué V**. |
+| Llave de paso | 9,18 (`llaveDePaso`) | D-δ.45 | Sin cambio: una por entrada de (Local, Red), ahora con la V de esa entrada real. |
+| Singularidad terminal | 1,35 (`codo90`) | D-δ.45, decisión roja ya resuelta por el usuario | **Cardinalidad**: antes 1 por (Local, Red) con `V_ref` máxima; ahora 1 **por terminal físico**, con la V de su propio tramo alimentador. |
+
+El rediseño recta/lateral (`1,62`/`1,00`) + transición de DN (`+0,75`) +
+válvula de rama (`0,17`) que D-δ.90 había diferido a M2-TOPO-01 por
+falta de topología de orientación **sigue diferido, no se reabrió**.
+
+## MEMOIZACIÓN (por UF)
 
 `sonPropsDeSeccionDeUnidadFuncionalEquivalentes.ts` →
-`sonAportesCompartidosEquivalentes`: cuando cambia el conjunto de UF y el
-método localizado es `estimado`, identifica los terminales cuya UF
-cambió, resuelve sus caminos y los tramos de tee que atraviesan, y
-compara contra los tramos de tee que atraviesan los propios caminos de
-la UF de la tarjeta. Si no comparten ningún tramo de tee → la tarjeta NO
-se invalida (rama independiente conservada). Si comparten uno → se
-invalida y recalcula. Cubierto por
-`sonPropsDeSeccionDeUnidadFuncionalEquivalentes.test.ts` (2 casos: tee
-compartida invalida y cambia hf; rama independiente no invalida ni
-cambia hf) — auditado y verificado correcto, no reescrito.
+`sonAportesCompartidosEquivalentes`: cuando cambia el conjunto de UF y
+el método localizado es `estimado`, identifica los terminales cuya UF
+cambió, resuelve sus caminos y extrae los tramos de **tee** que
+atraviesan; compara contra los tramos de tee de los propios caminos de
+la UF de la tarjeta.
 
-## BASELINES
+- **Tee compartida:** si algún tramo de tee coincide → la tarjeta se
+  invalida y recalcula (dependencia física real).
+- **Rama independiente:** si no coincide ningún tramo de tee → la
+  tarjeta NO se invalida, conserva la optimización existente.
 
-`auditoriaTransversalM1M4.baseline.test.ts`: `canonico()` ahora atraviesa
-por defecto `ejemploConBifurcacionesDefinidas` (antes: `proyectoInicial`
-tal cual, con su fan-out 1→N sin resolver). Nuevo test explícito fija el
-contrato sobre el demo ORIGINAL (con fan-out): M2 incompleto por
-`derivacionMultipleNoModelada`, margen crítico `undefined`, M1/M3/M4
-intactos frente al canónico. El margen del canónico (ahora con
-bifurcaciones explícitas) pasa de `-17,664` a `-20,164 m.c.a.` (legítimo,
-ver arriba).
+Verificado con 2 tests dedicados (`sonPropsDeSeccionDeUnidadFuncionalEquivalentes.test.ts`):
+cambiar demanda de una UF que comparte tee invalida y cambia la hf
+mostrada; cambiar demanda de una UF en rama independiente no invalida
+ni cambia nada.
 
-`escalaDelMotor.regresion.test.ts`: el fixture de escala (14 UF × 3
-locales) tiene fan-out 1→N real: la precondición pasó de "M2 completo" a
-"M2 incompleto por `derivacionMultipleNoModelada`", conservando la
-verificación de escala (>200 terminales).
+## BASELINES — qué cambió y por qué
 
-`verificacionLongitudVerticalPorNivel.test.ts`: el fixture pasó de un
-nodo `n0` con 3 salientes (AF UF1, AF UF2, ACS — fan-out no declarado) a
-`n0` → `n-af-ramas` (nodo de distribución AF explícito) → cada UF, cada
-bifurcación real 1→2. Preserva la intención original (verificar longitud
-vertical por nivel) sin depender de fan-out no modelado.
+- **`auditoriaTransversalM1M4.baseline.test.ts`:** `canonico()` ahora
+  atraviesa por defecto `ejemploConBifurcacionesDefinidas` (antes:
+  `proyectoInicial` con su fan-out 1→N sin resolver). Margen del
+  crítico: `-17,664` → `-20,164 m.c.a.` (más tramos reales en el camino
+  → más hf; sigue NO CUMPLE). Nuevo test fija el contrato sobre el demo
+  ORIGINAL con fan-out: M2 incompleto, margen `undefined`, M1/M3/M4
+  intactos frente al canónico.
+- **`escalaDelMotor.regresion.test.ts`:** el fixture de escala (14 UF ×
+  3 locales) tiene fan-out real; precondición pasó de "M2 completo" a
+  "M2 incompleto por `derivacionMultipleNoModelada`", conservando la
+  verificación de escala (>200 terminales).
+- **`verificacionLongitudVerticalPorNivel.test.ts`:** el fixture pasó de
+  un nodo con 3 salientes (fan-out no declarado) a una distribución AF
+  explícita con bifurcaciones reales 1→2, preservando la intención
+  original del test (longitud vertical por nivel) sin depender de
+  fan-out no modelado.
 
-## E2E
+## DN → V → HF: cadena final de recálculo
 
-`tests/e2e/hydEst.spec.ts` (nuevo, desktop+mobile, verificado contra
-`vite` dev local — `IUAS_BASE_URL=http://localhost:5199/`):
-1. "Alimentación general" (tramo troncal, no fan-out): DN↑ dos veces baja
-   V y hf distribuida monótonamente; DN↓ dos veces vuelve exactamente a
-   los valores originales (reversibilidad).
-2. "Baño 1 · Agua fría" del demo (fan-out 1→N real): fila `⚠ Incompleto`,
-   texto "localizada incompleta", hf DISTRIBUIDA con número real visible,
-   sin `NaN`/`undefined`/`[object Object]`.
+`resolverDiametroComercialDeTramo` (V real según DN adoptado/auto) →
+`resolverPerdidaDistribuidaDeTramo` (Hazen-Williams/Darcy sobre esa V) →
+`resolverPerdidaLocalizadaEstimadaDeCamino` (K·V²/2g por singularidad
+real del camino, con la V de cada tramo propio) →
+`resolverPresionResidualDeCamino` (`Presidual = Pdisponible − Δz −
+hfDistribuida − hfLocalizada − hfMedidor − hfEquipoACS`, fórmula sin
+cambios). Verificado E2E: subir/bajar el DN comercial de un tramo
+recalcula V y hf de forma monótona y reversible.
 
-Regresión dirigida existente sin cambios de selector necesarios, **19/19
-verde** contra `vite` dev: `smoke.spec.ts`, `montantes.spec.ts` (8 casos),
-`hallazgos.spec.ts` (4 casos: FIX-LEAK-01/02, FIX-CRASH-01,
-FIX-CRASH-M3-INDUSTRIAL-01), `responsive.spec.ts` (6 casos).
+## CASO DN125 (verificado numéricamente, fixture de 4 terminales en 2 ramas explícitas)
 
-## TESTS EJECUTADOS Y RESULTADO
+Variando el DN del tramo `intermedio-a` (rama de terminal-0/terminal-1),
+con terminal-2 en la rama independiente (vía `intermedio-b`):
 
-- Vitest completo: **1797/1797** (174→175 archivos), subiendo desde el
-  baseline pre-slice de 1784/1784.
-- `npx tsc -b`: limpio.
-- `npm run e2e:typecheck`: limpio.
-- `npm run build`: limpio (mismo warning preexistente de tamaño de chunk,
-  no relacionado).
-- `npx eslint .`: **11 problemas** (los 11 son de severidad `error` en la
-  config actual de ESLint; 0 son nuevos), en archivos no tocados por este
-  slice (`MotorDemandaPantalla.tsx`, `actualizarRedHidraulica.ts`,
-  `AccesoriosDeTramoEditor.tsx`, `ResultadoHidraulicoDeTramo.tsx`,
-  `duplicarUnidadFuncional.test.ts`,
-  `resolverHidraulicaDeTramo.pisoCaudalIndividual.golden.test.ts`),
-  confirmado por `git log` sobre esos archivos (última modificación en
-  commits ajenos a HYD-EST). **Aclaración de la discrepancia reportada**
-  ("11 warnings / 0 errors" vs. "11 errors / 0 warnings"): no es un
-  cambio de severidad ni una regresión — es una lectura incorrecta de la
-  notación **`ESLint 11/0/0`** que el propio ROADMAP/PENDIENTES usa de
-  forma consistente en decenas de entradas anteriores (verificado con
-  `grep`): significa **"11 problemas preexistentes / 0 warnings NUEVOS /
-  0 errores NUEVOS"**, no "11 warnings, 0 errores" en términos absolutos.
-  Los 11 problemas siempre fueron de severidad `error` (no `warning`) en
-  esta config de ESLint; el resultado de este slice (`11/0/0`) es
-  exactamente el mismo baseline que todas las entradas previas del
-  proyecto — sin regresión ni discrepancia real.
-- E2E dirigido: **21/21** verde (19 regresión existente + 2 nuevos de
-  HYD-EST), desktop+mobile, contra `vite` dev.
+| DN | V (m/s) | hf distribuida | hf localizada terminal-0 (misma rama) | hf localizada terminal-2 (rama independiente) |
+|---|---|---|---|---|
+| 20 mm | 3,070 | 1,427 | 4,184 | 3,136 |
+| 25 mm | 1,965 | 0,481 | 3,333 | 3,136 |
+| 32 mm | 1,183 | 0,140 | 2,957 | 3,136 |
+| 50 mm | 0,486 | 0,016 | 2,779 | 3,136 |
+| 75 mm | 0,215 | 0,002 | 2,750 | 3,136 |
+| 110 mm | 0,100 | 0,000 | 2,744 | 3,136 |
+| 125 mm | 0,081 | 0,000 | 2,744 | 3,136 |
 
-## GATE DE FUZZ — RESULTADO FINAL (confirmado, todo verde)
+Al crecer el DN, V y hf distribuida de la rama caen y se aplanan (nunca
+forzadas a 0 si no corresponde); la hf localizada de la MISMA rama cae y
+se aplana con ellas (ya no queda congelada por una `V_ref` terminal
+global); la rama independiente permanece **exactamente** en `3,136` en
+todas las filas.
 
-Corrido contra `vite` dev (`http://localhost:5199/`), proyecto `desktop`,
-`STEPS=30` en todos los casos:
+## RAMALES — independencia demostrada
 
-- **Gate 20×30 requerido, seed base `424242`:** runs 0–9 (primer batch,
-  18,4 min) + runs 10–19 (segundo batch, 6,2 min) = **20/20 verde**, 600
-  pasos totales sin ningún fallo.
-- **Seeds históricos de la consigna:**
-  - `34493241441-1:15` (FIX-CRASH-M3-INDUSTRIAL-01) — **1/1 verde**.
-  - `34411681277-1:0` (FIX-CRASH-01) — **1/1 verde**.
-  - `34398035608-1` runs 0–12 (FIX-LEAK-02) — **13/13 verde**.
-  - `m7`, `m42`, `m99` (seeds que ejercen acciones de montante,
-    documentadas en `PENDIENTES-DE-ARQUITECTURA.md` línea ~10680) —
-    **3/3 verde**, un run cada una.
-- **Total: 38/38 runs de fuzz verdes**, cero regresiones de HYD-EST
-  detectadas por el harness (sin pantalla blanca, sin `pageerror`, sin
-  `console.error`, sin valores rotos, sin overflow).
+Confirmado en la tabla DN125 (terminal-2 invariante) y en el test de
+memoización (rama independiente no invalida ni cambia hf). Un ramal que
+no comparte tee/tramo con el que cambió conserva su contribución
+exactamente igual.
 
-Nota de proceso: el primer intento de este gate se lanzó como
-`RUNS=10` (no `RUNS=20`) por error — quedó corregido relanzando runs
-10–19 con `IUAS_FUZZ_START_RUN=10 IUAS_FUZZ_RUNS=20` para completar
-exactamente el 20×30 requerido (mismo patrón que usa el propio
-`QA-FUZZ.md` §4 para partir un gate en dos corridas). Cada batch tardó
-varios minutos reales (no es un colgado): confirmado con
-`Get-CimInstance Win32_Process`/`Get-Process` que el árbol
-coordinator→worker→chromium estaba vivo y con CPU activa durante la
-espera aparentemente silenciosa (el reporter `list` no imprime nada
-hasta que cada test individual termina).
+## FAN-OUT 1→N — comportamiento final
 
-## PUSH Y ESTADO GIT FINAL
+Detectado antes de calcular componentes; el camino queda `incompleta`
+con motivo `derivacionMultipleNoModelada`; la hf localizada y la presión
+residual de ESE terminal quedan incompletas (sin inventar topología,
+sin fallback agregado, sin cadena ficticia de tees); el resto de
+resultados determinables (DN, V, hf distribuida, otros
+Locales/terminales) se sigue mostrando con normalidad. Verificado E2E
+contra producción: fila "⚠ Incompleto", texto "localizada incompleta",
+sin `NaN`/`undefined`/`[object Object]`, sin crash.
 
-Con el gate de fuzz 100% verde, se hizo `git push origin main`. Ver
-sección ESTADO GIT más abajo para el hash final.
+## ESTIMADAS VS DETALLADAS
 
-## PENDIENTE (fuera de esta sesión)
+Separación confirmada: `Detalladas` no fue tocado por este slice (ningún
+archivo de su cadena — `resolverClasificacionDeTee`,
+`acumularPerdidaLocalizadaDeCamino`, accesorios persistidos — aparece en
+el diff). `resolverPresionResidualDeCamino` sigue eligiendo un modo u
+otro según `metodoPerdidaLocalizada` y nunca los mezcla.
 
-1. **Checkpoint cloud Nivel A** (el gate de QA Fuzz cloud vía GitHub
-   Actions, `workflow_dispatch` de `.github/workflows/qa-fuzz.yml`): NO
-   disparado desde esta sesión — no hay comando local para lanzarlo
-   contra GitHub Actions sin intervención del usuario/CI; si el usuario
-   quiere ese checkpoint, hay que dispararlo manualmente o vía `gh
-   workflow run`.
-2. **Deploy a GitHub Pages**: se activa automáticamente al pushear a
-   `main` (pipeline existente del repo). NO verificado desde esta sesión
-   si el workflow de deploy corrió y publicó con éxito, ni el HTTP 200 ni
-   el smoke/E2E contra producción real — pendiente de confirmación.
-3. **Validación manual del usuario** sobre el deploy (ver lista de pasos
-   en la consigna original, sección de validación).
+## PRESIÓN — integración final
 
-## ARCHIVOS MODIFICADOS EN ESTE SLICE (acumulado, ambas sesiones)
+`Presidual = Pdisponible − Δz − hfDistribuida − hfLocalizada − hfMedidor
+− hfEquipoACS`, sin cambio de fórmula; ahora consume la hf localizada
+por camino. Un camino incompleto por fan-out deja la presión residual de
+ESE terminal incompleta, sin inventar valor. Verificado en el baseline
+transversal (margen del crítico recalculado con el nuevo modelo) y en
+`resolverResumenDeProyecto.test.ts` (el margen del canónico con fan-out
+queda `{ tipo: 'pendiente' }`, `margenCumple` `undefined`).
 
-Motor: `contextoDeCalculoM2.ts`,
-`presion/resolverPerdidaLocalizadaEstimadaDeCamino.ts` (nuevo + test),
-`presion/hydEst.fixture.ts` (nuevo),
-`presion/resolverPerdidaLocalizadaEstimadaDeLocal.ts` (+ test),
-`presion/resolverPresionResidualDeCamino.ts` (+ test),
-`presion/montanteTees.integracion.test.ts`,
-`escalaDelMotor.regresion.test.ts`,
-`presion/verificacionLongitudVerticalPorNivel.test.ts`.
+## PERFORMANCE
 
-Interfaz: `LocalYRedCard.tsx`, `TarjetaDeTerminal.tsx`,
-`humanizarPerdidaEstimada.ts` (nuevo), `agruparMotivosDeModulo2.ts`,
-`resolverFilaDeDimensionamiento.ts` (+ test),
-`PanelDePresionCriticoUI.test.ts`, `resolverFilaDeTerminalParaTabla.test.ts`,
-`sonPropsDeSeccionDeUnidadFuncionalEquivalentes.ts` (+ test),
-`resolverResumenDeProyecto.test.ts`.
+El recorrido por camino reutiliza los índices ya existentes de
+`contextoDeCalculoM2` (índice topológico, tramos entrantes/salientes,
+representativos de Local) precomputados una vez por resolución —
+`obtenerIndiceEstimacionLocalizada` construye sus propios índices en
+`O(nodos + tramos + suma de profundidades)` y los cachea en el contexto.
+No se reintrodujo `O(terminales × tramos²)`: el fixture de escala
+(14 UF × 3 locales, >200 terminales) sigue resolviendo sin regresión de
+tiempo (mismo test de escala, ahora validando "incompleto" en vez de
+"completo", pero sin cambio de orden de magnitud en duración).
 
-Fixtures: `src/pruebas/fixtures/ejemploConBifurcacionesDefinidas.ts` (nuevo).
+## TESTS — resultado final
 
-Docs: `ROADMAP.md` (D-δ.112), este handoff.
+| Gate | Resultado |
+|---|---|
+| Vitest | **1797/1797** (175 archivos; sube de 1784/1784 pre-slice) |
+| `tsc -b` | limpio |
+| `npm run e2e:typecheck` | limpio |
+| `npm run build` | limpio |
+| `npx eslint .` | **11 problemas, 0 nuevos** — preexistentes, en archivos no tocados por este slice (ver nota ESLint abajo) |
+| E2E dirigido nuevo | `tests/e2e/hydEst.spec.ts`, 2 casos × desktop/mobile |
+| E2E regresión (dev local) | `smoke`, `montantes` (8), `hallazgos` (4), `responsive` (6) → **19/19** |
+| E2E contra producción real | `smoke` + `hydEst` → **6/6** (desktop + mobile) |
+| Fuzz 20×30 (seed `424242`) | **20/20** (runs 0–9 en un batch, 10–19 en otro tras corregir el `RUNS=10` inicial) |
+| Fuzz seeds históricas | `34493241441-1:15` (1/1), `34411681277-1:0` (1/1), `34398035608-1` runs 0–12 (13/13), `m7`/`m42`/`m99` (3/3) |
+| **Total fuzz** | **38/38 runs verdes**, 0 regresiones detectadas |
 
-E2E: `tests/e2e/hydEst.spec.ts` (nuevo).
+**Nota ESLint** — aclaración de una aparente discrepancia planteada
+durante el slice: la notación `ESLint 11/0/0` que usa este proyecto en
+decenas de entradas previas de `ROADMAP.md`/`PENDIENTES-DE-ARQUITECTURA.md`
+significa **"11 problemas preexistentes / 0 warnings nuevos / 0 errores
+nuevos"**, no "11 warnings, 0 errores" en términos absolutos. Los 11
+problemas siempre fueron de severidad `error` en la config real de
+ESLint (`react-refresh/only-export-components`,
+`@typescript-eslint/no-unused-vars`, `no-loss-of-precision`), en
+archivos ajenos a HYD-EST (`MotorDemandaPantalla.tsx`,
+`actualizarRedHidraulica.ts`, `AccesoriosDeTramoEditor.tsx`,
+`ResultadoHidraulicoDeTramo.tsx`, `duplicarUnidadFuncional.test.ts`,
+`resolverHidraulicaDeTramo.pisoCaudalIndividual.golden.test.ts` —
+confirmado con `git log` que su última modificación es de commits
+ajenos a este slice). No hay discrepancia real ni regresión.
 
-Tests transversales: `auditoriaTransversalM1M4.baseline.test.ts`.
+## DOCS
 
-## ESTADO GIT
+D-δ.112 registrado en `ROADMAP.md` (después de D-δ.111). Contenido:
+modelo antes/después, coeficientes, fan-out, memoización, baselines,
+tests, continuidad entre agentes, y la precisión de que D-δ.90 (rediseño
+recta/lateral) sigue diferido a M2-TOPO-01 sin reabrirse.
 
-`main` local y `origin/main` **sincronizados** tras el push de esta
-sesión. Cadena de commits sobre la base `85c3e08`:
-`ac0d839` → `cf0e113` → `7b73e3d` → `f81fc23` → `a2f84d6` (handoff
-intermedio) → commit final de este handoff. Tree limpio. Ver el hash
-exacto de HEAD en el resultado del `git push` de esta sesión.
+## COMMITS
 
-## SIGUIENTE ACCIÓN EXACTA
+Ver sección BASE arriba para la lista completa
+(`ac0d839` de Codex + `cf0e113`/`7b73e3d`/`f81fc23`/`a2f84d6`/`3c67d5a`
+de Claude, más este commit final de documentación).
 
-1. Confirmar que el workflow de deploy a GitHub Pages corrió y publicó
-   con éxito tras el push (Actions del repo).
-2. Verificar HTTP 200 de la URL de producción y correr smoke/E2E
-   dirigido contra producción real (no sólo contra `vite` dev, que es lo
-   que cubrió esta sesión).
-3. Si el usuario quiere el checkpoint cloud Nivel A (QA Fuzz vía GitHub
-   Actions `workflow_dispatch`), dispararlo — no se disparó desde esta
-   sesión por no haber un comando local que lo haga sin intervención del
-   usuario/CI.
-4. Pedir al usuario la validación manual descripta en la consigna
-   original (abrir Baño/AF/Estimadas, subir/bajar DN, revisar presión
-   residual, revisar un caso 1→N incompleto).
-5. Declarar `HYD-EST-01: CERRADO — pendiente validación manual` recién
-   con 1–2 confirmados (o documentados como no verificables desde esta
-   sesión) y 4 hecho.
+## GIT FINAL
 
-## CRITERIO DE CIERRE
+- HEAD: `3c67d5a66dc503d6647a013a94712b0efdca8f59` (antes de este commit
+  de cierre; ver el hash real tras commitear este archivo).
+- `origin/main`: sincronizado con HEAD tras `git push origin main`
+  (confirmado `git fetch` + `git rev-parse HEAD`/`origin/main` iguales).
+- Tree: limpio.
 
-hf afectada responde a DN (✅ verificado numéricamente); ramales no
-afectados conservan su contribución (✅ verificado); 1→N incompleto por
-decisión explícita (✅ implementado y testeado); Detalladas intacto (✅);
-presión correcta (✅); todos los tests/gates locales verdes, **incluido
-el fuzz 20×30 + 6 seeds históricas = 38/38** (✅); push a `origin/main`
-(✅); deploy a GitHub Pages y validación manual (⏳ pendientes, fuera del
-alcance de esta sesión — requieren el workflow de CI/Pages y al usuario).
+## DEPLOY
 
-**Estado actual: `HYD-EST-01: CERRADO — pendiente validación manual y
-confirmación de deploy`.** Implementación, QA local completa (unit +
-integration + E2E dirigido + tsc + build + lint) y el gate de fuzz
-completo (20×30 + históricos) están verdes y pusheados. Sólo restan
-pasos que dependen de GitHub Actions/Pages y de la revisión manual del
-usuario sobre el sitio publicado.
+- Workflow `Deploy static content to Pages` (run `34724256817`,
+  disparado automáticamente por el push a `main`): `status: completed`,
+  `conclusion: success`.
+- `https://nicolasambrosoeras-ctrl.github.io/IUAS/` → HTTP **200**.
+- Smoke + E2E dirigido de HYD-EST contra producción real: **6/6 verde**
+  (desktop + mobile), sin `IUAS_BASE_URL` (usa el default de
+  producción del `playwright.config.ts`).
+- Checkpoint cloud Nivel A (QA Fuzz vía GitHub Actions
+  `workflow_dispatch` de `.github/workflows/qa-fuzz.yml`): **NO
+  disparado desde esta sesión** — no hay `gh` CLI ni token disponible
+  para lanzarlo sin intervención del usuario. Si se quiere ese
+  checkpoint adicional (recomendado, aunque no bloqueante dado que el
+  gate local 20×30 + históricos + producción ya está verde), hay que
+  dispararlo manualmente desde GitHub Actions o pedírselo a un agente
+  con acceso a `gh`/token.
+
+## VALIDACIÓN MANUAL PEDIDA
+
+Con todo lo anterior verde, sólo queda pedir al usuario:
+
+1. Abrir `https://nicolasambrosoeras-ctrl.github.io/IUAS/`, ir a
+   Baño / AF / Estimadas.
+2. Observar DN, V y pérdidas (distribuida + localizada) del tramo.
+3. Subir el DN con el botón `↑` y confirmar que la hf localizada
+   afectada responde (baja) junto con V y la hf distribuida.
+4. Si la UI lo permite, llegar a un DN grande (110/125 mm) y confirmar
+   que los valores se aplanan sin volverse `0` de forma artificial.
+5. Bajar nuevamente el DN y confirmar que los valores vuelven a subir
+   (reversibilidad).
+6. Revisar la presión residual del terminal crítico.
+7. Ubicar un caso de derivación 1→N (fan-out) en el proyecto de ejemplo
+   (ej. Baño · AF con sus 4 artefactos) y confirmar que aparece como
+   "Incompleto" sin romper la pantalla ni mostrar valores basura.
+
+## ESTADO
+
+**`HYD-EST-01: CERRADO — pendiente validación manual del usuario`.**
+
+Implementación, QA local completa (unit 1797/1797 + integration + E2E
+dirigido + `tsc`/`build`/`eslint`), el gate de fuzz completo (20×30 +
+6 seeds históricas = 38/38), el push a `origin/main`, el deploy a
+GitHub Pages (verificado HTTP 200) y el smoke/E2E contra producción
+real (6/6) están **verdes y confirmados**. Sólo restan: el checkpoint
+cloud Nivel A opcional (requiere disparo manual/`gh`) y la validación
+manual del usuario sobre el sitio publicado (lista arriba).
