@@ -203,6 +203,43 @@
   gap: var(--esp-sm);
 }
 
+/* FIX-M1-MULTINIVEL-BASE-LEVEL-01 (sección 8): en la cabecera del nivel,
+   "Eliminar nivel" comparte fila con un input de texto (Nombre del
+   nivel) -- un elemento visualmente mucho más pesado que el <h4> junto al
+   que vive "Eliminar local". El estilo base de `.m1-btn-eliminar`
+   (transparente, color terciario, sólo gana contraste en :hover) queda
+   ahí indistinguible de texto deshabilitado. Acá SÍ lleva un borde visible
+   desde el estado de reposo -- sigue siendo una acción secundaria, pero
+   con affordance clara sin depender de hover. No se toca el estilo
+   compartido de `.m1-btn-eliminar` en ningún otro contexto (Local,
+   Artefacto, UF), donde el contraste con su header hermano ya alcanza. */
+.m1-nivel__cabecera .m1-btn-eliminar {
+  border-color: var(--color-error-borde);
+  color: var(--color-error);
+}
+
+.m1-nivel__cabecera .m1-btn-eliminar:hover:not(:disabled) {
+  background: var(--color-error-suave);
+}
+
+/* El input de nombre del nivel no tenía ancho flexible -- a su tamaño
+   default de navegador (~20ch) sumado a la etiqueta y a "Eliminar nivel"
+   desborda el viewport en mobile (FIX-M1-MULTINIVEL-BASE-LEVEL-01 §18).
+   `min-width: 0` es necesario para que un item flex pueda encogerse por
+   debajo de su ancho intrínseco. */
+.m1-nivel__cabecera label {
+  display: flex;
+  align-items: center;
+  gap: var(--esp-xs);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.m1-nivel__cabecera label input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 /* --- Card por Local --- */
 .m1-local {
   display: flex;
@@ -458,5 +495,18 @@
 
   .m1-uf__cabecera {
     align-items: flex-start;
+  }
+
+  /* Cabecera de Nivel apilada (FIX-M1-MULTINIVEL-BASE-LEVEL-01 §18): el
+     par "Nombre del nivel" + input ya no comparte fila con "Eliminar
+     nivel" -- mismo criterio que .m1-uf__campos arriba, sin overflow
+     horizontal. */
+  .m1-nivel__cabecera {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .m1-nivel__cabecera .m1-btn-eliminar {
+    align-self: flex-end;
   }
 }

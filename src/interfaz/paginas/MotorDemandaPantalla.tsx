@@ -200,15 +200,18 @@ function formatearMetros2(valor: number): string {
 }
 
 // GEOM-UX-01 §11 -- editor compacto de la cota de piso de un Local:
-// "hereda UF" con [Personalizar]; personalizada con input + [Restablecer].
-// Vaciar el input mientras está personalizada equivale a Restablecer.
+// "hereda nivel" con [Personalizar]; personalizada con input +
+// [Restablecer]. Vaciar el input mientras está personalizada equivale a
+// Restablecer. FIX-M1-MULTINIVEL-BASE-LEVEL-01: el padre geométrico que
+// aporta la cota heredable es el Nivel (no la UF completa, que puede
+// tener varios) -- el copy lo refleja explícitamente.
 function EditorDeCotaPisoDeLocal({
   cotaPiso_m,
-  cotaHeredadaUF_m,
+  cotaHeredadaDelNivel_m,
   onCambiar,
 }: {
   cotaPiso_m: number | undefined
-  cotaHeredadaUF_m: number | undefined
+  cotaHeredadaDelNivel_m: number | undefined
   onCambiar: (cotaPiso_m: number | undefined) => void
 }) {
   if (cotaPiso_m === undefined) {
@@ -217,12 +220,12 @@ function EditorDeCotaPisoDeLocal({
         <span className="m1-cota__estado">
           Cota de piso:{' '}
           <strong>
-            {cotaHeredadaUF_m === undefined
-              ? 'hereda de la unidad funcional'
-              : `hereda UF: ${formatearCotaConSigno(cotaHeredadaUF_m)} m`}
+            {cotaHeredadaDelNivel_m === undefined
+              ? 'hereda del nivel'
+              : `hereda nivel: ${formatearCotaConSigno(cotaHeredadaDelNivel_m)} m`}
           </strong>
         </span>
-        <button type="button" className="ui-btn--fantasma" onClick={() => onCambiar(cotaHeredadaUF_m ?? 0)}>
+        <button type="button" className="ui-btn--fantasma" onClick={() => onCambiar(cotaHeredadaDelNivel_m ?? 0)}>
           Personalizar
         </button>
       </div>
@@ -694,7 +697,7 @@ function LocalFormulario({
   // cada artefacto deriva su cota hidráulica efectiva de la cadena.
   const unidadFuncional = proyecto.unidadesFuncionales.find((u) => u.id === unidadFuncionalId)
   const nivelDelLocal = unidadFuncional === undefined ? undefined : resolverNivelDeLocal(unidadFuncional, local.id)
-  const cotaHeredadaUF_m = nivelDelLocal?.cotaHidraulicaReferencia_m
+  const cotaHeredadaDelNivel_m = nivelDelLocal?.cotaHidraulicaReferencia_m
   function cambiarCotaPisoDeLocal(cotaPiso_m: number | undefined) {
     if (cotaPiso_m === undefined) {
       const localSinCotaPiso: Local = { ...local }
@@ -753,7 +756,7 @@ function LocalFormulario({
 
       <EditorDeCotaPisoDeLocal
         cotaPiso_m={local.cotaPiso_m}
-        cotaHeredadaUF_m={cotaHeredadaUF_m}
+        cotaHeredadaDelNivel_m={cotaHeredadaDelNivel_m}
         onCambiar={cambiarCotaPisoDeLocal}
       />
 
@@ -1160,14 +1163,8 @@ function NivelFormulario({
             ))}
           </select>
         </label>
-        <label
-          title={
-            esUnico
-              ? 'Cota del piso terminado de la unidad funcional respecto de la referencia del proyecto (0 = nivel de vereda).'
-              : 'Cota del piso terminado de este nivel respecto de la referencia del proyecto (0 = nivel de vereda).'
-          }
-        >
-          {esUnico ? 'Cota de piso de la unidad funcional [m]:' : 'Cota de piso del nivel [m]:'}{' '}
+        <label title="Cota del piso terminado de este nivel respecto de la referencia del proyecto (0 = nivel de vereda).">
+          Cota de piso del nivel [m]:{' '}
           <input
             type="number"
             step="any"
@@ -1250,7 +1247,9 @@ function NivelFormulario({
 // `esUnico=true` no agrega ningún acordeón ni card extra (sección 9 del
 // brief). Con 2+ Niveles, cada uno se muestra como su propia sección
 // agrupada, en el orden en que fueron creados (sección 49: nunca se
-// reordena por cota).
+// reordena por cota). FIX-M1-MULTINIVEL-BASE-LEVEL-01: `niveles[0]` es el
+// nivel BASE, permanente -- nunca recibe `onEliminarNivel`; sólo los
+// niveles adicionales (índice > 0) son eliminables.
 function CuerpoDeUnidadFuncional({
   uf,
   proyecto,
@@ -1268,9 +1267,12 @@ function CuerpoDeUnidadFuncional({
     onCambiar({ ...uf, niveles: uf.niveles.map((n) => (n.id === nivelActualizado.id ? nivelActualizado : n)) })
   }
 
-  // Sección 14/27 del brief: una UF siempre conserva al menos 1 nivel -- la
-  // acción "Eliminar nivel" ni siquiera se ofrece (onEliminarNivel
-  // undefined) mientras quede uno solo.
+  // FIX-M1-MULTINIVEL-BASE-LEVEL-01: el PRIMER nivel (`niveles[0]`) es el
+  // nivel BASE de la UF y es permanente -- nunca se ofrece "Eliminar
+  // nivel" para él, sin importar cuántos niveles adicionales existan. Los
+  // niveles adicionales (índice > 0) sí son eliminables. No depende del
+  // nombre, la etiqueta `nivel` ni la cota -- es puramente posicional
+  // (`niveles[0]`), válido mientras no exista reordenamiento de niveles.
   function eliminarNivel(nivelId: string) {
     onCambiarProyecto(eliminarNivelDeUnidadFuncionalEnProyecto(proyecto, uf.id, nivelId))
   }
@@ -1291,7 +1293,7 @@ function CuerpoDeUnidadFuncional({
         </label>
       </div>
 
-      {uf.niveles.map((nivel) => (
+      {uf.niveles.map((nivel, indice) => (
         <NivelFormulario
           key={nivel.id}
           nivel={nivel}
@@ -1300,7 +1302,7 @@ function CuerpoDeUnidadFuncional({
           unidadFuncionalId={uf.id}
           onCambiar={cambiarNivel}
           onCambiarProyecto={onCambiarProyecto}
-          onEliminarNivel={esUnico ? undefined : () => eliminarNivel(nivel.id)}
+          onEliminarNivel={indice === 0 ? undefined : () => eliminarNivel(nivel.id)}
         />
       ))}
 

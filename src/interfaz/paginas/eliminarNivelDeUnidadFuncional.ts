@@ -13,6 +13,13 @@
 // Proyecto sin tocar) -- la UI ni siquiera debe ofrecer la acción en ese
 // caso (ver MotorDemandaPantalla, onEliminarNivel undefined con un único
 // nivel), pero la función es defensiva por las dudas.
+//
+// FIX-M1-MULTINIVEL-BASE-LEVEL-01: `niveles[0]` es el nivel BASE de la UF
+// y es permanente, incluso con 2+ niveles -- esta función lo protege por
+// sí misma (no sólo la UI, que ya no ofrece la acción para él): pedir
+// eliminar `niveles[0]?.id` es siempre un no-op, sin importar cuántos
+// niveles adicionales existan. No depende de nombre, etiqueta `nivel` ni
+// cota -- puramente posicional, válido mientras no exista reordenamiento.
 import type { Proyecto } from '../../modelo/proyecto'
 import { quitarConectividadFisicaDeLocal } from './quitarConectividadFisicaDeLocal'
 
@@ -23,7 +30,13 @@ export function eliminarNivelDeUnidadFuncionalEnProyecto(
 ): Proyecto {
   const unidadFuncional = proyecto.unidadesFuncionales.find((uf) => uf.id === unidadFuncionalId)
   const nivelAEliminar = unidadFuncional?.niveles.find((n) => n.id === nivelId)
-  if (unidadFuncional === undefined || nivelAEliminar === undefined || unidadFuncional.niveles.length <= 1) {
+  const esNivelBase = unidadFuncional?.niveles[0]?.id === nivelId
+  if (
+    unidadFuncional === undefined ||
+    nivelAEliminar === undefined ||
+    unidadFuncional.niveles.length <= 1 ||
+    esNivelBase
+  ) {
     return proyecto
   }
 
