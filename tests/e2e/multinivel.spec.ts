@@ -190,7 +190,9 @@ test.describe('UI-M1-MULTINIVEL-01 · niveles físicos dentro de una Unidad Func
     await uf.getByRole('button', { name: '+ Agregar nivel' }).click()
     await estabilizar(page)
 
-    await uf.getByRole('button', { name: 'Duplicar' }).click()
+    // exact: true -- UI-M1-DUPLICAR-LOCAL-01 agregó "Duplicar local" por
+    // Local, que matchea "Duplicar" por substring si no se pide exacto.
+    await uf.getByRole('button', { name: 'Duplicar', exact: true }).click()
     await estabilizar(page)
 
     // La copia nace colapsada (sección 17/18 de UX-01) -- hay que expandirla
