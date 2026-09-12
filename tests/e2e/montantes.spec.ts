@@ -94,8 +94,8 @@ test.describe('M2-TOPO-C · constructor de montantes', () => {
     await estabilizar(page)
     await expect(inputNombre).toHaveValue('Montante cocina y baño')
 
-    // --- Borrar el montante: conserva la app viva, la card desaparece ---
-    await card.getByRole('button', { name: 'Borrar montante' }).click()
+    // --- Eliminar el montante: conserva la app viva, la card desaparece ---
+    await card.getByRole('button', { name: 'Eliminar montante' }).click()
     await estabilizar(page)
     await expect(seccion.locator('.montante-card')).toHaveCount(0)
     await expect(seccion.getByText('Todavía no hay montantes explícitos')).toBeVisible()
@@ -297,6 +297,106 @@ test.describe('M2-TOPO-C · constructor de montantes', () => {
     await expect(derivaciones.locator('fieldset.tee-editor')).toHaveCount(0)
     await expect(derivaciones.locator('.montante-card__derivacion-nota')).toContainText('derivación múltiple')
     await expect(derivaciones.locator('.montante-card__derivacion-nota')).toContainText('queda incompleta')
+
+    const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+  })
+})
+
+// UI-M2-MONTANTE-COMPACT-01: compactación del cuerpo expandido del
+// Montante. Header intacto (nombre/pill/resumen/toggle); dentro del
+// cuerpo, Nombre queda en su propio bloque (ya no comparte fila con la
+// acción destructiva), "Eliminar montante" (antes "Borrar montante") pasa
+// al final -- después de Segmentos/Derivaciones -- y el selector de
+// agregar Local sigue agregando directo al elegir (sin botón nuevo).
+// Ningún cambio de reconciliación/cálculo: se reusan los mismos
+// callbacks (agregarLocalAMontante/quitarLocalDeMontante/borrarMontante/
+// conNombreDeMontante) sólo reordenados/renombrados en JSX.
+test.describe('UI-M2-MONTANTE-COMPACT-01 · cuerpo compacto del Montante', () => {
+  test('header intacto + cuerpo compacto: Nombre, Locales, Segmentos y "Eliminar montante" al final, sin overflow en mobile', async ({
+    page,
+    errores,
+    baseURLEfectiva,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await cargarAppLimpia(page, baseURLEfectiva)
+    await irATuberias(page)
+    const seccion = seccionMontantes(page)
+    await agregarMontante(page, 'Agua fría')
+    const card = seccion.locator('.montante-card').first()
+
+    // Header sigue igual: nombre, pill de red, resumen "N locales · M segmentos".
+    const cabecera = card.locator('.montante-card__cabecera-toggle')
+    await expect(cabecera).toContainText('Montante AF 1')
+    await expect(cabecera).toContainText('Agua fría')
+    await expect(cabecera).toContainText('locales')
+    await expect(cabecera).toContainText('segmentos')
+    await expect(cabecera).toHaveAttribute('aria-expanded', 'true')
+
+    // Agregar dos Locales para tener Segmentos reales, no el mensaje vacío.
+    await card.getByLabel('Agregar Local al Montante AF 1').selectOption({ label: 'Baño 1 · Unidad funcional 1' })
+    await estabilizar(page)
+    await card.getByLabel('Agregar Local al Montante AF 1').selectOption({ label: 'Cocina 1 · Unidad funcional 1' })
+    await estabilizar(page)
+
+    // Orden real en el DOM: Nombre -> Locales alimentados -> Segmentos -> Eliminar montante.
+    const cuerpo = card.locator('.montante-card__cuerpo')
+    const posiciones = await cuerpo.evaluate((el) => {
+      const hijos = Array.from(el.children)
+      const indiceDe = (predicado: (hijo: Element) => boolean) => hijos.findIndex(predicado)
+      return {
+        nombre: indiceDe((h) => h.querySelector('.montante-card__nombre') !== null),
+        locales: indiceDe((h) => (h.textContent ?? '').includes('Locales alimentados')),
+        eliminar: indiceDe((h) => h.classList.contains('montante-card__pie')),
+        total: hijos.length,
+      }
+    })
+    expect(posiciones.nombre).toBeGreaterThanOrEqual(0)
+    expect(posiciones.locales).toBeGreaterThan(posiciones.nombre)
+    expect(posiciones.eliminar).toBeGreaterThan(posiciones.locales)
+    // "Eliminar montante" es el ÚLTIMO hijo directo del cuerpo.
+    expect(posiciones.eliminar).toBe(posiciones.total - 1)
+
+    // Copy y accesibilidad: botón real, texto "Eliminar montante".
+    const btnEliminar = card.getByRole('button', { name: 'Eliminar montante' })
+    await expect(btnEliminar).toBeVisible()
+    await expect(btnEliminar).toBeEnabled()
+
+    // El selector de agregar Local sigue agregando directo (sin botón "+"
+    // dentro de la card -- el "+ Agregar local" de M1/Demanda es una fila
+    // distinta que convive en la misma página one-page, no ambiguar con esa).
+    await expect(card.getByText('Agregar local:', { exact: false })).toBeVisible()
+    await expect(card.getByRole('button', { name: /\+ Agregar local/ })).toHaveCount(0)
+
+    // Segmentos visibles y accesibles (scroll local, no de documento).
+    await expect(card.getByRole('heading', { name: 'Segmentos' })).toBeVisible()
+    await expect(card.getByText('Segmento 1', { exact: false })).toBeVisible()
+
+    const overflow = await page.evaluate(() => {
+      const de = document.documentElement
+      return de.scrollWidth - de.clientWidth
+    })
+    expect(overflow, 'documentElement overflow @ 390px').toBeLessThanOrEqual(1)
+
+    const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+  })
+
+  test('eliminar el montante desde el botón al final del cuerpo sigue funcionando igual', async ({
+    page,
+    errores,
+    baseURLEfectiva,
+  }) => {
+    await cargarAppLimpia(page, baseURLEfectiva)
+    await irATuberias(page)
+    const seccion = seccionMontantes(page)
+    await agregarMontante(page, 'Agua fría')
+    const card = seccion.locator('.montante-card').first()
+
+    await card.getByRole('button', { name: 'Eliminar montante' }).click()
+    await estabilizar(page)
+    await expect(seccion.locator('.montante-card')).toHaveCount(0)
+    await expect(seccion.getByText('Todavía no hay montantes explícitos')).toBeVisible()
 
     const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
     expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()

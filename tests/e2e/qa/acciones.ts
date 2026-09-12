@@ -478,9 +478,9 @@ const accionesM2: Accion[] = [
     tipo: 'borrarMontante',
     modulo: 'M2',
     peso: 1,
-    aplicable: async (page) => (await cuentaVisible(page.getByRole('button', { name: 'Borrar montante' }))) > 0,
+    aplicable: async (page) => (await cuentaVisible(page.getByRole('button', { name: 'Eliminar montante' }))) > 0,
     ejecutar: async ({ page, prng }) => {
-      const boton = await elegirVisible(page.getByRole('button', { name: 'Borrar montante' }), prng)
+      const boton = await elegirVisible(page.getByRole('button', { name: 'Eliminar montante' }), prng)
       await boton?.click()
       return { tipo: 'borrarMontante', modulo: 'M2' }
     },

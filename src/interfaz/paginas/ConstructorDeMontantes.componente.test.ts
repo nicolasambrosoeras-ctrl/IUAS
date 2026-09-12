@@ -170,3 +170,39 @@ describe('UI-M2-GROUP-01 -- Montantes compactos', () => {
     expect(html).toContain('No hay Locales disponibles para este montante')
   })
 })
+
+// UI-M2-MONTANTE-COMPACT-01 §2/§10/§14: compactación del cuerpo expandido.
+// "Nombre" pasa a su propia sección (ya no comparte fila con la acción
+// destructiva); la acción destructiva se renombra "Eliminar montante"
+// (consistencia con "Eliminar nivel/local/unidad funcional" de M1) y se
+// mueve al final del cuerpo, después de Segmentos.
+describe('UI-M2-MONTANTE-COMPACT-01 -- cuerpo compacto', () => {
+  it('el botón destructivo dice "Eliminar montante" (no "Borrar montante")', () => {
+    const { proyecto } = conMontanteNuevo(proyectoBase(), 'AF')
+    const html = render(proyecto)
+    expect(html).toContain('Eliminar montante')
+    expect(html).not.toContain('Borrar montante')
+  })
+
+  it('orden del cuerpo: Nombre -> Locales alimentados -> Segmentos -> Eliminar montante (al final)', () => {
+    const { proyecto } = conMontanteNuevo(proyectoBase(), 'AF')
+    const html = render(proyecto)
+    const posNombre = html.indexOf('class="montante-card__nombre"')
+    const posLocales = html.indexOf('Locales alimentados')
+    const posSegmentos = html.indexOf('Segmentos')
+    const posEliminar = html.indexOf('Eliminar montante')
+    expect(posNombre).toBeGreaterThan(-1)
+    expect(posLocales).toBeGreaterThan(posNombre)
+    expect(posSegmentos).toBeGreaterThan(posLocales)
+    expect(posEliminar).toBeGreaterThan(posSegmentos)
+  })
+
+  it('el selector de agregar Local ya no lleva el prefijo "+" (no hay botón, agrega directo al elegir)', () => {
+    const { proyecto } = conMontanteNuevo(proyectoBase(), 'AF')
+    const html = render(proyecto)
+    expect(html).toContain('Agregar local:')
+    expect(html).not.toContain('+ Agregar local:')
+    // el aria-label del <select> (usado por E2E/fuzz) no cambia.
+    expect(html).toContain('Agregar Local al Montante AF 1')
+  })
+})
