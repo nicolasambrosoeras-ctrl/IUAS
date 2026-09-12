@@ -2104,6 +2104,53 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `UI-M1-DUPLICAR-LOCAL-01: CERRADO — pendiente validación
     manual` del usuario sobre el deploy.
 
+- **D-δ.109 — UI-M2-RESP-POLISH-01: jerarquía Local → Red sin nombre
+  redundante + re-diagnóstico y corrección real del overflow mobile.**
+  Slice exclusivamente presentacional/responsive, sin cambios hidráulicos.
+  - **Nombre redundante (`TablaDimensionamientoDeModulo2.tsx`):** las filas
+    hijas AF/AC de un Local agrupado repetían su nombre ("Baño 1 · 4
+    puntos") pese a que el encabezado de grupo ya lo muestra una vez
+    arriba. Cambio puramente de presentación: `entrada.etiqueta` sigue
+    intacto (usado por el `aria-label` de Longitud y cualquier otro
+    consumidor) -- sólo se omite su render visible en el `<summary>`
+    cuando `entrada.grupo !== undefined`. Distribución general/secundaria y
+    Segmentos de montante (sin `grupo`) no cambian.
+  - **Re-diagnóstico del overflow mobile (hallazgo importante):** el
+    overflow documentado en D-δ.107 como causado por `.m2-fila-agrupada`
+    era una atribución incorrecta. Investigación en vivo (viewport 390px)
+    mostró que `.tabla-scroll` YA contiene correctamente el ancho de la
+    tabla de M2 (`overflow-x: auto` funcionando, sin fuga); con el proyecto
+    demo puro, M2 solo (sin tocar M1) midió `scrollWidth === clientWidth`
+    exacto. La fuga real: `.m1-uf__acciones` (cabecera de UF, con
+    "Duplicar"/"+ Agregar nivel"/"Eliminar unidad funcional") no envolvía
+    de verdad en mobile -- `flex-wrap: wrap` en el contenedor no alcanzaba
+    porque, como flex item de `.m1-uf__cabecera` con `flex: none`, el
+    navegador seguía calculando su ancho intrínseco en base a sus 3
+    botones en una sola línea. Fix real (dos líneas, dentro del breakpoint
+    mobile ya existente): `.m1-uf__acciones { flex-basis: 100% }` (fuerza
+    su propia fila completa, mismo patrón ya usado por
+    `.m1-uf__meta`/`.m1-uf__resumen`) + `flex-wrap: wrap` en el
+    contenedor. El brief original pedía no tocar M1; se consultó al
+    usuario con la evidencia y se autorizó extender el alcance
+    puntualmente a este wrap CSS (sin tocar lógica ni JSX de M1).
+  - **Tests:** `tests/e2e/m2-resp-polish.spec.ts` (4 casos, desktop+mobile):
+    padre con nombre una sola vez / hijos sin nombre repetido (Baño y
+    Cocina, AF y AC); expandir/contraer sin regresión; reproducción
+    exacta del escenario que disparaba el overflow (agregar nivel +
+    duplicar UF + ver Tuberías en mobile) verificando
+    `scrollWidth === clientWidth`; fila agrupada usable en mobile (pill,
+    "N puntos", control expandir/contraer). Se removió el filtro de
+    `sin-overflow-horizontal` que `multinivel.spec.ts` tenía como
+    workaround del bug mal diagnosticado -- ya no hace falta.
+    Vitest **1781/1781** (sin tests nuevos: cobertura 100% E2E, evitando
+    tests frágiles de valores CSS exactos); `tsc -b`/`e2e:typecheck`/`build`
+    verdes; ESLint **11/0/0**. E2E **8/8** (`m2-resp-polish.spec.ts`) +
+    regresión dirigida **52/52** (`multi-uf`/`multinivel`/`montantes`/
+    `duplicar-local`/`cotas-heredadas`/`smoke`/`propagacion-a`)
+    desktop+mobile contra dev server local.
+  - **Estado:** `UI-M2-RESP-POLISH-01: CERRADO — pendiente validación
+    manual` del usuario sobre el deploy.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /

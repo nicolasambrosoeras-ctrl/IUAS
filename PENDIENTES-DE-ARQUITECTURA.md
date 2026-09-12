@@ -12955,6 +12955,112 @@ verdes; ESLint **11/0/0** (mismo baseline).
 **D-δ.108 / UI-M1-DUPLICAR-LOCAL-01 -- CERRADO, pendiente validación
 manual del usuario.**
 
+## D-δ.109 -- UI-M2-RESP-POLISH-01: jerarquía Local → Red sin nombre redundante + overflow mobile re-diagnosticado -- CERRADO
+
+Slice Nivel C, exclusivamente UI/responsive de M2. Sin cambios de
+fórmulas, demanda, simultaneidad, DN, velocidad, presión, pérdidas,
+topología, montantes, reconciliación, schema, M1 (salvo la excepción
+puntual autorizada, ver abajo), M3 o M4.
+
+### Objetivo 1 -- nombre redundante del Local en filas AF/AC
+
+`TablaDimensionamientoDeModulo2.tsx` pintaba `entrada.etiqueta` (el
+nombre del Local, ej. "Baño 1") dentro del `<summary>` de CADA fila hija
+AF/AC, aunque el encabezado de grupo (`.m2-fila-grupo__nombre`) ya lo
+muestra una vez arriba de ambas. Cambio puramente presentacional: se
+omite el render visible de `entrada.etiqueta` cuando `entrada.grupo !==
+undefined`; el campo en sí no se toca (sigue alimentando el
+`aria-label` de Longitud y cualquier otro consumidor -- identidad y
+datos intactos, sección 5 del brief). Distribución general/secundaria y
+Segmentos de montante (sin `grupo`) no cambian su render en absoluto.
+
+### Objetivo 2 -- overflow horizontal mobile: RE-DIAGNÓSTICO
+
+El brief partía de un diagnóstico previo (D-δ.107) que atribuía el
+overflow a `.m2-fila-agrupada`. La arqueología de ESTE slice lo
+desmintió con evidencia en vivo (viewport 390px):
+
+1. `.tabla-scroll` (wrapper ya existente de la tabla de M2,
+   `overflow-x: auto`) contiene correctamente el ancho de la tabla --
+   medido en 374px, sin fuga, aunque la tabla interna mida 640px
+   (`minWidth: 40rem`, scroll local válido).
+2. Con el proyecto demo puro, navegando a Tuberías y abriendo un
+   detalle de fila (sin tocar M1 en absoluto): `scrollWidth ===
+   clientWidth === 390`. **M2 por sí solo no produce el overflow.**
+3. El overflow real sólo aparece después de acciones de M1 multinivel
+   (agregar nivel + duplicar UF) y su origen exacto, aislado
+   recorriendo el árbol DOM completo, es `.m1-uf__acciones` (cabecera
+   de UF: "Duplicar" / "+ Agregar nivel" / "Eliminar unidad
+   funcional").
+
+Causa técnica: `.m1-uf__acciones` ya tenía `flex-wrap: wrap` pero,
+como flex item de `.m1-uf__cabecera` con `flex: none`, el navegador
+sigue calculando su ancho intrínseco como si sus 3 botones entraran en
+una sola línea (max-content) -- nunca llega a angostarse lo suficiente
+como para que su propio wrap entre en juego.
+
+**Decisión de alcance:** el brief pedía explícitamente no tocar M1. Se
+presentó el hallazgo al usuario (evidencia + dos alternativas: extender
+el alcance con un fix CSS mínimo y acotado en M1, o cerrar sólo el
+objetivo 1 y dejar el overflow documentado como pendiente separado). El
+usuario autorizó extender el alcance únicamente a este wrap CSS, sin
+tocar lógica ni JSX de M1.
+
+**Fix real** (`demandaM1.css`, dentro del breakpoint mobile ya
+existente, mismo patrón que `.m1-uf__meta`/`.m1-uf__resumen`):
+
+```css
+.m1-uf__acciones {
+  flex-wrap: wrap; /* fuera del breakpoint, siempre */
+}
+
+@media (max-width: 560px) {
+  .m1-uf__acciones {
+    flex-basis: 100%; /* fuerza su propia fila completa */
+  }
+}
+```
+
+No es un parche ciego (`overflow-x: hidden` en `body`, tolerancias
+infladas, etc.): corrige la causa geométrica real y sólo aplica bajo el
+breakpoint mobile ya existente.
+
+### Verificación
+
+Reproducido el escenario exacto que disparaba el bug (agregar segundo
+nivel + duplicar UF + ver Tuberías, viewport 390px):
+`scrollWidth === clientWidth === 390` tras el fix. Se removió de
+`multinivel.spec.ts` el filtro `sin-overflow-horizontal` que ese test
+llevaba como workaround del diagnóstico incorrecto -- ya no hace falta.
+
+### Tests
+
+`tests/e2e/m2-resp-polish.spec.ts` (4 casos, desktop+mobile): padre con
+nombre una sola vez / hijos sin nombre repetido (Baño y Cocina, AF y
+AC, aria-label de Longitud intacto); expandir/contraer sin regresión de
+acordeón; reproducción exacta del escenario de overflow con aserción
+geométrica (`scrollWidth - clientWidth <= 2`); fila agrupada usable en
+mobile (pill, "N puntos", control expandir/contraer). Sin tests
+unitarios nuevos (cambio puramente presentacional/responsive, cobertura
+100% E2E para no crear tests frágiles de valores CSS exactos). Vitest
+**1781/1781** (sin cambio); `tsc -b`/`e2e:typecheck`/`build` verdes;
+ESLint **11/0/0** (mismo baseline). E2E dirigido **8/8**
+(`m2-resp-polish.spec.ts`) + regresión **52/52**
+(`multi-uf`/`multinivel`/`montantes`/`duplicar-local`/
+`cotas-heredadas`/`smoke`/`propagacion-a`) desktop+mobile contra dev
+server local, sin ningún workaround de overflow.
+
+### Hallazgo NO relacionado, ya documentado (D-δ.107)
+
+`FIX-RESP-02` (excepción de ACS por UF en M3) sigue fallando de forma
+independiente contra dev server local en mobile -- no se tocó M3 en
+este slice.
+
+### Estado
+
+**D-δ.109 / UI-M2-RESP-POLISH-01 -- CERRADO, pendiente validación
+manual del usuario.**
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son
