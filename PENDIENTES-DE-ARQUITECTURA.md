@@ -3,6 +3,40 @@
 Registro de decisiones de diseño postergadas a propósito, con la razón de
 la postergación y la condición que debe cumplirse antes de resolverlas.
 
+## D-δ.112 — HYD-EST-01 — EN IMPLEMENTACIÓN, checkpoint local
+
+**Decisiones explícitas del usuario:** (1) camino que atraviesa una
+derivación 1→N no modelada: hf localizada y presión incompletas, sin
+fallback agregado; (2) una singularidad final K=1,35 por terminal, con la
+velocidad de su propio alimentador, exclusiva de ese camino. Este segundo
+punto sustituye expresamente la cardinalidad histórica de D-δ.45.
+
+**Núcleo implementado:** `resolverPerdidaLocalizadaEstimadaDeCamino`
+deriva contribuciones y reutiliza el contexto M2. Tee real 1→2 recorrida:
+K=3,00 conservador de D-δ.40, velocidad saliente de CRIT-A31, sin elegir
+recta/lateral. Llave local: K=9,18, entrada común exclusiva del Local/Red
+identificable en la topología (prioridad al tramo representativo M2).
+Final: K=1,35 y velocidad de su alimentador. No se persisten accesorios,
+velocidades ni resultados; no se crean reductores ni nuevas conexiones.
+
+**Integración:** presión usa el resultado por camino; Local/Red devuelve
+una lista de caminos, nunca una hf escalar/Vref. La UI muestra cada camino
+y el desglose K/V/hf, o una causa humana de incompletitud. La fila conserva
+la distribuida por separado y remite a la localizada por recorrido, sin
+elegir máximo/crítico arbitrario. Detalladas permanece en su rama anterior.
+
+**Validación parcial:** baseline inicial 1784/1784. Bloque dirigido actual
+88/88 (7 archivos) y TypeScript correctos. La corrida completa intermedia
+tuvo 1776/1791: 15 fallos, incluyendo expectativas históricas incompatibles
+con la incompletitud autorizada. Dos de esas expectativas ya se actualizaron
+y pasan en el bloque dirigido; falta recerrar el baseline completo.
+
+**Pendiente:** revisar dependencias nuevas del memo por UF (singularidades
+aguas arriba pueden depender de otras UF); completar aislamiento AF/AC,
+selección determinista del crítico, cobertura UI/E2E; actualizar baselines
+con evidencia sin debilitar sus invariantes; gates Nivel A y deploy.
+Ver `HANDOFF-CONTEXT.md`. No hubo push ni cierre de producción.
+
 ## La traza del motor no expresa multiplicidad (`EntradaDePaso` sin `cantidad`)
 
 **Contrato afectado**: `EntradaDePaso` (`src/modelo/resultado/index.ts`),
@@ -2672,6 +2706,14 @@ público** de `resolverPresionResidualDeCamino`/`resolverEstadoModulo2`
 la web real (Playwright headless, cero errores de consola).
 
 ### D-δ.45 — Plantilla típica de pérdidas localizadas del modo rápido — IMPLEMENTADA
+
+> **HYD-EST-01 / D-δ.112 (en implementación):** la cardinalidad histórica
+> de una singularidad terminal por Local/Red queda sustituida, por decisión
+> explícita del usuario, por una singularidad K=1,35 por terminal físico,
+> exclusiva de su camino y calculada con la V de su propio alimentador.
+> K no cambia. La plantilla agregada/Vref se reemplaza por cálculo por
+> recorrido. El texto siguiente documenta el criterio histórico, no la
+> nueva cardinalidad. Detalladas no cambia.
 
 **Objetivo de la corrida**: D-δ.44 cerró la granularidad de relevamiento
 físico, pero dejó abierta la pregunta de si `'simplificada'+'estimado'`

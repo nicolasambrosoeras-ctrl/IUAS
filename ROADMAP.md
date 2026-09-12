@@ -11,6 +11,16 @@ ver `PENDIENTES-DE-ARQUITECTURA.md`.
 
 ## Estado actual
 
+### HYD-EST-01 — en implementación (D-δ.112)
+
+Checkpoint local: Estimadas se calcula por recorrido y velocidades reales;
+la presión consume esas contribuciones. Derivaciones 1→N no modeladas
+dejan la localizada y su verificación incompletas, sin fallback histórico.
+Una singularidad K=1,35 por terminal sustituye esa cardinalidad de D-δ.45.
+Detalladas no se modifica. Pendientes: baselines afectados, auditoría final
+de memoización, E2E y gates completos Nivel A, fuzz y producción.
+Continuidad exacta en `HANDOFF-CONTEXT.md`. No es un cierre del slice.
+
 ### Fase 0 — cerrada
 
 Fundaciones del proyecto:

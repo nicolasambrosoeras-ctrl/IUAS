@@ -43,17 +43,11 @@
 // 'perdidaLocalizadaIncompleta', mas arriba en esta misma funcion): se
 // envuelve como CoberturaDePerdidaLocalizada 'completa', no 'parcial'.
 //
-// 'estimado' (D-delta.40): el usuario no releva singularidades fisicas;
-// resolverPerdidaLocalizadaEstimadaDeLocal estima unicamente las tees
-// del Local+red del terminal (n-1, Ks=3,00 conservador, V_ref=maxima
-// velocidad entre los tramos que alimentan directamente cada terminal
-// de ese Local+red). Se envuelve como 'estimada' -- NUNCA 'completa' (es
-// una metodologia distinta, no una version del detallado) ni 'parcial'
-// (un calculo estimado completo dentro de su propio metodo no es una
-// version inferior de la escala del detallado). Si algun tramo terminal
-// no tiene velocidad comercial resoluble, se corta con
-// 'perdidaLocalizadaEstimadaIncompleta', mismo criterio de "nunca una
-// suma parcial silenciosa" que el resto del motor.
+// 'estimado' (HYD-EST-01): suma exclusivamente las singularidades del
+// camino con sus velocidades propias. Tee real 1→2: K=3 y V saliente;
+// llave local: K=9,18 y V de entrada; final: K=1,35 y V del alimentador
+// de ESTE terminal. El 1→N no modelado o una velocidad/entrada irresoluble
+// dejan incompleta la pérdida y el balance. Nunca hay fallback agregado.
 //
 // 'balanceCompleto' es alcanzable en la practica cuando, ademas de
 // hfLocalizada (cualquiera de las dos metodologias), el llamador provee
@@ -104,11 +98,13 @@ import {
   type MotivoTramoSinPerdidaLocalizada,
 } from './acumularPerdidaLocalizadaDeCamino'
 import {
-  resolverPerdidaLocalizadaEstimadaDeLocal,
+  resolverPerdidaLocalizadaEstimadaDeCamino,
+  obtenerIndiceEstimacionLocalizada,
+  type SingularidadEstimada,
   type MotivoTramoSinPerdidaLocalizadaEstimada,
-} from './resolverPerdidaLocalizadaEstimadaDeLocal'
+} from './resolverPerdidaLocalizadaEstimadaDeCamino'
 import { resolverBalanceDePresion } from './resolverBalanceDePresion'
-import type { ContextoDeCalculoM2 } from '../contextoDeCalculoM2'
+import { crearContextoDeCalculoM2, type ContextoDeCalculoM2 } from '../contextoDeCalculoM2'
 import {
   acumularTiempoMsPorEtapa,
   instrumentacionTopologicaActiva,
@@ -117,7 +113,7 @@ import {
 // Union discriminada por metodologia (D-delta.40) -- nunca un booleano
 // "esEstimado": cada variante trae exactamente los datos auditables que
 // esa metodologia produce (porTramo solo tiene sentido en detallado;
-// nTerminalesLocal/nTeesEstimadas/velocidadReferencia_mps solo en
+// nTerminalesLocal/nTeesEstimadas/porSingularidad solo en
 // estimado). hf_mca es el nombre comun a ambas para que el resto de la
 // funcion (balance, traza) no necesite un `if` extra para extraer el
 // numero.
@@ -132,7 +128,7 @@ export type TrazaHfLocalizada =
       readonly hf_mca: number
       readonly nTerminalesLocal: number
       readonly nTeesEstimadas: number
-      readonly velocidadReferencia_mps: number
+      readonly porSingularidad: readonly SingularidadEstimada[]
     }
 
 type TrazaDeCamino = {
@@ -203,8 +199,7 @@ export type ResultadoPresionResidualDeCamino =
     }
   | {
       // Analogo a 'perdidaLocalizadaIncompleta' pero para metodoPerdidaLocalizada='estimado'
-      // (D-delta.40): algun tramo que alimenta directamente un terminal
-      // de este Local+red no tiene velocidad comercial resoluble.
+      // HYD-EST: topología, entrada local o velocidad irresoluble.
       readonly tipo: 'perdidaLocalizadaEstimadaIncompleta'
       readonly tramosNoResueltos: readonly {
         readonly tramoId: string
@@ -409,21 +404,19 @@ export function resolverPresionResidualDeCamino(
     // caso (ver acumularPerdidaLocalizadaDeCamino), sin necesitar
     // resolver a que red (AF/AC) pertenece este terminal.
     if (camino.tramos.length === 0) {
-      hfLocalizada = { metodologia: 'estimado', hf_mca: 0, nTerminalesLocal: 0, nTeesEstimadas: 0, velocidadReferencia_mps: 0 }
+      hfLocalizada = { metodologia: 'estimado', hf_mca: 0, nTerminalesLocal: 0, nTeesEstimadas: 0, porSingularidad: [] }
       coberturaHfLocalizada = { tipo: 'estimada', hf_mca: 0 }
     } else {
       // La red (AF/AC) de ESTE terminal es la del ultimo tramo del
       // camino -- el que efectivamente lo alimenta (por construccion de
       // obtenerCaminoHaciaOrigen, su nodoDestinoId es el terminal).
-      const redDelTerminal = camino.tramos[camino.tramos.length - 1]!.red
-      const perdidaEstimada = resolverPerdidaLocalizadaEstimadaDeLocal(
+      const contextoEstimado = contexto ?? crearContextoDeCalculoM2()
+      const perdidaEstimada = resolverPerdidaLocalizadaEstimadaDeCamino(
         proyecto,
-        referencia.unidadFuncionalId,
-        referencia.localId,
-        redDelTerminal,
+        camino,
         catalogoArtefactos,
         catalogoSistemasDeTuberia,
-        contexto,
+        contextoEstimado,
       )
       if (perdidaEstimada.tipo === 'incompleta') {
         if (medicionActiva) {
@@ -432,12 +425,14 @@ export function resolverPresionResidualDeCamino(
         return { tipo: 'perdidaLocalizadaEstimadaIncompleta', tramosNoResueltos: perdidaEstimada.tramosNoResueltos }
       }
 
+      const indiceEstimado = obtenerIndiceEstimacionLocalizada(proyecto, contextoEstimado)
+      const grupo = indiceEstimado.grupoPorTerminal.get(camino.terminalId)
       hfLocalizada = {
         metodologia: 'estimado',
         hf_mca: perdidaEstimada.hf_m,
-        nTerminalesLocal: perdidaEstimada.nTerminalesLocal,
-        nTeesEstimadas: perdidaEstimada.nTeesEstimadas,
-        velocidadReferencia_mps: perdidaEstimada.velocidadReferencia_mps,
+        nTerminalesLocal: grupo === undefined ? 0 : indiceEstimado.grupos.get(grupo)!.terminales.length,
+        nTeesEstimadas: perdidaEstimada.porSingularidad.filter(s => s.tipo === 'tee').length,
+        porSingularidad: perdidaEstimada.porSingularidad,
       }
       coberturaHfLocalizada = { tipo: 'estimada', hf_mca: perdidaEstimada.hf_m }
     }

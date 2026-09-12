@@ -3,10 +3,9 @@
 // motor ya devuelve: resolverPerdidaDistribuidaDeTramo (N3) para el número
 // crudo de hf distribuida del Tramo, resolverResultadoDeTramoParaUi para
 // los textos ya formateados de DN/V/verificación, y
-// resolverPerdidaLocalizadaEstimadaDeLocal para la hf localizada estimada
-// del Local+Red en modo Rápido. "Pérdida" de la fila = hf distribuida del
-// Tramo + hf localizada del Local+Red, con el desglose disponible para el
-// detalle expandible (brief §25).
+// HYD-EST: para Local/Red en Estimadas muestra la distribuida del tramo
+// separada de las localizadas por recorrido. No suma una hf localizada
+// agregada ni elige un máximo/crítico en nombre del usuario.
 import type { Proyecto } from '../../modelo/proyecto'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
@@ -32,9 +31,8 @@ export type FilaDeDimensionamiento = {
   // DEPLOY-01 (preflight A): nivel del badge de velocidad de la celda V.
   readonly clasificacionVelocidad: ClasificacionVelocidad
   readonly hfDistribuidaTexto: string
-  // Pérdida representativa de la fila (distribuida del Tramo + localizada
-  // estimada del Local+Red, cuando ambas son inequívocas). undefined si
-  // la distribuida todavía no resuelve.
+  // En filas Local/Red Estimadas es undefined: no existe un total único.
+  // En las otras filas conserva la pérdida distribuida del tramo.
   readonly perdidaTotal_mca: number | undefined
   readonly perdidaTotalTexto: string
   readonly hfLocalizadaEstimada_mca: number | undefined
@@ -72,8 +70,8 @@ export function resolverFilaDeDimensionamiento(
   proyecto: Proyecto,
   tramoId: string,
   catalogoArtefactos: readonly ArtefactoNormativo[],
-  // Local+Red del Tramo representativo: habilita sumar la hf localizada
-  // estimada y contar "N puntos". Ausente para la Distribución general.
+  // Local+Red del Tramo representativo: habilita el resumen por recorrido
+  // y contar "N puntos". Ausente para la Distribución general.
   contextoLocal?: { readonly unidadFuncionalId: string; readonly localId: string; readonly red: RedDeTramo },
   // PERF-SCALE-01C: contexto de cálculo local al render (mismo
   // ContextoDeCalculoM2 de 01B). Colapsa las 2-3 resoluciones de hidráulica/
@@ -101,7 +99,11 @@ export function resolverFilaDeDimensionamiento(
     hfDistribuida_mca = undefined
   }
 
-  let hfLocalizadaEstimada_mca: number | undefined
+  // HYD-EST: una fila Local/Red representa varios caminos. No se elige
+  // arbitrariamente máximo/crítico para fabricar una pérdida escalar.
+  const hfLocalizadaEstimada_mca = undefined
+  let localizadaPorRecorrido = false
+  let localizadaIncompleta = false
   let nPuntos = 0
   if (contextoLocal !== undefined && proyecto.redHidraulica !== undefined) {
     nPuntos = contarTerminalesFisicosDeLocal(
@@ -120,16 +122,15 @@ export function resolverFilaDeDimensionamiento(
         catalogoSistemasDeTuberia,
         contextoDeCalculo,
       )
-      if (estimada.tipo !== 'incompleta') {
-        hfLocalizadaEstimada_mca = estimada.hf_m
-      }
+      localizadaPorRecorrido = true
+      localizadaIncompleta = estimada.caminos.some(c => c.resultado.tipo === 'incompleta')
     }
   }
 
   const perdidaTotal_mca =
-    hfDistribuida_mca === undefined ? undefined : hfDistribuida_mca + (hfLocalizadaEstimada_mca ?? 0)
+    localizadaPorRecorrido ? undefined : hfDistribuida_mca
 
-  const estado = estadoDe(ui.errorDelMotor, hfDistribuida_mca, ui.textos.verificacionVelocidadTexto)
+  const estado = localizadaIncompleta ? 'incompleto' : estadoDe(ui.errorDelMotor, hfDistribuida_mca, ui.textos.verificacionVelocidadTexto)
 
   return {
     tramoId,
@@ -140,7 +141,9 @@ export function resolverFilaDeDimensionamiento(
     clasificacionVelocidad: ui.textos.clasificacionVelocidad,
     hfDistribuidaTexto: ui.textos.hfTexto,
     perdidaTotal_mca,
-    perdidaTotalTexto: perdidaTotal_mca === undefined ? '—' : `${formatearNumero(perdidaTotal_mca, 'm')} m.c.a.`,
+    perdidaTotalTexto: localizadaPorRecorrido
+      ? `${hfDistribuida_mca === undefined ? '—' : formatearNumero(hfDistribuida_mca, 'm')} m.c.a. distrib. · localizada ${localizadaIncompleta ? 'incompleta' : 'por recorrido'}`
+      : perdidaTotal_mca === undefined ? '—' : `${formatearNumero(perdidaTotal_mca, 'm')} m.c.a.`,
     hfLocalizadaEstimada_mca,
     hfDistribuida_mca,
     estado,

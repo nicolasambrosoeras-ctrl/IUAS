@@ -16,6 +16,7 @@ import type { CSSProperties } from 'react'
 import type { ResultadoPresionResidualDeCamino } from '../../motor/tuberias/presion/resolverPresionResidualDeCamino'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 import { parsearCota } from './parsearCota'
+import { humanizarPerdidaEstimada } from './humanizarPerdidaEstimada'
 import type { InfoCotaDeTerminal } from './resolverInfoCotaDeTerminal'
 
 const estiloCard: CSSProperties = {
@@ -59,7 +60,7 @@ function textoDeEstadoDeTerminal(resultado: ResultadoPresionResidualDeCamino): s
     case 'perdidaLocalizadaIncompleta':
       return 'Incompleto (pérdida localizada detallada)'
     case 'perdidaLocalizadaEstimadaIncompleta':
-      return 'Incompleto (pérdida localizada estimada)'
+      return `Incompleto (pérdida localizada estimada). ${humanizarPerdidaEstimada(resultado.tramosNoResueltos.map(t => t.motivo))}`
     case 'balanceIncompleto':
       return `Incompleto (falta ${resultado.terminosFaltantes.join(', ')})`
     case 'balanceCompleto':

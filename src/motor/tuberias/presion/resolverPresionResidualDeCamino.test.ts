@@ -718,7 +718,7 @@ describe('resolverPresionResidualDeCamino — metodoPerdidaLocalizada=estimado (
       hf_mca: 0,
       nTerminalesLocal: 0,
       nTeesEstimadas: 0,
-      velocidadReferencia_mps: 0,
+      porSingularidad: [],
     })
   })
 
@@ -734,7 +734,7 @@ describe('resolverPresionResidualDeCamino — metodoPerdidaLocalizada=estimado (
   // estimada de 'local-1'+AF. El motivo exacto (sinDemanda o
   // sinCandidatoAdmisible) no es lo que se verifica -- lo relevante es
   // que el corte proviene del tramo hermano, no del propio camino.
-  it('tramo de un terminal HERMANO (mismo Local+red, fuera del camino consultado) sin resolucion comercial -> perdidaLocalizadaEstimadaIncompleta', () => {
+  it('HYD-EST: agregar un tercer saliente deja incompleta la derivación recorrida, sin fallback por velocidad del hermano', () => {
     const proyectoBase = proyectoEstimadoDosTerminales()
     const redHidraulica = proyectoBase.redHidraulica!
     const proyecto: Proyecto = {
@@ -796,7 +796,7 @@ describe('resolverPresionResidualDeCamino — metodoPerdidaLocalizada=estimado (
     expect(resultado.tipo).toBe('perdidaLocalizadaEstimadaIncompleta')
     if (resultado.tipo !== 'perdidaLocalizadaEstimadaIncompleta') return
     expect(resultado.tramosNoResueltos.length).toBe(1)
-    expect(resultado.tramosNoResueltos[0]!.tramoId).toBe('t-bidet')
+    expect(resultado.tramosNoResueltos[0]).toEqual({ tramoId: 't-lavatorio', motivo: 'derivacionMultipleNoModelada' })
   })
 })
 

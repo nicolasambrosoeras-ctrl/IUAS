@@ -41,8 +41,11 @@ import type { ResultadoDiametroComercialDeTramo } from './resolverDiametroComerc
 import type { RedHidraulica, Tramo } from '../../modelo/redHidraulica'
 import { crearIndiceTopologico, type IndiceTopologico } from './topologia/indiceTopologico'
 import type { IdentidadDeLocal } from './topologia/identificarTramoRepresentativoDeLocal'
+import type { IndiceEstimacionLocalizada } from './presion/resolverPerdidaLocalizadaEstimadaDeCamino'
 
 export interface ContextoDeCalculoM2 {
+  // HYD-EST: derivado una vez por resolución; nunca sobrevive a una edición.
+  estimacionLocalizada?: IndiceEstimacionLocalizada
   // tramoId -> resultado de resolverHidraulicaDeTramo para ese Tramo en ESTA
   // resolución. Nunca se muta un valor después de guardarlo.
   readonly hidraulicaPorTramo: Map<string, ResultadoHidraulicoDeTramo>
