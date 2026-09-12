@@ -39,6 +39,7 @@ import { quitarConectividadFisicaDeArtefacto } from './quitarConectividadFisicaD
 import { reconciliarConectividadFisicaPorCambioDeArtefacto } from './reconciliarConectividadFisicaPorCambioDeArtefacto'
 import { quitarConectividadFisicaDeLocal } from './quitarConectividadFisicaDeLocal'
 import { eliminarNivelDeUnidadFuncionalEnProyecto } from './eliminarNivelDeUnidadFuncional'
+import { duplicarLocalEnNivelDeUnidadFuncionalEnProyecto } from './duplicarLocalEnNivel'
 import { agregarNivelAUnidadFuncional } from './agregarNivelAUnidadFuncional'
 import { quitarConectividadFisicaDeUnidadFuncional } from './quitarConectividadFisicaDeUnidadFuncional'
 import { ResultadoHidraulicoDeTramo } from './ResultadoHidraulicoDeTramo'
@@ -424,6 +425,7 @@ function LocalFormulario({
   onCambiar,
   onCambiarProyecto,
   onEliminar,
+  onDuplicar,
 }: {
   local: Local
   etiqueta: string
@@ -432,6 +434,7 @@ function LocalFormulario({
   onCambiar: (local: Local) => void
   onCambiarProyecto: (proyecto: Proyecto) => void
   onEliminar: () => void
+  onDuplicar: () => void
 }) {
   // CAT-CONN-01: el selector de alimentación se refiere SIEMPRE a un
   // Artefacto que YA existe en el Local (por id de fila). Aparece sólo
@@ -712,9 +715,14 @@ function LocalFormulario({
     <article className="m1-local">
       <div className="m1-local__cabecera">
         <h4 className="m1-local__nombre">{tituloLocal}</h4>
-        <button type="button" className="m1-btn-eliminar" onClick={onEliminar}>
-          Eliminar local
-        </button>
+        <div className="m1-local__acciones">
+          <button type="button" className="ui-btn--fantasma" onClick={onDuplicar}>
+            Duplicar local
+          </button>
+          <button type="button" className="m1-btn-eliminar" onClick={onEliminar}>
+            Eliminar local
+          </button>
+        </div>
       </div>
 
       <div className="m1-local__tipos">
@@ -1205,6 +1213,11 @@ function NivelFormulario({
               cambiarLocales(locales.map((l) => (l.id === local.id ? localActualizado : l)))
             }
             onCambiarProyecto={onCambiarProyecto}
+            onDuplicar={() =>
+              onCambiarProyecto(
+                duplicarLocalEnNivelDeUnidadFuncionalEnProyecto(proyecto, unidadFuncionalId, nivel.id, local.id),
+              )
+            }
             onEliminar={() => {
               // M2-D (BAJA de Local completo, D-δ.47): mismo principio que la
               // baja de un Artefacto individual, pero además poda la cabecera

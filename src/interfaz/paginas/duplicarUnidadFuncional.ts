@@ -11,11 +11,11 @@ import { generarId } from './generarId'
 import { sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas } from './sincronizarConectividadFisicaDeArtefacto'
 import { backfillLongitudesDePredimensionamiento } from './backfillLongitudesDePredimensionamiento'
 
-// Privadas a este archivo a proposito: no son una API generica de
-// clonacion, son los dos pasos internos que necesita duplicarUnidadFuncional
-// para reconstruir su arbol. No se exportan como abstraccion reutilizable
-// para Locales (eso queda para cuando exista duplicarLocal como incremento
-// propio).
+// `duplicarArtefacto` es privada a proposito: paso interno sin sentido
+// fuera de clonar un Local completo. `duplicarLocal` SI se exporta --
+// UI-M1-DUPLICAR-LOCAL-01 la reutiliza para duplicar un Local suelto
+// dentro de su mismo Nivel (ver duplicarLocalEnNivel.ts), mismo criterio
+// de clonado profundo con ids nuevos que acá.
 function duplicarArtefacto(artefacto: Artefacto): Artefacto {
   // El spread copia `conectividadElegida` (CAT-CONN-01) tal cual: la copia
   // representa el MISMO artefacto físico, con la misma decisión de
@@ -23,7 +23,7 @@ function duplicarArtefacto(artefacto: Artefacto): Artefacto {
   return { ...artefacto, id: generarId('artefacto') }
 }
 
-function duplicarLocal(local: Local): Local {
+export function duplicarLocal(local: Local): Local {
   return { ...local, id: generarId('local'), artefactos: local.artefactos.map(duplicarArtefacto) }
 }
 
@@ -62,7 +62,10 @@ export function duplicarUnidadFuncional(unidadFuncional: UnidadFuncional): Unida
 //   - original sin ningún terminal físico  -> `[]`: el clon queda sin
 //     conexión igual que el original (proyecto ya incompleto de antemano),
 //     sin fabricar una.
-function redesObjetivoParaClon(
+//
+// Exportada: UI-M1-DUPLICAR-LOCAL-01 la reutiliza tal cual para duplicar
+// un Local suelto (mismo criterio CAT-CONN-01 que duplicar una UF entera).
+export function redesObjetivoParaClon(
   proyecto: Proyecto,
   unidadFuncionalOriginalId: string,
   localOriginalId: string,

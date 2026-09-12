@@ -265,6 +265,15 @@
   font-weight: var(--peso-semibold);
 }
 
+/* UI-M1-DUPLICAR-LOCAL-01: "Duplicar local" (secundaria, `ui-btn--fantasma`)
+   y "Eliminar local" (destructiva) agrupadas para distinguirse entre sí sin
+   competir en peso visual con el nombre del Local. */
+.m1-local__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-xs);
+}
+
 .m1-local__tipos {
   display: flex;
   flex-wrap: wrap;
