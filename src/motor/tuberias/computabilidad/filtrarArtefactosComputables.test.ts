@@ -15,7 +15,11 @@ function resueltoCon(
     artefactos: [artefacto],
     ...overrides.local,
   }
-  const unidadFuncional: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [local] }
+  const unidadFuncional: UnidadFuncional = {
+    id: 'uf-1',
+    nombre: 'UF 1',
+    niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [local] }],
+  }
   const referencia: ReferenciaDeArtefacto = {
     tipo: 'artefacto',
     unidadFuncionalId: unidadFuncional.id,
@@ -105,7 +109,11 @@ describe('filtrarArtefactosComputables', () => {
       regimen: 'domiciliario',
       artefactos: [inodoroValvula, otroArtefactoDelMismoLocal],
     }
-    const unidadFuncional: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [local] }
+    const unidadFuncional: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'UF 1',
+      niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [local] }],
+    }
     const resueltoLavatorio: ArtefactoResuelto = {
       referencia: {
         tipo: 'artefacto',

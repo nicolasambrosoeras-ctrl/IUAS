@@ -48,10 +48,16 @@ function proyectoBase(cotas: readonly number[]): Proyecto {
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'UF 1',
-    nivel: 0,
-    locales: cotas.map((cota, i) => local(`l-${i + 1}`, cota)),
+    niveles: [
+      {
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        nivel: 0,
+        locales: cotas.map((cota, i) => local(`l-${i + 1}`, cota)),
+      },
+    ],
   }
-  const ramas = uf.locales.map((l) => rama(l.id))
+  const ramas = uf.niveles[0]!.locales.map((l) => rama(l.id))
   const redHidraulica: RedHidraulica = {
     nodos: [{ id: 'n-gen' }, { id: 'n-af' }, ...ramas.flatMap((r) => r.nodos)],
     tramos: [
@@ -104,7 +110,7 @@ function terminalMasProfundo(proyecto: Proyecto): string {
   // el terminal del Local a la cota más alta (el que atraviesa TODAS las
   // derivaciones del montante).
   const uf = proyecto.unidadesFuncionales[0]!
-  const localTope = [...uf.locales].sort((a, b) => (b.cotaPiso_m ?? 0) - (a.cotaPiso_m ?? 0))[0]!
+  const localTope = [...uf.niveles[0]!.locales].sort((a, b) => (b.cotaPiso_m ?? 0) - (a.cotaPiso_m ?? 0))[0]!
   return `n-${localTope.id}-t`
 }
 

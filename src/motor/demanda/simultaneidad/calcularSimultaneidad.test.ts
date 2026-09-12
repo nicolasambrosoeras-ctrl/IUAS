@@ -28,12 +28,18 @@ function construirProyecto(
       {
         id: 'uf-1',
         nombre: 'Unidad funcional 1',
-        locales: [
+        niveles: [
           {
-            id: 'local-1',
-            tipo: 'bano',
-            regimen,
-            artefactos,
+            id: 'uf-1-nivel-1',
+            nombre: 'Nivel 1',
+            locales: [
+              {
+                id: 'local-1',
+                tipo: 'bano',
+                regimen,
+                artefactos,
+              },
+            ],
           },
         ],
       },
@@ -334,30 +340,36 @@ describe('calcularSimultaneidad — Caso Golden G1 (CASOS-GOLDEN.md)', () => {
         {
           id: 'uf-1',
           nombre: 'Unidad funcional 1',
-          locales: [
+          niveles: [
             {
-              id: 'local-bano-principal',
-              tipo: 'bano',
-              regimen: 'domiciliario',
-              artefactos: [
-                { id: 'artefacto-1', artefactoId: 'inodoroValvula', cantidad: 1, origen: 'normativo' },
-              ],
-            },
-            {
-              id: 'local-bano-servicio',
-              tipo: 'toilette',
-              regimen: 'domiciliario',
-              artefactos: [
-                { id: 'artefacto-2', artefactoId: 'inodoroValvula', cantidad: 1, origen: 'normativo' },
-              ],
-            },
-            {
-              id: 'local-cocina',
-              tipo: 'cocina',
-              regimen: 'domiciliario',
-              artefactos: [
-                { id: 'artefacto-3', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' },
-                { id: 'artefacto-4', artefactoId: 'maquinaLavavajillas', cantidad: 1, origen: 'normativo' },
+              id: 'uf-1-nivel-1',
+              nombre: 'Nivel 1',
+              locales: [
+                {
+                  id: 'local-bano-principal',
+                  tipo: 'bano',
+                  regimen: 'domiciliario',
+                  artefactos: [
+                    { id: 'artefacto-1', artefactoId: 'inodoroValvula', cantidad: 1, origen: 'normativo' },
+                  ],
+                },
+                {
+                  id: 'local-bano-servicio',
+                  tipo: 'toilette',
+                  regimen: 'domiciliario',
+                  artefactos: [
+                    { id: 'artefacto-2', artefactoId: 'inodoroValvula', cantidad: 1, origen: 'normativo' },
+                  ],
+                },
+                {
+                  id: 'local-cocina',
+                  tipo: 'cocina',
+                  regimen: 'domiciliario',
+                  artefactos: [
+                    { id: 'artefacto-3', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' },
+                    { id: 'artefacto-4', artefactoId: 'maquinaLavavajillas', cantidad: 1, origen: 'normativo' },
+                  ],
+                },
               ],
             },
           ],

@@ -7,7 +7,11 @@ import { resolverAportesDeDemanda } from './resolverAportesDeDemanda'
 function resueltoCon(artefactoId: string, cantidad: number, idInstancia = 'artefacto-1'): ArtefactoResuelto {
   const artefacto: Artefacto = { id: idInstancia, artefactoId, cantidad, origen: 'normativo' }
   const local: Local = { id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
-  const unidadFuncional: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [local] }
+  const unidadFuncional: UnidadFuncional = {
+    id: 'uf-1',
+    nombre: 'UF 1',
+    niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [local] }],
+  }
 
   return {
     referencia: { tipo: 'artefacto', unidadFuncionalId: unidadFuncional.id, localId: local.id, artefactoId: idInstancia },

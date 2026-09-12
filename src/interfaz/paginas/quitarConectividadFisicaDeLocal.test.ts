@@ -46,18 +46,24 @@ function proyectoBase(): Proyecto {
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
-    locales: [
+    niveles: [
       {
-        id: 'local-bano',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [artefacto('a-lavatorio', 'lavatorio'), artefacto('a-ducha', 'receptaculoDucha')],
-      },
-      {
-        id: 'local-cocina',
-        tipo: 'cocina',
-        regimen: 'domiciliario',
-        artefactos: [artefacto('a-pileta', 'piletaDeCocina')],
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        locales: [
+          {
+            id: 'local-bano',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [artefacto('a-lavatorio', 'lavatorio'), artefacto('a-ducha', 'receptaculoDucha')],
+          },
+          {
+            id: 'local-cocina',
+            tipo: 'cocina',
+            regimen: 'domiciliario',
+            artefactos: [artefacto('a-pileta', 'piletaDeCocina')],
+          },
+        ],
       },
     ],
   }
@@ -115,7 +121,7 @@ describe('quitarConectividadFisicaDeLocal', () => {
       ...resultado,
       unidadesFuncionales: resultado.unidadesFuncionales.map((uf) => ({
         ...uf,
-        locales: uf.locales.filter((l) => l.id !== 'local-bano'),
+        niveles: uf.niveles.map((n) => ({ ...n, locales: n.locales.filter((l) => l.id !== 'local-bano') })),
       })),
     }
 
@@ -126,7 +132,9 @@ describe('quitarConectividadFisicaDeLocal', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [{ id: 'local-bano', tipo: 'bano', artefactos: [artefacto('a-1', 'lavatorio')] }],
+      niveles: [
+        { id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [{ id: 'local-bano', tipo: 'bano', artefactos: [artefacto('a-1', 'lavatorio')] }] },
+      ],
     }
     const proyecto: Proyecto = {
       metadatos: metadatos(),

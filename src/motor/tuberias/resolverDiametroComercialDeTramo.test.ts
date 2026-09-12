@@ -61,7 +61,13 @@ function unidadFuncionalCon(unidadFuncionalId: string, localId: string, artefact
   return {
     id: unidadFuncionalId,
     nombre: unidadFuncionalId,
-    locales: [{ id: localId, tipo: 'bano', regimen: 'domiciliario', artefactos }],
+    niveles: [
+      {
+        id: `${unidadFuncionalId}-nivel-1`,
+        nombre: 'Nivel 1',
+        locales: [{ id: localId, tipo: 'bano', regimen: 'domiciliario', artefactos }],
+      },
+    ],
   }
 }
 
@@ -276,7 +282,13 @@ describe('resolverDiametroComercialDeTramo (CRIT-A23)', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'UF 1',
-      locales: [{ id: 'local-1', tipo: 'otros', regimen: 'noDomiciliario', artefactos: [mingitorio] }],
+      niveles: [
+        {
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [{ id: 'local-1', tipo: 'otros', regimen: 'noDomiciliario', artefactos: [mingitorio] }],
+        },
+      ],
     }
     const nodos: Nodo[] = [
       { id: 'n0' },

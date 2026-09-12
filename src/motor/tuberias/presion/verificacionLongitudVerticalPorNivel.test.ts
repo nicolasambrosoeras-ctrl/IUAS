@@ -46,14 +46,20 @@ function uf(id: string, nivel: number): UnidadFuncional {
   return {
     id,
     nombre: id,
-    nivel,
-    cotaHidraulicaReferencia_m: 1 + 3 * nivel,
-    locales: [
+    niveles: [
       {
-        id: `${id}-local`,
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [{ id: `${id}-lav`, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
+        id: `${id}-nivel-1`,
+        nombre: 'Nivel 1',
+        nivel,
+        cotaHidraulicaReferencia_m: 1 + 3 * nivel,
+        locales: [
+          {
+            id: `${id}-local`,
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [{ id: `${id}-lav`, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
+          },
+        ],
       },
     ],
   }
@@ -74,7 +80,7 @@ function proyecto(unidadesFuncionales: readonly UnidadFuncional[]): Proyecto {
     { id: 't-af-acs', nodoOrigenId: 'n0', nodoDestinoId: 'n-acs', red: 'AF', longitud_m: 5 },
   ]
   for (const u of unidadesFuncionales) {
-    const local = u.locales[0]!
+    const local = u.niveles[0]!.locales[0]!
     const art = local.artefactos[0]!
     nodos.push({ id: `n-af-${u.id}`, referencia: ref(u.id, local.id, art.id) })
     tramos.push({ id: `t-af-${u.id}`, nodoOrigenId: 'n0', nodoDestinoId: `n-af-${u.id}`, red: 'AF', longitud_m: 3 })

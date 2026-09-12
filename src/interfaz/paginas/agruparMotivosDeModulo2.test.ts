@@ -42,8 +42,8 @@ describe('agruparMotivosDeModulo2', () => {
       { tipo: 'unidadFuncionalSinCotaDeReferencia', unidadFuncionalId: 'uf-2' },
     ]
     const unidadesFuncionales = [
-      { id: 'uf-1', nombre: 'Unidad funcional 1', locales: [] },
-      { id: 'uf-2', nombre: 'Unidad funcional 2', locales: [] },
+      { id: 'uf-1', nombre: 'Unidad funcional 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [] }] },
+      { id: 'uf-2', nombre: 'Unidad funcional 2', niveles: [{ id: 'uf-2-nivel-1', nombre: 'Nivel 1', locales: [] }] },
     ]
 
     const resultado = agruparMotivosDeModulo2(motivos, unidadesFuncionales)
@@ -56,7 +56,7 @@ describe('agruparMotivosDeModulo2', () => {
       { tipo: 'unidadFuncionalSinCotaDeReferencia', unidadFuncionalId: 'uf-1' },
       { tipo: 'unidadFuncionalSinCotaDeReferencia', unidadFuncionalId: 'uf-1' },
     ]
-    const unidadesFuncionales = [{ id: 'uf-1', nombre: 'Unidad funcional 1', locales: [] }]
+    const unidadesFuncionales = [{ id: 'uf-1', nombre: 'Unidad funcional 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [] }] }]
 
     expect(agruparMotivosDeModulo2(motivos, unidadesFuncionales)).toEqual([
       'Falta la cota hidráulica de referencia de Unidad funcional 1.',

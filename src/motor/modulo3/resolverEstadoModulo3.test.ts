@@ -45,14 +45,20 @@ function ufBano(ufId: string): { uf: UnidadFuncional; nodos: Nodo[]; tramos: Tra
   const uf: UnidadFuncional = {
     id: ufId,
     nombre: ufId,
-    locales: [
+    niveles: [
       {
-        id: 'local-bano',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [
-          { id: `${ufId}-lav`, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
-          { id: `${ufId}-ino`, artefactoId: 'inodoroValvula', cantidad: 1, origen: 'normativo' },
+        id: `${ufId}-nivel-1`,
+        nombre: 'Nivel 1',
+        locales: [
+          {
+            id: 'local-bano',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [
+              { id: `${ufId}-lav`, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
+              { id: `${ufId}-ino`, artefactoId: 'inodoroValvula', cantidad: 1, origen: 'normativo' },
+            ],
+          },
         ],
       },
     ],
@@ -81,12 +87,18 @@ function ufInodoros(ufId: string, cantidad: number): { uf: UnidadFuncional; nodo
   const uf: UnidadFuncional = {
     id: ufId,
     nombre: ufId,
-    locales: [
+    niveles: [
       {
-        id: 'local-bano',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [{ id: `${ufId}-ino`, artefactoId: 'inodoroValvula', cantidad, origen: 'normativo' }],
+        id: `${ufId}-nivel-1`,
+        nombre: 'Nivel 1',
+        locales: [
+          {
+            id: 'local-bano',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [{ id: `${ufId}-ino`, artefactoId: 'inodoroValvula', cantidad, origen: 'normativo' }],
+          },
+        ],
       },
     ],
   }
@@ -265,7 +277,11 @@ describe('resolverEstadoModulo3 (M3-C, D-δ.55)', () => {
   })
 
   it('incompleto: sin artefactos computables', () => {
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'uf-1', locales: [{ id: 'l', tipo: 'bano', regimen: 'domiciliario', artefactos: [] }] }
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'uf-1',
+      niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [{ id: 'l', tipo: 'bano', regimen: 'domiciliario', artefactos: [] }] }],
+    }
     const estado = resolver(proyecto({ ufs: [uf], config: { esPropiedadHorizontal: false, tipoProvisionACS: 'individual' } }))
     expect(estado.estado).toBe('incompleto')
     if (estado.estado !== 'incompleto') return

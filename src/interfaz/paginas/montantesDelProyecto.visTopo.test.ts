@@ -51,8 +51,9 @@ function proyecto3Locales(): Proyecto {
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'UF 1',
-    nivel: 0,
-    locales: [local('l-1', 3), local('l-2', 6), local('l-3', 9)],
+    niveles: [
+      { id: 'uf-1-nivel-1', nombre: 'Nivel 1', nivel: 0, locales: [local('l-1', 3), local('l-2', 6), local('l-3', 9)] },
+    ],
   }
   const ramas = [rama('l-1'), rama('l-2'), rama('l-3')]
   const redHidraulica: RedHidraulica = {

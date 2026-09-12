@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { Artefacto, Local, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
+import type { Artefacto, Local, Nivel, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
 import type { Nodo, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
 import { duplicarUnidadFuncional, duplicarUnidadFuncionalEnProyecto } from './duplicarUnidadFuncional'
 import { validarRedHidraulica } from '../../validacion/redHidraulica'
@@ -19,8 +19,34 @@ function localDePrueba(overrides: Partial<Local> = {}): Local {
   }
 }
 
-function ufDePrueba(overrides: Partial<UnidadFuncional> = {}): UnidadFuncional {
-  return { id: 'uf-1', nombre: 'Departamento 1º A', locales: [localDePrueba()], ...overrides }
+// UI-M1-MULTINIVEL-01: shim de compatibilidad SOLO de este archivo de test
+// -- acepta los mismos atajos que antes (`locales`, `nivel`,
+// `cotaHidraulicaReferencia_m`) y los envuelve en un único Nivel, para no
+// tener que reescribir cada call site existente. `niveles` explícito pisa
+// todo lo demás (para los tests que arman una UF multinivel a mano).
+function ufDePrueba(
+  overrides: Partial<Omit<UnidadFuncional, 'niveles'>> & {
+    locales?: readonly Local[]
+    nivel?: number
+    cotaHidraulicaReferencia_m?: number
+    niveles?: readonly Nivel[]
+  } = {},
+): UnidadFuncional {
+  const { locales, nivel, cotaHidraulicaReferencia_m, niveles, ...resto } = overrides
+  return {
+    id: 'uf-1',
+    nombre: 'Departamento 1º A',
+    niveles: niveles ?? [
+      {
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        ...(nivel !== undefined ? { nivel } : {}),
+        ...(cotaHidraulicaReferencia_m !== undefined ? { cotaHidraulicaReferencia_m } : {}),
+        locales: locales ?? [localDePrueba()],
+      },
+    ],
+    ...resto,
+  }
 }
 
 describe('duplicarUnidadFuncional', () => {
@@ -29,13 +55,13 @@ describe('duplicarUnidadFuncional', () => {
 
     const copia = duplicarUnidadFuncional(original)
 
-    expect(copia.locales).toHaveLength(1)
-    expect(copia.locales[0]?.tipo).toBe('bano')
-    expect(copia.locales[0]?.regimen).toBe('domiciliario')
-    expect(copia.locales[0]?.artefactos).toHaveLength(1)
-    expect(copia.locales[0]?.artefactos[0]?.artefactoId).toBe('lavatorio')
-    expect(copia.locales[0]?.artefactos[0]?.cantidad).toBe(2)
-    expect(copia.locales[0]?.artefactos[0]?.origen).toBe('normativo')
+    expect(copia.niveles[0]!.locales).toHaveLength(1)
+    expect(copia.niveles[0]!.locales[0]?.tipo).toBe('bano')
+    expect(copia.niveles[0]!.locales[0]?.regimen).toBe('domiciliario')
+    expect(copia.niveles[0]!.locales[0]?.artefactos).toHaveLength(1)
+    expect(copia.niveles[0]!.locales[0]?.artefactos[0]?.artefactoId).toBe('lavatorio')
+    expect(copia.niveles[0]!.locales[0]?.artefactos[0]?.cantidad).toBe(2)
+    expect(copia.niveles[0]!.locales[0]?.artefactos[0]?.origen).toBe('normativo')
   })
 
   it('genera UnidadFuncional.id nuevo', () => {
@@ -53,9 +79,9 @@ describe('duplicarUnidadFuncional', () => {
 
     const copia = duplicarUnidadFuncional(original)
 
-    expect(copia.locales[0]?.id).not.toBe('local-a')
-    expect(copia.locales[1]?.id).not.toBe('local-b')
-    expect(copia.locales[0]?.id).not.toBe(copia.locales[1]?.id)
+    expect(copia.niveles[0]!.locales[0]?.id).not.toBe('local-a')
+    expect(copia.niveles[0]!.locales[1]?.id).not.toBe('local-b')
+    expect(copia.niveles[0]!.locales[0]?.id).not.toBe(copia.niveles[0]!.locales[1]?.id)
   })
 
   it('genera ids nuevos para todos los Artefactos', () => {
@@ -68,7 +94,7 @@ describe('duplicarUnidadFuncional', () => {
     })
 
     const copia = duplicarUnidadFuncional(original)
-    const [artefactoCopiaA, artefactoCopiaB] = copia.locales[0]?.artefactos ?? []
+    const [artefactoCopiaA, artefactoCopiaB] = copia.niveles[0]!.locales[0]?.artefactos ?? []
 
     expect(artefactoCopiaA?.id).not.toBe('artefacto-a')
     expect(artefactoCopiaB?.id).not.toBe('artefacto-b')
@@ -88,11 +114,11 @@ describe('duplicarUnidadFuncional', () => {
 
     const copia = duplicarUnidadFuncional(original)
 
-    expect(copia.locales[0]?.tipo).toBe('cocina')
-    expect(copia.locales[0]?.regimen).toBe('noDomiciliario')
-    expect(copia.locales[0]?.artefactos[0]?.artefactoId).toBe('piletaDeCocina')
-    expect(copia.locales[0]?.artefactos[0]?.cantidad).toBe(3)
-    expect(copia.locales[0]?.artefactos[0]?.origen).toBe('usuario')
+    expect(copia.niveles[0]!.locales[0]?.tipo).toBe('cocina')
+    expect(copia.niveles[0]!.locales[0]?.regimen).toBe('noDomiciliario')
+    expect(copia.niveles[0]!.locales[0]?.artefactos[0]?.artefactoId).toBe('piletaDeCocina')
+    expect(copia.niveles[0]!.locales[0]?.artefactos[0]?.cantidad).toBe(3)
+    expect(copia.niveles[0]!.locales[0]?.artefactos[0]?.origen).toBe('usuario')
   })
 
   it('preserva la ausencia de regimen cuando corresponde', () => {
@@ -101,7 +127,7 @@ describe('duplicarUnidadFuncional', () => {
 
     const copia = duplicarUnidadFuncional(original)
 
-    expect('regimen' in (copia.locales[0] ?? {})).toBe(false)
+    expect('regimen' in (copia.niveles[0]!.locales[0] ?? {})).toBe(false)
   })
 
   it('los arrays de Locales y Artefactos son objetos nuevos', () => {
@@ -109,8 +135,8 @@ describe('duplicarUnidadFuncional', () => {
 
     const copia = duplicarUnidadFuncional(original)
 
-    expect(copia.locales).not.toBe(original.locales)
-    expect(copia.locales[0]?.artefactos).not.toBe(original.locales[0]?.artefactos)
+    expect(copia.niveles[0]!.locales).not.toBe(original.niveles[0]!.locales)
+    expect(copia.niveles[0]!.locales[0]?.artefactos).not.toBe(original.niveles[0]!.locales[0]?.artefactos)
   })
 
   it('UF, Locales y Artefactos clonados no son las mismas instancias que los originales', () => {
@@ -119,8 +145,8 @@ describe('duplicarUnidadFuncional', () => {
     const copia = duplicarUnidadFuncional(original)
 
     expect(copia).not.toBe(original)
-    expect(copia.locales[0]).not.toBe(original.locales[0])
-    expect(copia.locales[0]?.artefactos[0]).not.toBe(original.locales[0]?.artefactos[0])
+    expect(copia.niveles[0]!.locales[0]).not.toBe(original.niveles[0]!.locales[0])
+    expect(copia.niveles[0]!.locales[0]?.artefactos[0]).not.toBe(original.niveles[0]!.locales[0]?.artefactos[0])
   })
 
   it('modificar posteriormente el clon no muta el original', () => {
@@ -129,14 +155,17 @@ describe('duplicarUnidadFuncional', () => {
     const copia = duplicarUnidadFuncional(original)
     const copiaMutada: UnidadFuncional = {
       ...copia,
-      locales: copia.locales.map((local) => ({
-        ...local,
-        artefactos: local.artefactos.map((artefacto) => ({ ...artefacto, cantidad: 99 })),
+      niveles: copia.niveles.map((nivel) => ({
+        ...nivel,
+        locales: nivel.locales.map((local) => ({
+          ...local,
+          artefactos: local.artefactos.map((artefacto) => ({ ...artefacto, cantidad: 99 })),
+        })),
       })),
     }
 
-    expect(copiaMutada.locales[0]?.artefactos[0]?.cantidad).toBe(99)
-    expect(original.locales[0]?.artefactos[0]?.cantidad).toBe(2)
+    expect(copiaMutada.niveles[0]!.locales[0]?.artefactos[0]?.cantidad).toBe(99)
+    expect(original.niveles[0]!.locales[0]?.artefactos[0]?.cantidad).toBe(2)
   })
 
   it('el nombre pasa de X a X (copia)', () => {
@@ -169,12 +198,12 @@ describe('duplicarUnidadFuncional', () => {
 
     const copia = duplicarUnidadFuncional(original)
 
-    expect(copia.cotaHidraulicaReferencia_m).toBe(9)
-    expect(copia.locales[0]?.cotaPiso_m).toBe(9.5)
+    expect(copia.niveles[0]!.cotaHidraulicaReferencia_m).toBe(9)
+    expect(copia.niveles[0]!.locales[0]?.cotaPiso_m).toBe(9.5)
     // Lavatorio sin override: sigue sin override (default IUAS, no materializado).
-    expect(copia.locales[0]?.artefactos[0]?.alturaHidraulicaSobrePiso_m).toBeUndefined()
+    expect(copia.niveles[0]!.locales[0]?.artefactos[0]?.alturaHidraulicaSobrePiso_m).toBeUndefined()
     // Ducha con override explícito: se conserva tal cual.
-    expect(copia.locales[0]?.artefactos[1]?.alturaHidraulicaSobrePiso_m).toBe(2.15)
+    expect(copia.niveles[0]!.locales[0]?.artefactos[1]?.alturaHidraulicaSobrePiso_m).toBe(2.15)
   })
 
   it('§8: los valores HEREDADOS siguen heredados en la copia -- no se materializa ningún default', () => {
@@ -194,8 +223,53 @@ describe('duplicarUnidadFuncional', () => {
     const copia = duplicarUnidadFuncional(original)
 
     // El Local de la copia sigue SIN override -> sigue heredando la UF.
-    expect(copia.locales[0]).not.toHaveProperty('cotaPiso_m')
-    expect(copia.locales[0]?.artefactos[0]).not.toHaveProperty('alturaHidraulicaSobrePiso_m')
+    expect(copia.niveles[0]!.locales[0]).not.toHaveProperty('cotaPiso_m')
+    expect(copia.niveles[0]!.locales[0]?.artefactos[0]).not.toHaveProperty('alturaHidraulicaSobrePiso_m')
+  })
+
+  // UI-M1-MULTINIVEL-01 sección 25: duplicar una UF multinivel copia TODOS
+  // sus niveles, cada uno con nuevos ids, y conserva la estructura (nivel/
+  // cota/locales) de cada uno tal cual -- una UF dúplex se duplica como
+  // otra UF dúplex, nunca colapsada a un único nivel.
+  it('UI-M1-MULTINIVEL-01: duplica TODOS los niveles de una UF multinivel, con ids nuevos por nivel', () => {
+    const original = ufDePrueba({
+      niveles: [
+        {
+          id: 'nivel-pb',
+          nombre: 'Planta Baja',
+          nivel: 0,
+          cotaHidraulicaReferencia_m: 0,
+          locales: [localDePrueba({ id: 'local-cocina', tipo: 'cocina' })],
+        },
+        {
+          id: 'nivel-pa',
+          nombre: 'Planta Alta',
+          nivel: 1,
+          cotaHidraulicaReferencia_m: 3,
+          locales: [localDePrueba({ id: 'local-bano', cotaPiso_m: 3.15 })],
+        },
+      ],
+    })
+
+    const copia = duplicarUnidadFuncional(original)
+
+    expect(copia.niveles).toHaveLength(2)
+    // ids nuevos por nivel, nunca los del original.
+    expect(copia.niveles[0]!.id).not.toBe('nivel-pb')
+    expect(copia.niveles[1]!.id).not.toBe('nivel-pa')
+    expect(copia.niveles[0]!.id).not.toBe(copia.niveles[1]!.id)
+    // nombre/nivel/cota de cada Nivel se preservan tal cual (mismo criterio
+    // que antes para la UF de un único nivel).
+    expect(copia.niveles[0]!.nombre).toBe('Planta Baja')
+    expect(copia.niveles[0]!.nivel).toBe(0)
+    expect(copia.niveles[0]!.cotaHidraulicaReferencia_m).toBe(0)
+    expect(copia.niveles[1]!.nombre).toBe('Planta Alta')
+    expect(copia.niveles[1]!.nivel).toBe(1)
+    expect(copia.niveles[1]!.cotaHidraulicaReferencia_m).toBe(3)
+    // Locales de cada nivel, con override conservado y id nuevo.
+    expect(copia.niveles[0]!.locales[0]!.tipo).toBe('cocina')
+    expect(copia.niveles[1]!.locales[0]!.cotaPiso_m).toBe(3.15)
+    expect(copia.niveles[1]!.locales[0]!.id).not.toBe('local-bano')
   })
 })
 
@@ -282,23 +356,29 @@ describe('duplicarUnidadFuncionalEnProyecto -- conectividad fisica de la copia (
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'Unidad funcional 1',
-      nivel: 0,
-      cotaHidraulicaReferencia_m: 1,
-      locales: [
+      niveles: [
         {
-          id: 'local-bano',
-          tipo: 'bano',
-          regimen: 'domiciliario',
-          artefactos: [
-            { id: 'art-lavatorio', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
-            { id: 'art-ducha', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' },
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          nivel: 0,
+          cotaHidraulicaReferencia_m: 1,
+          locales: [
+            {
+              id: 'local-bano',
+              tipo: 'bano',
+              regimen: 'domiciliario',
+              artefactos: [
+                { id: 'art-lavatorio', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
+                { id: 'art-ducha', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' },
+              ],
+            },
+            {
+              id: 'local-patio',
+              tipo: 'jardin',
+              regimen: 'domiciliario',
+              artefactos: [{ id: 'art-canilla', artefactoId: 'canillaDeServicio', cantidad: 1, origen: 'normativo' }],
+            },
           ],
-        },
-        {
-          id: 'local-patio',
-          tipo: 'jardin',
-          regimen: 'domiciliario',
-          artefactos: [{ id: 'art-canilla', artefactoId: 'canillaDeServicio', cantidad: 1, origen: 'normativo' }],
         },
       ],
     }
@@ -397,9 +477,9 @@ describe('duplicarUnidadFuncionalEnProyecto -- conectividad fisica de la copia (
 
     const resultado = duplicarUnidadFuncionalEnProyecto(proyecto, 'uf-1')
     const copia = resultado.unidadesFuncionales[1]!
-    copia.locales[0]!.artefactos[0]!.cantidad = 99
+    copia.niveles[0]!.locales[0]!.artefactos[0]!.cantidad = 99
 
-    expect(proyecto.unidadesFuncionales[0]!.locales[0]!.artefactos[0]!.cantidad).toBe(1)
+    expect(proyecto.unidadesFuncionales[0]!.niveles[0]!.locales[0]!.artefactos[0]!.cantidad).toBe(1)
   })
 
   it('T3: duplicar dos veces deja la red valida y sin artefactos desconectados', () => {

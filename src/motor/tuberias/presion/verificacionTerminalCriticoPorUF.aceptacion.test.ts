@@ -83,14 +83,20 @@ function proyectoDeCuatroPisos(): Proyecto {
   const unidadesFuncionales: UnidadFuncional[] = niveles.map((n) => ({
     id: n.id,
     nombre: n.nombre,
-    nivel: n.nivel,
-    cotaHidraulicaReferencia_m: calcularCotaHidraulicaDefaultDeNivel(n.nivel),
-    locales: [
+    niveles: [
       {
-        id: n.localId,
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [artefacto(n.artefactoInstanciaId, n.artefactoIdCatalogo)],
+        id: `${n.id}-nivel-1`,
+        nombre: n.nombre,
+        nivel: n.nivel,
+        cotaHidraulicaReferencia_m: calcularCotaHidraulicaDefaultDeNivel(n.nivel),
+        locales: [
+          {
+            id: n.localId,
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [artefacto(n.artefactoInstanciaId, n.artefactoIdCatalogo)],
+          },
+        ],
       },
     ],
   }))
@@ -210,7 +216,9 @@ describe('D-δ.48 -- caso de aceptación: niveles por UF + terminal crítico por
     const proyectoEditado: Proyecto = {
       ...proyecto,
       unidadesFuncionales: proyecto.unidadesFuncionales.map((uf) =>
-        uf.id === 'uf-p1' ? { ...uf, cotaHidraulicaReferencia_m: 15.9 } : uf,
+        uf.id === 'uf-p1'
+          ? { ...uf, niveles: [{ ...uf.niveles[0]!, cotaHidraulicaReferencia_m: 15.9 }] }
+          : uf,
       ),
     }
 

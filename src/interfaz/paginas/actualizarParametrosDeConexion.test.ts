@@ -25,12 +25,18 @@ function proyectoBase(): Proyecto {
       {
         id: 'uf-1',
         nombre: 'UF 1',
-        locales: [
+        niveles: [
           {
-            id: 'local-1',
-            tipo: 'bano',
-            regimen: 'domiciliario',
-            artefactos: [{ id: 'a-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
+            id: 'uf-1-nivel-1',
+            nombre: 'Nivel 1',
+            locales: [
+              {
+                id: 'local-1',
+                tipo: 'bano',
+                regimen: 'domiciliario',
+                artefactos: [{ id: 'a-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
+              },
+            ],
           },
         ],
       },

@@ -80,7 +80,7 @@ function proyectoCadenaDosTramos(accesorios: {
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
-    locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-lavatorio', 'lavatorio')] }],
+    niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-lavatorio', 'lavatorio')] }] }],
   }
   const nodos: Nodo[] = [
     { id: 'n0' },
@@ -198,7 +198,7 @@ describe('acumularPerdidaLocalizadaDeCamino', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-lavatorio', 'lavatorio')] }],
+      niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-lavatorio', 'lavatorio')] }] }],
     }
     const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n1', referencia: referenciaDe('uf-1', 'local-1', 'inst-lavatorio') }]
     const tramos: Tramo[] = [{ id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: 3, accesorios: [] }]
@@ -239,14 +239,20 @@ describe('acumularPerdidaLocalizadaDeCamino', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [
+      niveles: [
         {
-          id: 'local-1',
-          tipo: 'bano',
-          regimen: 'domiciliario',
-          artefactos: [
-            artefacto('inst-lavatorio', 'lavatorio'),
-            artefacto('inst-ducha', 'receptaculoDucha'),
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [
+            {
+              id: 'local-1',
+              tipo: 'bano',
+              regimen: 'domiciliario',
+              artefactos: [
+                artefacto('inst-lavatorio', 'lavatorio'),
+                artefacto('inst-ducha', 'receptaculoDucha'),
+              ],
+            },
           ],
         },
       ],
@@ -299,15 +305,21 @@ describe('acumularPerdidaLocalizadaDeCamino', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [
+      niveles: [
         {
-          id: 'local-1',
-          tipo: 'bano',
-          regimen: 'domiciliario',
-          artefactos: [
-            artefacto('inst-lavatorio', 'lavatorio'),
-            artefacto('inst-ducha', 'receptaculoDucha'),
-            artefacto('inst-bidet', 'bidet'),
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [
+            {
+              id: 'local-1',
+              tipo: 'bano',
+              regimen: 'domiciliario',
+              artefactos: [
+                artefacto('inst-lavatorio', 'lavatorio'),
+                artefacto('inst-ducha', 'receptaculoDucha'),
+                artefacto('inst-bidet', 'bidet'),
+              ],
+            },
           ],
         },
       ],
@@ -378,12 +390,18 @@ describe('acumularPerdidaLocalizadaDeCamino', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [
+      niveles: [
         {
-          id: 'local-1',
-          tipo: 'bano',
-          regimen: 'domiciliario',
-          artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [
+            {
+              id: 'local-1',
+              tipo: 'bano',
+              regimen: 'domiciliario',
+              artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+            },
+          ],
         },
       ],
     }
@@ -498,12 +516,18 @@ function proyectoLocalConTeeYRamales(opciones: {
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
-    locales: [
+    niveles: [
       {
-        id: 'local-1',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        locales: [
+          {
+            id: 'local-1',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+          },
+        ],
       },
     ],
   }
@@ -607,15 +631,21 @@ describe("acumularPerdidaLocalizadaDeCamino — granularidadHidraulica 'simplifi
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [
+      niveles: [
         {
-          id: 'local-1',
-          tipo: 'bano',
-          regimen: 'domiciliario',
-          artefactos: [
-            artefacto('inst-lavatorio', 'lavatorio'),
-            artefacto('inst-ducha', 'receptaculoDucha'),
-            artefacto('inst-bidet', 'bidet'),
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [
+            {
+              id: 'local-1',
+              tipo: 'bano',
+              regimen: 'domiciliario',
+              artefactos: [
+                artefacto('inst-lavatorio', 'lavatorio'),
+                artefacto('inst-ducha', 'receptaculoDucha'),
+                artefacto('inst-bidet', 'bidet'),
+              ],
+            },
           ],
         },
       ],

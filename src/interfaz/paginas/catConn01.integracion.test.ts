@@ -48,9 +48,15 @@ function proyectoVacio(): Proyecto {
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'UF 1',
-    nivel: 0,
-    cotaHidraulicaReferencia_m: 1,
-    locales: [{ id: 'l-1', tipo: 'otros', regimen: 'domiciliario', artefactos: [] }],
+    niveles: [
+      {
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        nivel: 0,
+        cotaHidraulicaReferencia_m: 1,
+        locales: [{ id: 'l-1', tipo: 'otros', regimen: 'domiciliario', artefactos: [] }],
+      },
+    ],
   }
   const nodos: Nodo[] = [
     { id: 'n-general' },
@@ -71,7 +77,13 @@ function conArtefacto(proyecto: Proyecto, ufId: string, localId: string, art: Ar
     unidadesFuncionales: proyecto.unidadesFuncionales.map((uf) =>
       uf.id !== ufId
         ? uf
-        : { ...uf, locales: uf.locales.map((l) => (l.id !== localId ? l : { ...l, artefactos: [...l.artefactos, art] })) },
+        : {
+            ...uf,
+            niveles: uf.niveles.map((n) => ({
+              ...n,
+              locales: n.locales.map((l) => (l.id !== localId ? l : { ...l, artefactos: [...l.artefactos, art] })),
+            })),
+          },
     ),
   }
 }
@@ -84,9 +96,12 @@ function mapArtefacto(proyecto: Proyecto, ufId: string, localId: string, rowId: 
         ? uf
         : {
             ...uf,
-            locales: uf.locales.map((l) =>
-              l.id !== localId ? l : { ...l, artefactos: l.artefactos.map((a) => (a.id === rowId ? fn(a) : a)) },
-            ),
+            niveles: uf.niveles.map((n) => ({
+              ...n,
+              locales: n.locales.map((l) =>
+                l.id !== localId ? l : { ...l, artefactos: l.artefactos.map((a) => (a.id === rowId ? fn(a) : a)) },
+              ),
+            })),
           },
     ),
   }
@@ -202,9 +217,15 @@ describe('CAT-CONN-01 · el precedente ya no decide', () => {
     const uf2: UnidadFuncional = {
       id: 'uf-2',
       nombre: 'UF 2',
-      nivel: 0,
-      cotaHidraulicaReferencia_m: 1,
-      locales: [{ id: 'l-2', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'art-legacy', artefactoId: 'banera', cantidad: 1, origen: 'normativo' }] }],
+      niveles: [
+        {
+          id: 'uf-2-nivel-1',
+          nombre: 'Nivel 1',
+          nivel: 0,
+          cotaHidraulicaReferencia_m: 1,
+          locales: [{ id: 'l-2', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'art-legacy', artefactoId: 'banera', cantidad: 1, origen: 'normativo' }] }],
+        },
+      ],
     }
     p = { ...p, unidadesFuncionales: [...p.unidadesFuncionales, uf2] }
     p = {
@@ -291,7 +312,7 @@ describe('CAT-CONN-01 · cambio de tipo (stale eliminado)', () => {
     // banera es automatica ambas -> sigue AF+AC, pero por política, no por
     // el override del industrial (que se limpió).
     expect([...redesDeInstancia(p, 'l-1', alta.rowId)].sort()).toEqual(['AC', 'AF'])
-    const artefacto = p.unidadesFuncionales[0]!.locales[0]!.artefactos.find((a) => a.id === alta.rowId)!
+    const artefacto = p.unidadesFuncionales[0]!.niveles[0]!.locales[0]!.artefactos.find((a) => a.id === alta.rowId)!
     expect(artefacto.conectividadElegida).toBeUndefined()
   })
 
@@ -326,20 +347,20 @@ describe('CAT-CONN-01 · duplicar UF conserva la conectividad diseñada', () => 
 
     const duplicado = duplicarUnidadFuncionalEnProyecto(conSeleccion, 'uf-1')
     const ufClon = duplicado.unidadesFuncionales.find((uf) => uf.id !== 'uf-1' && uf.nombre.includes('copia'))!
-    const artClon = ufClon.locales[0]!.artefactos[0]!
+    const artClon = ufClon.niveles[0]!.locales[0]!.artefactos[0]!
     expect(artClon.conectividadElegida).toBe('ambas')
-    expect([...redesDeInstancia(duplicado, ufClon.locales[0]!.id, artClon.id)].sort()).toEqual(['AC', 'AF'])
+    expect([...redesDeInstancia(duplicado, ufClon.niveles[0]!.locales[0]!.id, artClon.id)].sort()).toEqual(['AC', 'AF'])
     expect(validarRedHidraulica(duplicado)).toEqual([])
   })
 
   it('un maquinaLavavajillas SIN override (AF por default) se clona AF, derivando de la topología del original', () => {
     const alta = altaComoLaUI(proyectoVacio(), 'uf-1', 'l-1', 'maquinaLavavajillas')
-    expect(alta.proyecto.unidadesFuncionales[0]!.locales[0]!.artefactos[0]!.conectividadElegida).toBeUndefined()
+    expect(alta.proyecto.unidadesFuncionales[0]!.niveles[0]!.locales[0]!.artefactos[0]!.conectividadElegida).toBeUndefined()
 
     const duplicado = duplicarUnidadFuncionalEnProyecto(alta.proyecto, 'uf-1')
     const ufClon = duplicado.unidadesFuncionales.find((uf) => uf.id !== 'uf-1')!
-    const artClon = ufClon.locales[0]!.artefactos[0]!
-    expect([...redesDeInstancia(duplicado, ufClon.locales[0]!.id, artClon.id)]).toEqual(['AF'])
+    const artClon = ufClon.niveles[0]!.locales[0]!.artefactos[0]!
+    expect([...redesDeInstancia(duplicado, ufClon.niveles[0]!.locales[0]!.id, artClon.id)]).toEqual(['AF'])
     expect(validarRedHidraulica(duplicado)).toEqual([])
   })
 })

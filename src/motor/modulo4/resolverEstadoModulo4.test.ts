@@ -54,7 +54,13 @@ function construirProyecto(opciones: {
       {
         id: 'uf-1',
         nombre: 'UF 1',
-        locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos }],
+        niveles: [
+          {
+            id: 'uf-1-nivel-1',
+            nombre: 'Nivel 1',
+            locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos }],
+          },
+        ],
       },
     ],
     configuracionHidraulica: {

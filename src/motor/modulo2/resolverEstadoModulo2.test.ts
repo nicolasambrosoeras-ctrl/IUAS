@@ -86,13 +86,19 @@ function proyectoUnTerminalCompleto(opts?: {
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
-    cotaHidraulicaReferencia_m: 0,
-    locales: [
+    niveles: [
       {
-        id: 'local-1',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [{ ...artefacto('inst-1', artefactoIdCatalogo), alturaHidraulicaSobrePiso_m: 3 }],
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        cotaHidraulicaReferencia_m: 0,
+        locales: [
+          {
+            id: 'local-1',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [{ ...artefacto('inst-1', artefactoIdCatalogo), alturaHidraulicaSobrePiso_m: 3 }],
+          },
+        ],
       },
     ],
   }
@@ -127,13 +133,19 @@ function proyectoDosTerminales(metodoPerdidaLocalizada: MetodoPerdidaLocalizada)
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
-    cotaHidraulicaReferencia_m: 0,
-    locales: [
+    niveles: [
       {
-        id: 'local-1',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        cotaHidraulicaReferencia_m: 0,
+        locales: [
+          {
+            id: 'local-1',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+          },
+        ],
       },
     ],
   }
@@ -280,12 +292,18 @@ describe('resolverEstadoModulo2 — incompleto (falta informacion legitima)', ()
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [
+      niveles: [
         {
-          id: 'local-1',
-          tipo: 'bano',
-          regimen: 'domiciliario',
-          artefactos: [artefacto('inst-1', 'lavatorio'), artefacto('inst-2', 'inodoroDeposito')],
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [
+            {
+              id: 'local-1',
+              tipo: 'bano',
+              regimen: 'domiciliario',
+              artefactos: [artefacto('inst-1', 'lavatorio'), artefacto('inst-2', 'inodoroDeposito')],
+            },
+          ],
         },
       ],
     }
@@ -321,7 +339,13 @@ describe('resolverEstadoModulo2 — error (inconsistencia real, no simple falta 
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', 'lavatorio')] }],
+      niveles: [
+        {
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', 'lavatorio')] }],
+        },
+      ],
     }
     const nodos: Nodo[] = [
       { id: 'raiz', cota_m: 0 },
@@ -355,12 +379,18 @@ describe('resolverEstadoModulo2 — error (inconsistencia real, no simple falta 
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [
+      niveles: [
         {
-          id: 'local-1',
-          tipo: 'bano',
-          regimen: 'domiciliario',
-          artefactos: [artefacto('inst-1', 'lavatorio'), artefacto('inst-2', 'inodoroDeposito')],
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [
+            {
+              id: 'local-1',
+              tipo: 'bano',
+              regimen: 'domiciliario',
+              artefactos: [artefacto('inst-1', 'lavatorio'), artefacto('inst-2', 'inodoroDeposito')],
+            },
+          ],
         },
       ],
     }
@@ -537,13 +567,19 @@ describe('resolverEstadoModulo2 — completo', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      cotaHidraulicaReferencia_m: 0,
-      locales: [
+      niveles: [
         {
-          id: 'local-1',
-          tipo: 'cocina',
-          regimen: 'domiciliario',
-          artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-lavavajillas', 'maquinaLavavajillas')],
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          cotaHidraulicaReferencia_m: 0,
+          locales: [
+            {
+              id: 'local-1',
+              tipo: 'cocina',
+              regimen: 'domiciliario',
+              artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-lavavajillas', 'maquinaLavavajillas')],
+            },
+          ],
         },
       ],
     }
@@ -590,21 +626,28 @@ function proyectoLocalTresArtefactosConTeesAnidadas(granularidad: 'simplificada'
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
-    // D-delta.46: bajo granularidad 'simplificada' los terminales ya no
-    // usan su propio cota_m (ver mas abajo) -- toman la de la UF. Se fija
-    // igual a la de los terminales (3) para no alterar el desnivel
-    // esperado por este test (que sigue siendo sobre 'profesional' con
-    // la misma topologia, ver el describe de mas abajo).
-    cotaHidraulicaReferencia_m: 3,
-    locales: [
+    niveles: [
       {
-        id: 'local-1',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [
-          artefacto('inst-lavatorio', 'lavatorio'),
-          artefacto('inst-ducha', 'receptaculoDucha'),
-          artefacto('inst-inodoro', 'inodoroDeposito'),
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        // D-delta.46: bajo granularidad 'simplificada' los terminales ya no
+        // usan su propio cota_m (ver mas abajo) -- toman la del Nivel. Se
+        // fija igual a la de los terminales (3) para no alterar el
+        // desnivel esperado por este test (que sigue siendo sobre
+        // 'profesional' con la misma topologia, ver el describe de mas
+        // abajo).
+        cotaHidraulicaReferencia_m: 3,
+        locales: [
+          {
+            id: 'local-1',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [
+              artefacto('inst-lavatorio', 'lavatorio'),
+              artefacto('inst-ducha', 'receptaculoDucha'),
+              artefacto('inst-inodoro', 'inodoroDeposito'),
+            ],
+          },
         ],
       },
     ],
@@ -688,14 +731,14 @@ describe("resolverEstadoModulo2 — cota por UnidadFuncional en granularidadHidr
     const proyecto = proyectoLocalTresArtefactosConTeesAnidadas('simplificada')
     const proyectoSinCotaUF: Proyecto = {
       ...proyecto,
-      // Reconstruye cada UF sin cotaHidraulicaReferencia_m explícitamente
+      // Reconstruye cada Nivel sin cotaHidraulicaReferencia_m explícitamente
       // (en vez de desestructurar para descartarla): exactOptionalPropertyTypes
       // no admite asignarle `undefined`, y desestructurar dejaría una
       // variable sin usar.
       unidadesFuncionales: proyecto.unidadesFuncionales.map((uf) => ({
         id: uf.id,
         nombre: uf.nombre,
-        locales: uf.locales,
+        niveles: uf.niveles.map((nivel) => ({ id: nivel.id, nombre: nivel.nombre, locales: nivel.locales })),
       })),
     }
 
@@ -718,7 +761,7 @@ describe("resolverEstadoModulo2 — cota por UnidadFuncional en granularidadHidr
 
   it('UF CON cotaHidraulicaReferencia_m -> completo, sin pedir cota individual a ninguno de los 3 terminales', () => {
     const proyecto = proyectoLocalTresArtefactosConTeesAnidadas('simplificada')
-    expect(proyecto.unidadesFuncionales[0]!.cotaHidraulicaReferencia_m).toBeDefined()
+    expect(proyecto.unidadesFuncionales[0]!.niveles[0]!.cotaHidraulicaReferencia_m).toBeDefined()
 
     const resultado = resolverEstadoModulo2(
       proyecto,

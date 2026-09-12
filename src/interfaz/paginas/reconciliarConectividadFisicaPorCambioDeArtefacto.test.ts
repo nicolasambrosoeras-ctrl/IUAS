@@ -26,25 +26,31 @@ function proyectoBase(): Proyecto {
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'UF 1',
-    nivel: 0,
-    cotaHidraulicaReferencia_m: 1,
-    locales: [
+    niveles: [
       {
-        id: 'l-bano',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [
-          { id: 'art-bano-lav', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
-          { id: 'art-bano-duc', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' },
-        ],
-      },
-      {
-        id: 'l-toi',
-        tipo: 'toilette',
-        regimen: 'domiciliario',
-        artefactos: [
-          { id: 'art-toi-lav', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
-          { id: 'art-toi-ino', artefactoId: 'inodoroDeposito', cantidad: 1, origen: 'normativo' },
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        nivel: 0,
+        cotaHidraulicaReferencia_m: 1,
+        locales: [
+          {
+            id: 'l-bano',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [
+              { id: 'art-bano-lav', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
+              { id: 'art-bano-duc', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' },
+            ],
+          },
+          {
+            id: 'l-toi',
+            tipo: 'toilette',
+            regimen: 'domiciliario',
+            artefactos: [
+              { id: 'art-toi-lav', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
+              { id: 'art-toi-ino', artefactoId: 'inodoroDeposito', cantidad: 1, origen: 'normativo' },
+            ],
+          },
         ],
       },
     ],
@@ -105,9 +111,12 @@ function conTipo(proyecto: Proyecto, localId: string, artefactoId: string, nuevo
     ...proyecto,
     unidadesFuncionales: proyecto.unidadesFuncionales.map((uf) => ({
       ...uf,
-      locales: uf.locales.map((l) =>
-        l.id !== localId ? l : { ...l, artefactos: l.artefactos.map((a) => (a.id === artefactoId ? { ...a, artefactoId: nuevoTipo } : a)) },
-      ),
+      niveles: uf.niveles.map((nivel) => ({
+        ...nivel,
+        locales: nivel.locales.map((l) =>
+          l.id !== localId ? l : { ...l, artefactos: l.artefactos.map((a) => (a.id === artefactoId ? { ...a, artefactoId: nuevoTipo } : a)) },
+        ),
+      })),
     })),
   }
 }

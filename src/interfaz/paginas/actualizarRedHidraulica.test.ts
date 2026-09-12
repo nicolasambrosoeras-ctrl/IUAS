@@ -25,7 +25,9 @@ function proyectoDePrueba(redHidraulica?: RedHidraulica): Proyecto {
       presionSobreAcera_m: 2,
       alturaArtefactoMasDesfavorable_m: 3,
     },
-    unidadesFuncionales: [{ id: 'uf-1', nombre: 'UF 1', locales: [] }],
+    unidadesFuncionales: [
+      { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [] }] },
+    ],
     configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'detallado', granularidadHidraulica: 'profesional', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
     ...(redHidraulica !== undefined ? { redHidraulica } : {}),
   }

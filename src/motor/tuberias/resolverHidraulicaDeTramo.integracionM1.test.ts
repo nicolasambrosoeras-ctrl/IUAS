@@ -57,7 +57,11 @@ const unidadesFuncionales: readonly UnidadFuncional[] = [
   {
     id: 'uf-1',
     nombre: 'Unidad funcional 1',
-    locales: [
+    niveles: [
+      {
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        locales: [
       {
         id: 'local-bano',
         tipo: 'bano',
@@ -92,6 +96,8 @@ const unidadesFuncionales: readonly UnidadFuncional[] = [
         tipo: 'jardin',
         regimen: 'domiciliario',
         artefactos: [artefacto('artefacto-patio-1', 'canillaDeServicio')],
+      },
+        ],
       },
     ],
   },

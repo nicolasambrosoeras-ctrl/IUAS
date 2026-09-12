@@ -23,14 +23,20 @@ function ufLavatorio(id: string, localId: string): UnidadFuncional {
   return {
     id,
     nombre: id,
-    nivel: 1,
-    cotaHidraulicaReferencia_m: 3,
-    locales: [
+    niveles: [
       {
-        id: localId,
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [{ id: `${localId}-a`, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
+        id: `${id}-nivel-1`,
+        nombre: 'Nivel 1',
+        nivel: 1,
+        cotaHidraulicaReferencia_m: 3,
+        locales: [
+          {
+            id: localId,
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [{ id: `${localId}-a`, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
+          },
+        ],
       },
     ],
   }

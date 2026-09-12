@@ -237,13 +237,19 @@ function proyectoDosTerminales(): Proyecto {
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
-    cotaHidraulicaReferencia_m: 0,
-    locales: [
+    niveles: [
       {
-        id: 'local-1',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        cotaHidraulicaReferencia_m: 0,
+        locales: [
+          {
+            id: 'local-1',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+          },
+        ],
       },
     ],
   }

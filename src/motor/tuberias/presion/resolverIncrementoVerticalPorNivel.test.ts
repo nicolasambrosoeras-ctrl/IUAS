@@ -53,7 +53,8 @@ function proyectoCon(
     { id: 't-af-acs', nodoOrigenId: 'n0', nodoDestinoId: 'n-acs', red: 'AF', longitud_m: 4 },
   ]
   for (const uf of unidadesFuncionales) {
-    for (const local of uf.locales) {
+    for (const nivelDeUf of uf.niveles) {
+    for (const local of nivelDeUf.locales) {
       for (const art of local.artefactos) {
         const nAf = `n-af-${uf.id}-${art.id}`
         nodos.push({ id: nAf, referencia: ref(uf.id, local.id, art.id) })
@@ -62,6 +63,7 @@ function proyectoCon(
         nodos.push({ id: nAc, referencia: ref(uf.id, local.id, art.id) })
         tramos.push({ id: `t-ac-${uf.id}-${art.id}`, nodoOrigenId: 'n-acs', nodoDestinoId: nAc, red: 'AC', longitud_m: 2 })
       }
+    }
     }
   }
   const redHidraulica: RedHidraulica = { nodos, tramos }
@@ -84,13 +86,19 @@ function uf(id: string, nivel: number | undefined): UnidadFuncional {
   return {
     id,
     nombre: id,
-    ...(nivel === undefined ? {} : { nivel, cotaHidraulicaReferencia_m: 1 + 3 * nivel }),
-    locales: [
+    niveles: [
       {
-        id: `${id}-local`,
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [{ id: `${id}-lav`, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
+        id: `${id}-nivel-1`,
+        nombre: 'Nivel 1',
+        ...(nivel === undefined ? {} : { nivel, cotaHidraulicaReferencia_m: 1 + 3 * nivel }),
+        locales: [
+          {
+            id: `${id}-local`,
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [{ id: `${id}-lav`, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
+          },
+        ],
       },
     ],
   }
@@ -113,7 +121,7 @@ describe('resolverIncrementoVerticalPorNivel (D-δ.50)', () => {
     const u = uf('uf-pb', 0)
     const proyecto = proyectoCon([u])
 
-    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-pb'), u)
+    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-pb'), u.niveles[0]!)
 
     expect(resultado.aplica).toBe(false)
     expect(resultado.deltaLVertical_m).toBe(0)
@@ -124,7 +132,7 @@ describe('resolverIncrementoVerticalPorNivel (D-δ.50)', () => {
     const u = uf('uf-p1', 1)
     const proyecto = proyectoCon([u])
 
-    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p1'), u)
+    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p1'), u.niveles[0]!)
 
     expect(resultado.deltaLVertical_m).toBe(3)
     expect(resultado.aplica).toBe(true)
@@ -134,7 +142,7 @@ describe('resolverIncrementoVerticalPorNivel (D-δ.50)', () => {
     const u = uf('uf-p2', 2)
     const proyecto = proyectoCon([u])
 
-    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p2'), u)
+    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p2'), u.niveles[0]!)
 
     expect(resultado.deltaLVertical_m).toBe(6)
   })
@@ -143,7 +151,7 @@ describe('resolverIncrementoVerticalPorNivel (D-δ.50)', () => {
     const u = uf('uf-p1', 1)
     const proyecto = proyectoCon([u])
 
-    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p1'), u)
+    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p1'), u.niveles[0]!)
 
     expect(resultado.tramosConIncremento).toEqual([
       { tramoId: 't-general', rol: 'alimentacionGeneral', incremento_m: 3 },
@@ -156,7 +164,7 @@ describe('resolverIncrementoVerticalPorNivel (D-δ.50)', () => {
     const u = uf('uf-p1', 1)
     const proyecto = proyectoCon([u])
 
-    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAC(proyecto, 'uf-p1'), u)
+    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAC(proyecto, 'uf-p1'), u.niveles[0]!)
 
     expect(resultado.tramosConIncremento).toEqual([
       { tramoId: 't-general', rol: 'alimentacionGeneral', incremento_m: 3 },
@@ -171,16 +179,20 @@ describe('resolverIncrementoVerticalPorNivel (D-δ.50)', () => {
     const b = uf('uf-b', 2)
     const proyecto = proyectoCon([a, b])
 
-    const incA = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-a'), a)
-    const incB = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-b'), b)
+    const incA = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-a'), a.niveles[0]!)
+    const incB = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-b'), b.niveles[0]!)
     expect(incA.deltaLVertical_m).toBe(6)
     expect(incB.deltaLVertical_m).toBe(6) // NO 12: cada camino deriva de SU nivel
 
     // T11: uf-b pasa a Piso 3 -> 9; uf-a sigue en 6.
-    const b3 = { ...b, nivel: 3 }
+    const b3 = { ...b, niveles: [{ ...b.niveles[0]!, nivel: 3 }] }
     const proyecto3 = proyectoCon([a, b3])
-    expect(resolverIncrementoVerticalPorNivel(proyecto3, caminoAF(proyecto3, 'uf-b'), b3).deltaLVertical_m).toBe(9)
-    expect(resolverIncrementoVerticalPorNivel(proyecto3, caminoAF(proyecto3, 'uf-a'), a).deltaLVertical_m).toBe(6)
+    expect(
+      resolverIncrementoVerticalPorNivel(proyecto3, caminoAF(proyecto3, 'uf-b'), b3.niveles[0]!).deltaLVertical_m,
+    ).toBe(9)
+    expect(
+      resolverIncrementoVerticalPorNivel(proyecto3, caminoAF(proyecto3, 'uf-a'), a.niveles[0]!).deltaLVertical_m,
+    ).toBe(6)
   })
 
   it('T10: la UF de PB no recibe incremento aunque el proyecto tenga otra UF en Piso 1', () => {
@@ -188,7 +200,7 @@ describe('resolverIncrementoVerticalPorNivel (D-δ.50)', () => {
     const p1 = uf('uf-p1', 1)
     const proyecto = proyectoCon([pb, p1])
 
-    const incPb = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-pb'), pb)
+    const incPb = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-pb'), pb.niveles[0]!)
     expect(incPb.deltaLVertical_m).toBe(0)
     expect(incPb.incrementoPorTramoId.size).toBe(0)
   })
@@ -197,7 +209,7 @@ describe('resolverIncrementoVerticalPorNivel (D-δ.50)', () => {
     const u = uf('uf-x', undefined)
     const proyecto = proyectoCon([u])
 
-    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-x'), u)
+    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-x'), u.niveles[0]!)
 
     expect(resultado.aplica).toBe(false)
     expect(resultado.deltaLVertical_m).toBe(0)
@@ -207,7 +219,7 @@ describe('resolverIncrementoVerticalPorNivel (D-δ.50)', () => {
     const u = uf('uf-p2', 2)
     const proyecto = proyectoCon([u], 'profesional')
 
-    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p2'), u)
+    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p2'), u.niveles[0]!)
 
     expect(resultado.aplica).toBe(false)
     expect(resultado.deltaLVertical_m).toBe(0)
@@ -250,7 +262,7 @@ describe('resolverIncrementoVerticalPorNivel — supresión por montante explíc
     const u = uf('uf-p2', 2)
     const proyecto = conMontanteEn(proyectoCon([u]), 't-general')
 
-    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p2'), u)
+    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p2'), u.niveles[0]!)
 
     expect(resultado.aplica).toBe(false)
     expect(resultado.suprimidoPorMontante).toBe(true)
@@ -264,7 +276,7 @@ describe('resolverIncrementoVerticalPorNivel — supresión por montante explíc
     const u = uf('uf-p1', 1)
     const proyecto = conMontanteEn(proyectoCon([u]), 't-general')
 
-    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAC(proyecto, 'uf-p1'), u)
+    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAC(proyecto, 'uf-p1'), u.niveles[0]!)
 
     expect(resultado.aplica).toBe(false)
     expect(resultado.suprimidoPorMontante).toBe(true)
@@ -275,7 +287,7 @@ describe('resolverIncrementoVerticalPorNivel — supresión por montante explíc
     const u = uf('uf-p2', 2)
     const proyecto = conMontanteEn(proyectoCon([u]), 't-general', { quitarLongitud: true })
 
-    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p2'), u)
+    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p2'), u.niveles[0]!)
 
     expect(resultado.aplica).toBe(false)
     expect(resultado.suprimidoPorMontante).toBe(true)
@@ -289,7 +301,7 @@ describe('resolverIncrementoVerticalPorNivel — supresión por montante explíc
     // uf-p1 no lo atraviesa.
     const proyecto = conMontanteEn(proyectoCon([p1, p2]), 't-af-uf-p2-uf-p2-lav')
 
-    const resultadoAF = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p1'), p1)
+    const resultadoAF = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p1'), p1.niveles[0]!)
     expect(resultadoAF.aplica).toBe(true)
     expect(resultadoAF.suprimidoPorMontante).toBeFalsy()
     expect(resultadoAF.incrementoPorTramoId.size).toBeGreaterThan(0)
@@ -299,7 +311,7 @@ describe('resolverIncrementoVerticalPorNivel — supresión por montante explíc
     const u = uf('uf-p2', 2)
     const proyecto = conMontanteEn(proyectoCon([u], 'profesional'), 't-general')
 
-    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p2'), u)
+    const resultado = resolverIncrementoVerticalPorNivel(proyecto, caminoAF(proyecto, 'uf-p2'), u.niveles[0]!)
 
     expect(resultado.aplica).toBe(false)
     expect(resultado.deltaLVertical_m).toBe(0)

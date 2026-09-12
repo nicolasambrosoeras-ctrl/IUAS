@@ -97,7 +97,7 @@ function proyectoBase(opciones: OpcionesFixture = {}): Proyecto {
     locales.push(local('local-sin-red', 9))
   }
 
-  const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales }
+  const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales }] }
 
   const ramas = [
     ramaLocal('a', 'local-a'),
@@ -386,7 +386,7 @@ describe('agregarLocalAMontante — sentido físico por cota de origen', () => {
         (t) => t.nodoOrigenId === seg.nodoDestinoId && t.montanteId === undefined,
       )!
       const ref = obtenerArtefactosAguasAbajo(r.proyecto, feed.id)[0]!
-      const l = r.proyecto.unidadesFuncionales[0]!.locales.find((x) => x.id === ref.localId)!
+      const l = r.proyecto.unidadesFuncionales[0]!.niveles[0]!.locales.find((x) => x.id === ref.localId)!
       return l.cotaPiso_m
     })
     expect(cotasEnOrden).toEqual([18, 12, 6])
@@ -509,8 +509,8 @@ describe('borrarMontante', () => {
       expect(r.proyecto.redHidraulica!.tramos.find((t) => t.id === id)!.nodoOrigenId).toBe('n-0')
     }
     // Ningún Local ni artefacto se perdió.
-    expect(r.proyecto.unidadesFuncionales[0]!.locales).toHaveLength(
-      proyecto.unidadesFuncionales[0]!.locales.length,
+    expect(r.proyecto.unidadesFuncionales[0]!.niveles[0]!.locales).toHaveLength(
+      proyecto.unidadesFuncionales[0]!.niveles[0]!.locales.length,
     )
     expect(validarRedHidraulica(r.proyecto)).toEqual([])
   })
@@ -571,9 +571,14 @@ describe('PRUEBA CENTRAL DEL MOTOR (§17): vacío -> A -> C -> B intermedia', ()
       unidadesFuncionales: [
         {
           ...acManual.unidadesFuncionales[0]!,
-          locales: acManual.unidadesFuncionales[0]!.locales.map((l) =>
-            l.id === 'local-b' ? { ...l, cotaPiso_m: 6 } : l,
-          ),
+          niveles: [
+            {
+              ...acManual.unidadesFuncionales[0]!.niveles[0]!,
+              locales: acManual.unidadesFuncionales[0]!.niveles[0]!.locales.map((l) =>
+                l.id === 'local-b' ? { ...l, cotaPiso_m: 6 } : l,
+              ),
+            },
+          ],
         },
       ],
     }

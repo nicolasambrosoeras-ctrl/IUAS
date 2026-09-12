@@ -31,7 +31,7 @@ describe('aplicarParticipacionCritA8', () => {
     const valvula = artefacto('a-valvula', 'inodoroValvula')
     const lavatorio = artefacto('a-lavatorio', 'lavatorio')
     const loc = local('local-1', 'domiciliario', [valvula, lavatorio])
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [loc] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [loc] }] }
     const resueltoValvula = resueltoDe(uf, loc, valvula)
     const resueltoLavatorio = resueltoDe(uf, loc, lavatorio)
 
@@ -44,7 +44,7 @@ describe('aplicarParticipacionCritA8', () => {
     const lavatorio = artefacto('a-lavatorio', 'lavatorio')
     const ducha = artefacto('a-ducha', 'receptaculoDucha')
     const loc = local('local-1', 'domiciliario', [lavatorio, ducha])
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [loc] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [loc] }] }
     const resueltoLavatorio = resueltoDe(uf, loc, lavatorio)
     const resueltoDucha = resueltoDe(uf, loc, ducha)
 
@@ -57,7 +57,7 @@ describe('aplicarParticipacionCritA8', () => {
     const valvula = artefacto('a-valvula', 'inodoroValvula')
     const lavatorio = artefacto('a-lavatorio', 'lavatorio')
     const loc = local('local-1', 'noDomiciliario', [valvula, lavatorio])
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [loc] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [loc] }] }
     const resueltoValvula = resueltoDe(uf, loc, valvula)
     const resueltoLavatorio = resueltoDe(uf, loc, lavatorio)
 
@@ -74,7 +74,7 @@ describe('aplicarParticipacionCritA8', () => {
     // lavatorio -- exactamente el caso que CRIT-A13 exige no resolver
     // consultando local.artefactos.
     const loc = local('local-1', 'domiciliario', [valvula, lavatorio])
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [loc] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [loc] }] }
     const resueltoLavatorio = resueltoDe(uf, loc, lavatorio)
 
     const resultado = aplicarParticipacionCritA8([resueltoLavatorio], catalogoArtefactos)
@@ -86,7 +86,7 @@ describe('aplicarParticipacionCritA8', () => {
     const valvula = artefacto('a-valvula', 'inodoroValvula')
     const lavatorio = artefacto('a-lavatorio', 'lavatorio')
     const loc = local('local-1', 'domiciliario', [valvula, lavatorio])
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [loc] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [loc] }] }
     const resueltoValvula = resueltoDe(uf, loc, valvula)
     const resueltoLavatorio = resueltoDe(uf, loc, lavatorio)
 
@@ -99,11 +99,11 @@ describe('aplicarParticipacionCritA8', () => {
     const valvula1 = artefacto('a-valvula-1', 'inodoroValvula')
     const lavatorio1 = artefacto('a-lavatorio-1', 'lavatorio')
     const local1 = local('local-bano', 'domiciliario', [valvula1, lavatorio1])
-    const uf1: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [local1] }
+    const uf1: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [local1] }] }
 
     const lavatorio2 = artefacto('a-lavatorio-2', 'lavatorio')
     const local2 = local('local-bano', 'domiciliario', [lavatorio2])
-    const uf2: UnidadFuncional = { id: 'uf-2', nombre: 'UF 2', locales: [local2] }
+    const uf2: UnidadFuncional = { id: 'uf-2', nombre: 'UF 2', niveles: [{ id: 'uf-2-nivel-1', nombre: 'Nivel 1', locales: [local2] }] }
 
     const resueltoValvula1 = resueltoDe(uf1, local1, valvula1)
     const resueltoLavatorio1 = resueltoDe(uf1, local1, lavatorio1)
@@ -119,12 +119,12 @@ describe('aplicarParticipacionCritA8', () => {
 
   it('múltiples Locales intercalados: evaluación independiente y orden relativo de entrada preservado', () => {
     const localA = local('local-a', 'domiciliario', [])
-    const ufA: UnidadFuncional = { id: 'uf-a', nombre: 'UF A', locales: [localA] }
+    const ufA: UnidadFuncional = { id: 'uf-a', nombre: 'UF A', niveles: [{ id: 'uf-a-nivel-1', nombre: 'Nivel 1', locales: [localA] }] }
     const a1 = artefacto('a1', 'lavatorio')
     const a2 = artefacto('a2', 'inodoroValvula')
 
     const localB = local('local-b', 'noDomiciliario', [])
-    const ufB: UnidadFuncional = { id: 'uf-b', nombre: 'UF B', locales: [localB] }
+    const ufB: UnidadFuncional = { id: 'uf-b', nombre: 'UF B', niveles: [{ id: 'uf-b-nivel-1', nombre: 'Nivel 1', locales: [localB] }] }
     const b1 = artefacto('b1', 'lavatorio')
     const b2 = artefacto('b2', 'receptaculoDucha')
 
@@ -148,7 +148,7 @@ describe('aplicarParticipacionCritA8', () => {
     const valvula2 = artefacto('a-valvula-2', 'inodoroValvula')
     const lavatorio = artefacto('a-lavatorio', 'lavatorio')
     const loc = local('local-1', 'domiciliario', [valvula1, valvula2, lavatorio])
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [loc] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [loc] }] }
     const resueltoValvula1 = resueltoDe(uf, loc, valvula1)
     const resueltoValvula2 = resueltoDe(uf, loc, valvula2)
     const resueltoLavatorio = resueltoDe(uf, loc, lavatorio)
@@ -171,7 +171,7 @@ describe('aplicarParticipacionCritA8', () => {
     const valvula = artefacto('a-valvula', 'inodoroValvula')
     const lavatorio = artefacto('a-lavatorio', 'lavatorio')
     const loc = local('local-1', 'domiciliario', [valvula, lavatorio])
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [loc] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [loc] }] }
     const resueltoValvula = resueltoDe(uf, loc, valvula)
     const resueltoLavatorio = resueltoDe(uf, loc, lavatorio)
 

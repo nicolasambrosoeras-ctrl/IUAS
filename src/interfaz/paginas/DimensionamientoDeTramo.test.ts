@@ -37,7 +37,13 @@ function proyectoConFallbackDeVelocidadPorVmin(): { proyecto: Proyecto; tramoId:
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'UF 1',
-    locales: [{ id: 'local-1', tipo: 'otros', regimen: 'noDomiciliario', artefactos: [mingitorio] }],
+    niveles: [
+      {
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        locales: [{ id: 'local-1', tipo: 'otros', regimen: 'noDomiciliario', artefactos: [mingitorio] }],
+      },
+    ],
   }
   const referencia: ReferenciaDeArtefacto = { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-1', artefactoId: 'inst-mingitorio' }
   const nodos: Nodo[] = [

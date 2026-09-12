@@ -19,7 +19,7 @@ function parametros(): ParametrosProyecto {
 }
 
 function proyectoCon(redHidraulica: RedHidraulica | undefined): Proyecto {
-  const uf: UnidadFuncional = { id: 'uf-1', nombre: 'uf-1', locales: [] }
+  const uf: UnidadFuncional = { id: 'uf-1', nombre: 'uf-1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [] }] }
   return {
     metadatos: metadatos(),
     parametros: parametros(),

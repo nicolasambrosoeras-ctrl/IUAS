@@ -36,27 +36,33 @@ const unidadesFuncionales: readonly UnidadFuncional[] = [
   {
     id: 'uf-1',
     nombre: 'UF 1',
-    locales: [
+    niveles: [
       {
-        id: 'local-bano-1',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [
-          { id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
-          { id: 'a2', artefactoId: 'inodoroDeposito', cantidad: 1, origen: 'normativo' },
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        locales: [
+          {
+            id: 'local-bano-1',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [
+              { id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
+              { id: 'a2', artefactoId: 'inodoroDeposito', cantidad: 1, origen: 'normativo' },
+            ],
+          },
+          {
+            id: 'local-bano-2',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [{ id: 'a3', artefactoId: 'bidet', cantidad: 1, origen: 'normativo' }],
+          },
+          {
+            id: 'local-cocina',
+            tipo: 'cocina',
+            regimen: 'domiciliario',
+            artefactos: [{ id: 'a4', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' }],
+          },
         ],
-      },
-      {
-        id: 'local-bano-2',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [{ id: 'a3', artefactoId: 'bidet', cantidad: 1, origen: 'normativo' }],
-      },
-      {
-        id: 'local-cocina',
-        tipo: 'cocina',
-        regimen: 'domiciliario',
-        artefactos: [{ id: 'a4', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' }],
       },
     ],
   },
@@ -172,13 +178,13 @@ describe('identificarFilasPrincipalesDeLocales', () => {
 
 describe('derivarOrdinalesDeLocal', () => {
   it('numera incluso con un único Local de ese tipo (cocina -> 1)', () => {
-    const locales: readonly Local[] = unidadesFuncionales[0]!.locales
+    const locales: readonly Local[] = unidadesFuncionales[0]!.niveles[0]!.locales
     const ordinales = derivarOrdinalesDeLocal(locales)
     expect(ordinales.get('local-cocina')).toBe(1)
   })
 
   it('numera secuencialmente por tipo en el orden de aparición (bano-1 -> 1, bano-2 -> 2)', () => {
-    const locales: readonly Local[] = unidadesFuncionales[0]!.locales
+    const locales: readonly Local[] = unidadesFuncionales[0]!.niveles[0]!.locales
     const ordinales = derivarOrdinalesDeLocal(locales)
     expect(ordinales.get('local-bano-1')).toBe(1)
     expect(ordinales.get('local-bano-2')).toBe(2)
@@ -195,50 +201,56 @@ const unidadesFuncionalesDemo: readonly UnidadFuncional[] = [
   {
     id: 'uf-1',
     nombre: 'Unidad funcional 1',
-    locales: [
+    niveles: [
       {
-        id: 'local-bano',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [
-          { id: 'artefacto-bano-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
-          { id: 'artefacto-bano-2', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' },
-          { id: 'artefacto-bano-3', artefactoId: 'bidet', cantidad: 1, origen: 'normativo' },
-          { id: 'artefacto-bano-4', artefactoId: 'inodoroDeposito', cantidad: 1, origen: 'normativo' },
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        locales: [
+          {
+            id: 'local-bano',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [
+              { id: 'artefacto-bano-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
+              { id: 'artefacto-bano-2', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' },
+              { id: 'artefacto-bano-3', artefactoId: 'bidet', cantidad: 1, origen: 'normativo' },
+              { id: 'artefacto-bano-4', artefactoId: 'inodoroDeposito', cantidad: 1, origen: 'normativo' },
+            ],
+          },
+          {
+            id: 'local-cocina',
+            tipo: 'cocina',
+            regimen: 'domiciliario',
+            artefactos: [
+              { id: 'artefacto-cocina-1', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' },
+              { id: 'artefacto-cocina-2', artefactoId: 'maquinaLavavajillas', cantidad: 1, origen: 'normativo' },
+            ],
+          },
+          {
+            id: 'local-lavadero',
+            tipo: 'lavadero',
+            regimen: 'domiciliario',
+            artefactos: [
+              { id: 'artefacto-lavadero-1', artefactoId: 'piletaDeLavar', cantidad: 1, origen: 'normativo' },
+              { id: 'artefacto-lavadero-2', artefactoId: 'maquinaLavarropas', cantidad: 1, origen: 'normativo' },
+            ],
+          },
+          {
+            id: 'local-toilette',
+            tipo: 'toilette',
+            regimen: 'domiciliario',
+            artefactos: [
+              { id: 'artefacto-toilette-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
+              { id: 'artefacto-toilette-2', artefactoId: 'inodoroDeposito', cantidad: 1, origen: 'normativo' },
+            ],
+          },
+          {
+            id: 'local-patio',
+            tipo: 'jardin',
+            regimen: 'domiciliario',
+            artefactos: [{ id: 'artefacto-patio-1', artefactoId: 'canillaDeServicio', cantidad: 1, origen: 'normativo' }],
+          },
         ],
-      },
-      {
-        id: 'local-cocina',
-        tipo: 'cocina',
-        regimen: 'domiciliario',
-        artefactos: [
-          { id: 'artefacto-cocina-1', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' },
-          { id: 'artefacto-cocina-2', artefactoId: 'maquinaLavavajillas', cantidad: 1, origen: 'normativo' },
-        ],
-      },
-      {
-        id: 'local-lavadero',
-        tipo: 'lavadero',
-        regimen: 'domiciliario',
-        artefactos: [
-          { id: 'artefacto-lavadero-1', artefactoId: 'piletaDeLavar', cantidad: 1, origen: 'normativo' },
-          { id: 'artefacto-lavadero-2', artefactoId: 'maquinaLavarropas', cantidad: 1, origen: 'normativo' },
-        ],
-      },
-      {
-        id: 'local-toilette',
-        tipo: 'toilette',
-        regimen: 'domiciliario',
-        artefactos: [
-          { id: 'artefacto-toilette-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
-          { id: 'artefacto-toilette-2', artefactoId: 'inodoroDeposito', cantidad: 1, origen: 'normativo' },
-        ],
-      },
-      {
-        id: 'local-patio',
-        tipo: 'jardin',
-        regimen: 'domiciliario',
-        artefactos: [{ id: 'artefacto-patio-1', artefactoId: 'canillaDeServicio', cantidad: 1, origen: 'normativo' }],
       },
     ],
   },
@@ -390,10 +402,16 @@ describe('identificarFilasDistribucionSecundaria', () => {
   const ufMontante: UnidadFuncional = {
     id: 'uf-m',
     nombre: 'UF montante',
-    locales: [
-      { id: 'l1', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'x1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
-      { id: 'l2', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'x2', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
-      { id: 'l3', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'x3', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
+    niveles: [
+      {
+        id: 'uf-m-nivel-1',
+        nombre: 'Nivel 1',
+        locales: [
+          { id: 'l1', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'x1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
+          { id: 'l2', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'x2', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
+          { id: 'l3', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'x3', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
+        ],
+      },
     ],
   }
   const proyectoMontante: Proyecto = {
@@ -476,9 +494,15 @@ describe('identificarFilasDistribucionSecundaria', () => {
     const uf: UnidadFuncional = {
       id: 'uf-p',
       nombre: 'UF paralela',
-      locales: [
-        { id: 'l1', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
-        { id: 'l2', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'a2', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
+      niveles: [
+        {
+          id: 'uf-p-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [
+            { id: 'l1', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
+            { id: 'l2', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'a2', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
+          ],
+        },
       ],
     }
     const proyectoParalelo: Proyecto = {

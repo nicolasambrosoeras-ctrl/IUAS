@@ -19,7 +19,7 @@ function aporteCon(
 ): AporteHidraulicoDeTramo {
   const artefacto: Artefacto = { id: idInstancia, artefactoId: 'lavatorio', cantidad, origen: 'normativo' }
   const local: Local = { id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
-  const unidadFuncional: UnidadFuncional = { id: unidadFuncionalId, nombre: unidadFuncionalId, locales: [local] }
+  const unidadFuncional: UnidadFuncional = { id: unidadFuncionalId, nombre: unidadFuncionalId, niveles: [{ id: 'nivel-1', nombre: 'Nivel 1', locales: [local] }] }
 
   const artefactoResuelto: ArtefactoResuelto = {
     referencia: { tipo: 'artefacto', unidadFuncionalId, localId: local.id, artefactoId: idInstancia },

@@ -20,7 +20,7 @@ function artefactoResueltoCon(
 ): ArtefactoResuelto {
   const artefacto: Artefacto = { id: idInstancia, artefactoId: artefactoIdCatalogo, cantidad, origen: 'normativo' }
   const local: Local = { id: localId, tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
-  const unidadFuncional: UnidadFuncional = { id: unidadFuncionalId, nombre: unidadFuncionalId, locales: [local] }
+  const unidadFuncional: UnidadFuncional = { id: unidadFuncionalId, nombre: unidadFuncionalId, niveles: [{ id: 'nivel-1', nombre: 'Nivel 1', locales: [local] }] }
 
   return {
     referencia: { tipo: 'artefacto', unidadFuncionalId, localId, artefactoId: idInstancia },

@@ -63,7 +63,13 @@ function unidadFuncionalCon(unidadFuncionalId: string, localId: string, artefact
   return {
     id: unidadFuncionalId,
     nombre: unidadFuncionalId,
-    locales: [{ id: localId, tipo: 'bano', regimen: 'domiciliario', artefactos }],
+    niveles: [
+      {
+        id: `${unidadFuncionalId}-nivel-1`,
+        nombre: 'Nivel 1',
+        locales: [{ id: localId, tipo: 'bano', regimen: 'domiciliario', artefactos }],
+      },
+    ],
   }
 }
 

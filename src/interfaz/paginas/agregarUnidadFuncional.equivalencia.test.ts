@@ -54,7 +54,7 @@ describe.each([3, 10, 20])('agregar UF vacía a un proyecto de %i UF', (cantidad
 
   it('la UF nueva está vacía y es la única diferencia en unidadesFuncionales', () => {
     expect(conUfVacia.unidadesFuncionales.length).toBe(proyecto.unidadesFuncionales.length + 1)
-    expect(nuevaUf.locales).toEqual([])
+    expect(nuevaUf.niveles[0]?.locales).toEqual([])
     expect(conUfVacia.unidadesFuncionales.slice(0, -1)).toEqual(proyecto.unidadesFuncionales)
   })
 

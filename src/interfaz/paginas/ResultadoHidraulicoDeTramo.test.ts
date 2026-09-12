@@ -39,7 +39,11 @@ describe('describirReferenciaPendiente', () => {
   it('resuelve UF, Local y nombre de catálogo en el formato "UF → Local → Artefacto"', () => {
     const artefacto: Artefacto = { id: 'a1', artefactoId: 'bidet', cantidad: 1, origen: 'normativo' }
     const local: Local = { id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'Unidad funcional 1', locales: [local] }
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'Unidad funcional 1',
+      niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [local] }],
+    }
     const proyecto = proyectoCon([uf])
     const catalogoArtefactos: readonly ArtefactoNormativo[] = [
       { id: 'bidet', nombre: 'Bidet' } as ArtefactoNormativo,
@@ -53,7 +57,11 @@ describe('describirReferenciaPendiente', () => {
   it('usa ETIQUETA_TIPO_DE_LOCAL para traducir el tipo de Local, no el id técnico', () => {
     const artefacto: Artefacto = { id: 'a1', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' }
     const local: Local = { id: 'local-cocina-1', tipo: 'cocina', regimen: 'domiciliario', artefactos: [artefacto] }
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'Unidad funcional 1', locales: [local] }
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'Unidad funcional 1',
+      niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [local] }],
+    }
     const proyecto = proyectoCon([uf])
     const catalogoArtefactos: readonly ArtefactoNormativo[] = [
       { id: 'piletaDeCocina', nombre: 'Pileta de cocina' } as ArtefactoNormativo,
@@ -68,7 +76,11 @@ describe('describirReferenciaPendiente', () => {
   it('nombre de artefacto obtenido del catálogo, no del artefactoId técnico', () => {
     const artefacto: Artefacto = { id: 'a1', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' }
     const local: Local = { id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'Unidad funcional 1', locales: [local] }
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'Unidad funcional 1',
+      niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [local] }],
+    }
     const proyecto = proyectoCon([uf])
     const catalogoArtefactos: readonly ArtefactoNormativo[] = [
       { id: 'receptaculoDucha', nombre: 'Receptáculo de ducha' } as ArtefactoNormativo,
@@ -83,7 +95,11 @@ describe('describirReferenciaPendiente', () => {
   it('fallback: artefactoId técnico del catálogo si no se encuentra en catalogoArtefactos (caso borde, sin inventar nombre)', () => {
     const artefacto: Artefacto = { id: 'a1', artefactoId: 'artefactoInexistente', cantidad: 1, origen: 'normativo' }
     const local: Local = { id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'Unidad funcional 1', locales: [local] }
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'Unidad funcional 1',
+      niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [local] }],
+    }
     const proyecto = proyectoCon([uf])
 
     const resultado = describirReferenciaPendiente(proyecto, [], referenciaA('uf-1', 'local-bano', 'a1'))
@@ -105,7 +121,11 @@ function proyectoConToilette(): Proyecto {
   const lavatorio: Artefacto = { id: 'art-lavatorio', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }
   const inodoro: Artefacto = { id: 'art-inodoro', artefactoId: 'inodoroDeposito', cantidad: 1, origen: 'normativo' }
   const local: Local = { id: 'local-toilette', tipo: 'toilette', regimen: 'domiciliario', artefactos: [lavatorio, inodoro] }
-  const uf: UnidadFuncional = { id: 'uf-1', nombre: 'Unidad funcional 1', locales: [local] }
+  const uf: UnidadFuncional = {
+    id: 'uf-1',
+    nombre: 'Unidad funcional 1',
+    niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [local] }],
+  }
 
   const refLavatorio = referenciaA('uf-1', 'local-toilette', 'art-lavatorio')
   const refInodoro = referenciaA('uf-1', 'local-toilette', 'art-inodoro')
@@ -396,7 +416,11 @@ describe('CabeceraDeModulo2 -- toggle de modo de trabajo (D-δ.51)', () => {
   function proyectoRapido(): Proyecto {
     const artefacto: Artefacto = { id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }
     const local: Local = { id: 'l1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', nivel: 0, cotaHidraulicaReferencia_m: 1, locales: [local] }
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'UF 1',
+      niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', nivel: 0, cotaHidraulicaReferencia_m: 1, locales: [local] }],
+    }
     const nodos: Nodo[] = [
       { id: 'n-general' },
       { id: 'n0' },

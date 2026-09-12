@@ -16,16 +16,22 @@ function base(): Proyecto {
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'UF 1',
-    nivel: 0,
-    cotaHidraulicaReferencia_m: 1,
-    locales: [
+    niveles: [
       {
-        id: 'l-bano',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [
-          { id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
-          { id: 'a2', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' },
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        nivel: 0,
+        cotaHidraulicaReferencia_m: 1,
+        locales: [
+          {
+            id: 'l-bano',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [
+              { id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
+              { id: 'a2', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' },
+            ],
+          },
         ],
       },
     ],

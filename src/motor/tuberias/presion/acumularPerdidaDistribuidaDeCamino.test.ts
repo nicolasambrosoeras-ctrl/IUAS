@@ -75,7 +75,9 @@ function proyectoCadenaDosTramos(longitudes: { t0?: number; t1?: number }): Proy
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
-    locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-lavatorio', 'lavatorio')] }],
+    niveles: [
+      { id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-lavatorio', 'lavatorio')] }] },
+    ],
   }
   const nodos: Nodo[] = [
     { id: 'n0' },
@@ -194,7 +196,9 @@ describe('acumularPerdidaDistribuidaDeCamino', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-lavatorio', 'lavatorio')] }],
+      niveles: [
+        { id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-lavatorio', 'lavatorio')] }] },
+      ],
     }
     const nodos: Nodo[] = [
       { id: 'n0' },
@@ -275,12 +279,18 @@ function proyectoLocalConDosRamales(opciones?: {
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
-    locales: [
+    niveles: [
       {
-        id: 'local-1',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        locales: [
+          {
+            id: 'local-1',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+          },
+        ],
       },
     ],
   }

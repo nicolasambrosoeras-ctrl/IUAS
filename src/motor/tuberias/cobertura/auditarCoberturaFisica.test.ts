@@ -32,7 +32,7 @@ describe('auditarCoberturaFisica', () => {
   it('S1-A: todos los artefactos normativos referenciados -> completa', () => {
     const artefacto: Artefacto = { id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }
     const local: Local = { id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [local] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [local] }] }
     const redHidraulica: RedHidraulica = {
       nodos: [nodoReferenciando('n1', 'uf-1', 'local-bano', 'a1')],
       tramos: [],
@@ -52,7 +52,7 @@ describe('auditarCoberturaFisica', () => {
       regimen: 'domiciliario',
       artefactos: [artefactoCubierto, artefactoNuevo],
     }
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [local] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [local] }] }
     const redHidraulica: RedHidraulica = {
       nodos: [nodoReferenciando('n1', 'uf-1', 'local-bano', 'a1')],
       tramos: [],
@@ -69,7 +69,7 @@ describe('auditarCoberturaFisica', () => {
   it('S1-C: cambio de cantidad de un artefacto ya referenciado no altera la cobertura', () => {
     const artefacto: Artefacto = { id: 'a1', artefactoId: 'lavatorio', cantidad: 3, origen: 'normativo' }
     const local: Local = { id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [local] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [local] }] }
     const redHidraulica: RedHidraulica = {
       nodos: [nodoReferenciando('n1', 'uf-1', 'local-bano', 'a1')],
       tramos: [],
@@ -83,7 +83,7 @@ describe('auditarCoberturaFisica', () => {
   it('S1-D: dos referencias fisicas (AF + AC) del mismo artefacto no producen duplicados', () => {
     const artefacto: Artefacto = { id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }
     const local: Local = { id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [local] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [local] }] }
     const redHidraulica: RedHidraulica = {
       nodos: [
         nodoReferenciando('n-af', 'uf-1', 'local-bano', 'a1'),
@@ -100,7 +100,7 @@ describe('auditarCoberturaFisica', () => {
   it('S1-E: artefacto origen usuario sin referencia no vuelve incompleta la cobertura', () => {
     const artefactoUsuario: Artefacto = { id: 'a3', artefactoId: 'lavatorio', cantidad: 1, origen: 'usuario' }
     const local: Local = { id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefactoUsuario] }
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [local] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [local] }] }
     const redHidraulica: RedHidraulica = { nodos: [], tramos: [] }
 
     const resultado = auditarCoberturaFisica(proyectoCon([uf], redHidraulica))
@@ -111,7 +111,7 @@ describe('auditarCoberturaFisica', () => {
   it('proyecto sin redHidraulica: cualquier artefacto normativo queda sin referencia', () => {
     const artefacto: Artefacto = { id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }
     const local: Local = { id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [local] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [local] }] }
 
     const resultado = auditarCoberturaFisica(proyectoCon([uf]))
 

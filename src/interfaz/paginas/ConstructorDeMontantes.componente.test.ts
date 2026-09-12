@@ -30,7 +30,11 @@ function rama(id: string): { nodos: Nodo[]; tramos: Tramo[] } {
 }
 
 function proyectoBase(): Proyecto {
-  const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [local('l-a', 3), local('l-b', 6)] }
+  const uf: UnidadFuncional = {
+    id: 'uf-1',
+    nombre: 'UF 1',
+    niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [local('l-a', 3), local('l-b', 6)] }],
+  }
   const ramas = [rama('l-a'), rama('l-b')]
   const redHidraulica: RedHidraulica = {
     nodos: [{ id: 'n-gen' }, { id: 'n-af' }, ...ramas.flatMap((r) => r.nodos)],

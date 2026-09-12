@@ -29,12 +29,18 @@ function unidadFuncionalCon(
   return {
     id: unidadFuncionalId,
     nombre: unidadFuncionalId,
-    locales: locales.map((local) => ({
-      id: local.localId,
-      tipo: 'bano' as const,
-      regimen: 'domiciliario' as const,
-      artefactos: local.artefactos,
-    })),
+    niveles: [
+      {
+        id: `${unidadFuncionalId}-nivel-1`,
+        nombre: 'Nivel 1',
+        locales: locales.map((local) => ({
+          id: local.localId,
+          tipo: 'bano' as const,
+          regimen: 'domiciliario' as const,
+          artefactos: local.artefactos,
+        })),
+      },
+    ],
   }
 }
 

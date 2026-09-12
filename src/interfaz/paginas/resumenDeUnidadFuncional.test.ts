@@ -2,13 +2,19 @@ import { describe, it, expect } from 'vitest'
 import type { UnidadFuncional } from '../../modelo/proyecto'
 import { resumenDeUnidadFuncional } from './resumenDeUnidadFuncional'
 
-const uf = (parcial: Partial<UnidadFuncional>): UnidadFuncional => ({
+const uf = (parcial: Partial<UnidadFuncional['niveles'][number]>): UnidadFuncional => ({
   id: 'uf-x',
   nombre: 'Unidad funcional 1',
-  nivel: 0,
-  cotaHidraulicaReferencia_m: 1,
-  locales: [],
-  ...parcial,
+  niveles: [
+    {
+      id: 'uf-x-nivel-1',
+      nombre: 'Nivel 1',
+      nivel: 0,
+      cotaHidraulicaReferencia_m: 1,
+      locales: [],
+      ...parcial,
+    },
+  ],
 })
 
 describe('resumenDeUnidadFuncional (UX-01 / UI-01D)', () => {
@@ -68,8 +74,14 @@ describe('resumenDeUnidadFuncional (UX-01 / UI-01D)', () => {
     const sinNivel: UnidadFuncional = {
       id: 'uf-x',
       nombre: 'Departamento A',
-      cotaHidraulicaReferencia_m: 1,
-      locales: [],
+      niveles: [
+        {
+          id: 'uf-x-nivel-1',
+          nombre: 'Nivel 1',
+          cotaHidraulicaReferencia_m: 1,
+          locales: [],
+        },
+      ],
     }
     const r = resumenDeUnidadFuncional(sinNivel)
     expect(r.nivelTexto).toBe('Sin clasificar')

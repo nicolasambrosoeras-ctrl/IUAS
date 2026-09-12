@@ -276,16 +276,19 @@ describe('D-δ.70 · Baseline funcional transversal M1–M4', () => {
       ...base,
       unidadesFuncionales: base.unidadesFuncionales.map((uf) => ({
         ...uf,
-        locales: uf.locales.map((l) =>
-          l.id === 'local-bano'
-            ? {
-                ...l,
-                artefactos: l.artefactos.map((a) =>
-                  a.id === 'artefacto-bano-1' ? { ...a, cantidad: a.cantidad + 3 } : a,
-                ),
-              }
-            : l,
-        ),
+        niveles: uf.niveles.map((n) => ({
+          ...n,
+          locales: n.locales.map((l) =>
+            l.id === 'local-bano'
+              ? {
+                  ...l,
+                  artefactos: l.artefactos.map((a) =>
+                    a.id === 'artefacto-bano-1' ? { ...a, cantidad: a.cantidad + 3 } : a,
+                  ),
+                }
+              : l,
+          ),
+        })),
       })),
     }
     expect(qcGlobal(conMas)!).toBeGreaterThan(qcGlobal(base)!)

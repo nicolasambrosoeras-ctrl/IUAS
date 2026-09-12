@@ -69,7 +69,9 @@ function proyectoConTerminalesEnEstrella(
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
-    locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos }],
+    niveles: [
+      { id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos }] },
+    ],
   }
   const nodos: Nodo[] = [
     { id: 'raiz' },
@@ -130,7 +132,13 @@ describe('resolverPerdidaLocalizadaEstimadaDeLocal', () => {
   })
 
   it('0 terminales fisicos -> unico cero real, no requiere resolver velocidad', () => {
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'uf-1', locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [] }] }
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'uf-1',
+      niveles: [
+        { id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [] }] },
+      ],
+    }
     const proyecto = proyectoCon([uf], { nodos: [], tramos: [] })
 
     const resultado = resolverPerdidaLocalizadaEstimadaDeLocal(
@@ -209,12 +217,18 @@ describe('resolverPerdidaLocalizadaEstimadaDeLocal', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [
+      niveles: [
         {
-          id: 'local-1',
-          tipo: 'bano',
-          regimen: 'domiciliario',
-          artefactos: [artefacto('inst-lav', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [
+            {
+              id: 'local-1',
+              tipo: 'bano',
+              regimen: 'domiciliario',
+              artefactos: [artefacto('inst-lav', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+            },
+          ],
         },
       ],
     }

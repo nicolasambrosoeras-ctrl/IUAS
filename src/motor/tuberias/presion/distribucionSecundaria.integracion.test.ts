@@ -53,14 +53,20 @@ function ufNivel(id: string, localId: string, nivel: number, cota: number): Unid
   return {
     id,
     nombre: id,
-    nivel,
-    cotaHidraulicaReferencia_m: cota,
-    locales: [
+    niveles: [
       {
-        id: localId,
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [{ id: `${localId}-a`, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
+        id: `${id}-nivel-1`,
+        nombre: 'Nivel 1',
+        nivel,
+        cotaHidraulicaReferencia_m: cota,
+        locales: [
+          {
+            id: localId,
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [{ id: `${localId}-a`, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
+          },
+        ],
       },
     ],
   }

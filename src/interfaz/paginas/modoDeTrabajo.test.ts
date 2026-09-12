@@ -38,10 +38,16 @@ function proyecto(cfg: {
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'UF 1',
-    nivel: 0,
-    cotaHidraulicaReferencia_m: 1,
-    locales: [
-      { id: 'l-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
+    niveles: [
+      {
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        nivel: 0,
+        cotaHidraulicaReferencia_m: 1,
+        locales: [
+          { id: 'l-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
+        ],
+      },
     ],
   }
   const nodos: Nodo[] = [

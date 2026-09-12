@@ -73,7 +73,13 @@ function ufLavatorio(): UnidadFuncional {
   return {
     id: 'uf-1',
     nombre: 'uf-1',
-    locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', 'lavatorio')] }],
+    niveles: [
+      {
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', 'lavatorio')] }],
+      },
+    ],
   }
 }
 
@@ -125,8 +131,14 @@ function proyectoCaminoCompleto(opts?: {
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
-    ...(o.omitCotaUF ? {} : { cotaHidraulicaReferencia_m: cotaPisoUF }),
-    locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', artefactoIdCatalogo)] }],
+    niveles: [
+      {
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        ...(o.omitCotaUF ? {} : { cotaHidraulicaReferencia_m: cotaPisoUF }),
+        locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', artefactoIdCatalogo)] }],
+      },
+    ],
   }
   const nodos: Nodo[] = [
     { id: 'raiz', ...(o.omitCotaRaiz ? {} : { cota_m: cotaRaiz }) },
@@ -541,13 +553,19 @@ function proyectoEstimadoDosTerminales(opts?: { conAccesoriosDetallados?: boolea
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
-    cotaHidraulicaReferencia_m: 0,
-    locales: [
+    niveles: [
       {
-        id: 'local-1',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        cotaHidraulicaReferencia_m: 0,
+        locales: [
+          {
+            id: 'local-1',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [artefacto('inst-lavatorio', 'lavatorio'), artefacto('inst-ducha', 'receptaculoDucha')],
+          },
+        ],
       },
     ],
   }
@@ -663,7 +681,13 @@ describe('resolverPresionResidualDeCamino — metodoPerdidaLocalizada=estimado (
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', 'lavatorio')] }],
+      niveles: [
+        {
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', 'lavatorio')] }],
+        },
+      ],
     }
     const proyecto: Proyecto = {
       metadatos: metadatos(),
@@ -719,16 +743,22 @@ describe('resolverPresionResidualDeCamino — metodoPerdidaLocalizada=estimado (
         {
           id: 'uf-1',
           nombre: 'uf-1',
-          cotaHidraulicaReferencia_m: 0,
-          locales: [
+          niveles: [
             {
-              id: 'local-1',
-              tipo: 'bano',
-              regimen: 'domiciliario',
-              artefactos: [
-                artefacto('inst-lavatorio', 'lavatorio'),
-                artefacto('inst-ducha', 'receptaculoDucha'),
-                { id: 'inst-bidet', artefactoId: 'bidet', cantidad: 500, origen: 'usuario' },
+              id: 'uf-1-nivel-1',
+              nombre: 'Nivel 1',
+              cotaHidraulicaReferencia_m: 0,
+              locales: [
+                {
+                  id: 'local-1',
+                  tipo: 'bano',
+                  regimen: 'domiciliario',
+                  artefactos: [
+                    artefacto('inst-lavatorio', 'lavatorio'),
+                    artefacto('inst-ducha', 'receptaculoDucha'),
+                    { id: 'inst-bidet', artefactoId: 'bidet', cantidad: 500, origen: 'usuario' },
+                  ],
+                },
               ],
             },
           ],
@@ -785,8 +815,14 @@ describe("resolverPresionResidualDeCamino — cota efectiva derivada (GEOM-UX-01
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      ...(cotaHidraulicaReferenciaUF_m !== undefined ? { cotaHidraulicaReferencia_m: cotaHidraulicaReferenciaUF_m } : {}),
-      locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', 'receptaculoDucha')] }],
+      niveles: [
+        {
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          ...(cotaHidraulicaReferenciaUF_m !== undefined ? { cotaHidraulicaReferencia_m: cotaHidraulicaReferenciaUF_m } : {}),
+          locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', 'receptaculoDucha')] }],
+        },
+      ],
     }
     // Caminos AF y AC totalmente independientes (nunca comparten un Nodo
     // con 2 tramos salientes): mezclar ambas redes en un mismo nodo
@@ -886,8 +922,14 @@ describe("resolverPresionResidualDeCamino — cota efectiva derivada (GEOM-UX-01
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      cotaHidraulicaReferencia_m: 999,
-      locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', 'lavatorio')] }],
+      niveles: [
+        {
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          cotaHidraulicaReferencia_m: 999,
+          locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', 'lavatorio')] }],
+        },
+      ],
     }
     const nodos: Nodo[] = [{ id: 'solo', referencia: referenciaDe('uf-1', 'local-1', 'inst-1'), cota_m: 3 }]
     const proyectoBase = proyectoCon([uf], { nodos, tramos: [] })

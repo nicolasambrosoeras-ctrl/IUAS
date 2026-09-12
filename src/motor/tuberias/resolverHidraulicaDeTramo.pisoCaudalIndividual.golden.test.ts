@@ -70,7 +70,7 @@ function referenciaDe(unidadFuncionalId: string, localId: string, artefactoId: s
 describe('resolverHidraulicaDeTramo — golden CRIT-A22 (piso físico de caudal individual)', () => {
   it('A1 — válvula sola: qcEstadistico=quMax=1.5, piso no se activa', () => {
     const valvula = artefacto('inst-valvula', 'inodoroValvula')
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [localCon('bano', [valvula])] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [localCon('bano', [valvula])] }] }
     const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n1', referencia: referenciaDe('uf-1', 'bano', 'inst-valvula') }]
     const tramos: Tramo[] = [{ id: 't0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF' }]
     const proyecto = proyectoCon('viviendaIndividual', [uf], { nodos, tramos })
@@ -91,7 +91,7 @@ describe('resolverHidraulicaDeTramo — golden CRIT-A22 (piso físico de caudal 
     const lavatorio = artefacto('inst-lavatorio', 'lavatorio')
     const bidet = artefacto('inst-bidet', 'bidet')
     const ducha = artefacto('inst-ducha', 'receptaculoDucha')
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [localCon('bano', [valvula, lavatorio, bidet, ducha])] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [localCon('bano', [valvula, lavatorio, bidet, ducha])] }] }
     const nodos: Nodo[] = [
       { id: 'nRaiz' },
       { id: 'n0' },
@@ -134,11 +134,17 @@ describe('resolverHidraulicaDeTramo — golden CRIT-A22 (piso físico de caudal 
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'UF 1',
-      locales: [
-        localCon('bano', [valvula]),
-        localCon('cocina', [piletaCocina, lavavajillas]),
-        localCon('lavadero', [piletaLavar, lavarropas]),
-        localCon('jardin', [canilla]),
+      niveles: [
+        {
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [
+            localCon('bano', [valvula]),
+            localCon('cocina', [piletaCocina, lavavajillas]),
+            localCon('lavadero', [piletaLavar, lavarropas]),
+            localCon('jardin', [canilla]),
+          ],
+        },
       ],
     }
     const nodos: Nodo[] = [
@@ -188,12 +194,18 @@ describe('resolverHidraulicaDeTramo — golden CRIT-A22 (piso físico de caudal 
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'UF 1',
-      locales: [
-        localCon('bano', [valvula]),
-        localCon('toilette', [lavatorioToilette]),
-        localCon('cocina', [piletaCocina, lavavajillas]),
-        localCon('lavadero', [piletaLavar, lavarropas]),
-        localCon('jardin', [canilla]),
+      niveles: [
+        {
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [
+            localCon('bano', [valvula]),
+            localCon('toilette', [lavatorioToilette]),
+            localCon('cocina', [piletaCocina, lavavajillas]),
+            localCon('lavadero', [piletaLavar, lavarropas]),
+            localCon('jardin', [canilla]),
+          ],
+        },
       ],
     }
     const nodos: Nodo[] = [
@@ -234,8 +246,8 @@ describe('resolverHidraulicaDeTramo — golden CRIT-A22 (piso físico de caudal 
   it('A6 — multifamiliar, válvula (UF1) + lavatorio (UF2): Qc estadístico ya supera quMax, piso no se activa, aEfectivo no se altera', () => {
     const valvula = artefacto('inst-valvula', 'inodoroValvula')
     const lavatorio = artefacto('inst-lavatorio', 'lavatorio')
-    const uf1: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [localCon('bano', [valvula])] }
-    const uf2: UnidadFuncional = { id: 'uf-2', nombre: 'UF 2', locales: [localCon('bano', [lavatorio])] }
+    const uf1: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [localCon('bano', [valvula])] }] }
+    const uf2: UnidadFuncional = { id: 'uf-2', nombre: 'UF 2', niveles: [{ id: 'uf-2-nivel-1', nombre: 'Nivel 1', locales: [localCon('bano', [lavatorio])] }] }
     const nodos: Nodo[] = [
       { id: 'nRaiz' },
       { id: 'n0' },

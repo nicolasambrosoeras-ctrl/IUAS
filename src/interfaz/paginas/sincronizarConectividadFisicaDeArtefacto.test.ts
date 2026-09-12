@@ -57,7 +57,10 @@ function agregarArtefactoAlLocal(proyecto: Proyecto, localId: string, nuevo: Art
     ...proyecto,
     unidadesFuncionales: proyecto.unidadesFuncionales.map((uf) => ({
       ...uf,
-      locales: uf.locales.map((l) => (l.id === localId ? { ...l, artefactos: [...l.artefactos, nuevo] } : l)),
+      niveles: uf.niveles.map((n) => ({
+        ...n,
+        locales: n.locales.map((l) => (l.id === localId ? { ...l, artefactos: [...l.artefactos, nuevo] } : l)),
+      })),
     })),
   }
 }
@@ -85,10 +88,16 @@ function proyectoBase(): Proyecto {
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
-    locales: [
-      { id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('art-lavatorio', 'lavatorio')] },
-      { id: 'local-patio', tipo: 'jardin', regimen: 'domiciliario', artefactos: [artefacto('art-canilla', 'canillaDeServicio')] },
-      { id: 'local-vacio', tipo: 'otros', regimen: 'domiciliario', artefactos: [] },
+    niveles: [
+      {
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        locales: [
+          { id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('art-lavatorio', 'lavatorio')] },
+          { id: 'local-patio', tipo: 'jardin', regimen: 'domiciliario', artefactos: [artefacto('art-canilla', 'canillaDeServicio')] },
+          { id: 'local-vacio', tipo: 'otros', regimen: 'domiciliario', artefactos: [] },
+        ],
+      },
     ],
   }
   const nodos: Nodo[] = [
@@ -339,12 +348,18 @@ describe('sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [
+      niveles: [
         {
-          id: 'local-bano',
-          tipo: 'bano',
-          regimen: 'domiciliario',
-          artefactos: [artefacto('a1', 'lavatorio'), artefacto('a2', 'lavatorio')],
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [
+            {
+              id: 'local-bano',
+              tipo: 'bano',
+              regimen: 'domiciliario',
+              artefactos: [artefacto('a1', 'lavatorio'), artefacto('a2', 'lavatorio')],
+            },
+          ],
         },
       ],
     }
@@ -456,7 +471,13 @@ describe('sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [{ id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('a-1', 'lavatorio')] }],
+      niveles: [
+        {
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [{ id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('a-1', 'lavatorio')] }],
+        },
+      ],
     }
     const proyecto = proyectoCon([uf], { nodos: [], tramos: [] })
 
@@ -484,12 +505,18 @@ describe('sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [
+      niveles: [
         {
-          id: 'local-bano',
-          tipo: 'bano',
-          regimen: 'domiciliario',
-          artefactos: [artefacto('a-inodoro', 'inodoroDeposito'), artefacto('a-lavatorio', 'lavatorio')],
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [
+            {
+              id: 'local-bano',
+              tipo: 'bano',
+              regimen: 'domiciliario',
+              artefactos: [artefacto('a-inodoro', 'inodoroDeposito'), artefacto('a-lavatorio', 'lavatorio')],
+            },
+          ],
         },
       ],
     }
@@ -538,8 +565,14 @@ describe('sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [
-        { id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('a1', 'lavatorio'), artefacto('a2', 'receptaculoDucha')] },
+      niveles: [
+        {
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [
+            { id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('a1', 'lavatorio'), artefacto('a2', 'receptaculoDucha')] },
+          ],
+        },
       ],
     }
     const nodos: Nodo[] = [
@@ -709,7 +742,11 @@ describe('sincronizarConectividadFisicaDeArtefactoConRedesDeclaradas', () => {
   })
 
   it('proyecto sin redHidraulica: sinRedHidraulica', () => {
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'uf-1', locales: [{ id: 'l-1', tipo: 'bano', artefactos: [artefacto('a-1', 'inodoroValvula')] }] }
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'uf-1',
+      niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [{ id: 'l-1', tipo: 'bano', artefactos: [artefacto('a-1', 'inodoroValvula')] }] }],
+    }
     const proyecto: Proyecto = {
       metadatos: metadatos(),
       parametros: parametros(),

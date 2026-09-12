@@ -27,27 +27,33 @@ const unidadesFuncionales: readonly UnidadFuncional[] = [
   {
     id: 'uf-1',
     nombre: 'UF 1',
-    locales: [
+    niveles: [
       {
-        id: 'local-bano-1',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [
-          { id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
-          { id: 'a2', artefactoId: 'inodoroDeposito', cantidad: 1, origen: 'normativo' },
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        locales: [
+          {
+            id: 'local-bano-1',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [
+              { id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
+              { id: 'a2', artefactoId: 'inodoroDeposito', cantidad: 1, origen: 'normativo' },
+            ],
+          },
+          {
+            id: 'local-bano-2',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [{ id: 'a3', artefactoId: 'bidet', cantidad: 1, origen: 'normativo' }],
+          },
+          {
+            id: 'local-cocina',
+            tipo: 'cocina',
+            regimen: 'domiciliario',
+            artefactos: [{ id: 'a4', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' }],
+          },
         ],
-      },
-      {
-        id: 'local-bano-2',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [{ id: 'a3', artefactoId: 'bidet', cantidad: 1, origen: 'normativo' }],
-      },
-      {
-        id: 'local-cocina',
-        tipo: 'cocina',
-        regimen: 'domiciliario',
-        artefactos: [{ id: 'a4', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' }],
       },
     ],
   },

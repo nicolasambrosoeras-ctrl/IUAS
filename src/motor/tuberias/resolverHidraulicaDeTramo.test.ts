@@ -64,7 +64,13 @@ function unidadFuncionalCon(
   return {
     id: unidadFuncionalId,
     nombre: unidadFuncionalId,
-    locales: [{ id: localId, tipo: 'bano', regimen: 'domiciliario', artefactos }],
+    niveles: [
+      {
+        id: `${unidadFuncionalId}-nivel-1`,
+        nombre: 'Nivel 1',
+        locales: [{ id: localId, tipo: 'bano', regimen: 'domiciliario', artefactos }],
+      },
+    ],
   }
 }
 
@@ -212,7 +218,13 @@ describe('resolverHidraulicaDeTramo', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'UF 1',
-      locales: [{ id: 'local-1', tipo: 'otros', regimen: 'noDomiciliario', artefactos: [mingitorio] }],
+      niveles: [
+        {
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [{ id: 'local-1', tipo: 'otros', regimen: 'noDomiciliario', artefactos: [mingitorio] }],
+        },
+      ],
     }
     const nodos: Nodo[] = [
       { id: 'n0' },
@@ -240,7 +252,13 @@ describe('resolverHidraulicaDeTramo', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'UF 1',
-      locales: [{ id: 'local-1', tipo: 'cocina', regimen: 'noDomiciliario', artefactos: [lavavajillas] }],
+      niveles: [
+        {
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [{ id: 'local-1', tipo: 'cocina', regimen: 'noDomiciliario', artefactos: [lavavajillas] }],
+        },
+      ],
     }
     // nTronco ─┬─ tRamaAF ──────────────────→ lavavajillas (n-af)
     //          └─ tACSin → n-acs(ACS) → tRamaAC → lavavajillas (n-ac)

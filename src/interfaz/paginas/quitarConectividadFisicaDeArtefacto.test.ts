@@ -45,12 +45,18 @@ function proyectoBase(): Proyecto {
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
-    locales: [
+    niveles: [
       {
-        id: 'local-bano',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [artefacto('a-lavatorio', 'lavatorio'), artefacto('a-ducha', 'receptaculoDucha')],
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        locales: [
+          {
+            id: 'local-bano',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [artefacto('a-lavatorio', 'lavatorio'), artefacto('a-ducha', 'receptaculoDucha')],
+          },
+        ],
       },
     ],
   }
@@ -93,7 +99,13 @@ describe('quitarConectividadFisicaDeArtefacto', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [{ id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('a-lavatorio', 'lavatorio')] }],
+      niveles: [
+        {
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [{ id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('a-lavatorio', 'lavatorio')] }],
+        },
+      ],
     }
     const nodos: Nodo[] = [
       { id: 'n0' },
@@ -136,14 +148,21 @@ describe('quitarConectividadFisicaDeArtefacto', () => {
       ...resultado,
       unidadesFuncionales: resultado.unidadesFuncionales.map((uf) => ({
         ...uf,
-        locales: uf.locales.map((l) => ({ ...l, artefactos: l.artefactos.filter((a) => a.id !== 'a-lavatorio') })),
+        niveles: uf.niveles.map((n) => ({
+          ...n,
+          locales: n.locales.map((l) => ({ ...l, artefactos: l.artefactos.filter((a) => a.id !== 'a-lavatorio') })),
+        })),
       })),
     }
     expect(validarRedHidraulica(proyectoCompleto)).toEqual([])
   })
 
   it('proyecto sin redHidraulica: no-op', () => {
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'uf-1', locales: [{ id: 'l-1', tipo: 'bano', artefactos: [artefacto('a-1', 'lavatorio')] }] }
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'uf-1',
+      niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [{ id: 'l-1', tipo: 'bano', artefactos: [artefacto('a-1', 'lavatorio')] }] }],
+    }
     const proyecto: Proyecto = {
       metadatos: metadatos(),
       parametros: parametros(),

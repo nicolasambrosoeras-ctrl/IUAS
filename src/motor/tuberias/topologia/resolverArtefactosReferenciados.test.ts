@@ -36,7 +36,7 @@ describe('resolverArtefactosReferenciados', () => {
       origen: 'normativo',
     }
     const local: Local = { id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [local] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'nivel-1', nombre: 'Nivel 1', locales: [local] }] }
     const proyecto = proyectoCon([uf])
     const referencia = referenciaA('uf-1', 'local-bano', 'artefacto-ducha')
 
@@ -57,7 +57,7 @@ describe('resolverArtefactosReferenciados', () => {
   })
 
   it('UF valida + localId inexistente lanza excepcion', () => {
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'nivel-1', nombre: 'Nivel 1', locales: [] }] }
     const proyecto = proyectoCon([uf])
     const referencia = referenciaA('uf-1', 'local-inexistente', 'artefacto-x')
 
@@ -66,7 +66,7 @@ describe('resolverArtefactosReferenciados', () => {
 
   it('UF/Local validos + artefactoId inexistente lanza excepcion', () => {
     const local: Local = { id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [] }
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [local] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'nivel-1', nombre: 'Nivel 1', locales: [local] }] }
     const proyecto = proyectoCon([uf])
     const referencia = referenciaA('uf-1', 'local-bano', 'artefacto-inexistente')
 
@@ -76,11 +76,11 @@ describe('resolverArtefactosReferenciados', () => {
   it('dos referencias con mismo localId y artefactoId pero UF distintas resuelven objetos funcionales distintos', () => {
     const artefacto1: Artefacto = { id: 'artefacto-x', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' }
     const local1: Local = { id: 'local-x', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto1] }
-    const uf1: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [local1] }
+    const uf1: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'nivel-1', nombre: 'Nivel 1', locales: [local1] }] }
 
     const artefacto2: Artefacto = { id: 'artefacto-x', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' }
     const local2: Local = { id: 'local-x', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto2] }
-    const uf2: UnidadFuncional = { id: 'uf-2', nombre: 'UF 2', locales: [local2] }
+    const uf2: UnidadFuncional = { id: 'uf-2', nombre: 'UF 2', niveles: [{ id: 'nivel-1', nombre: 'Nivel 1', locales: [local2] }] }
 
     const proyecto = proyectoCon([uf1, uf2])
     const referencia1 = referenciaA('uf-1', 'local-x', 'artefacto-x')
@@ -106,7 +106,7 @@ describe('resolverArtefactosReferenciados', () => {
       regimen: 'domiciliario',
       artefactos: [artefactoA, artefactoB],
     }
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [local] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'nivel-1', nombre: 'Nivel 1', locales: [local] }] }
     const proyecto = proyectoCon([uf])
 
     const referenciaB = referenciaA('uf-1', 'local-bano', 'artefacto-b')
@@ -126,7 +126,7 @@ describe('resolverArtefactosReferenciados', () => {
       origen: 'normativo',
     }
     const local: Local = { id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [local] }
+    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'nivel-1', nombre: 'Nivel 1', locales: [local] }] }
     const proyecto = proyectoCon([uf])
     const referencia = referenciaA('uf-1', 'local-bano', 'artefacto-ducha')
 

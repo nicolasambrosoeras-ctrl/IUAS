@@ -31,12 +31,18 @@ function unidadFuncionalConArtefacto(id: string, localId: string, artefactoId: s
   return {
     id,
     nombre: `UF ${id}`,
-    locales: [
+    niveles: [
       {
-        id: localId,
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [{ id: artefactoId, artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' }],
+        id: `${id}-nivel-1`,
+        nombre: 'Nivel 1',
+        locales: [
+          {
+            id: localId,
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [{ id: artefactoId, artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' }],
+          },
+        ],
       },
     ],
   }

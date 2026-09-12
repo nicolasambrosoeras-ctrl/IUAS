@@ -27,7 +27,9 @@ function conUnidadesFuncionales(unidadesFuncionales: readonly UnidadFuncional[])
 
 describe('validarInvariantesDeProyecto — proyectoSinArtefactosComputables', () => {
   it('Caso A: UF sin locales -> inválido, con el nuevo error global y la advertencia existente', () => {
-    const proyecto = conUnidadesFuncionales([{ id: 'uf-1', nombre: 'UF 1', locales: [] }])
+    const proyecto = conUnidadesFuncionales([
+      { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [] }] },
+    ])
     const problemas = validarInvariantesDeProyecto(proyecto)
 
     const codigos = problemas.map((p) => p.codigo)
@@ -44,7 +46,13 @@ describe('validarInvariantesDeProyecto — proyectoSinArtefactosComputables', ()
       {
         id: 'uf-1',
         nombre: 'UF 1',
-        locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [] }],
+        niveles: [
+          {
+            id: 'uf-1-nivel-1',
+            nombre: 'Nivel 1',
+            locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [] }],
+          },
+        ],
       },
     ])
     const problemas = validarInvariantesDeProyecto(proyecto)
@@ -57,16 +65,22 @@ describe('validarInvariantesDeProyecto — proyectoSinArtefactosComputables', ()
 
   it('Caso C: varias UF, alguna con artefactos -> válido respecto de esta regla', () => {
     const proyecto = conUnidadesFuncionales([
-      { id: 'uf-1', nombre: 'UF 1', locales: [] },
+      { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [] }] },
       {
         id: 'uf-2',
         nombre: 'UF 2',
-        locales: [
+        niveles: [
           {
-            id: 'local-1',
-            tipo: 'bano',
-            regimen: 'domiciliario',
-            artefactos: [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
+            id: 'uf-2-nivel-1',
+            nombre: 'Nivel 1',
+            locales: [
+              {
+                id: 'local-1',
+                tipo: 'bano',
+                regimen: 'domiciliario',
+                artefactos: [{ id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
+              },
+            ],
           },
         ],
       },
@@ -78,11 +92,17 @@ describe('validarInvariantesDeProyecto — proyectoSinArtefactosComputables', ()
 
   it('Caso D: varias UF, ninguna con artefactos -> inválido, con exactamente un error global', () => {
     const proyecto = conUnidadesFuncionales([
-      { id: 'uf-1', nombre: 'UF 1', locales: [] },
+      { id: 'uf-1', nombre: 'UF 1', niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [] }] },
       {
         id: 'uf-2',
         nombre: 'UF 2',
-        locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [] }],
+        niveles: [
+          {
+            id: 'uf-2-nivel-1',
+            nombre: 'Nivel 1',
+            locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [] }],
+          },
+        ],
       },
     ])
     const problemas = validarInvariantesDeProyecto(proyecto)

@@ -2,14 +2,14 @@
 // UF (cota de piso) -> Local (override de piso, o hereda) -> Artefacto
 // (override de altura, o Tabla IUAS) -> cota hidráulica efectiva DERIVADA.
 import { describe, it, expect } from 'vitest'
-import type { Artefacto, Local, UnidadFuncional } from '../../../modelo/proyecto'
+import type { Artefacto, Local, Nivel } from '../../../modelo/proyecto'
 import {
   resolverCotaPisoDeLocal,
   resolverAlturaHidraulicaDeArtefacto,
   resolverCotaHidraulicaEfectivaDeArtefacto,
 } from './resolverCotaHidraulicaDeArtefacto'
 
-const uf = (cotaHidraulicaReferencia_m?: number): Pick<UnidadFuncional, 'cotaHidraulicaReferencia_m'> => ({
+const uf = (cotaHidraulicaReferencia_m?: number): Pick<Nivel, 'cotaHidraulicaReferencia_m'> => ({
   ...(cotaHidraulicaReferencia_m !== undefined ? { cotaHidraulicaReferencia_m } : {}),
 })
 const local = (cotaPiso_m?: number): Pick<Local, 'cotaPiso_m'> => ({

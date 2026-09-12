@@ -34,8 +34,14 @@ describe('resolverInfoCotaDeTerminal (D-δ.46)', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'Unidad funcional 1',
-      ...(cotaHidraulicaReferencia_m !== undefined ? { cotaHidraulicaReferencia_m } : {}),
-      locales: [],
+      niveles: [
+        {
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          ...(cotaHidraulicaReferencia_m !== undefined ? { cotaHidraulicaReferencia_m } : {}),
+          locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [] }],
+        },
+      ],
     }
     return {
       metadatos: metadatos(),
@@ -92,8 +98,30 @@ describe('resolverInfoCotaDeTerminal (D-δ.46)', () => {
   // resolver EXACTAMENTE la cota de SU PROPIA UnidadFuncional, nunca la de
   // otra, aunque ambas convivan en el mismo proyecto.
   it("'simplificada', dos UF con cotas distintas: cada terminal resuelve la cota de SU PROPIA UF, nunca la de la otra", () => {
-    const ufPB: UnidadFuncional = { id: 'uf-pb', nombre: 'PB', cotaHidraulicaReferencia_m: 1, locales: [] }
-    const ufPiso2: UnidadFuncional = { id: 'uf-piso2', nombre: 'Piso 2', cotaHidraulicaReferencia_m: 7, locales: [] }
+    const ufPB: UnidadFuncional = {
+      id: 'uf-pb',
+      nombre: 'PB',
+      niveles: [
+        {
+          id: 'uf-pb-nivel-1',
+          nombre: 'Nivel 1',
+          cotaHidraulicaReferencia_m: 1,
+          locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [] }],
+        },
+      ],
+    }
+    const ufPiso2: UnidadFuncional = {
+      id: 'uf-piso2',
+      nombre: 'Piso 2',
+      niveles: [
+        {
+          id: 'uf-piso2-nivel-1',
+          nombre: 'Nivel 1',
+          cotaHidraulicaReferencia_m: 7,
+          locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [] }],
+        },
+      ],
+    }
     const proyecto: Proyecto = {
       metadatos: metadatos(),
       parametros: parametros(),

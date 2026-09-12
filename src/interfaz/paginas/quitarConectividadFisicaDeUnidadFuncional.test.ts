@@ -47,24 +47,36 @@ function proyectoBase(): Proyecto {
     {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [
+      niveles: [
         {
-          id: 'local-bano',
-          tipo: 'bano',
-          regimen: 'domiciliario',
-          artefactos: [artefacto('a-lavatorio', 'lavatorio')],
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [
+            {
+              id: 'local-bano',
+              tipo: 'bano',
+              regimen: 'domiciliario',
+              artefactos: [artefacto('a-lavatorio', 'lavatorio')],
+            },
+          ],
         },
       ],
     },
     {
       id: 'uf-2',
       nombre: 'uf-2',
-      locales: [
+      niveles: [
         {
-          id: 'local-bano-2',
-          tipo: 'bano',
-          regimen: 'domiciliario',
-          artefactos: [artefacto('a-lavatorio-2', 'lavatorio')],
+          id: 'uf-2-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [
+            {
+              id: 'local-bano-2',
+              tipo: 'bano',
+              regimen: 'domiciliario',
+              artefactos: [artefacto('a-lavatorio-2', 'lavatorio')],
+            },
+          ],
         },
       ],
     },

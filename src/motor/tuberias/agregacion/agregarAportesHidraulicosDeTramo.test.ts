@@ -11,7 +11,11 @@ import { agregarAportesHidraulicosDeTramo } from './agregarAportesHidraulicosDeT
 function artefactoResueltoDummy(): ArtefactoResuelto {
   const artefacto: Artefacto = { id: 'a', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }
   const local: Local = { id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
-  const unidadFuncional: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales: [local] }
+  const unidadFuncional: UnidadFuncional = {
+    id: 'uf-1',
+    nombre: 'UF 1',
+    niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [local] }],
+  }
   return {
     referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf-1', localId: 'local-1', artefactoId: 'a' },
     unidadFuncional,

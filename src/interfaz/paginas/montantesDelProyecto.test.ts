@@ -70,7 +70,11 @@ function proyectoBase(): Proyecto {
   // artefacto cuyo id coincide con el terminal `ramaAC('l-ac')`.
   locales[1] = { ...locales[1]!, artefactos: [...locales[1]!.artefactos, { id: 'l-ambas-art-ac', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] }
   locales[2] = { ...locales[2]!, artefactos: [{ id: 'l-ac-art-ac', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] }
-  const uf: UnidadFuncional = { id: 'uf-1', nombre: 'UF 1', locales }
+  const uf: UnidadFuncional = {
+    id: 'uf-1',
+    nombre: 'UF 1',
+    niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales }],
+  }
 
   const ramas = [ramaAF('l-af'), ramaAF('l-ambas'), ramaAC('l-ambas'), ramaAC('l-ac')]
   const redHidraulica: RedHidraulica = {
@@ -267,7 +271,7 @@ describe('identidad de montante estable', () => {
     const borrado = borrarMontante(conLocal, montanteId)
     if (borrado.tipo !== 'reconciliado') throw new Error(borrado.tipo)
     expect(borrado.proyecto.montantes ?? []).toEqual([])
-    expect(borrado.proyecto.unidadesFuncionales[0]?.locales.map((l) => l.id)).toContain('l-af')
+    expect(borrado.proyecto.unidadesFuncionales[0]?.niveles[0]?.locales.map((l) => l.id)).toContain('l-af')
     expect(validarRedHidraulica(borrado.proyecto)).toEqual([])
   })
 })

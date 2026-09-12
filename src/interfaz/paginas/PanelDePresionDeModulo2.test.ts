@@ -78,7 +78,13 @@ function ufConTerminal(): { uf: UnidadFuncional; red: RedHidraulica } {
   const uf: UnidadFuncional = {
     id: 'uf-1',
     nombre: 'uf-1',
-    locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', 'lavatorio')] }],
+    niveles: [
+      {
+        id: 'uf-1-nivel-1',
+        nombre: 'Nivel 1',
+        locales: [{ id: 'local-1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto('inst-1', 'lavatorio')] }],
+      },
+    ],
   }
   const nodos: Nodo[] = [{ id: 'raiz' }, { id: 'terminal', referencia: referenciaDe('uf-1', 'local-1', 'inst-1') }]
   const tramos: Tramo[] = [{ id: 't0', nodoOrigenId: 'raiz', nodoDestinoId: 'terminal', red: 'AF' }]

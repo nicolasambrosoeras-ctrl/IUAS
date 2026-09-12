@@ -47,14 +47,20 @@ function ufBanoCompleto(ufId: string): { uf: UnidadFuncional; nodos: Nodo[]; tra
   const uf: UnidadFuncional = {
     id: ufId,
     nombre: ufId,
-    locales: [
+    niveles: [
       {
-        id: 'local-bano',
-        tipo: 'bano',
-        regimen: 'domiciliario',
-        artefactos: [
-          { id: `${ufId}-lav`, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
-          { id: `${ufId}-ino`, artefactoId: 'inodoroValvula', cantidad: 1, origen: 'normativo' },
+        id: `${ufId}-nivel-1`,
+        nombre: 'Nivel 1',
+        locales: [
+          {
+            id: 'local-bano',
+            tipo: 'bano',
+            regimen: 'domiciliario',
+            artefactos: [
+              { id: `${ufId}-lav`, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
+              { id: `${ufId}-ino`, artefactoId: 'inodoroValvula', cantidad: 1, origen: 'normativo' },
+            ],
+          },
         ],
       },
     ],
@@ -145,12 +151,18 @@ describe('resolverAlcancesDeMedidoresIndividuales (M3-B2b, CRIT-A34)', () => {
     const uf: UnidadFuncional = {
       id: ufId,
       nombre: ufId,
-      locales: [
+      niveles: [
         {
-          id: 'local-toilette',
-          tipo: 'toilette',
-          regimen: 'domiciliario',
-          artefactos: [{ id: 'a-ino', artefactoId: 'inodoroValvula', cantidad: 1, origen: 'normativo' }],
+          id: `${ufId}-nivel-1`,
+          nombre: 'Nivel 1',
+          locales: [
+            {
+              id: 'local-toilette',
+              tipo: 'toilette',
+              regimen: 'domiciliario',
+              artefactos: [{ id: 'a-ino', artefactoId: 'inodoroValvula', cantidad: 1, origen: 'normativo' }],
+            },
+          ],
         },
       ],
     }
@@ -200,7 +212,12 @@ describe('resolverAlcancesDeMedidoresIndividuales (M3-B2b, CRIT-A34)', () => {
     // está en el Local -> deja de contarse.
     const ufSinInodoro: UnidadFuncional = {
       ...base.uf,
-      locales: [{ ...base.uf.locales[0]!, artefactos: [base.uf.locales[0]!.artefactos[0]!] }],
+      niveles: [
+        {
+          ...base.uf.niveles[0]!,
+          locales: [{ ...base.uf.niveles[0]!.locales[0]!, artefactos: [base.uf.niveles[0]!.locales[0]!.artefactos[0]!] }],
+        },
+      ],
     }
     const despues = resolverAlcancesDeMedidoresIndividuales(
       proyectoCon([ufSinInodoro], redDe(base)),
@@ -231,15 +248,21 @@ describe('resolverAlcancesDeMedidoresIndividuales (M3-B2b, CRIT-A34)', () => {
     const uf: UnidadFuncional = {
       id: ufId,
       nombre: ufId,
-      locales: [
+      niveles: [
         {
-          id: 'local-bano',
-          tipo: 'bano',
-          regimen: 'domiciliario',
-          artefactos: [
-            { id: 'a-conectado', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
-            { id: 'a-usuario', artefactoId: 'lavatorio', cantidad: 1, origen: 'usuario' },
-            { id: 'a-sin-red', artefactoId: 'bidet', cantidad: 1, origen: 'normativo' },
+          id: `${ufId}-nivel-1`,
+          nombre: 'Nivel 1',
+          locales: [
+            {
+              id: 'local-bano',
+              tipo: 'bano',
+              regimen: 'domiciliario',
+              artefactos: [
+                { id: 'a-conectado', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' },
+                { id: 'a-usuario', artefactoId: 'lavatorio', cantidad: 1, origen: 'usuario' },
+                { id: 'a-sin-red', artefactoId: 'bidet', cantidad: 1, origen: 'normativo' },
+              ],
+            },
           ],
         },
       ],
@@ -264,8 +287,14 @@ describe('resolverAlcancesDeMedidoresIndividuales (M3-B2b, CRIT-A34)', () => {
     const uf: UnidadFuncional = {
       id: 'uf-1',
       nombre: 'uf-1',
-      locales: [
-        { id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
+      niveles: [
+        {
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [
+            { id: 'local-bano', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] },
+          ],
+        },
       ],
     }
     const proyecto = proyectoCon([uf], redDe({ nodos: [], tramos: [] }))
@@ -337,12 +366,18 @@ describe('resolverAlcancesDeMedidoresIndividuales (M3-B2b, CRIT-A34)', () => {
     const uf: UnidadFuncional = {
       id: ufId,
       nombre: ufId,
-      locales: [
+      niveles: [
         {
-          id: 'local-cocina',
-          tipo: 'cocina',
-          regimen: 'noDomiciliario',
-          artefactos: [{ id: `${ufId}-pci`, artefactoId: 'piletaDeCocinaIndustrial', cantidad: 1, origen: 'normativo' }],
+          id: `${ufId}-nivel-1`,
+          nombre: 'Nivel 1',
+          locales: [
+            {
+              id: 'local-cocina',
+              tipo: 'cocina',
+              regimen: 'noDomiciliario',
+              artefactos: [{ id: `${ufId}-pci`, artefactoId: 'piletaDeCocinaIndustrial', cantidad: 1, origen: 'normativo' }],
+            },
+          ],
         },
       ],
     }

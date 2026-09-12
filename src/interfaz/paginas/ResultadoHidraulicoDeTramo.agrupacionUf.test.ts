@@ -33,7 +33,7 @@ function parametros(): ParametrosProyecto {
 function ufSimple(ufId: string, nombre: string, localId: string): { uf: UnidadFuncional; nodos: Nodo[]; tramos: Tramo[] } {
   const artefacto: Artefacto = { id: `${localId}-art`, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }
   const local: Local = { id: localId, tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
-  const uf: UnidadFuncional = { id: ufId, nombre, locales: [local] }
+  const uf: UnidadFuncional = { id: ufId, nombre, niveles: [{ id: `${ufId}-nivel-1`, nombre: 'Nivel 1', locales: [local] }] }
   const nodoLeaf = `n-${localId}`
   return {
     uf,
@@ -157,7 +157,11 @@ describe('UI-M2-GROUP-01 §11/§12 -- Local agrupa sus filas AF/AC bajo un únic
       regimen: 'domiciliario',
       artefactos: [{ id: 'a1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }],
     }
-    const uf: UnidadFuncional = { id: 'uf-1', nombre: 'Unidad funcional 1', locales: [local] }
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'Unidad funcional 1',
+      niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', locales: [local] }],
+    }
     const nodos: Nodo[] = [
       { id: 'n-general' },
       { id: 'n-0' },

@@ -61,19 +61,25 @@ describe('calcularReservaDiaria — Caso Golden G3 (Tabla N°3, CASOS-GOLDEN.md)
         {
           id: 'uf-1',
           nombre: 'Unidad funcional 1',
-          locales: [
+          niveles: [
             {
-              id: 'local-1',
-              tipo: 'bano',
-              regimen: 'domiciliario',
-              artefactos: [
-                { id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 2, origen: 'normativo' },
-                { id: 'artefacto-2', artefactoId: 'banera', cantidad: 1, origen: 'normativo' },
-                { id: 'artefacto-3', artefactoId: 'inodoroDeposito', cantidad: 2, origen: 'normativo' },
-                { id: 'artefacto-4', artefactoId: 'bidet', cantidad: 1, origen: 'normativo' },
-                { id: 'artefacto-5', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' },
-                { id: 'artefacto-6', artefactoId: 'piletaDeLavar', cantidad: 1, origen: 'normativo' },
-                { id: 'artefacto-7', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' },
+              id: 'uf-1-nivel-1',
+              nombre: 'Nivel 1',
+              locales: [
+                {
+                  id: 'local-1',
+                  tipo: 'bano',
+                  regimen: 'domiciliario',
+                  artefactos: [
+                    { id: 'artefacto-1', artefactoId: 'lavatorio', cantidad: 2, origen: 'normativo' },
+                    { id: 'artefacto-2', artefactoId: 'banera', cantidad: 1, origen: 'normativo' },
+                    { id: 'artefacto-3', artefactoId: 'inodoroDeposito', cantidad: 2, origen: 'normativo' },
+                    { id: 'artefacto-4', artefactoId: 'bidet', cantidad: 1, origen: 'normativo' },
+                    { id: 'artefacto-5', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' },
+                    { id: 'artefacto-6', artefactoId: 'piletaDeLavar', cantidad: 1, origen: 'normativo' },
+                    { id: 'artefacto-7', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' },
+                  ],
+                },
               ],
             },
           ],
@@ -110,30 +116,36 @@ describe('calcularReservaDiaria — Caso Golden G4 (Tabla N°4, CASOS-GOLDEN.md)
         {
           id: 'uf-1',
           nombre: 'Unidad funcional 1',
-          locales: [
+          niveles: [
             {
-              id: 'local-bano-principal',
-              tipo: 'bano',
-              regimen: 'domiciliario',
-              artefactos: [
-                { id: 'artefacto-1', artefactoId: 'inodoroValvula', cantidad: 1, origen: 'normativo' },
-              ],
-            },
-            {
-              id: 'local-bano-servicio',
-              tipo: 'toilette',
-              regimen: 'domiciliario',
-              artefactos: [
-                { id: 'artefacto-2', artefactoId: 'inodoroValvula', cantidad: 1, origen: 'normativo' },
-              ],
-            },
-            {
-              id: 'local-cocina',
-              tipo: 'cocina',
-              regimen: 'domiciliario',
-              artefactos: [
-                { id: 'artefacto-3', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' },
-                { id: 'artefacto-4', artefactoId: 'maquinaLavavajillas', cantidad: 1, origen: 'normativo' },
+              id: 'uf-1-nivel-1',
+              nombre: 'Nivel 1',
+              locales: [
+                {
+                  id: 'local-bano-principal',
+                  tipo: 'bano',
+                  regimen: 'domiciliario',
+                  artefactos: [
+                    { id: 'artefacto-1', artefactoId: 'inodoroValvula', cantidad: 1, origen: 'normativo' },
+                  ],
+                },
+                {
+                  id: 'local-bano-servicio',
+                  tipo: 'toilette',
+                  regimen: 'domiciliario',
+                  artefactos: [
+                    { id: 'artefacto-2', artefactoId: 'inodoroValvula', cantidad: 1, origen: 'normativo' },
+                  ],
+                },
+                {
+                  id: 'local-cocina',
+                  tipo: 'cocina',
+                  regimen: 'domiciliario',
+                  artefactos: [
+                    { id: 'artefacto-3', artefactoId: 'piletaDeCocina', cantidad: 1, origen: 'normativo' },
+                    { id: 'artefacto-4', artefactoId: 'maquinaLavavajillas', cantidad: 1, origen: 'normativo' },
+                  ],
+                },
               ],
             },
           ],

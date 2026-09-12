@@ -123,9 +123,11 @@ describe('PERF-SCALE-01B §17 (adenda) — Duplicar unidad funcional', () => {
 
     // Y efectivamente construyó la UF copia completa (un nivel más de todo).
     expect(conCopia.unidadesFuncionales.length).toBe(base.unidadesFuncionales.length + 1)
-    const localesBase = base.unidadesFuncionales.reduce((s, uf) => s + uf.locales.length, 0)
-    const localesCopia = conCopia.unidadesFuncionales.reduce((s, uf) => s + uf.locales.length, 0)
-    expect(localesCopia).toBe(localesBase + base.unidadesFuncionales[0]!.locales.length)
+    const localesDeUf = (uf: (typeof base.unidadesFuncionales)[number]) =>
+      uf.niveles.reduce((s, n) => s + n.locales.length, 0)
+    const localesBase = base.unidadesFuncionales.reduce((s, uf) => s + localesDeUf(uf), 0)
+    const localesCopia = conCopia.unidadesFuncionales.reduce((s, uf) => s + localesDeUf(uf), 0)
+    expect(localesCopia).toBe(localesBase + localesDeUf(base.unidadesFuncionales[0]!))
   })
 
   it('el re-render posterior a duplicar tiene el MISMO fan-out (ya optimizado) que cualquier tecla: 1× resolverEstadoModulo2', () => {
