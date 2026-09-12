@@ -122,6 +122,70 @@ test.describe('UI-M2-RESP-POLISH-01 · overflow horizontal mobile (re-diagnósti
     expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
   })
 
+  // FIX-M3-RESP-02-ACS-01: cierre de trazabilidad. D-δ.107/108/109
+  // documentaron repetidamente "FIX-RESP-02 sigue fallando de forma
+  // independiente" (excepción de ACS por UF en M3) como hallazgo colateral
+  // fuera de alcance, sin volver a verificarlo tras este mismo fix. La
+  // investigación de FIX-M3-RESP-02-ACS-01 confirmó por bisección contra
+  // el commit a18314f (pre-fix) que la causa NUNCA fue el <select> de M3
+  // (ese bug quedó resuelto en D-δ.83) sino, de nuevo, `.m1-uf__acciones`
+  // sin wrap real -- la app es one-page, así que el overflow del header de
+  // M1 contamina la medición de overflow del documento sin importar qué
+  // sección se esté mirando. Este test reproduce el escenario COMPUESTO
+  // exacto que se venía marcando como "sigue fallando" -- nivel + UF
+  // duplicada (dispara el header de 3 acciones) navegando hasta la
+  // excepción de ACS de M3 -- para dejarlo verificado de punta a punta y
+  // no depender de que nadie vuelva a cruzar los dos hallazgos a mano.
+  test('nivel + UF duplicada + excepción de ACS en Medidores (FIX-RESP-02 compuesto): sin overflow horizontal de página', async ({
+    page,
+    errores,
+    baseURLEfectiva,
+  }) => {
+    await cargarAppLimpia(page, baseURLEfectiva)
+    await page.getByRole('link', { name: /Demanda/ }).first().click()
+    await estabilizar(page)
+
+    const uf = page.locator('.m1-uf').first()
+    await uf.getByRole('button', { name: '+ Agregar nivel' }).click()
+    await estabilizar(page)
+    await uf.getByRole('button', { name: 'Duplicar', exact: true }).click()
+    await estabilizar(page)
+
+    await page.getByRole('link', { name: /Medidores/ }).first().click()
+    await estabilizar(page)
+    const iniciar = page.getByRole('button', { name: 'Iniciar Módulo 3' })
+    if (await iniciar.isVisible().catch(() => false)) {
+      await iniciar.click()
+      await estabilizar(page)
+    }
+    const ph = page.getByRole('checkbox', { name: /Propiedad horizontal/ })
+    if (!(await ph.isChecked())) {
+      await ph.click()
+      await estabilizar(page)
+    }
+    await page.getByLabel('Provisión de agua caliente (por defecto):').selectOption('individual')
+    await estabilizar(page)
+    const resumen = page.getByText('Configurar excepciones por unidad funcional', { exact: true })
+    await resumen.click()
+    await estabilizar(page)
+    const detalleExcepciones = resumen.locator('xpath=ancestor::details[1]')
+    const selExcepcion = detalleExcepciones.locator('select').first()
+    await selExcepcion.selectOption('default')
+    await estabilizar(page)
+
+    const overflow = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }))
+    expect(overflow.scrollWidth - overflow.clientWidth, JSON.stringify(overflow)).toBeLessThanOrEqual(2)
+
+    await expect(selExcepcion).toBeVisible()
+    await expect(selExcepcion).toBeEnabled()
+
+    const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+  })
+
   test('M2 con la fila agrupada del Baño visible: pill, "N puntos" y control expandir/contraer usables en mobile', async ({
     page,
     errores,
