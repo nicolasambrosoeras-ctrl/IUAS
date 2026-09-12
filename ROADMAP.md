@@ -2261,6 +2261,110 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `UI-M2-MONTANTE-COMPACT-01: CERRADO — pendiente
     validación manual` del usuario sobre el deploy.
 
+- **D-δ.112 — HYD-EST-01: hf estimada por camino (path-aware), en vez de
+  agregada por Local/Red basada en Vref máxima terminal.** Slice
+  hidráulico (Nivel A) en Módulo 2, modo `Estimadas` únicamente.
+  `Detalladas` no se tocó.
+  - **Antes:** la pérdida localizada estimada de un Local+Red se calculaba
+    **agregada** por `(Local, red)`: `n-1` tees `Ks = 3,00`
+    (`teeEntradaCentralSalidasLaterales`, D-δ.40) + una llave de paso
+    `Ks = 9,18` + **una sola** singularidad terminal `Ks = 1,35`
+    (`codo90`, D-δ.45), TODAS calculadas sobre la velocidad de referencia
+    **máxima** (`V_ref`) entre todos los terminales físicos del grupo. Un
+    terminal alimentado por un tramo de menor diámetro heredaba la V del
+    terminal más desfavorable del grupo, no la propia.
+  - **Después:** la pérdida localizada estimada se resuelve **por
+    camino**, recorriendo la topología real desde la raíz del Local hasta
+    cada terminal físico
+    (`resolverPerdidaLocalizadaEstimadaDeCamino.ts`). En cada nodo de
+    bifurcación real (1 tramo entrante, 2 salientes) que el camino
+    atraviesa se aplica una singularidad de tee, y al final del camino una
+    singularidad terminal — cada una con la velocidad REAL del tramo
+    propio que la alimenta, no con un `V_ref` agregado del grupo. Los
+    coeficientes `Ks` **no cambiaron** (tee `3,00` sin clasificar
+    recta/lateral — D-δ.40 sigue firme, no se adoptó el rediseño
+    recta/lateral `1,62`/`1,00` que D-δ.90 había diferido a M2-TOPO-01 por
+    falta de dato de orientación —; llave de paso `9,18`, una por entrada
+    de Local/Red; terminal `1,35`). Lo que cambió es exclusivamente la
+    **base de velocidad y la cardinalidad de la singularidad terminal**:
+    de "una por Local/Red sobre `V_ref` máxima" a "una por terminal físico
+    sobre la V real de su propio tramo de alimentación". Cada singularidad
+    pertenece sólo al camino de su terminal: no se traslada a otros
+    caminos ni se persiste. `D-δ.45` queda **superado únicamente en la
+    cardinalidad y base de velocidad** de la singularidad terminal para
+    `Estimadas`; D-δ.90 (el rediseño recta/lateral + transición de DN +
+    válvula de rama, bloqueado por falta de topología de orientación)
+    **sigue diferido a M2-TOPO-01** y no se revirtió ni se reabrió.
+  - **Fan-out 1→N no modelado (`derivacionMultipleNoModelada`):** cuando
+    un camino atraviesa una derivación de más de 2 salientes sin tee
+    explícita declarada, IUAS **no** infiere una cadena de tees, no usa un
+    fallback agregado histórico y no inventa un orden de bifurcación. La
+    hf localizada estimada de ese camino, y la presión residual que
+    depende de ella, quedan **incompletas** (`⚠ Incompleto`, motivo
+    `perdidaLocalizadaEstimadaIncompleta` → `derivacionMultipleNoModelada`
+    por tramo no resuelto); el resto de los resultados determinables
+    (DN, V, hf **distribuida**, otros Locales/terminales) se siguen
+    mostrando con normalidad — no se apaga la sección ni se ensucia con
+    un valor ficticio. La topología explícita declarada por el usuario
+    (tees / montantes) sigue siendo la única fuente de verdad; un cambio
+    de DN **no** implica agregar un accesorio de reducción automáticamente
+    (sigue sin inventarse K=0,75 por cambio de diámetro).
+  - **No confundir con `Estimadas + Detalladas`:** ambos métodos de
+    pérdida localizada siguen siendo mutuamente excluyentes y nunca se
+    suman entre sí; `Detalladas` no cambió de comportamiento.
+  - **Memoización por UF (`sonPropsDeSeccionDeUnidadFuncionalEquivalentes`):**
+    la tarjeta de una UF se invalida cuando la demanda de OTRA UF cambia
+    la velocidad de una tee compartida aguas arriba de uno de sus propios
+    terminales (dependencia física real); si la UF editada alimenta una
+    rama topológicamente independiente de la tarjeta mostrada, ésta NO se
+    recalcula. Se conserva la optimización existente — no se volvió a una
+    invalidación global por cualquier cambio de UF.
+  - **Presión:** `Presidual = Pdisponible − Δz − hfDistribuida −
+    hfLocalizada − hfMedidor − hfEquipoACS` sin cambios de fórmula; ahora
+    consume la hf localizada por camino. Un camino incompleto por
+    fan-out 1→N deja la presión residual de ESE terminal incompleta,
+    sin inventar un valor.
+  - **Performance:** el recorrido por camino usa el índice topológico e
+    índices de tramos entrantes/salientes ya existentes en
+    `contextoDeCalculoM2` (precomputados una vez por resolución), sin
+    reintroducir una complejidad `O(terminales × tramos²)`.
+  - **Fixture nuevo:** `src/pruebas/fixtures/ejemploConBifurcacionesDefinidas.ts`
+    — instalación de prueba **separada** del demo (no convierte proyectos
+    de usuario ni modifica `proyectoInicial`) con tees explícitas 1→2 y
+    tramos propios, usada para ejercitar el modelo path-aware en una red
+    físicamente completa sin fan-out 1→N. El demo original (con su
+    fan-out histórico) se preserva como caso de regresión del contrato de
+    incompletitud.
+  - **Baseline transversal (`auditoriaTransversalM1M4.baseline.test.ts`):**
+    el proyecto canónico ahora atraviesa `ejemploConBifurcacionesDefinidas`
+    — agrega tramos reales a los caminos AF/AC, cambiando la hf
+    distribuida y las singularidades por terminal. El margen del crítico
+    pasa de −17,664 a −20,164 m.c.a. (sigue NO CUMPLE); M1/M3/M4 y Tabla
+    N°1 intactos. Un test dedicado (`HYD-EST: el demo original con
+    fan-out conserva M1/M3/M4 y deja M2 incompleto sin presión ficticia`)
+    fija el contrato de incompletitud sobre el demo original.
+  - **Tests:** Vitest **1797/1797** (subiendo desde el baseline pre-slice
+    de 1784/1784); `tsc -b` limpio; `e2e:typecheck` limpio; `build`
+    limpio; ESLint sin regresión (11 problemas preexistentes, ajenos a
+    este slice — ver deuda de estilo más abajo). E2E dirigido nuevo
+    (`tests/e2e/hydEst.spec.ts`, desktop+mobile contra `vite` dev):
+    DN↑/DN↓ en un tramo troncal mueve V y hf distribuida monótonamente y
+    es reversible; el fan-out 1→N del demo muestra `Incompleto` con
+    DN/V/hf distribuida reales, sin `NaN`/`undefined`/`[object Object]`.
+    Regresión dirigida existente (`smoke`, `montantes`, `hallazgos`,
+    `responsive`) **19/19** verde, sin regresión.
+  - **Continuidad de agentes:** slice trabajado en dos sesiones (Codex,
+    agotó cuota; Claude continuó). El checkpoint `ac0d839` (Codex) traía
+    el motor Estimadas path-aware + integración de presión/UI + 88/88
+    tests dirigidos verdes; el trabajo posterior sin commit (memoización
+    por UF sensible a tees compartidas + adaptación de baselines/fixtures)
+    se auditó archivo por archivo, se confirmó coherente y completo, y se
+    corrigió únicamente un valor de snapshot desactualizado
+    (`auditoriaTransversalM1M4.baseline.test.ts`, margen del crítico) que
+    no reflejaba el nuevo fixture canónico.
+  - **Estado:** `HYD-EST-01: CERRADO — pendiente validación manual` del
+    usuario y del gate de QA Fuzz cloud / deploy.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
