@@ -2034,6 +2034,29 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `UI-M1-MULTINIVEL-01: CERRADO — pendiente validación manual`
     del usuario sobre el deploy.
 
+- **D-δ.107 — FIX-M1-MULTINIVEL-BASE-LEVEL-01: nivel base permanente,
+  contraste de "Eliminar nivel" y copy Nivel vs. UF.** Hotfix UX/copy
+  sobre D-δ.106, sin cambios de schema/hidráulica/arquitectura (detalle
+  completo y hallazgos colaterales fuera de alcance en
+  `PENDIENTES-DE-ARQUITECTURA.md`). El primer nivel (`niveles[0]`) es el
+  nivel BASE, permanente, sin importar cuántos niveles adicionales tenga
+  la UF -- antes "Eliminar nivel" se ofrecía a TODOS los niveles apenas
+  había 2+ (bug real de índice, no sólo de estilo). Corregido en la UI
+  (`.map((nivel, indice) => ...)`, `indice > 0`) y en el dominio
+  (`eliminarNivelDeUnidadFuncionalEnProyecto` rechaza `niveles[0]?.id`
+  explícitamente). "Eliminar nivel" ahora lleva borde visible desde el
+  reposo en la cabecera del Nivel (antes indistinguible de texto
+  deshabilitado, sólo ganaba contraste en `:hover`); input de "Nombre del
+  nivel" flexible + cabecera apilada en mobile (desbordaba el viewport).
+  Copy: "Cota de piso de la unidad funcional" -> "Cota de piso del nivel"
+  (siempre, incluso UF simple); "hereda UF" -> "hereda nivel". ADR-0002
+  §5 formaliza la regla (posicional, sin campo `esBase` nuevo). Vitest
+  **1768/1768**; `tsc -b`/`e2e:typecheck`/`build` verdes; ESLint
+  **11/0/0**; `multinivel.spec.ts` + `cotas-heredadas.spec.ts` **16/16
+  desktop+mobile** contra dev server local.
+  - **Estado:** `FIX-M1-MULTINIVEL-BASE-LEVEL-01: CERRADO — pendiente
+    validación manual` del usuario sobre el deploy.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /

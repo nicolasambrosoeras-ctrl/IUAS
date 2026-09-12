@@ -152,3 +152,22 @@ decisión (sección 6 del brief: "no usar 'menos líneas cambiadas' como
   como limitación conocida, no como decisión de que no hace falta.
 - **Reordenar niveles** (drag & drop): fuera de alcance; el orden de
   creación es el orden visual.
+
+## 5. Aclaración UX — nivel base permanente (FIX-M1-MULTINIVEL-BASE-LEVEL-01)
+
+El primer nivel de una UF (`niveles[0]`) es su **nivel base** y es
+permanente: nunca se ofrece "Eliminar nivel" para él, sin importar cuántos
+niveles adicionales tenga la UF. Los niveles adicionales (índice > 0) sí
+son eliminables.
+
+Esto **no requiere** un campo `esBase` en el schema — es puramente
+posicional (`niveles[0]`), válido precisamente porque este ADR (sección 4)
+ya excluyó el reordenamiento de niveles del alcance: mientras el orden del
+array sea estable y el primer nivel nazca junto con la UF, la posición 0
+identifica al base sin ambigüedad. Si en el futuro se implementara
+reordenar niveles, esta identidad posicional dejaría de alcanzar y
+recién ahí haría falta reabrir esta decisión (p. ej. un campo explícito).
+
+El nivel base NO se identifica por nombre, por el valor de `nivel`, ni por
+la cota — puede llamarse "Piso 11", tener `nivel: 11` y cota 33,00 m y
+seguir siendo el nivel base de su UF si es el primero en `niveles[]`.

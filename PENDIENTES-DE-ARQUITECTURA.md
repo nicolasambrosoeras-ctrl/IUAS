@@ -12809,6 +12809,68 @@ cota correcta, duplicar una UF de 2 niveles.
 manual del usuario (arriba). Pendientes explícitos no resueltos por este
 slice (ADR-0002 §4): mover un Local entre niveles, reordenar niveles.
 
+## D-δ.107 -- FIX-M1-MULTINIVEL-BASE-LEVEL-01: nivel base permanente + copy + contraste -- CERRADO
+
+Hotfix UX/copy sobre UI-M1-MULTINIVEL-01 (D-δ.106). Sin cambios de schema,
+hidráulica ni arquitectura -- ver ADR-0002 §5 para la aclaración formal de
+la regla.
+
+- **Bug real corregido:** `CuerpoDeUnidadFuncional` ofrecía "Eliminar
+  nivel" a TODOS los niveles (incluido el primero/base) apenas la UF tenía
+  2+ niveles -- el `.map` no distinguía por índice. Ahora
+  `niveles.map((nivel, indice) => ...)` y sólo `indice > 0` recibe
+  `onEliminarNivel`. `eliminarNivelDeUnidadFuncionalEnProyecto` también se
+  volvió defensiva por sí misma (no sólo la UI): pedir eliminar
+  `niveles[0]?.id` es un no-op sin importar cuántos niveles adicionales
+  existan.
+- **Contraste de "Eliminar nivel":** en la cabecera del Nivel comparte fila
+  con un input de texto (mucho más pesado visualmente que el `<h4>` junto
+  al que vive "Eliminar local") -- el estilo compartido `.m1-btn-eliminar`
+  (transparente hasta el hover) quedaba ahí indistinguible de texto
+  deshabilitado. Se agregó un borde visible desde el reposo SÓLO dentro de
+  `.m1-nivel__cabecera .m1-btn-eliminar`, sin tocar el estilo compartido en
+  ningún otro contexto.
+- **Responsive (hallazgo durante el propio hotfix):** el input de "Nombre
+  del nivel" no tenía ancho flexible -- a su tamaño default de navegador
+  desbordaba el viewport en mobile (390px) junto con la etiqueta y el
+  botón. Se le dio `flex: 1 1 auto; min-width: 0` y se apiló la cabecera
+  del Nivel en el breakpoint mobile ya existente (mismo criterio que
+  `.m1-uf__campos`).
+- **Copy corregido:** "Cota de piso de la unidad funcional [m]" -> "Cota
+  de piso del nivel [m]" (ahora siempre, incluso con un único nivel); en
+  `EditorDeCotaPisoDeLocal`, "hereda UF" / "hereda de la unidad funcional"
+  -> "hereda nivel" / "hereda del nivel" (prop renombrada
+  `cotaHeredadaDelNivel_m`).
+- **Hallazgo colateral, fuera de alcance (NO corregido acá):** al validar
+  el fix en mobile se encontró que la tabla de dimensionamiento de M2
+  (`.m2-fila-agrupada`) desborda el viewport (390px) cuando hay
+  suficientes filas Local+Red simultáneas visibles (reproducible con
+  cualquier UF con volumen de contenido suficiente, sin relación con
+  Niveles). Este hotfix tenía prohibido tocar M2 -- se documentó la
+  violación puntual y se excluyó de un único assert de invariantes en
+  `multinivel.spec.ts` (con comentario explicando por qué), sin tocar el
+  harness compartido de invariantes ni el componente de M2. Candidato a
+  un micro-fix de responsive de M2 futuro, independiente de este slice.
+- **Hallazgo colateral no relacionado, NO corregido acá:** `FIX-RESP-02`
+  (excepción de ACS por UF en M3) falla de forma reproducible e
+  independiente de cualquier cambio de este hotfix (M3 no se tocó) contra
+  el dev server local en mobile/mobile-angosto. Documentado para que quien
+  lo audite no lo confunda con una regresión de este slice.
+- **Tests:** +2 casos unitarios en `unidadFuncionalMultinivel.test.ts`
+  (nivel base protegido con 2 niveles; con 3 niveles, eliminar el del
+  medio preserva el base y dos veces protegido tras eliminar un
+  adicional). `multinivel.spec.ts`: corregido el conteo de "Eliminar
+  nivel" esperado (era 2, debe ser 1, con 2 niveles), +2 tests nuevos
+  (nivel base permanente con 3 niveles; copy). Vitest **1768/1768**
+  (1766 + 2); `tsc -b`/`e2e:typecheck`/`build` verdes; ESLint **11/0/0**
+  (mismo baseline). E2E `multinivel.spec.ts` + `cotas-heredadas.spec.ts`
+  **16/16 desktop+mobile** verdes contra dev server local.
+
+### Estado
+
+**D-δ.107 / FIX-M1-MULTINIVEL-BASE-LEVEL-01 -- CERRADO, pendiente
+validación manual del usuario.**
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son
