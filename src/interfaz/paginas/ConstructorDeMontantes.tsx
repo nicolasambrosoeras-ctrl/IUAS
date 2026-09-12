@@ -152,9 +152,9 @@ function MontanteCardCuerpo({
 
   return (
     <div className="montante-card__cuerpo">
-      <div className="montante-card__editar">
+      <section className="montante-card__seccion montante-card__seccion--nombre">
         <label className="montante-card__campo-nombre">
-          Nombre:{' '}
+          Nombre
           <input
             className="montante-card__nombre"
             type="text"
@@ -164,14 +164,7 @@ function MontanteCardCuerpo({
             onChange={(evento) => onCambiar(conNombreDeMontante(proyecto, montanteId, evento.target.value))}
           />
         </label>
-        <button
-          type="button"
-          className="ui-btn--fantasma montante-card__borrar"
-          onClick={() => aplicar(borrarMontante(proyecto, montanteId))}
-        >
-          Borrar montante
-        </button>
-      </div>
+      </section>
 
       <section className="montante-card__seccion">
         <h4>Locales alimentados</h4>
@@ -223,6 +216,20 @@ function MontanteCardCuerpo({
           {aviso}
         </p>
       ) : null}
+
+      {/* §10/§19: accion destructiva SECUNDARIA, al final del cuerpo -- fuera
+          del flujo principal (Nombre/Locales/Segmentos), no el elemento
+          dominante del header. Copy alineado con la convencion "Eliminar X"
+          de M1 (Eliminar nivel/local/unidad funcional/artefacto). */}
+      <div className="montante-card__pie">
+        <button
+          type="button"
+          className="ui-btn--fantasma montante-card__eliminar"
+          onClick={() => aplicar(borrarMontante(proyecto, montanteId))}
+        >
+          Eliminar montante
+        </button>
+      </div>
     </div>
   )
 }
@@ -338,7 +345,7 @@ function AgregarLocal({
   }
   return (
     <label className="montante-card__agregar">
-      + Agregar local:{' '}
+      Agregar local:{' '}
       <select
         aria-label={`Agregar Local al ${nombreMontante}`}
         value=""

@@ -91,6 +91,10 @@
   font-size: var(--fs-ayuda);
 }
 
+/* UI-M2-MONTANTE-COMPACT-01: cuerpo expandido compacto -- misma
+   informacion, menos superficie vacia. Bloques en orden fijo: Nombre ->
+   Locales alimentados (+ Agregar local) -> Segmentos -> Derivaciones ->
+   accion destructiva al final (§2, §10). */
 .montante-card__cuerpo {
   display: flex;
   flex-direction: column;
@@ -98,23 +102,20 @@
   padding: var(--esp-sm) var(--esp-md) var(--esp-md);
 }
 
-.montante-card__editar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--esp-sm);
+.montante-card__seccion--nombre {
+  margin: 0;
 }
 
 .montante-card__campo-nombre {
-  flex: 1 1 12rem;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--esp-xs);
   min-width: 0;
 }
 
 .montante-card__nombre {
-  flex: 1 1 auto;
+  flex: 1 1 12rem;
   min-width: 0;
   font-weight: var(--peso-semibold);
   padding: 0.35rem 0.5rem;
@@ -122,18 +123,32 @@
   border-radius: 6px;
 }
 
-/* §19: acción secundaria dentro del cuerpo expandido, no el elemento
-   dominante del header. */
-.montante-card__borrar {
-  margin-left: auto;
-}
-
 .montante-card__seccion h4 {
-  margin: var(--esp-sm) 0 var(--esp-xs);
+  margin: 0 0 var(--esp-xs);
   font-size: var(--fs-meta);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--color-texto-3);
+}
+
+/* §10/§19: fila propia al final del cuerpo, separada por un borde sutil
+   (patron "zona de peligro"), acción secundaria -- nunca el elemento
+   dominante del header ni de en medio del formulario. Hover de error
+   igual al de `.m1-btn-eliminar` (demandaM1.css) para consistencia visual
+   entre "Eliminar X" de M1 y M2 -- duplicado localmente (2 reglas) en vez
+   de importar CSS entre módulos por dos líneas. */
+.montante-card__pie {
+  margin-top: var(--esp-xs);
+  padding-top: var(--esp-sm);
+  border-top: 1px solid var(--color-borde);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.montante-card__eliminar:hover:not(:disabled) {
+  background: var(--color-error-suave);
+  border-color: var(--color-error-borde);
+  color: var(--color-error);
 }
 
 .montante-card__locales {
@@ -166,15 +181,6 @@
 }
 
 @media (max-width: 560px) {
-  .montante-card__borrar {
-    margin-left: 0;
-  }
-
-  .montante-card__editar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
   .constructor-montantes__header {
     flex-direction: column;
     align-items: stretch;
@@ -183,15 +189,10 @@
 
 /* Editor de tee de derivación (M2-TOPO-D). Se usa en la card de montante
    (modo Detalladas) y, sin este CSS cargado, en LocalYRedCard con los
-   defaults del navegador -- el markup es semántico (<fieldset>/<label>). */
-.montante-card__derivaciones h4 {
-  margin: var(--esp-sm) 0 var(--esp-xs);
-  font-size: var(--fs-meta);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--color-texto-3);
-}
-
+   defaults del navegador -- el markup es semántico (<fieldset>/<label>).
+   Su <h4> ya hereda estilo/spacing de `.montante-card__seccion h4` (la
+   sección de Derivaciones también lleva esa clase) -- sin regla propia
+   duplicada. */
 .montante-card__derivacion {
   margin-bottom: var(--esp-sm);
 }
