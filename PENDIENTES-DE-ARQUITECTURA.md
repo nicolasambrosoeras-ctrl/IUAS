@@ -12856,6 +12856,12 @@ la regla.
   independiente de cualquier cambio de este hotfix (M3 no se tocó) contra
   el dev server local en mobile/mobile-angosto. Documentado para que quien
   lo audite no lo confunda con una regresión de este slice.
+  **Actualización (D-δ.110 / FIX-M3-RESP-02-ACS-01):** esta observación
+  y la de ".m2-fila-agrupada" de D-δ.109 eran la MISMA causa
+  (`.m1-uf__acciones` de M1 sin wrap real, agravada por el header de 3
+  acciones que introdujo `+ Agregar nivel` en este mismo slice) --
+  ya resuelta por el fix de D-δ.109. Ver D-δ.110 para la investigación
+  completa y el test que cierra la trazabilidad.
 - **Tests:** +2 casos unitarios en `unidadFuncionalMultinivel.test.ts`
   (nivel base protegido con 2 niveles; con 3 niveles, eliminar el del
   medio preserva el base y dos veces protegido tras eliminar un
@@ -13056,10 +13062,126 @@ server local, sin ningún workaround de overflow.
 independiente contra dev server local en mobile -- no se tocó M3 en
 este slice.
 
+**Actualización (D-δ.110 / FIX-M3-RESP-02-ACS-01):** esta nota quedó
+desactualizada. El fix de `.m1-uf__acciones` de esta misma sección
+(arriba) YA resolvía este hallazgo -- nunca hubo una segunda causa en
+M3 -- pero nadie volvió a correr el escenario compuesto para
+confirmarlo antes de este slice. Ver la entrada D-δ.110 más abajo para
+la investigación completa y el test que cierra la trazabilidad.
+
 ### Estado
 
 **D-δ.109 / UI-M2-RESP-POLISH-01 -- CERRADO, pendiente validación
 manual del usuario.**
+
+## D-δ.110 — FIX-M3-RESP-02-ACS-01: cierre de trazabilidad de `FIX-RESP-02`
+
+Investigación de causa raíz de un bug documentado como "preexistente"
+en dos slices consecutivos (D-δ.107, D-δ.108): `FIX-RESP-02` (overflow
+del `<select>` de excepción de ACS por UF en M3) "sigue fallando de
+forma independiente contra dev server local en mobile". Sin cambios de
+código de producto -- el bug ya no existía.
+
+### Arqueología Git
+
+`FIX-RESP-02` se resolvió originalmente en D-δ.83 (`9d87220`, `select {
+max-width: 100%; min-width: 0 }` global) y su regresión dedicada
+(`tests/e2e/responsive.spec.ts` → bloque `FIX-RESP-02 · M3 excepción de
+ACS por UF sin overflow`) no volvió a tocarse desde entonces (`git log
+--oneline -- tests/e2e/responsive.spec.ts` sólo lista los commits de
+D-δ.82 y D-δ.83) y siguió pasando en cada corrida de este proyecto.
+D-δ.107 y D-δ.108 documentaron, cada uno por separado, que el
+escenario "seguía fallando" en observación manual -- sin repro
+automatizada ni causa identificada, sólo la nota de "no tocar acá".
+
+### Reproducción
+
+Ejecutar el bloque `FIX-RESP-02` de `responsive.spec.ts` tal cual
+existe hoy, contra el propio HEAD de este slice: **pasa** (390/360/
+1280px). Ejecutarlo contra el commit `a18314f` (HEAD de D-δ.107, previo
+al fix `5fc4bba` de D-δ.109) usando un build local aislado (worktree
+`git worktree add` + `vite build` + servidor estático propio, para
+evitar tanto producción como el bug conocido de `vite preview --base`
+en Git Bash/MSYS): **falla** con `docOverflow` de 25px @ 390px y 55px
+@ 360px -- el escenario mínimo del test (2 UF extra + Iniciar M3 + PH +
+ACS individual) alcanza a mostrar "Eliminar unidad funcional" en el
+header de cada UF, lo que ya alcanza para desbordar `.m1-uf__acciones`
+en mobile (3 acciones: "Duplicar" / "+ Agregar nivel" / "Eliminar
+unidad funcional").
+
+**ESPERADO:** `docOverflow <= 1`. **ACTUAL** (contra `a18314f`): 25-55px.
+**PASO EXACTO DONDE DIVERGE:** no en M3 -- el documento ya desborda
+apenas se agregan 2 UF extra en M1 y se entra a mobile, antes de tocar
+ningún control de M3. M3 sólo "hereda" el overflow por compartir
+documento (app one-page).
+
+### Causa raíz
+
+Nunca fue el `<select>` de M3 -- ese bug (D-δ.83) sigue resuelto y su
+CSS (`select { max-width: 100%; min-width: 0 }`) intacto. La causa real
+es, de nuevo, `.m1-uf__acciones` (cabecera de UF de M1) sin wrap real
+en mobile: el mismo bug que D-δ.109 encontró y corrigió bajo el
+diagnóstico incorrecto ".m2-fila-agrupada" (ver la sección D-δ.109
+arriba, incluido el fix `flex-wrap: wrap` + `flex-basis: 100%` en
+`demandaM1.css`). Como la app es one-page (M1-M4 en el mismo
+documento), cualquier overflow del header de M1 se mide como overflow
+del documento sin importar qué sección esté "activa" visualmente --
+por eso el mismo síntoma se registró dos veces bajo dos nombres
+distintos (D-δ.107: ".m2-fila-agrupada"; D-δ.107/108, en paralelo:
+"FIX-RESP-02"), y ambos correspondían a la misma causa única, ya
+corregida por el fix de D-δ.109.
+
+### Clasificación
+
+**G — fixture/documentación obsoleta.** El producto ya estaba correcto
+(desde D-δ.109); la deuda documentada en `ROADMAP.md`/
+`PENDIENTES-DE-ARQUITECTURA.md` no se había reconciliado con ese fix
+porque nadie volvió a cruzar los dos hallazgos.
+
+### Contrato M3
+
+Sin cambios ni reinterpretación. CRIT-A34 (alcance de medidores por
+PH/ACS individual/central), Table 6, `hfMedidor = 0.036 *
+(Qcl_lpm/C_m3h)^2`, K=1 del medidor individual y la integración M3→M2
+(`Presidual = Pdisponible - Δz - hfDistribuida - hfLocalizada -
+hfMedidor - hfEquipoACS`) no se tocaron.
+
+### Fix
+
+Ninguno de producto. Se agregó un test de regresión en
+`tests/e2e/m2-resp-polish.spec.ts` ("nivel + UF duplicada + excepción
+de ACS en Medidores (FIX-RESP-02 compuesto): sin overflow horizontal
+de página") que reproduce el escenario COMPUESTO exacto -- nivel +
+duplicar UF (dispara el header de 3 acciones) navegando hasta la
+excepción de ACS de M3 -- para dejar la trazabilidad cerrada de punta
+a punta y no depender de que alguien vuelva a cruzar a mano los dos
+hallazgos. Verificado por bisección real: falla contra `a18314f` (25px
+de overflow, mismo escenario) y pasa contra el HEAD de este slice.
+
+### FIX-RESP-02 histórico
+
+Confirmado verde, sin skip/fixme/workaround: `tests/e2e/responsive.spec.ts`
+→ bloque `FIX-RESP-02` sigue intacto y en verde (3/3 assertions en
+390/360/1280px), tal como desde D-δ.83.
+
+### Tests
+
++1 caso E2E (`m2-resp-polish.spec.ts`). Sin tests unitarios nuevos (la
+causa es puramente responsive/E2E, sin dominio ni estado involucrado).
+Vitest **1781/1781** (sin cambio); `tsc -b`/`e2e:typecheck`/`build`
+verdes; ESLint **11/0/0** (mismo baseline). E2E dirigido **42/42**
+(`responsive.spec.ts` + `m2-resp-polish.spec.ts` + `multinivel.spec.ts`
++ `montantes.spec.ts`) desktop+mobile contra build local, sin ningún
+workaround de overflow.
+
+### Riesgo
+
+**Nivel B** — cierre puramente test/documental, sin cambio de alcance
+hidráulico, integración transversal ni reconciliación estructural.
+
+### Estado
+
+**D-δ.110 / FIX-M3-RESP-02-ACS-01 -- CERRADO.**
 
 ## Regla — `resguardo-documentacion/` es inmutable
 

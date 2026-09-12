@@ -2151,6 +2151,56 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `UI-M2-RESP-POLISH-01: CERRADO — pendiente validación
     manual` del usuario sobre el deploy.
 
+- **D-δ.110 — FIX-M3-RESP-02-ACS-01: cierre de trazabilidad de
+  `FIX-RESP-02` (deuda ya resuelta, doc desactualizada).** Investigación
+  de causa raíz sin cambios de código de producto. `FIX-RESP-02`
+  (overflow del `<select>` de excepción de ACS por UF en M3) se había
+  resuelto en D-δ.83 y su regresión (`responsive.spec.ts`) siguió verde
+  ininterrumpidamente desde entonces. Sin embargo, D-δ.107 y D-δ.108
+  documentaron por separado "`FIX-RESP-02` sigue fallando de forma
+  independiente contra dev server local en mobile" como hallazgo
+  colateral fuera de alcance, sin volver a verificarlo tras cada slice
+  posterior.
+  - **ANTES SE CREÍA:** que sobrevivía una regresión M3-específica
+    distinta de la ya resuelta en D-δ.83, pendiente de investigar.
+  - **CAUSA REAL:** nunca fue el `<select>` de M3 -- ese bug sigue
+    resuelto. La app es one-page (M1-M4 comparten el mismo documento): el
+    overflow real era, de nuevo, `.m1-uf__acciones` (cabecera de UF de
+    M1) sin wrap real en mobile con 3 acciones ("Duplicar"/"+ Agregar
+    nivel"/"Eliminar unidad funcional") -- el mismo bug que D-δ.109 ya
+    encontró y corrigió bajo el diagnóstico ".m2-fila-agrupada" (ver
+    D-δ.109 arriba). Confirmado por bisección real: el test histórico de
+    `FIX-RESP-02` ejecutado contra el commit `a18314f` (anterior al fix de
+    D-δ.109, `5fc4bba`) reproduce el fallo exacto (`docOverflow` 25px @
+    390px, 55px @ 360px) porque su estado mínimo agrega 2 UF extra --
+    suficiente para que aparezca "Eliminar unidad funcional" y el header
+    de M1 desborde el documento completo, incluida la sección de M3 que
+    el test está mirando. Contra el HEAD de este slice (ya con el fix de
+    D-δ.109) el mismo test pasa limpio.
+  - **FIX:** ninguno de producto -- ya estaba corregido por `5fc4bba`
+    (D-δ.109). Se agregó únicamente un test de regresión que cierra la
+    trazabilidad end-to-end: nivel + UF duplicada (dispara el header de 3
+    acciones) navegando hasta la excepción de ACS de M3, para no depender
+    de que alguien vuelva a cruzar a mano los dos hallazgos documentados
+    por separado. Verificado por bisección: falla contra `a18314f` (25px
+    de overflow) y pasa contra el HEAD actual.
+  - **Clasificación:** G (fixture/documentación obsoleta) -- la deuda
+    quedó viva en `PENDIENTES-DE-ARQUITECTURA.md`/`ROADMAP.md` pese a
+    estar resuelta por otro slice bajo un diagnóstico distinto.
+  - **Contrato M3:** sin cambios. CRIT-A34, Table 6, `hfMedidor`, K=1 del
+    medidor individual y la integración M3→M2 no se tocaron ni se
+    reinterpretaron.
+  - **Tests:** +1 caso en `tests/e2e/m2-resp-polish.spec.ts` ("nivel + UF
+    duplicada + excepción de ACS en Medidores (FIX-RESP-02 compuesto)").
+    Vitest **1781/1781** (sin tests unitarios nuevos: la causa es
+    puramente responsive/E2E, ya cubierta); `tsc -b`/`e2e:typecheck`/
+    `build` verdes; ESLint **11/0/0** (mismo baseline). E2E dirigido
+    **42/42** (`responsive`/`m2-resp-polish`/`multinivel`/`montantes`)
+    desktop+mobile contra build local, incluida la regresión histórica
+    `FIX-RESP-02` (`responsive.spec.ts`) verde sin ningún workaround.
+  - **Riesgo:** Nivel B (test-only, sin cambio de producto).
+  - **Estado:** `FIX-M3-RESP-02-ACS-01: CERRADO`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
