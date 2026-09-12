@@ -202,16 +202,11 @@ test.describe('UI-M1-MULTINIVEL-01 · niveles físicos dentro de una Unidad Func
     await estabilizar(page)
     await expect(ufCopia.locator('.m1-nivel')).toHaveCount(2)
 
+    // UI-M2-RESP-POLISH-01: el overflow horizontal mobile que este test
+    // esquivaba (atribuido en su momento a ".m2-fila-agrupada") era en
+    // realidad `.m1-uf__acciones` sin wrap real -- corregido en
+    // demandaM1.css. Ya no hace falta filtrar `sin-overflow-horizontal`.
     const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
-    // Con 2 UF completas simultáneamente expandidas (original + copia de
-    // 2 niveles) en mobile, la tabla de dimensionamiento de M2
-    // (`.m2-fila-agrupada`) desborda el viewport -- bug preexistente y
-    // ajeno a este fix (reproducible sin niveles, con cualquier UF con
-    // suficientes filas Local+Red; FIX-M1-MULTINIVEL-BASE-LEVEL-01 tiene
-    // prohibido tocar M2). La cabecera de Nivel en sí NO desborda (ver el
-    // resto de esta suite, sin overflow). Se filtra sólo esa violación
-    // puntual para no bloquear este test por un problema fuera de alcance.
-    const sinOverflowDeTablaM2Conocido = violaciones.filter((v) => v.nombre !== 'sin-overflow-horizontal')
-    expect(primerFallo(sinOverflowDeTablaM2Conocido), JSON.stringify(primerFallo(sinOverflowDeTablaM2Conocido))).toBeNull()
+    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
   })
 })
