@@ -60,9 +60,11 @@ afterEach(() => {
 })
 
 describe('PERF-SCALE-01A — regresión estructural de escala', () => {
-  it('el fixture de escala resuelve M2 "completo" (precondición del resto)', () => {
+  it('HYD-EST: el fixture de escala conserva cálculos pero su fan-out deja la localizada incompleta', () => {
     const { estado, magnitudes } = medirResolucionDeModulo2({ cantidadUf: 14, localesPorUf: 3 })
-    expect(estado.estado).toBe('completo')
+    expect(estado.estado).toBe('incompleto')
+    if (estado.estado !== 'incompleto') throw new Error('se esperaba incompleto')
+    expect(estado.motivos.some(m => m.tipo === 'perdidaLocalizadaEstimadaIncompleta' && m.tramosNoResueltos.some(t => t.motivo === 'derivacionMultipleNoModelada'))).toBe(true)
     expect(magnitudes.terminales).toBeGreaterThan(200)
   })
 

@@ -73,17 +73,21 @@ function proyecto(unidadesFuncionales: readonly UnidadFuncional[]): Proyecto {
   const nodos: Nodo[] = [
     { id: 'n-general', cota_m: 0 },
     { id: 'n0' },
+    { id: 'n-af-ramas' },
     { id: 'n-acs', referencia: { tipo: 'produccionACS' } },
   ]
   const tramos: Tramo[] = [
     { id: 't-general', nodoOrigenId: 'n-general', nodoDestinoId: 'n0', red: 'AF', longitud_m: 6 },
     { id: 't-af-acs', nodoOrigenId: 'n0', nodoDestinoId: 'n-acs', red: 'AF', longitud_m: 5 },
+    // HYD-EST: distribución AF explícita, separada de la rama ACS. El
+    // fixture con dos UF tiene bifurcaciones 1→2, no el antiguo 1→3.
+    { id: 't-af-ramas', nodoOrigenId: 'n0', nodoDestinoId: 'n-af-ramas', red: 'AF', longitud_m: 1 },
   ]
   for (const u of unidadesFuncionales) {
     const local = u.niveles[0]!.locales[0]!
     const art = local.artefactos[0]!
     nodos.push({ id: `n-af-${u.id}`, referencia: ref(u.id, local.id, art.id) })
-    tramos.push({ id: `t-af-${u.id}`, nodoOrigenId: 'n0', nodoDestinoId: `n-af-${u.id}`, red: 'AF', longitud_m: 3 })
+    tramos.push({ id: `t-af-${u.id}`, nodoOrigenId: 'n-af-ramas', nodoDestinoId: `n-af-${u.id}`, red: 'AF', longitud_m: 3 })
     nodos.push({ id: `n-ac-${u.id}`, referencia: ref(u.id, local.id, art.id) })
     tramos.push({ id: `t-ac-${u.id}`, nodoOrigenId: 'n-acs', nodoDestinoId: `n-ac-${u.id}`, red: 'AC', longitud_m: 3 })
   }

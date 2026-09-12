@@ -20,6 +20,45 @@ import {
   type PropsDeSeccionDeUnidadFuncional,
 } from './sonPropsDeSeccionDeUnidadFuncionalEquivalentes'
 import type { Proyecto } from '../../modelo/proyecto'
+import { fixture } from '../../motor/tuberias/presion/hydEst.fixture'
+import { resolverPerdidaLocalizadaEstimadaDeLocal } from '../../motor/tuberias/presion/resolverPerdidaLocalizadaEstimadaDeLocal'
+import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia'
+
+function proyectoConTeeCompartida(): Proyecto {
+  const p = fixture(4)
+  const uf = p.unidadesFuncionales[0]!
+  const nivel = uf.niveles[0]!
+  const local = nivel.locales[0]!
+  return { ...p, unidadesFuncionales: [0, 1, 2].map(i => ({ ...uf, id: `uf-${i}`, niveles: [{ ...nivel, locales: [{ ...local, artefactos: local.artefactos.filter((_, j) => i === 2 ? j >= 2 : j === i) }] }] })),
+    redHidraulica: { ...p.redHidraulica!, nodos: p.redHidraulica!.nodos.map(n => n.referencia?.tipo === 'artefacto' ? { ...n, referencia: { ...n.referencia, unidadFuncionalId: `uf-${Math.min(Number(n.id.split('-')[1]), 2)}` } } : n) } }
+}
+
+function conDemandaDeUf(p: Proyecto, id: string): Proyecto {
+  return { ...p, unidadesFuncionales: p.unidadesFuncionales.map(u => u.id === id ? { ...u, niveles: u.niveles.map(n => ({ ...n, locales: n.locales.map(l => ({ ...l, artefactos: l.artefactos.map(a => ({ ...a, cantidad: a.cantidad + 2 })) })) })) } : u) }
+}
+
+describe('HYD-EST: memo por dependencias de tees compartidas', () => {
+  it('demanda de otra UF cambia V de tee compartida: invalida el memo y actualiza la hf mostrada', () => {
+    const p = proyectoConTeeCompartida()
+    const editado = conDemandaDeUf(p, 'uf-1')
+    const onCambiar = vi.fn()
+    const resolver = (proyecto: Proyecto) => resolverPerdidaLocalizadaEstimadaDeLocal(proyecto, 'uf-0', 'bano', 'AF', catalogoArtefactos, catalogoSistemasDeTuberia).caminos[0]!.resultado
+    const a = resolver(p)
+    const b = resolver(editado)
+    if (a.tipo !== 'estimada' || b.tipo !== 'estimada') throw new Error('fixture incompleto')
+    expect(b.hf_m).not.toBe(a.hf_m)
+    expect(sonPropsDeSeccionDeUnidadFuncionalEquivalentes(propsDe(p, 'uf-0', onCambiar), propsDe(editado, 'uf-0', onCambiar))).toBe(false)
+  })
+
+  it('demanda de una UF en la otra rama no cambia hf ni invalida esta tarjeta', () => {
+    const p = proyectoConTeeCompartida()
+    const editado = conDemandaDeUf(p, 'uf-2')
+    const onCambiar = vi.fn()
+    const resolver = (proyecto: Proyecto) => resolverPerdidaLocalizadaEstimadaDeLocal(proyecto, 'uf-0', 'bano', 'AF', catalogoArtefactos, catalogoSistemasDeTuberia)
+    expect(resolver(editado)).toEqual(resolver(p))
+    expect(sonPropsDeSeccionDeUnidadFuncionalEquivalentes(propsDe(p, 'uf-0', onCambiar), propsDe(editado, 'uf-0', onCambiar))).toBe(true)
+  })
+})
 
 function propsDe(
   proyecto: Proyecto,
