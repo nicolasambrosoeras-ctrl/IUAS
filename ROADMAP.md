@@ -2471,6 +2471,58 @@ salvo bug inequívoco o decisión roja explícita.
     (Baño / AF / Estimadas), sin quedar `Incompleto`.
   - **Estado:** `FIX-HYD-EST-SIMPLIFIED-01: CERRADO`. `HYD-EST-01: CERRADO`.
 
+- **D-δ.114 — REPORT-01A: arquitectura del informe técnico + M2 +
+  verificación hidráulica.** Primer slice de REPORT-01 (memoria técnica
+  integral): el generador `pdfMake` deja de estar centrado sólo en M1.
+  - **Arquitectura nueva:** `resolverDatosDeInforme.ts`
+    (`exportadores/pdf/`) — snapshot `DatosDeInforme` DERIVADO y puro, NO
+    persistido, NO recalculado (C-05): compone `calcularSimultaneidad`
+    (M1), `resolverEstadoModulo2`/`resolverResolucionDeModulo2` (M2 +
+    verificación), `resolverFilaDeDimensionamiento` +
+    `identificarFilasDeModulo2` + `proyectarMontante` (view-models de M2
+    ya productivos de la UI, reutilizados sin duplicar ninguna fórmula) y
+    `resolverEstadoModulo4` (sólo el esquema/origen, para contexto de la
+    verificación). `generarDocumentoPdf.ts` se separa en
+    `construirDocDefinition` (puro, testeable) + `generarDocumentoPdf`
+    (llama a pdfMake y abre el PDF).
+  - **M1:** deja de aplanar `niveles[].locales` con
+    `localesDeUnidadFuncional` para la sección de Demanda -- ahora itera
+    `UnidadFuncional.niveles` directamente (`unidadesFuncionalesM1`),
+    preservando Nivel → Local (GEOM-UX-01/MULTINIVEL). Una UF de un único
+    Nivel no expone el nombre del Nivel (`mostrarNiveles=false`).
+    Pasos/verificaciones/resumen de M1 sin cambios de contenido.
+  - **M2 (nuevo):** Distribución general/secundaria, Locales (AF/AC
+    agrupados bajo el mismo Local con etiqueta humana) y Montantes
+    (nombre, red, Locales alimentados, segmentos con DN/Di/V/pérdida),
+    todo vía los mismos resolvers/view-models que ya usa
+    `TablaDimensionamientoDeModulo2`/`montantesDelProyecto` — cero
+    fórmulas nuevas en el PDF.
+  - **Verificación hidráulica (nueva):** una fila por terminal
+    (`EstadoModulo2.candidatos`, resultado crudo de
+    `resolverPresionResidualDeCamino`), terminal crítico destacado
+    (criterio de margen vigente, `resolverTerminalMasDesfavorable`, sin
+    reimplementar selección), terminales sin Pmin publicada mostrados
+    como "fuera de alcance" (nunca como fallo), e incompletitud
+    reportada con `agruparMotivosDeModulo2` (nunca 0 ni "Cumple"
+    inventado).
+  - **Motor:** SIN CAMBIOS. Sólo composición/presentación.
+  - **Tests:** Vitest **1798/1798** (176 archivos; +13 tests nuevos:
+    `resolverDatosDeInforme.test.ts` cubre M1 multinivel, M2 con DN
+    manual, verificación completa/incompleta/terminal crítico;
+    `generarDocumentoPdf.test.ts` verifica estructura del
+    `docDefinition` -- incluye las 3 secciones, no importa ningún
+    resolver de `motor/` directamente, y un proyecto de escala M no
+    lanza). `tsc -b` / `e2e:typecheck` / `build` limpios. ESLint: 0
+    problemas nuevos en los archivos tocados (el baseline preexistente
+    de `MotorDemandaPantalla.tsx`, 3 problemas, es ajeno a este slice).
+  - **Pendiente para REPORT-01B:** M3 (medidores), M4 completo (esquema,
+    Qconexión, reserva, volumen adoptado), observaciones/advertencias
+    finales consolidadas, numeración definitiva de secciones,
+    VIS-TOPO/gráficos (fuera de alcance de REPORT-01 en general).
+  - **Validación manual pendiente** (generar el PDF real desde la app y
+    revisar M1/M2/Montantes/crítico/densidad de tablas).
+  - **Estado:** `REPORT-01A: CERRADO — pendiente validación manual`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
@@ -2484,15 +2536,23 @@ optimizaciones, D-δ.78 — `v0.4.0-beta.4`) → **UX-03 / HYD-UX-01**
 (conectividad explícita + origen rápido de tanque elevado + trazabilidad
 Profesional, D-δ.79 — `v0.4.0-beta.5`) → **UX-TEST-01** (NO iniciada:
 observación de uso real de terceros; su output prioriza bugs / UX /
-contenido / nomenclatura "puntos" de M2 / PERSIST-01) → **REPORT-01** (NO
-iniciada).
+contenido / nomenclatura "puntos" de M2 / PERSIST-01) → **REPORT-01**
+(**REPORT-01A cerrado, D-δ.114** → REPORT-01B pendiente).
 
-**REPORT-01 — memoria técnica integral (NO iniciada).** Extender el
-generador `pdfMake` actual (hoy esencialmente M1) hacia: Datos del
-proyecto · Demanda · Tuberías · Medidores · Abastecimiento y reserva ·
-Verificación hidráulica · Metodología y fuentes. Mismo dominio, mismos
-resultados, **no** impresión del DOM. Mantiene: core M1–M4 congelado +
-arquitectura UI-01A + sistema visual UI-01B/UI-01C.
+**REPORT-01 — memoria técnica integral.** Extender el generador
+`pdfMake` (arrancaba centrado sólo en M1) hacia: Datos del proyecto ·
+Demanda · Tuberías · Medidores · Abastecimiento y reserva · Verificación
+hidráulica · Metodología y fuentes. Mismo dominio, mismos resultados,
+**no** impresión del DOM. Mantiene: core M1–M4 congelado + arquitectura
+UI-01A + sistema visual UI-01B/UI-01C.
+
+- **REPORT-01A (D-δ.114, cerrado):** arquitectura del informe
+  (`DatosDeInforme`/`resolverDatosDeInforme.ts`), M1 multinivel
+  preservado, M2 (tuberías + montantes) y Verificación hidráulica
+  agregados. Ver detalle en el delta D-δ.114 más arriba.
+- **REPORT-01B (NO iniciada):** M3 (medidores), M4 completo (esquema,
+  Qconexión, reserva, volumen adoptado), observaciones/advertencias
+  finales consolidadas.
 
 **Hallazgos de M4-A:**
 

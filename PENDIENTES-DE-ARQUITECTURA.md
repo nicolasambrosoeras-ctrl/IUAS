@@ -13401,3 +13401,63 @@ hacia atrás las anteriores.
 Primer snapshot: `resguardo-documentacion/2026-09-08_pre-UI-01B/` (estado
 documental del core M1–M4 congelado + auditoría transversal D-δ.70 +
 UI-01A D-δ.72, previo a UI-01B).
+
+## D-δ.114 — REPORT-01A: arquitectura del informe técnico + M2 + verificación hidráulica — CERRADA (pendiente validación manual)
+
+Primer slice de REPORT-01 (memoria técnica integral). Resuelve la deuda
+registrada en varias auditorías previas ("Apariencia PDF de M2 fuera de
+alcance... reporting M2/M3/M4 = incremento futuro", líneas ~5501-5504;
+"reporting PDF de M4", línea ~5994) para la porción M1+M2+verificación.
+
+**Arqueología previa:** `generarDocumentoPdf.ts` (único, sin tests
+previos) sólo cubría M1 (Demanda), invocado desde un único botón en
+`MotorDemandaPantalla.tsx` ("Generar memoria PDF de Demanda") con
+`resultado = calcularSimultaneidad(...)` calculado por el propio llamador
+-- M2/M3/M4 no producen `ResultadoDeCalculo` (ese contrato es exclusivo
+de M1): tienen su propia familia de tipos `EstadoModuloN`, sin ninguna
+agregación combinada previa a este slice.
+
+**Decisión de arquitectura:** en vez de forzar M2/M3/M4 al molde
+`Paso/Verificacion` de M1, se creó un snapshot nuevo y ortogonal,
+`DatosDeInforme` (`exportadores/pdf/resolverDatosDeInforme.ts`) que
+compone -- nunca recalcula -- los resolvers/view-models de M2 que la UI
+ya usaba en producción (`resolverFilaDeDimensionamiento`,
+`identificarFilasDeModulo2`, `proyectarMontante`, `resolverResolucionDeModulo2`,
+`agruparMotivosDeModulo2`), evitando así una segunda implementación de
+agrupación de tramos/candidatos dentro del exportador. `generarDocumentoPdf.ts`
+se separó en `construirDocDefinition` (puro, arma el árbol de contenido
+de pdfMake) + `generarDocumentoPdf` (llama a `pdfMake.createPdf(...).open()`),
+para poder testear la estructura del informe sin abrir un PDF real.
+
+**M1:** se dejó de usar `localesDeUnidadFuncional` (aplanador que
+descarta la agrupación por Nivel) para la sección de Demanda del PDF --
+ahora itera `UnidadFuncional.niveles` directamente, preservando Nivel →
+Local (MULTINIVEL/GEOM-UX-01). Con un único Nivel, el nombre del Nivel no
+se expone (ruido visual sin valor informativo).
+
+**Fricción de tooling encontrada (no bloqueante):** `pdfmake/build/pdfmake`
+(build de navegador) no expone un `getBuffer`/`getBase64` funcional bajo
+Node vía `vite-node` en este entorno (el callback nunca se invoca; el
+proceso termina sin error). No se investigó más a fondo porque no bloquea
+el criterio de cierre: los tests de estructura del `docDefinition` (sin
+pdfMake real) ya cubren contenido/paginación, y la apertura real del PDF
+(`.open()`) es exclusivamente de navegador, que es como la app ya lo usa
+en producción. La validación visual real queda para el usuario, vía la
+app corriendo (igual que pedía el criterio de cierre del slice).
+
+**Fuera de alcance de este slice (REPORT-01B):** M3 (medidores) completo,
+M4 completo (esquema detallado, Qconexión, reserva, volumen adoptado --
+sólo se agregó un resumen de una línea del esquema/origen para dar
+contexto a la verificación de presión), observaciones/advertencias
+finales consolidadas, numeración definitiva de secciones, VIS-TOPO.
+
+**Motor:** sin cambios -- sólo composición y presentación nuevas.
+
+**Tests:** Vitest 1798/1798 (176 archivos, +13 nuevos:
+`resolverDatosDeInforme.test.ts` + `generarDocumentoPdf.test.ts`). `tsc -b`
+/ `e2e:typecheck` / `build` limpios. ESLint: 0 problemas nuevos en los
+archivos tocados por este slice (el baseline preexistente de 3 problemas
+en `MotorDemandaPantalla.tsx`, ajeno a REPORT-01A, sigue igual).
+
+**Estado:** `REPORT-01A: CERRADO — pendiente validación manual`. Siguiente:
+**REPORT-01B — M3 + M4 + observaciones**.
