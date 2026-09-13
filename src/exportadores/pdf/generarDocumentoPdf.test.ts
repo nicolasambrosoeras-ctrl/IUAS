@@ -130,3 +130,69 @@ describe('construirDocDefinition (REPORT-01B: memoria de cálculo)', () => {
     expect(textos.some((t) => /^\d[\d.,]* m\/s$/.test(t))).toBe(false)
   })
 })
+
+describe('construirDocDefinition (FIX-REPORT-01B-VISUAL-01)', () => {
+  it('P1: la fórmula Hazen-Williams usa exponentes ASCII correctos, no la representación rota anterior', () => {
+    const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => t.includes('Q^1,852'))).toBe(true)
+    expect(textos.some((t) => t.includes('C^1,852'))).toBe(true)
+    expect(textos.some((t) => t.includes('Di^4,87'))).toBe(true)
+    // Nunca la representación corrupta previa (superíndices apilados / "Q³").
+    expect(textos.some((t) => /Q³|¹∙⁸⁵²|⁴∙⁸⁷/.test(t))).toBe(false)
+  })
+
+  it('P2: la columna Estado usa texto ASCII, sin glifos frágiles (✓/⚠)', () => {
+    const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => t === 'OK')).toBe(true)
+    expect(textos.some((t) => /[✓⚠○]/.test(t))).toBe(false)
+  })
+
+  it('P3: DN y Di son columnas separadas con valores reales distintos', () => {
+    const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => t === 'DN [mm]')).toBe(true)
+    expect(textos.some((t) => t === 'Di [mm]')).toBe(true)
+    // No debe quedar ningún header ambiguo "DN / Di" combinado.
+    expect(textos.some((t) => t.includes('DN / Di'))).toBe(false)
+    // Al menos una fila real de M2 con DN comercial != Di interior real
+    // (nunca son el mismo valor: el DN nominal siempre excede el Di real).
+    const filaConDatos = datos.m2.locales.flatMap((g) => g.filas).find((f) => f.dnTexto !== '—' && f.diTexto !== '—')
+    expect(filaConDatos).toBeDefined()
+    expect(filaConDatos!.dnTexto.replace(' mm', '')).not.toBe(filaConDatos!.diTexto)
+  })
+
+  it('P4: no duplica "Origen hidráulico" ni la Unidad Funcional en la identificación del crítico', () => {
+    const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => t.includes('Alimentación directa (Alimentación directa'))).toBe(false)
+    expect(textos.some((t) => t.includes('Tanque elevado (Tanque elevado'))).toBe(false)
+    const identificacionCritico = textos.find((t) => t.includes('— Receptáculo de ducha') || (t.includes(' — ') && t.includes('Baño')))
+    if (identificacionCritico !== undefined) {
+      const ocurrencias = identificacionCritico.split('Unidad funcional').length - 1
+      expect(ocurrencias).toBeLessThanOrEqual(1)
+    }
+  })
+
+  it('P5: la tabla de detalle de verificación por terminal arranca con un pageBreak explícito', () => {
+    const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const contenido = doc.content as unknown as Record<string, unknown>[]
+    const indiceEncabezado = contenido.findIndex((c) => c['text'] === 'Detalle de verificación por terminal')
+    expect(indiceEncabezado).toBeGreaterThanOrEqual(0)
+    expect(contenido[indiceEncabezado]!['pageBreak']).toBe('before')
+  })
+
+  it('P6: las sustituciones usan notación científica legible, no "1.6286e-4"', () => {
+    const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => /\de-\d/.test(t))).toBe(false)
+    expect(textos.some((t) => t.includes('× 10^'))).toBe(true)
+  })
+})
