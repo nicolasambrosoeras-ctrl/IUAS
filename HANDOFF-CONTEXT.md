@@ -254,9 +254,15 @@ En producción (`https://nicolasambrosoeras-ctrl.github.io/IUAS/`):
 8. Revisar que la presión residual del terminal crítico se actualice en
    consecuencia.
 
+## VALIDACIÓN MANUAL — CONFIRMADA
+
+El usuario validó manualmente sobre producción: la hf localizada
+estimada responde correctamente al subir/bajar el DN de la fila (Baño /
+AF / Estimadas), sin quedar `Incompleto`.
+
 ## ESTADO
 
-**`FIX-HYD-EST-SIMPLIFIED-01: CERRADO — pendiente validación manual`.**
+**`FIX-HYD-EST-SIMPLIFIED-01: CERRADO`. `HYD-EST-01: CERRADO`.**
 
 El estimador simplificado histórico quedó restaurado exactamente (misma
 plantilla, mismos coeficientes, misma cardinalidad) y la única corrección
@@ -266,6 +272,5 @@ usuario efectivamente dimensiona en cada fila de Módulo 2. El fan-out
 Unit/integration (1785/1785), `tsc`/`build`/`eslint` (baseline sin
 cambios), E2E dirigido y de regresión (19/19 local + 6/6 producción), y
 el gate de fuzz completo (20×30 + 6 seeds históricas = 38/38) están
-verdes. Push, deploy y verificación de producción completados. Sólo
-resta la validación manual del usuario sobre el sitio publicado (lista
-arriba).
+verdes. Push, deploy, verificación de producción y validación manual del
+usuario completados. Slice cerrado sin pendientes.

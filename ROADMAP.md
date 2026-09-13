@@ -2466,8 +2466,10 @@ salvo bug inequívoco o decisión roja explícita.
     (`34493241441-1:15`, `34411681277-1:0`, `34398035608-1` runs 0–12,
     `m7`, `m42`, `m99`) — ver `HANDOFF-CONTEXT.md` para el resultado
     completo de esta corrida.
-  - **Estado:** `FIX-HYD-EST-SIMPLIFIED-01: CERRADO — pendiente
-    validación manual` del usuario.
+  - **Validación manual del usuario:** CONFIRMADA -- la hf localizada
+    estimada responde correctamente al subir/bajar el DN de la fila
+    (Baño / AF / Estimadas), sin quedar `Incompleto`.
+  - **Estado:** `FIX-HYD-EST-SIMPLIFIED-01: CERRADO`. `HYD-EST-01: CERRADO`.
 
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
