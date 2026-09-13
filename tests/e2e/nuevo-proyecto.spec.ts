@@ -56,7 +56,7 @@ test.describe('GEOM-UX-01 · Nuevo proyecto', () => {
     }
 
     // --- Nuevo proyecto (con confirmación) ---
-    await page.getByRole('button', { name: 'Nuevo proyecto' }).click()
+    await page.getByRole('button', { name: 'Nuevo proyecto', exact: true }).click()
     const dialogo = page.getByRole('dialog')
     await expect(dialogo).toBeVisible()
     await expect(dialogo.getByRole('heading', { name: 'Nuevo proyecto' })).toBeVisible()
@@ -112,7 +112,7 @@ test.describe('GEOM-UX-01 · Nuevo proyecto', () => {
     await expect(page.getByText('Total de unidades funcionales: 2')).toBeVisible()
     await page.waitForTimeout(700)
 
-    await page.getByRole('button', { name: 'Nuevo proyecto' }).click()
+    await page.getByRole('button', { name: 'Nuevo proyecto', exact: true }).click()
     const dialogo = page.getByRole('dialog')
     await expect(dialogo).toBeVisible()
     await dialogo.getByRole('button', { name: 'Cancelar', exact: true }).click()

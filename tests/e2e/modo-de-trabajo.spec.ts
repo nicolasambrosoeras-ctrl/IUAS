@@ -160,7 +160,7 @@ test.describe('MODE-UX-01 · modo de trabajo desacoplado de la configuración hi
     await fijarEjes(page, CUSTOM_PROFESIONAL)
 
     // Nuevo proyecto (antes "Reiniciar cálculo", FIX-PERSIST-01-NUEVO-PROYECTO-01).
-    await page.getByRole('button', { name: 'Nuevo proyecto' }).click()
+    await page.getByRole('button', { name: 'Nuevo proyecto', exact: true }).click()
     const dialogo = page.getByRole('dialog')
     await expect(dialogo).toBeVisible()
     await dialogo.getByRole('button', { name: 'Crear nuevo proyecto', exact: true }).click()
