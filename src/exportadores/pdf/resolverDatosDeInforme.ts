@@ -12,11 +12,22 @@ import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-arte
 import type { TipoProyectoNormativo } from '../../normativa/eras-2023/coeficientes-mayoracion'
 import type { ResultadoDeCalculo } from '../../modelo/resultado'
 import { calcularSimultaneidad } from '../../motor/demanda/simultaneidad/calcularSimultaneidad'
+import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia'
+import { catalogoMaterialesTuberia } from '../../motor/tuberias/materialTuberia'
 import { crearContextoDeCalculoM2 } from '../../motor/tuberias/contextoDeCalculoM2'
+import { resolverPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolverPerdidaDistribuidaDeTramo'
+import type { ResultadoPerdidaDistribuidaDeTramo } from '../../motor/tuberias/resolverPerdidaDistribuidaDeTramo'
+import {
+  resolverPerdidaLocalizadaEstimadaDeLocal,
+  KS_ESTIMADO_TEE,
+  KS_ESTIMADO_SINGULARIDAD_TERMINAL,
+  KS_ESTIMADO_LLAVE_DE_PASO,
+} from '../../motor/tuberias/presion/resolverPerdidaLocalizadaEstimadaDeLocal'
+import { resolverCotaHidraulicaEfectivaDeArtefacto, resolverNivelDeLocal } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import { resolverEstadoModulo4 } from '../../motor/modulo4/resolverEstadoModulo4'
 import type { EstadoModulo2 } from '../../motor/modulo2/resolverEstadoModulo2'
 import { resolverResolucionDeModulo2 } from '../../interfaz/paginas/resolverResolucionDeModulo2'
-import { resolverFilaDeDimensionamiento } from '../../interfaz/paginas/resolverFilaDeDimensionamiento'
+import { resolverFilaDeDimensionamiento, type EstadoDeFila } from '../../interfaz/paginas/resolverFilaDeDimensionamiento'
 import {
   identificarFilasDistribucionGeneral,
   identificarFilasPrincipalesDeLocales,
@@ -69,6 +80,7 @@ function resolverUnidadFuncionalDeInforme(uf: UnidadFuncional): UnidadFuncionalD
 
 export type FilaDeTuberiaDeInforme = {
   readonly clave: string
+  readonly tramoId: string
   readonly etiqueta: string
   readonly red: RedDeTramo
   readonly longitudTexto: string
@@ -79,7 +91,11 @@ export type FilaDeTuberiaDeInforme = {
   readonly hfDistribuidaTexto: string
   readonly hfLocalizadaTexto: string
   readonly perdidaTotalTexto: string
-  readonly estadoTexto: string
+  // Estado CRUDO ('ok'|'controlar'|'incompleto'), no el texto largo que ya
+  // usa la UI interactiva (p.ej. "○ DN mínimo comercial") -- el PDF arma su
+  // propia etiqueta compacta (brief REPORT-01B §19) para no partir palabras
+  // en una columna angosta.
+  readonly estado: EstadoDeFila
   readonly artefactos: string
 }
 
@@ -95,6 +111,53 @@ export type MontanteDeInforme = {
   readonly segmentos: readonly FilaDeTuberiaDeInforme[]
 }
 
+// Desarrollo de cálculo de velocidad + pérdida distribuida (brief
+// REPORT-01B §8/§9): UN caso real representativo, con los datos crudos
+// que resolverPerdidaDistribuidaDeTramo ya resuelve -- nunca una segunda
+// aritmética. `detalle` trae exactamente lo que expone el motor según el
+// método vigente del proyecto (Hazen-Williams o Darcy-Weisbach).
+export type CasoVelocidadYPerdidaDistribuida = {
+  readonly etiqueta: string
+  readonly qc_lps: number
+  readonly diametroInteriorEfectivo_mm: number
+  readonly velocidad_mps: number
+  readonly longitud_m: number
+  readonly hfDistribuida_m: number
+  readonly detalle: Extract<ResultadoPerdidaDistribuidaDeTramo, { tipo: 'conPerdidaDistribuida' }>['detalle']
+}
+
+// Desarrollo de la pérdida localizada ESTIMADA (criterio vigente D-δ.40/
+// D-δ.45, brief REPORT-01B §10): un caso real por (Local, Red), con los Ks
+// tal como los expone el propio motor (KS_ESTIMADO_*, Tabla N°7) -- nunca
+// recalibrados ni reinterpretados acá.
+export type CasoPerdidaLocalizadaEstimada = {
+  readonly localEtiqueta: string
+  readonly red: RedDeTramo
+  readonly nTerminalesLocal: number
+  readonly nTeesEstimadas: number
+  readonly nSingularidadTerminal: number
+  readonly nLlaveDePaso: number
+  readonly ksTee: number
+  readonly ksSingularidadTerminal: number
+  readonly ksLlaveDePaso: number
+  readonly kTotal: number
+  readonly velocidadReferencia_mps: number
+  readonly hf_m: number
+}
+
+export type DesarrolloDeCalculoM2 = {
+  readonly metodoPerdidaDistribuida: 'hazenWilliams' | 'darcyWeisbach'
+  readonly metodoPerdidaLocalizada: 'estimado' | 'detallado'
+  // undefined = ningún Tramo del proyecto resolvió una pérdida distribuida
+  // completa todavía (p.ej. sin longitudes cargadas) -- nunca se fabrica un
+  // caso con datos parciales.
+  readonly casoVelocidadYPerdidaDistribuida: CasoVelocidadYPerdidaDistribuida | undefined
+  // Sólo tiene sentido en método 'estimado' -- en 'detallado' queda
+  // undefined a propósito (brief §12: no mostrar la plantilla de Estimadas
+  // en un proyecto que usa Detalladas).
+  readonly casoPerdidaLocalizadaEstimada: CasoPerdidaLocalizadaEstimada | undefined
+}
+
 export type SeccionM2DeInforme = {
   readonly hayRedHidraulica: boolean
   readonly metodoPerdidaLocalizada: 'estimado' | 'detallado'
@@ -102,6 +165,7 @@ export type SeccionM2DeInforme = {
   readonly locales: readonly GrupoDeLocalDeInforme[]
   readonly distribucionSecundaria: readonly FilaDeTuberiaDeInforme[]
   readonly montantes: readonly MontanteDeInforme[]
+  readonly desarrollo: DesarrolloDeCalculoM2 | undefined
 }
 
 function longitudTextoDeTramo(proyecto: Proyecto, tramoId: string): string {
@@ -124,6 +188,7 @@ function resolverFilaDeTuberiaDeInforme(
     fila.hfLocalizadaEstimada_mca === undefined ? GUION : `${formatearNumero(fila.hfLocalizadaEstimada_mca, 'm')} m.c.a.`
   return {
     clave,
+    tramoId,
     etiqueta,
     red,
     longitudTexto: longitudTextoDeTramo(proyecto, tramoId),
@@ -134,14 +199,91 @@ function resolverFilaDeTuberiaDeInforme(
     hfDistribuidaTexto: `${fila.hfDistribuidaTexto} m.c.a.`,
     hfLocalizadaTexto,
     perdidaTotalTexto: fila.perdidaTotalTexto,
-    estadoTexto: fila.estadoTexto,
+    estado: fila.estado,
     artefactos: fila.artefactos,
   }
+}
+
+// Caso real representativo de velocidad + pérdida distribuida: prueba,
+// en orden de preferencia, el Tramo del Local+Red del terminal crítico
+// (une narrativamente M2 y Verificación), luego el primer Tramo de cada
+// sección de M2. `undefined` si ningún candidato resuelve 'conPerdidaDistribuida'
+// todavía (nunca se fabrica un caso con datos incompletos).
+function resolverCasoVelocidadYPerdidaDistribuida(
+  proyecto: Proyecto,
+  catalogoArtefactos: readonly ArtefactoNormativo[],
+  contexto: ReturnType<typeof crearContextoDeCalculoM2>,
+  candidatos: readonly { readonly tramoId: string; readonly etiqueta: string }[],
+): CasoVelocidadYPerdidaDistribuida | undefined {
+  for (const candidato of candidatos) {
+    const resultado = resolverPerdidaDistribuidaDeTramo(
+      proyecto,
+      candidato.tramoId,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+      contexto,
+    )
+    if (resultado.tipo !== 'conPerdidaDistribuida') {
+      continue
+    }
+    return {
+      etiqueta: candidato.etiqueta,
+      qc_lps: resultado.qc_lps,
+      diametroInteriorEfectivo_mm: resultado.candidato.diametroInteriorEfectivo_mm,
+      velocidad_mps: resultado.velocidadReal_mps,
+      longitud_m: resultado.longitud_m,
+      hfDistribuida_m: resultado.hf_m,
+      detalle: resultado.detalle,
+    }
+  }
+  return undefined
+}
+
+function resolverCasoPerdidaLocalizadaEstimada(
+  proyecto: Proyecto,
+  catalogoArtefactos: readonly ArtefactoNormativo[],
+  contexto: ReturnType<typeof crearContextoDeCalculoM2>,
+  candidatos: readonly { readonly unidadFuncionalId: string; readonly localId: string; readonly red: RedDeTramo; readonly etiqueta: string }[],
+): CasoPerdidaLocalizadaEstimada | undefined {
+  for (const candidato of candidatos) {
+    const resultado = resolverPerdidaLocalizadaEstimadaDeLocal(
+      proyecto,
+      candidato.unidadFuncionalId,
+      candidato.localId,
+      candidato.red,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      contexto,
+    )
+    if (resultado.tipo !== 'estimada' || resultado.nTerminalesLocal === 0) {
+      continue
+    }
+    return {
+      localEtiqueta: candidato.etiqueta,
+      red: candidato.red,
+      nTerminalesLocal: resultado.nTerminalesLocal,
+      nTeesEstimadas: resultado.nTeesEstimadas,
+      nSingularidadTerminal: resultado.nSingularidadTerminal,
+      nLlaveDePaso: resultado.nLlaveDePaso,
+      ksTee: KS_ESTIMADO_TEE,
+      ksSingularidadTerminal: KS_ESTIMADO_SINGULARIDAD_TERMINAL,
+      ksLlaveDePaso: KS_ESTIMADO_LLAVE_DE_PASO,
+      kTotal:
+        resultado.nTeesEstimadas * KS_ESTIMADO_TEE +
+        resultado.nSingularidadTerminal * KS_ESTIMADO_SINGULARIDAD_TERMINAL +
+        resultado.nLlaveDePaso * KS_ESTIMADO_LLAVE_DE_PASO,
+      velocidadReferencia_mps: resultado.velocidadReferencia_mps,
+      hf_m: resultado.hf_m,
+    }
+  }
+  return undefined
 }
 
 function resolverSeccionM2(
   proyecto: Proyecto,
   catalogoArtefactos: readonly ArtefactoNormativo[],
+  criticoRef: { readonly unidadFuncionalId: string; readonly localId: string; readonly red: RedDeTramo } | undefined,
 ): SeccionM2DeInforme {
   const hayRedHidraulica = proyecto.redHidraulica !== undefined
   const metodoPerdidaLocalizada = proyecto.configuracionHidraulica.metodoPerdidaLocalizada
@@ -153,6 +295,7 @@ function resolverSeccionM2(
       locales: [],
       distribucionSecundaria: [],
       montantes: [],
+      desarrollo: undefined,
     }
   }
 
@@ -227,6 +370,42 @@ function resolverSeccionM2(
     }
   })
 
+  // Casos representativos del desarrollo de cálculo (brief REPORT-01B
+  // §8/§9/§10): el terminal crítico primero (une narrativamente M2 y
+  // Verificación), después el orden natural de la sección.
+  const filasPrincipalesConEtiqueta = filasPrincipales.map((f) => {
+    const uf = proyecto.unidadesFuncionales.find((candidata) => candidata.id === f.unidadFuncionalId)
+    const local = uf?.niveles.flatMap((n) => n.locales).find((candidato) => candidato.id === f.localId)
+    return { ...f, etiqueta: uf !== undefined && local !== undefined ? etiquetaHumanaDeLocal(uf, local) : f.tramoId }
+  })
+  const filasPrincipalesOrdenadas =
+    criticoRef === undefined
+      ? filasPrincipalesConEtiqueta
+      : [
+          ...filasPrincipalesConEtiqueta.filter(
+            (f) => f.unidadFuncionalId === criticoRef.unidadFuncionalId && f.localId === criticoRef.localId && f.red === criticoRef.red,
+          ),
+          ...filasPrincipalesConEtiqueta.filter(
+            (f) => !(f.unidadFuncionalId === criticoRef.unidadFuncionalId && f.localId === criticoRef.localId && f.red === criticoRef.red),
+          ),
+        ]
+
+  const candidatosVelocidad = [
+    ...filasPrincipalesOrdenadas.map((f) => ({ tramoId: f.tramoId, etiqueta: `${f.etiqueta} (${f.red === 'AF' ? 'Agua fría' : 'Agua caliente'})` })),
+    ...identificarFilasDistribucionGeneral(proyecto).map((f) => ({ tramoId: f.tramoId, etiqueta: f.etiqueta })),
+  ]
+  const casoVelocidadYPerdidaDistribuida = resolverCasoVelocidadYPerdidaDistribuida(
+    proyecto,
+    catalogoArtefactos,
+    contexto,
+    candidatosVelocidad,
+  )
+
+  const casoPerdidaLocalizadaEstimada =
+    metodoPerdidaLocalizada === 'estimado'
+      ? resolverCasoPerdidaLocalizadaEstimada(proyecto, catalogoArtefactos, contexto, filasPrincipalesOrdenadas)
+      : undefined
+
   return {
     hayRedHidraulica: true,
     metodoPerdidaLocalizada,
@@ -234,6 +413,12 @@ function resolverSeccionM2(
     locales: [...gruposPorLocal.values()],
     distribucionSecundaria,
     montantes,
+    desarrollo: {
+      metodoPerdidaDistribuida: proyecto.configuracionHidraulica.metodoPerdidaDistribuida,
+      metodoPerdidaLocalizada,
+      casoVelocidadYPerdidaDistribuida,
+      casoPerdidaLocalizadaEstimada,
+    },
   }
 }
 
@@ -262,6 +447,33 @@ export type FilaDeVerificacionDeInforme = {
   readonly notaTexto: string | undefined
 }
 
+// Desarrollo de cálculo del terminal crítico (brief REPORT-01B §14/§15/
+// §16): todos los valores CRUDOS que ya resolvió resolverPresionResidualDeCamino
+// para este candidato -- la fórmula central se arma en el renderer a partir
+// de estos números, nunca se recalculan. `hfEquipoACS_mca` queda `undefined`
+// a propósito: resolverBalanceDePresion NO incluye ese término en su firma
+// (D-δ.15, sin fórmula normativa vigente) -- el renderer debe explicarlo,
+// nunca inventar un 0 silencioso ni omitir la mención.
+export type DesarrolloTerminalCritico = {
+  readonly ufNombre: string
+  readonly localEtiqueta: string
+  readonly artefactoNombre: string
+  readonly red: RedDeTramo | undefined
+  readonly cotaTerminal_m: number | undefined
+  readonly origenTexto: string
+  readonly presionDisponible_mca: number
+  readonly desnivel_m: number
+  readonly hfDistribuida_mca: number
+  readonly hfLocalizada_mca: number
+  readonly metodologiaHfLocalizada: 'detallado' | 'estimado'
+  readonly hfMedidor_mca: number
+  readonly hfEquipoACS_mca: undefined
+  readonly presionResidual_mca: number
+  readonly presionMinimaRequerida_mca: number
+  readonly margen_mca: number
+  readonly cumpleMinimo: boolean
+}
+
 export type SeccionVerificacionDeInforme = {
   readonly estadoGlobal: EstadoModulo2['estado']
   readonly origenTexto: string
@@ -269,6 +481,9 @@ export type SeccionVerificacionDeInforme = {
   readonly filas: readonly FilaDeVerificacionDeInforme[]
   readonly terminalCriticoNodoId: string | undefined
   readonly motivosDeIncompletitud: readonly string[]
+  // undefined mientras no exista un terminal crítico determinado
+  // ('completo' es el único estado que lo produce, ver resolverEstadoModulo2).
+  readonly desarrolloCritico: DesarrolloTerminalCritico | undefined
 }
 
 // Etiqueta humana de un motivo de corte POR TERMINAL -- distinto de
@@ -360,11 +575,71 @@ function resolverFilaDeVerificacion(
   }
 }
 
+// Desarrollo completo del terminal crítico -- sólo se construye cuando
+// `estadoModulo2` ya determinó uno real ('completo'). Relee la misma
+// referencia de nodo que resolverFilaDeVerificacion para no duplicar esa
+// búsqueda con datos distintos.
+function resolverDesarrolloCritico(
+  proyecto: Proyecto,
+  candidato: EstadoModulo2['candidatos'][number] & { readonly resultado: { readonly tipo: 'balanceCompleto' } },
+  catalogoArtefactos: readonly ArtefactoNormativo[],
+  hfMedidorDeTerminal: (nodoTerminalId: string) => number | undefined,
+  presionDisponible_mca: number,
+  origenTexto: string,
+): DesarrolloTerminalCritico | undefined {
+  const { nodoId, resultado } = candidato
+  const nodo = proyecto.redHidraulica?.nodos.find((n) => n.id === nodoId)
+  const referencia = nodo?.referencia?.tipo === 'artefacto' ? nodo.referencia : undefined
+  if (referencia === undefined) {
+    return undefined
+  }
+  const uf = proyecto.unidadesFuncionales.find((u) => u.id === referencia.unidadFuncionalId)
+  const nivel = uf === undefined ? undefined : resolverNivelDeLocal(uf, referencia.localId)
+  const local = nivel?.locales.find((l) => l.id === referencia.localId)
+  const artefactoInstancia = local?.artefactos.find((a) => a.id === referencia.artefactoId)
+  const cotaTerminal_m =
+    nivel !== undefined && local !== undefined && artefactoInstancia !== undefined
+      ? resolverCotaHidraulicaEfectivaDeArtefacto(nivel, local, artefactoInstancia)
+      : undefined
+
+  const hfMedidor_mca = hfMedidorDeTerminal(nodoId)
+  if (hfMedidor_mca === undefined) {
+    // Precondición imposible en la práctica: 'balanceCompleto' exige que
+    // resolverBalanceDePresion ya haya recibido hfMedidor_mca (ver
+    // TerminosDePerdidaDeBalance) -- si este candidato llegó hasta acá,
+    // hfMedidorDeTerminal ya lo resolvió antes. Guard sólo para angostar
+    // tipos, mismo criterio que el resto del motor ante estados imposibles.
+    return undefined
+  }
+
+  return {
+    ufNombre: uf?.nombre ?? GUION,
+    localEtiqueta: uf !== undefined && local !== undefined ? etiquetaHumanaDeLocal(uf, local) : 'Local (no encontrado)',
+    artefactoNombre: nombreDeArtefacto(proyecto, catalogoArtefactos, referencia),
+    red: proyecto.redHidraulica?.tramos.find((t) => t.nodoDestinoId === nodoId)?.red,
+    cotaTerminal_m,
+    origenTexto,
+    presionDisponible_mca,
+    desnivel_m: resultado.desnivel_m,
+    hfDistribuida_mca: resultado.hfDistribuida_mca,
+    hfLocalizada_mca: resultado.hfLocalizada.hf_mca,
+    metodologiaHfLocalizada: resultado.hfLocalizada.metodologia,
+    hfMedidor_mca,
+    hfEquipoACS_mca: undefined,
+    presionResidual_mca: resultado.presionResidual_mca,
+    presionMinimaRequerida_mca: resultado.presionMinimaRequerida_mca,
+    margen_mca: resultado.presionResidual_mca - resultado.presionMinimaRequerida_mca,
+    cumpleMinimo: resultado.cumpleMinimo,
+  }
+}
+
+type ReferenciaDeLocalDelCritico = { readonly unidadFuncionalId: string; readonly localId: string; readonly red: RedDeTramo }
+
 function resolverSeccionVerificacion(
   proyecto: Proyecto,
   catalogoArtefactos: readonly ArtefactoNormativo[],
   coeficientesMayoracion: readonly TipoProyectoNormativo[],
-): SeccionVerificacionDeInforme {
+): { readonly seccion: SeccionVerificacionDeInforme; readonly criticoRef: ReferenciaDeLocalDelCritico | undefined } {
   const { entradas, estadoModulo2 } = resolverResolucionDeModulo2(proyecto, catalogoArtefactos, coeficientesMayoracion)
 
   const nodoIdCritico = estadoModulo2.estado === 'completo' ? estadoModulo2.terminalMasDesfavorable.nodoId : undefined
@@ -376,14 +651,45 @@ function resolverSeccionVerificacion(
     ? agruparMotivosDeModulo2(estadoModulo2.motivos, proyecto.unidadesFuncionales)
     : []
 
+  const candidatoCritico =
+    nodoIdCritico === undefined
+      ? undefined
+      : estadoModulo2.candidatos.find(
+          (c): c is typeof c & { readonly resultado: { readonly tipo: 'balanceCompleto' } } =>
+            c.nodoId === nodoIdCritico && c.resultado.tipo === 'balanceCompleto',
+        )
+  const desarrolloCritico =
+    candidatoCritico === undefined || entradas.presionDisponible_mca === undefined
+      ? undefined
+      : resolverDesarrolloCritico(
+          proyecto,
+          candidatoCritico,
+          catalogoArtefactos,
+          entradas.hfMedidorDeTerminal,
+          entradas.presionDisponible_mca,
+          entradas.origenTexto,
+        )
+
+  const nodo = nodoIdCritico === undefined ? undefined : proyecto.redHidraulica?.nodos.find((n) => n.id === nodoIdCritico)
+  const referenciaCritico = nodo?.referencia?.tipo === 'artefacto' ? nodo.referencia : undefined
+  const redCritico = nodoIdCritico === undefined ? undefined : proyecto.redHidraulica?.tramos.find((t) => t.nodoDestinoId === nodoIdCritico)?.red
+  const criticoRef: ReferenciaDeLocalDelCritico | undefined =
+    referenciaCritico === undefined || redCritico === undefined
+      ? undefined
+      : { unidadFuncionalId: referenciaCritico.unidadFuncionalId, localId: referenciaCritico.localId, red: redCritico }
+
   return {
-    estadoGlobal: estadoModulo2.estado,
-    origenTexto: entradas.origenTexto,
-    presionDisponibleTexto:
-      entradas.presionDisponible_mca === undefined ? undefined : `${formatearNumero(entradas.presionDisponible_mca, 'm')} m.c.a.`,
-    filas,
-    terminalCriticoNodoId: nodoIdCritico,
-    motivosDeIncompletitud,
+    seccion: {
+      estadoGlobal: estadoModulo2.estado,
+      origenTexto: entradas.origenTexto,
+      presionDisponibleTexto:
+        entradas.presionDisponible_mca === undefined ? undefined : `${formatearNumero(entradas.presionDisponible_mca, 'm')} m.c.a.`,
+      filas,
+      terminalCriticoNodoId: nodoIdCritico,
+      motivosDeIncompletitud,
+      desarrolloCritico,
+    },
+    criticoRef,
   }
 }
 
@@ -421,8 +727,11 @@ export function resolverDatosDeInforme(
 ): DatosDeInforme {
   const resultadoM1 = calcularSimultaneidad({ proyecto, normativa: { catalogoArtefactos, coeficientesMayoracion } })
   const unidadesFuncionalesM1 = proyecto.unidadesFuncionales.map(resolverUnidadFuncionalDeInforme)
-  const m2 = resolverSeccionM2(proyecto, catalogoArtefactos)
-  const verificacion = resolverSeccionVerificacion(proyecto, catalogoArtefactos, coeficientesMayoracion)
+  // Verificación primero: su terminal crítico (si lo hay) es el caso
+  // representativo preferido del desarrollo de cálculo de M2 (une
+  // narrativamente ambas secciones, brief REPORT-01B §8).
+  const { seccion: verificacion, criticoRef } = resolverSeccionVerificacion(proyecto, catalogoArtefactos, coeficientesMayoracion)
+  const m2 = resolverSeccionM2(proyecto, catalogoArtefactos, criticoRef)
   const origenM4Texto = resolverOrigenM4Texto(proyecto, catalogoArtefactos, coeficientesMayoracion)
 
   return { proyecto, resultadoM1, unidadesFuncionalesM1, m2, verificacion, origenM4Texto }
