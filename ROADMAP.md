@@ -2599,6 +2599,55 @@ salvo bug inequívoco o decisión roja explícita.
     columna Estado de M2 no se parta letra por letra).
   - **Estado:** `REPORT-01B: CERRADO — pendiente validación visual manual`.
 
+- **D-δ.116 — FIX-REPORT-01B-VISUAL-01: correcciones visuales detectadas
+  en la validación real del PDF (CERRADO — pendiente validación visual
+  manual).** La validación manual de REPORT-01B (D-δ.115) encontró 5
+  defectos de presentación concretos + 1 opcional. Slice exclusivamente
+  de presentación/pdfMake -- motor, fórmulas, criterios, coeficientes,
+  schema y cálculo del terminal crítico SIN CAMBIOS.
+  - **P1 — Hazen-Williams rota:** la fórmula general combinaba
+    superíndices Unicode apilados (`¹∙⁸⁵²`/`⁴∙⁸⁷`) que la fuente vfs de
+    pdfMake no representa bien, y mostraba `Q³` (exponente incorrecto,
+    el real es 1,852). Corregida a ASCII técnico estable: `Q^1,852 /
+    (C^1,852 · Di^4,87)` -- mismos exponentes que ya usaba correctamente
+    la sustitución numérica del caso representativo.
+  - **P2 — glifo roto en Estado M2:** `✓`/`⚠` se veían como cuadrados
+    inválidos con la fuente vfs. Reemplazados por texto ASCII (`OK`/`DN
+    mín.`/`Incompleto`) a partir del mismo `estado` crudo del dominio
+    (`EstadoDeFila`), sin reinterpretar la clasificación.
+  - **P3 — "DN / Di" ambiguo:** en los hechos mostraba el DN comercial
+    dos veces (`resolverFilaDeTuberiaDeInforme` reutilizaba
+    `fila.dnTexto` para `diTexto` por error de 01A/01B). Se relee
+    `diEfectivoTexto` de `resolverResultadoDeTramoParaUi` para el mismo
+    Tramo sobre el mismo contexto memoizado (no una segunda resolución
+    hidráulica) -- columnas `DN [mm]` / `Di [mm]` separadas con valores
+    reales distintos.
+  - **P4 — textos duplicados:** "Origen hidráulico" concatenaba
+    `verificacion.origenTexto` + `origenM4Texto` (ambos describiendo lo
+    mismo) → "Alimentación directa (Alimentación directa (sin tanque de
+    reserva))"; la identificación del terminal crítico anteponía
+    `ufNombre` a `localEtiqueta`, que YA incluye el nombre de la UF
+    (`etiquetaHumanaDeLocal`). Ambos corregidos como composición de
+    texto -- se buscó el mismo patrón en el resto del informe (brief
+    §9) y no se encontraron más ocurrencias.
+  - **P5 — página huérfana:** la tabla de detalle de verificación por
+    terminal arrancaba apretada contra el desarrollo del crítico y
+    desbordaba a una página final casi vacía. `pageBreak: 'before'`
+    explícito antes de la tabla (pdfMake sigue resolviendo el layout;
+    `headerRows: 1` ya repetía el encabezado por página sin
+    configuración adicional -- nunca se midieron alturas en JS).
+  - **P6 (opcional) — notación científica:** `1.6286e-4` reemplazada por
+    `1,6286 × 10^-4` (helper de presentación puro, ningún valor cambia).
+  - **Tests:** Vitest **1814/1814** (176 archivos; +6 nuevos, uno por
+    hallazgo P1-P6). `tsc -b` / `e2e:typecheck` / `build` limpios.
+    ESLint **11/0/0** (mismo baseline preexistente).
+  - **Motor:** confirmado SIN CAMBIOS.
+  - **Validación manual pendiente:** generar el PDF real desde
+    producción y confirmar visualmente los 6 puntos anteriores.
+  - **Estado:** `FIX-REPORT-01B-VISUAL-01: CERRADO — pendiente
+    validación visual manual`. Recién tras esa validación, `REPORT-01B:
+    CERRADO` (sin condicional) y se habilita **REPORT-01C**.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /

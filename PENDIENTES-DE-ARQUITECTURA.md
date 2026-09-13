@@ -13536,3 +13536,62 @@ preexistente).
 
 **Estado:** `REPORT-01B: CERRADO — pendiente validación visual manual`.
 Siguiente: **REPORT-01C — M3 + M4 + observaciones finales**.
+
+## D-δ.116 — FIX-REPORT-01B-VISUAL-01: correcciones visuales de la memoria de cálculo — CERRADA (pendiente validación visual manual)
+
+La validación visual manual de REPORT-01B (D-δ.115) devolvió 5 defectos
+de presentación concretos + 1 opcional -- ver el PDF real generado desde
+producción. Slice exclusivamente de presentación (pdfMake/snapshot): NO
+se tocó motor, fórmulas, criterios, coeficientes, schema ni el cálculo
+del terminal crítico.
+
+**Arqueología (antes de tocar nada):** se localizó el texto exacto que
+construye cada fórmula (`FORMULA_PERDIDA_DISTRIBUIDA` en
+`generarDocumentoPdf.ts`), el badge de estado (`ETIQUETA_ESTADO_PDF`), y
+el punto donde `resolverFilaDeTuberiaDeInforme` asignaba `diTexto`. Se
+determinó que la causa de los glifos rotos era el uso de superíndices
+Unicode APILADOS (varios caracteres superíndice consecutivos formando
+"¹∙⁸⁵²") en vez de un único superíndice simple (`²`, que sí renderiza
+bien y se dejó intacto en `Di²`/`V²` -- no se degradó todo el informe a
+ASCII, sólo la combinación que efectivamente fallaba).
+
+**Hallazgos y causa raíz:**
+- **P1:** `FORMULA_PERDIDA_DISTRIBUIDA.hazenWilliams` tenía un STRING
+  literal con superíndices apilados y un exponente literalmente
+  incorrecto (`Q³` en vez de `Q^1,852`) -- error de tipeo de REPORT-01B,
+  no un problema de la aritmética real (la sustitución numérica del caso
+  representativo, en otra parte del mismo archivo, ya usaba `^1,852`
+  correctamente desde D-δ.115). Corregido a texto ASCII consistente con
+  esa sustitución.
+- **P2:** `ETIQUETA_ESTADO_PDF` usaba `✓`/`⚠`, símbolos fuera del
+  subconjunto de glifos que la fuente vfs embebida de pdfMake (Roboto,
+  build por defecto) garantiza renderizar. Reemplazados por texto.
+- **P3:** bug real de datos, no sólo de texto: `diTexto: fila.dnTexto`
+  en `resolverFilaDeTuberiaDeInforme` (introducido en REPORT-01A/01B)
+  asignaba el MISMO valor que `dnTexto` -- la columna "DN / Di" nunca
+  mostró el Di real. Corregido releyendo `diEfectivoTexto` de
+  `resolverResultadoDeTramoParaUi` para el mismo Tramo.
+- **P4:** dos duplicaciones de composición de texto (`origenM4Texto`
+  envuelto redundantemente junto a `verificacion.origenTexto`; `ufNombre`
+  antepuesto a `localEtiqueta`, que ya lo incluye). Se buscó el mismo
+  patrón (UF concatenada dos veces, Local+UF duplicado, origen
+  duplicado) en el resto del renderer y no se encontraron más casos --
+  no se hizo cleanup general del PDF (brief §9 lo prohibía
+  explícitamente).
+- **P5:** página huérfana casi vacía al final del documento -- causada
+  por la tabla de detalle de verificación arrancando sin un punto de
+  corte explícito, apretada contra el desarrollo del terminal crítico.
+  Resuelto con `pageBreak: 'before'` en el encabezado que precede la
+  tabla; no se implementó medición de alturas en JS ni cálculo de
+  posiciones (pdfMake sigue resolviendo el layout real).
+- **P6 (opcional, no bloqueante):** notación científica `1.6286e-4` →
+  `1,6286 × 10^-4` vía un helper de presentación puro.
+
+**Tests:** Vitest 1814/1814 (176 archivos, +6 nuevos). `tsc -b` /
+`e2e:typecheck` / `build` limpios. ESLint 11/0/0 (mismo baseline
+preexistente).
+
+**Estado:** `FIX-REPORT-01B-VISUAL-01: CERRADO — pendiente validación
+visual manual`. Recién tras esa validación: `REPORT-01B: CERRADO` (sin
+condicional), y se habilita **REPORT-01C — M3 + M4 + observaciones
+finales**.
