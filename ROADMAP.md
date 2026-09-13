@@ -2842,6 +2842,57 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `FIX-PERSIST-01-NUEVO-PROYECTO-01: CERRADO — pendiente
     validación manual`.
 
+- **D-δ.121 — FIX-PERSIST-01-PROJECT-ACTIONS-01: acción global "Cargar
+  proyecto de ejemplo" + orden de acciones globales (CERRADO — pendiente
+  validación manual).** Hotfix Nivel B bajo, exclusivamente de UX y
+  wiring de acciones ya existentes en el modelo -- sin cambios de
+  serializer, schemaVersion, autosave, import/export, `localStorage`,
+  motor, M1-M4, memoria PDF, modelo de dominio, proyecto de ejemplo ni
+  factory de proyecto vacío.
+  - **Nueva acción global:** "Cargar proyecto de ejemplo", junto a
+    "Nuevo proyecto" / "Importar proyecto" / "Exportar proyecto" (orden
+    en el header: Nuevo proyecto, Cargar proyecto de ejemplo, Importar
+    proyecto, Exportar proyecto -- este último par sólo reordenado
+    dentro de `AccionesDeProyecto`, sin cambios de lógica). Reemplaza el
+    proyecto activo por `proyectoInicial` -- ÚNICA fuente de verdad del
+    demo, pasada por el mismo `backfillLongitudesDePredimensionamiento`
+    que ya usa el bootstrap (misma "instancia segura" ya validada, sin
+    factory nueva ni clon manual). Confirmación previa propia
+    (`DialogoDeConfirmacion` reutilizado), estilo secundario/neutro sin
+    color de alarma, mismo patrón de estado/ref que "Nuevo proyecto".
+  - **Arqueología confirmó, sin decisión roja:** "Nuevo proyecto" ya
+    usaba `crearProyectoVacio()`; `proyectoInicial` ya era el modelo
+    precargado real del bootstrap sin autosave; el árbol de mutación del
+    proyecto en todo el repo es inmutable (spread, nunca in-place), así
+    que reutilizar la misma referencia derivada del backfill es seguro
+    -- nunca se generan IDs nuevos (el backfill sólo completa
+    `longitud_m`/`longitudEsSugerida`).
+  - **Nunca colapsan a la misma semántica** (§13 del brief): "Nuevo
+    proyecto" nunca carga el demo, "Cargar proyecto de ejemplo" nunca
+    produce un vacío -- verificado con un test E2E dedicado que ejercita
+    ambas acciones en un mismo recorrido (§22 del brief).
+  - **Tests:** Vitest sigue **1875/1875** (wiring de UI, sin lógica de
+    dominio nueva). E2E nuevo: `tests/e2e/cargar-proyecto-de-ejemplo.spec.ts`
+    (3 casos × desktop/mobile: confirmar reemplaza por el demo completo y
+    sobrevive a un refresh, cancelar deja intactos proyecto Y autosave, y
+    el flujo combinado §22 -- reload / Nuevo proyecto cancelar+confirmar
+    / Cargar ejemplo cancelar+confirmar / reload en cada paso). La señal
+    de "es realmente el demo" nunca fue sólo el conteo de UF (el párrafo
+    del header dice "Proyecto de ejemplo" con cualquier proyecto de 1+
+    UF, sin distinguir procedencia) -- se usó el conteo real de Locales
+    (`.m1-local`, 5 en el demo: Baño/Cocina/Lavadero/Toilette/Jardín) en
+    su lugar, corrigiendo una falsa asunción detectada en la primera
+    corrida de este mismo spec (documentado, no un bug de la app). `tsc -b`
+    / `e2e:typecheck` / `build` limpios. ESLint **11/0/0** (mismo
+    baseline preexistente). No se repitió el gate de fuzz Nivel A ni el
+    20×30: no se tocó persistencia de bajo nivel.
+  - **Docs:** `docs/FORMATO-IUAS.md` recibió una sección nueva ("Nuevo
+    proyecto / Cargar proyecto de ejemplo") aclarando que un refresh ya
+    no "resetea" -- siempre restaura el autosave válido más reciente,
+    sea cual sea la última acción.
+  - **Estado:** `FIX-PERSIST-01-PROJECT-ACTIONS-01: CERRADO — pendiente
+    validación manual`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /

@@ -168,6 +168,31 @@ materializado igual al que hoy se deriva por herencia. Export → import
   del proyecto sigue funcionando y la exportación manual sigue
   disponible como respaldo.
 
+## Nuevo proyecto / Cargar proyecto de ejemplo
+
+Dos acciones globales DISTINTAS (FIX-PERSIST-01-PROJECT-ACTIONS-01),
+ambas con confirmación previa y ambas pasando por la ruta normal de
+autosave — no hay una tercera vía de escritura a `localStorage`:
+
+- **Nuevo proyecto**: reemplaza el proyecto activo por
+  `crearProyectoVacio()` (0 UF/Locales/Artefactos, M2/M3/M4
+  `noIniciado`). Antes se llamaba "Reiniciar cálculo"
+  (FIX-PERSIST-01-NUEVO-PROYECTO-01) — mismo comportamiento, copy
+  aclarada.
+- **Cargar proyecto de ejemplo**: reemplaza el proyecto activo por
+  `proyectoInicial` (la vivienda unifamiliar de ejemplo, única fuente de
+  verdad — sin factory ni fixture alternativo), pasada por el mismo
+  backfill de longitudes de predimensionamiento que ya usa el bootstrap.
+
+Nunca deben colapsar a la misma semántica: "Nuevo proyecto" jamás carga
+el demo, "Cargar proyecto de ejemplo" jamás produce un proyecto vacío.
+
+**Refresh ya no "resetea" nada** — desde PERSIST-01, un refresh siempre
+significa "restaurar el autosave válido más reciente". Si la última
+acción fue "Nuevo proyecto", un refresh restaura el proyecto vacío; si
+fue "Cargar proyecto de ejemplo", restaura el demo; si fue una edición
+normal, restaura esa edición.
+
 ## Import atómico
 
 Importar sigue siempre esta secuencia: leer archivo → parsear JSON →

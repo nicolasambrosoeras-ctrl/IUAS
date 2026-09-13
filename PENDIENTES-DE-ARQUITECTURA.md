@@ -13762,3 +13762,90 @@ Nivel A ni el 20×30: la lógica de persistencia no cambió.
 
 **Estado:** `FIX-PERSIST-01-NUEVO-PROYECTO-01: CERRADO — pendiente
 validación manual`.
+
+## D-δ.121 — FIX-PERSIST-01-PROJECT-ACTIONS-01: "Cargar proyecto de ejemplo" + orden de acciones globales — CERRADA (pendiente validación manual)
+
+Hotfix Nivel B bajo sobre PERSIST-01 (D-δ.119) / FIX-PERSIST-01-NUEVO-PROYECTO-01
+(D-δ.120): UX y wiring de dos acciones globales ya existentes en el
+modelo (`crearProyectoVacio()` y `proyectoInicial`), nunca antes ambas
+expuestas explícitamente en la UI. Sin cambios de serializer,
+schemaVersion, autosave, import/export, `localStorage`, motor, M1-M4,
+memoria PDF, modelo de dominio, proyecto de ejemplo ni factory de
+proyecto vacío.
+
+**Arqueología previa (§12 del brief) confirmó ambas premisas, sin
+decisión roja:**
+- "Nuevo proyecto" (antes "Reiniciar cálculo") ya llamaba
+  `crearProyectoVacio()` -- confirmado leyendo `reiniciarCalculo()` en
+  `MotorDemandaPantalla.tsx`.
+- `proyectoInicial` (`proyectoDeEjemplo.ts`) ya es el modelo precargado
+  real que el bootstrap usa cuando no hay autosave -- confirmado en el
+  `useState` inicial del mismo componente.
+
+**Resolución del punto ambiguo del brief (§8, "instancia segura" de
+`proyectoInicial`):** el bootstrap YA resuelve este problema para el
+caso del arranque -- pasa `proyectoInicial` por
+`backfillLongitudesDePredimensionamiento` antes de usarlo como estado.
+Esa función es pura (spread, nunca mutación in-place) y, cuando el
+proyecto ya tiene todas sus longitudes completas, devuelve la MISMA
+referencia sin clonar -- inofensivo porque absolutamente ninguna
+mutación de proyecto en este repo muta in-place (confirmado por
+convención transversal ya auditada en slices previos: "cada llamada
+devuelve objetos y arrays nuevos"). Se reutilizó EXACTAMENTE esa misma
+llamada para "Cargar proyecto de ejemplo" -- no se creó ninguna función
+nueva, ningún clon manual, ningún JSON duplicado. El backfill no genera
+IDs nuevos (sólo completa `longitud_m`/`longitudEsSugerida`), así que
+los IDs canónicos del demo se conservan.
+
+**Cambios de UI:**
+- Botón nuevo "Cargar proyecto de ejemplo", mismo patrón de estado/ref/
+  confirmación que "Nuevo proyecto" (`confirmandoCargaDeEjemplo`,
+  `botonCargarEjemploRef`, `cargarProyectoDeEjemplo()`,
+  `cerrarConfirmacionDeCargaDeEjemplo()`). Confirmación con copy propia
+  ("Se reemplazará el proyecto actual por el proyecto de ejemplo de
+  IUAS...", confirmar "Cargar ejemplo").
+- Copy de confirmación de "Nuevo proyecto" ajustada levemente a la
+  redacción preferida de este brief ("...por un proyecto nuevo. Si
+  querés conservar el actual, exportalo antes...").
+- Orden en el header: Nuevo proyecto, Cargar proyecto de ejemplo,
+  Importar proyecto, Exportar proyecto (se movió `<AccionesDeProyecto>`
+  después del grupo Nuevo/Ejemplo, y se invirtió el orden interno
+  Exportar/Importar → Importar/Exportar; ambos son reorders de JSX puros,
+  sin cambios de lógica).
+- CSS: `.app-header__reiniciar` (nombre interno sin cambios, no es
+  contrato de UI) ganó `flex-wrap` + `gap` para no desbordar en mobile
+  con dos botones en la misma fila.
+
+**Nunca colapsan a la misma semántica (§13):** verificado con un test
+E2E que ejercita ambas acciones en un mismo recorrido, cancelando y
+confirmando cada una, con reload real entre pasos.
+
+**Hallazgo de proceso (no bug de la app):** la primera versión del test
+de "Cargar proyecto de ejemplo → Cancelar" fallaba porque asumía que el
+párrafo del header ("Proyecto de ejemplo — vivienda unifamiliar...")
+sólo aparece con el demo real -- en realidad esa condición sólo mira
+`unidadesFuncionales.length > 0` (comportamiento preexistente, fuera de
+alcance de este hotfix), así que también aparece con cualquier proyecto
+nuevo al que se le agregue una UF. Corregido usando una señal real:
+conteo de `.m1-local` (0 en un proyecto nuevo recién editado, 5 en el
+demo -- Baño/Cocina/Lavadero/Toilette/Jardín).
+
+**Tests:** Vitest sigue **1875/1875** (wiring de UI sobre factories
+existentes, sin lógica de dominio nueva). E2E:
+`tests/e2e/cargar-proyecto-de-ejemplo.spec.ts` nuevo (3 casos ×
+desktop/mobile), `tests/e2e/nuevo-proyecto.spec.ts` y
+`tests/e2e/modo-de-trabajo.spec.ts` sin cambios de comportamiento
+(sólo la copy nueva de confirmación, que matchea por regex). Regresión
+dirigida verde: `persistencia.spec.ts` (autosave/reload/export/import),
+`multi-uf.spec.ts`, `smoke.spec.ts`. `tsc -b` / `npm run e2e:typecheck`
+/ `npm run build` limpios. ESLint **11/0/0** (mismo baseline
+preexistente, sin errores nuevos). No se repitió el gate de fuzz Nivel A
+ni el 20×30: no se tocó persistencia de bajo nivel.
+
+**Docs:** `docs/FORMATO-IUAS.md` -- sección nueva "Nuevo proyecto /
+Cargar proyecto de ejemplo": documenta que un refresh ya no "resetea",
+siempre restaura el autosave válido más reciente sea cual sea la última
+acción (edición normal, Nuevo proyecto, o Cargar ejemplo). Sin ADR.
+
+**Estado:** `FIX-PERSIST-01-PROJECT-ACTIONS-01: CERRADO — pendiente
+validación manual`.
