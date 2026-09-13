@@ -427,14 +427,11 @@ function renderizarSeccionM2(m2: DatosDeInforme['m2']): Content[] {
     contenido.push(tablaDeTuberia(m2.distribucionSecundaria))
   }
 
-  if (m2.locales.length > 0) {
-    contenido.push({ text: 'Unidades funcionales — Locales', style: 'subseccion' })
-    for (const grupo of m2.locales) {
-      contenido.push({ text: grupo.nombre, style: 'subseccionNivel' })
-      contenido.push(tablaDeTuberia(grupo.filas))
-    }
-  }
-
+  // P3 (FIX-REPORT-01C-VISUAL-01): orden hidráulico aguas arriba -> aguas
+  // abajo -- alimentaciones generales -> Montantes -> redes de los
+  // Locales -- en vez del orden anterior (Locales antes que Montantes),
+  // que no reflejaba la lectura real de la instalación. Sólo reordena
+  // bloques del renderer; ningún dato, cálculo ni resolver cambia.
   if (m2.montantes.length > 0) {
     contenido.push({ text: 'Montantes', style: 'subseccion' })
     for (const montante of m2.montantes) {
@@ -452,6 +449,14 @@ function renderizarSeccionM2(m2: DatosDeInforme['m2']): Content[] {
       if (montante.segmentos.length > 0) {
         contenido.push(tablaDeTuberia(montante.segmentos))
       }
+    }
+  }
+
+  if (m2.locales.length > 0) {
+    contenido.push({ text: 'Unidades funcionales — Locales', style: 'subseccion' })
+    for (const grupo of m2.locales) {
+      contenido.push({ text: grupo.nombre, style: 'subseccionNivel' })
+      contenido.push(tablaDeTuberia(grupo.filas))
     }
   }
 
@@ -542,7 +547,16 @@ function formatearMca(valor: number): string {
   return `${formatearConSigno(valor, 'm')} m.c.a.`
 }
 
-function renderizarDesarrolloCritico(d: DesarrolloTerminalCritico): Content[] {
+// P1 (FIX-REPORT-01C-VISUAL-01): antes este desarrollo se devolvía como un
+// array de nodos SUELTOS de pdfMake -- sin ningún nodo que los agrupara,
+// pdfMake podía partir la página entre cualquier par de ellos (típicamente
+// entre "Margen" y "Conclusión"), dejando la Conclusión sola en una página
+// casi vacía justo antes del pageBreak explícito de la tabla de detalle.
+// Se agrupan en un ÚNICO `stack` con `unbreakable: true`: pdfMake mueve el
+// bloque COMPLETO (fórmula, tabla, sustitución, margen, conclusión) a la
+// página siguiente como una unidad si no entra entero en la actual, en vez
+// de partirlo -- sin medir alturas ni calcular posiciones a mano.
+function renderizarDesarrolloCritico(d: DesarrolloTerminalCritico): Content {
   const cotaTexto = d.cotaTerminal_m === undefined ? '—' : `${formatearNumero(d.cotaTerminal_m, 'm')} m`
   const desnivelTexto = `${formatearConSigno(d.desnivel_m, 'm')} m`
 
@@ -550,36 +564,39 @@ function renderizarDesarrolloCritico(d: DesarrolloTerminalCritico): Content[] {
     `Presidual = ${formatearNumero(d.presionDisponible_mca, 'm')} − (${formatearConSigno(d.desnivel_m, 'm')}) − ${formatearNumero(d.hfDistribuida_mca, 'm')} ` +
     `− ${formatearNumero(d.hfLocalizada_mca, 'm')} − ${formatearNumero(d.hfMedidor_mca, 'm')} = ${formatearNumero(d.presionResidual_mca, 'm')} m.c.a.`
 
-  return [
-    { text: 'Desarrollo de cálculo del terminal crítico', style: 'subseccion' },
-    {
-      // P4 (FIX-REPORT-01B-VISUAL-01): `d.localEtiqueta` ya incluye el
-      // nombre de la UF (etiquetaHumanaDeLocal, "Baño 1 · Unidad
-      // funcional 1") -- anteponer `d.ufNombre` la duplicaba
-      // ("Unidad funcional 1 — Baño 1 · Unidad funcional 1 — ...").
-      text: `${d.localEtiqueta} — ${d.artefactoNombre}${d.red !== undefined ? ` (${d.red})` : ''}`,
-      style: 'subseccionNivel',
-    },
-    { text: `Cota terminal: ${cotaTexto} · Origen: ${d.origenTexto}`, style: 'metadatos' },
-    { text: FORMULA_BALANCE_DE_PRESION, style: 'formula' },
-    {
-      table: {
-        widths: ['auto', '*'],
-        body: [
-          ['Pdisponible', `${formatearNumero(d.presionDisponible_mca, 'm')} m.c.a.`],
-          ['Δz (desnivel)', desnivelTexto],
-          ['hfDistribuida', `${formatearNumero(d.hfDistribuida_mca, 'm')} m.c.a.`],
-          [`hfLocalizada (${d.metodologiaHfLocalizada === 'estimado' ? 'estimada' : 'detallada'})`, `${formatearNumero(d.hfLocalizada_mca, 'm')} m.c.a.`],
-          ['hfMedidor', `${formatearNumero(d.hfMedidor_mca, 'm')} m.c.a.`],
-        ],
+  return {
+    unbreakable: true,
+    stack: [
+      { text: 'Desarrollo de cálculo del terminal crítico', style: 'subseccion' },
+      {
+        // P4 (FIX-REPORT-01B-VISUAL-01): `d.localEtiqueta` ya incluye el
+        // nombre de la UF (etiquetaHumanaDeLocal, "Baño 1 · Unidad
+        // funcional 1") -- anteponer `d.ufNombre` la duplicaba
+        // ("Unidad funcional 1 — Baño 1 · Unidad funcional 1 — ...").
+        text: `${d.localEtiqueta} — ${d.artefactoNombre}${d.red !== undefined ? ` (${d.red})` : ''}`,
+        style: 'subseccionNivel',
       },
-      margin: [0, 2, 0, 4],
-    },
-    { text: NOTA_HF_EQUIPO_ACS, style: 'metadatos' },
-    { text: sustitucion, style: 'formula' },
-    { text: `Margen = Presidual − Pmin = ${formatearNumero(d.presionResidual_mca, 'm')} − ${formatearNumero(d.presionMinimaRequerida_mca, 'm')} = ${formatearMca(d.margen_mca)}`, style: 'formula' },
-    { text: `Conclusión: ${d.cumpleMinimo ? 'CUMPLE' : 'NO CUMPLE'}`, style: d.cumpleMinimo ? 'conforme' : 'noConforme' },
-  ]
+      { text: `Cota terminal: ${cotaTexto} · Origen: ${d.origenTexto}`, style: 'metadatos' },
+      { text: FORMULA_BALANCE_DE_PRESION, style: 'formula' },
+      {
+        table: {
+          widths: ['auto', '*'],
+          body: [
+            ['Pdisponible', `${formatearNumero(d.presionDisponible_mca, 'm')} m.c.a.`],
+            ['Δz (desnivel)', desnivelTexto],
+            ['hfDistribuida', `${formatearNumero(d.hfDistribuida_mca, 'm')} m.c.a.`],
+            [`hfLocalizada (${d.metodologiaHfLocalizada === 'estimado' ? 'estimada' : 'detallada'})`, `${formatearNumero(d.hfLocalizada_mca, 'm')} m.c.a.`],
+            ['hfMedidor', `${formatearNumero(d.hfMedidor_mca, 'm')} m.c.a.`],
+          ],
+        },
+        margin: [0, 2, 0, 4],
+      },
+      { text: NOTA_HF_EQUIPO_ACS, style: 'metadatos' },
+      { text: sustitucion, style: 'formula' },
+      { text: `Margen = Presidual − Pmin = ${formatearNumero(d.presionResidual_mca, 'm')} − ${formatearNumero(d.presionMinimaRequerida_mca, 'm')} = ${formatearMca(d.margen_mca)}`, style: 'formula' },
+      { text: `Conclusión: ${d.cumpleMinimo ? 'CUMPLE' : 'NO CUMPLE'}`, style: d.cumpleMinimo ? 'conforme' : 'noConforme' },
+    ],
+  }
 }
 
 function renderizarSeccionVerificacion(datos: DatosDeInforme): Content[] {
@@ -630,7 +647,7 @@ function renderizarSeccionVerificacion(datos: DatosDeInforme): Content[] {
       })
     }
     if (verificacion.desarrolloCritico !== undefined) {
-      contenido.push(...renderizarDesarrolloCritico(verificacion.desarrolloCritico))
+      contenido.push(renderizarDesarrolloCritico(verificacion.desarrolloCritico))
     }
   } else {
     contenido.push({ text: 'Todavía no se puede determinar un terminal crítico.', style: 'advertencia' })
@@ -741,6 +758,29 @@ function renderizarSeccionM3(datos: DatosDeInforme): Content[] {
       table: { headerRows: 1, widths: ANCHOS_TABLA_MEDIDORES, body: [ENCABEZADO_TABLA_MEDIDORES, ...filas] },
       fontSize: 8,
       margin: [0, 2, 0, 8],
+    })
+  }
+
+  // P2 (FIX-REPORT-01C-VISUAL-01): el medidor general puede estar resuelto
+  // por M3 (Tabla N°6) y a la vez NO participar del balance de presión de
+  // la Verificación -- son preguntas distintas ("¿existe el medidor?" vs.
+  // "¿su hf entra en ESTE camino?"). La señal de aplicabilidad NO se
+  // infiere en el renderer: es la MISMA que ya usa el puente M3→M2
+  // (resolverPerdidasDeMedidoresParaTerminal -- "el medidor general
+  // pertenece al camino sólo con origen 'alimentacionDirecta'; con
+  // 'tanqueElevado' queda aguas arriba del almacenamiento, nunca entra al
+  // balance tanque→terminal"), ya expuesta en el snapshot como
+  // `verificacion.origenTexto` (derivado de resolverOrigenHidraulicoEfectivo,
+  // que mapea 'tanqueElevado' Y 'cisternaBombeoElevado' al mismo origen
+  // efectivo). Nunca se muestra esta nota con origen 'directa' (ahí el
+  // medidor general SÍ participa).
+  if (medidorGeneral !== undefined && datos.verificacion.origenTexto === 'Tanque elevado') {
+    contenido.push({
+      text:
+        'En el esquema hidráulico actual (tanque elevado), este medidor general no participa del balance de ' +
+        'presión de los terminales: queda aguas arriba del tanque de almacenamiento. Su hf informado arriba es ' +
+        'el del medidor en sí, no un término de la Verificación hidráulica.',
+      style: 'metadatos',
     })
   }
 
