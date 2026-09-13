@@ -13339,6 +13339,51 @@ reconciliación.
 **D-δ.111 / UI-M2-MONTANTE-COMPACT-01 -- CERRADO, pendiente validación
 manual del usuario.**
 
+## D-δ.112 / D-δ.113 — cierre de HYD-EST-01: intento path-aware rechazado, resuelto con la plantilla histórica + Vref corregida
+
+Cierra la dependencia `HYD-EST-01 BLOQUEADO-POR M2-TOPO-01` registrada en
+D-δ.90 (más arriba en este documento) -- con un resultado DISTINTO al que
+D-δ.90 anticipaba.
+
+**D-δ.112 (intento, luego corregido):** con la topología de M2-TOPO-01 ya
+disponible, se implementó un modelo **path-aware** para `Estimadas`: cada
+terminal recorre su camino real, aplica una singularidad de tee (K=3,00,
+sin clasificar recta/lateral -- D-δ.40 seguía firme) en cada bifurcación
+1→2 real que atraviesa, y una singularidad terminal propia (K=1,35) con
+la V de su propio tramo alimentador. Una derivación 1→N sin tee explícita
+declarada quedaba `Incompleto` (`derivacionMultipleNoModelada`).
+
+**Por qué se rechazó:** la validación manual del usuario mostró que un
+Baño normal de 4 artefactos (el caso más común del dominio, con una sola
+tee 1→4 sin modelar explícitamente) quedaba permanentemente `Incompleto`
+en `Estimadas`. Esto invertía el propósito del modo estimado -- una
+simplificación para cuando el usuario NO releva la disposición física --
+exigiéndole exactamente esa disposición física para poder calcular algo.
+
+**D-δ.113 (FIX-HYD-EST-SIMPLIFIED-01, decisión final del usuario):**
+`Estimadas` vuelve a ser la plantilla **agregada por (Local, red)** de
+D-δ.40/D-δ.45 sin ningún cambio de cardinalidad ni de coeficiente (`n−1`
+tees K=3,00, una singularidad terminal K=1,35, una llave de paso K=9,18).
+El diagnóstico real del bug histórico que motivó todo este slice (D-δ.87
+en adelante, ver validación manual con DN 125 y V≈0 pero hf localizada
+clavada) NUNCA fue la plantilla en sí: fue que `V_ref` se tomaba del
+máximo entre los tramos que alimentan DIRECTAMENTE cada terminal físico
+(ramales profundos, con su propio DN independiente en granularidad
+`profesional`), en vez de la velocidad del Tramo REPRESENTATIVO de ese
+Local+red -- la misma fila que el usuario ve y edita en Módulo 2
+(`identificarTramosRepresentativosDeLocales`, D-δ.44). Corregir sólo esa
+fuente de velocidad (reutilizando el mismo primitivo ya productivo, sin
+inventar topología ni cambiar el modelo) resuelve el bug real sin
+sacrificar el fan-out 1→N como caso calculable.
+
+**Estado final:** `HYD-EST-01`/`M2-TOPO-01` para efectos de este eje
+quedan **CERRADOS** con el modelo de D-δ.113. El rediseño path-aware
+completo (tee recta/lateral 1,62/1,00, transición de DN +0,75, válvula de
+rama 0,17) que D-δ.90 había diferido a M2-TOPO-01 sigue **sin
+implementarse** -- no se reabre por este cierre; si en el futuro se
+quiere ese nivel de detalle en `Estimadas`, es una decisión de producto
+nueva, no una continuación automática de este slice.
+
 ## Regla — `resguardo-documentacion/` es inmutable
 
 Los directorios bajo `resguardo-documentacion/<AAAA-MM-DD>_<hito>/` son

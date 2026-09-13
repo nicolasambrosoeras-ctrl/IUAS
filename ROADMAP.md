@@ -2364,6 +2364,110 @@ salvo bug inequívoco o decisión roja explícita.
     no reflejaba el nuevo fixture canónico.
   - **Estado:** `HYD-EST-01: CERRADO — pendiente validación manual` del
     usuario y del gate de QA Fuzz cloud / deploy.
+  - **CORRECCIÓN POSTERIOR (FIX-HYD-EST-SIMPLIFIED-01, ver D-δ.113):** la
+    validación manual del usuario rechazó el modelo path-aware descrito
+    arriba — convertía el modo `Estimadas` en un cálculo que exige
+    topología 1→2 real, marcando `Incompleto` cualquier derivación 1→N
+    (ej. un Baño normal de 4 artefactos), lo que lo hacía inutilizable en
+    configuraciones domésticas comunes. El usuario decidió volver a la
+    plantilla histórica agregada por (Local, red) (D-δ.40/D-δ.45: n−1
+    tees, una singularidad terminal, una llave de paso) y corregir
+    ÚNICAMENTE la fuente de la velocidad de referencia. Esta entrada
+    queda como registro histórico de qué se intentó y por qué se
+    descartó; el modelo VIGENTE es el de D-δ.113.
+
+- **D-δ.113 — FIX-HYD-EST-SIMPLIFIED-01: restaurar el estimador
+  simplificado histórico y hacerlo sensible al DN vigente.** Hotfix que
+  CORRIGE la dirección tomada en D-δ.112/HYD-EST-01 (ver la nota de
+  corrección al final de esa entrada). Decisión funcional cerrada por el
+  usuario tras validación manual.
+  - **Intento inicial rechazado:** D-δ.112 convirtió el modo `Estimadas`
+    en un cálculo path-aware que exigía reconstruir la disposición física
+    real (tee por tee) y declaraba `Incompleto` cualquier derivación 1→N
+    sin modelar. Un Baño normal de 4 artefactos (fan-out 1→4, el caso más
+    común del dominio) quedaba permanentemente incompleto en `Estimadas`
+    — inutilizaba el estimador simplificado para su caso de uso
+    principal. La validación manual del usuario lo rechazó.
+  - **Diagnóstico real del bug histórico:** el problema NUNCA fue el
+    conteo `n−1` de tees, el `K=3,00`, la singularidad terminal única, la
+    llave única, ni la existencia de fan-out 1→N — todo eso era correcto.
+    El problema era que `V_ref` (D-δ.40/D-δ.45) se calculaba como el
+    MÁXIMO de las velocidades entre los tramos que alimentan
+    DIRECTAMENTE cada terminal físico (los ramales más profundos del
+    árbol) — tramos DISTINTOS del Tramo REPRESENTATIVO de ese Local+red
+    (el que el usuario efectivamente ve y edita en la fila de Módulo 2,
+    `identificarTramosRepresentativosDeLocales`, D-δ.44). En granularidad
+    `profesional` esos ramales tienen su propio DN dimensionado de forma
+    independiente del tramo de la fila, así que subir el DN de la fila
+    (`↑` DN 20→25→...→125) NO cambiaba la V de los ramales profundos, y
+    la hf localizada estimada quedaba desacoplada del DN que el usuario
+    dimensionaba (caso observado: DN 125 con V≈0 en la fila pero hf
+    localizada clavada en ≈1,5 m.c.a.).
+  - **Modelo final (plantilla histórica intacta + Vref corregida):**
+    `resolverPerdidaLocalizadaEstimadaDeLocal.ts` vuelve exactamente a la
+    plantilla agregada por `(Local, red)` de D-δ.40/D-δ.45 —
+    `nTeesEstimadas = max(0, n−1)` con `Ks=3,00`, una singularidad
+    terminal `Ks=1,35`, una llave de paso `Ks=9,18` (ninguna cardinalidad
+    ni coeficiente cambió) — y sustituye únicamente el origen de
+    `V_ref`: ahora es la velocidad real del Tramo REPRESENTATIVO de ese
+    Local+red (`identificarTramosRepresentativosDeLocales`/
+    `obtenerTramosRepresentativosDeLocalesDeContexto`, reutilizado tal
+    cual, sin duplicar lógica), la MISMA fuente de verdad que ya usa la
+    UI para mostrar DN/V de esa fila. DN cambia → Di real cambia → Vref
+    cambia → hf localizada estimada cambia, en manual y en Auto (mismo
+    camino de cálculo, `resolverDiametroComercialDeTramo` sobre el mismo
+    tramo).
+  - **Fan-out 1→N (ej. Baño 1→4):** vuelve a ser CALCULABLE en
+    `Estimadas` — nunca más `Incompleto` por la disposición física de una
+    derivación con más de dos salidas. La topología 1→N sigue sin
+    representar la disposición física real (eso no cambia y sigue sin
+    inferirse); la plantilla simplificada simplemente no necesita esa
+    geometría porque usa una equivalencia numérica agregada, no una
+    reconstrucción del recorrido real. `Detalladas` seguirá marcando
+    `derivacionMultipleNoModelada` cuando corresponda (M2-TOPO, sin
+    relajar) — esa regla es exclusiva de `Detalladas` y de la topología
+    física relevada, ajena a este slice.
+  - **Revertido/eliminado (código muerto del intento path-aware):**
+    `resolverPerdidaLocalizadaEstimadaDeCamino.ts` (+test),
+    `hydEst.fixture.ts`, `src/pruebas/fixtures/ejemploConBifurcacionesDefinidas.ts`,
+    `humanizarPerdidaEstimada.ts`. Revertidos a su versión previa a
+    D-δ.112 (`LocalYRedCard.tsx`, `TarjetaDeTerminal.tsx`,
+    `agruparMotivosDeModulo2.ts`, `resolverFilaDeDimensionamiento.ts`,
+    `sonPropsDeSeccionDeUnidadFuncionalEquivalentes.ts`,
+    `contextoDeCalculoM2.ts`, `resolverPresionResidualDeCamino.ts` y sus
+    tests correspondientes) porque toda su lógica era exclusiva del
+    modelo path-aware rechazado. La memoización por UF vuelve a su
+    comparador simple pre-D-δ.112: ya no hace falta detectar tees
+    compartidas entre UF, porque `V_ref` depende únicamente del Tramo
+    representativo del PROPIO Local+red (nunca de otra UF ni de tramos
+    troncales compartidos) — sección "TEST DE AISLAMIENTO" verificada
+    explícitamente (cambiar el DN/demanda de un terminal HERMANO, o de
+    otra UF, no invalida ni cambia la estimación de este Local+red).
+  - **Presión:** `Presidual = Pdisponible − Δz − hfDistribuida −
+    hfLocalizada − hfMedidor − hfEquipoACS` sin cambios de fórmula;
+    ahora recibe la hf localizada agregada corregida. Verificado que
+    cambiar el DN de la fila mueve la presión residual.
+  - **Baseline transversal:** el margen del crítico del proyecto canónico
+    pasa de `-17,664` (histórico, D-δ.79/D-δ.86) a `-19,437 m.c.a.`
+    (sigue NO CUMPLE) — resultado legítimo de que la fila "Baño 1 · AF"
+    del demo usa ahora la V de su propio Tramo representativo en vez del
+    máximo entre sus ramales. M1/M3/M4/Tabla N°1 intactos.
+  - **Tests:** Vitest **1785/1785** (174 archivos; el intento path-aware
+    aportaba tests propios ahora eliminados junto con su código, más los
+    tests nuevos de este hotfix). `tsc -b`/`e2e:typecheck`/`build`
+    limpios. ESLint **11 problemas, 0 nuevos** (mismo baseline
+    preexistente y ajeno a este slice). E2E dirigido
+    (`tests/e2e/hydEst.spec.ts`, reescrito): DN↑/↓ en tramo troncal sigue
+    verde; nuevo caso confirma que Baño 1 · AF es calculable (nunca
+    "Incompleto") y que su hf localizada baja al subir el DN de esa
+    misma fila. Regresión E2E existente (`smoke`, `montantes`,
+    `hallazgos`, `responsive`) **19/19** verde.
+  - **Fuzz Nivel A:** gate 20×30 (seed `424242`) + seeds históricas
+    (`34493241441-1:15`, `34411681277-1:0`, `34398035608-1` runs 0–12,
+    `m7`, `m42`, `m99`) — ver `HANDOFF-CONTEXT.md` para el resultado
+    completo de esta corrida.
+  - **Estado:** `FIX-HYD-EST-SIMPLIFIED-01: CERRADO — pendiente
+    validación manual` del usuario.
 
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
