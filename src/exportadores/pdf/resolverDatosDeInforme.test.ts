@@ -180,6 +180,73 @@ describe('resolverDatosDeInforme -- Verificación hidráulica (§31/§16)', () =
   })
 })
 
+describe('resolverDatosDeInforme -- REPORT-01B: desarrollo de cálculo M2 (§8/§9/§10)', () => {
+  it('caso de velocidad/pérdida distribuida: V y hf son consistentes con Q/Di/L del motor', () => {
+    const d = datos(canonico())
+    const caso = d.m2.desarrollo?.casoVelocidadYPerdidaDistribuida
+    expect(caso).toBeDefined()
+    // A = π·Di²/4 ; V = Q/A -- verificación de consistencia interna (no
+    // duplica el motor: recalcula sólo para auditar que el dato expuesto
+    // es coherente consigo mismo, con los MISMOS números que ya trae).
+    const q_m3s = caso!.qc_lps / 1000
+    const di_m = caso!.diametroInteriorEfectivo_mm / 1000
+    const a_m2 = (Math.PI * di_m ** 2) / 4
+    expect(caso!.velocidad_mps).toBeCloseTo(q_m3s / a_m2, 6)
+    expect(caso!.hfDistribuida_m).toBeGreaterThan(0)
+    expect(caso!.longitud_m).toBeGreaterThan(0)
+  })
+
+  it('el caso representativo se elige del Local+Red del terminal crítico', () => {
+    const d = datos(canonico())
+    const critico = d.verificacion.filas.find((f) => f.esCritico)!
+    const caso = d.m2.desarrollo?.casoVelocidadYPerdidaDistribuida
+    // La etiqueta del caso viene de identificarFilasPrincipalesDeLocales +
+    // etiquetaHumanaDeLocal -- debe corresponder al mismo Local que el
+    // crítico, no a un Tramo arbitrario de otra sección.
+    expect(caso?.etiqueta).toContain(critico.localEtiqueta.split(' · ')[0])
+  })
+
+  it('pérdida localizada estimada: K total = tees·3,00 + 1·1,35 + 1·9,18 con los datos del motor', () => {
+    const d = datos(canonico())
+    const caso = d.m2.desarrollo?.casoPerdidaLocalizadaEstimada
+    expect(caso).toBeDefined()
+    expect(caso!.nTerminalesLocal).toBeGreaterThan(0)
+    expect(caso!.nTeesEstimadas).toBe(Math.max(0, caso!.nTerminalesLocal - 1))
+    expect(caso!.ksTee).toBeCloseTo(3.0, 2)
+    expect(caso!.ksSingularidadTerminal).toBeCloseTo(1.35, 2)
+    expect(caso!.ksLlaveDePaso).toBeCloseTo(9.18, 2)
+    const kEsperado = caso!.nTeesEstimadas * caso!.ksTee + caso!.nSingularidadTerminal * caso!.ksSingularidadTerminal + caso!.nLlaveDePaso * caso!.ksLlaveDePaso
+    expect(caso!.kTotal).toBeCloseTo(kEsperado, 6)
+    const hfEsperada = (caso!.kTotal * caso!.velocidadReferencia_mps ** 2) / (2 * 9.81)
+    expect(caso!.hf_m).toBeCloseTo(hfEsperada, 6)
+  })
+
+  it('sin redHidraulica: desarrollo es undefined, no un caso fabricado', () => {
+    const d = datos(proyectoSinRedHidraulica())
+    expect(d.m2.desarrollo).toBeUndefined()
+  })
+})
+
+describe('resolverDatosDeInforme -- REPORT-01B: desarrollo del terminal crítico (§14/§15/§16)', () => {
+  it('expone Presidual = Pdisponible - Δz - hfDistribuida - hfLocalizada - hfMedidor con el mismo margen del baseline', () => {
+    const d = datos(canonico())
+    const dc = d.verificacion.desarrolloCritico
+    expect(dc).toBeDefined()
+    const presidualEsperada = dc!.presionDisponible_mca - dc!.desnivel_m - dc!.hfDistribuida_mca - dc!.hfLocalizada_mca - dc!.hfMedidor_mca
+    expect(dc!.presionResidual_mca).toBeCloseTo(presidualEsperada, 6)
+    expect(dc!.margen_mca).toBeCloseTo(dc!.presionResidual_mca - dc!.presionMinimaRequerida_mca, 6)
+    expect(dc!.cumpleMinimo).toBe(false)
+    // hfEquipoACS nunca se inventa (D-δ.15 sin fórmula normativa vigente).
+    expect(dc!.hfEquipoACS_mca).toBeUndefined()
+  })
+
+  it('undefined cuando no hay terminal crítico determinado (verificación incompleta)', () => {
+    const p = backfillLongitudesDePredimensionamiento(proyectoInicial)
+    const d = datos(p)
+    expect(d.verificacion.desarrolloCritico).toBeUndefined()
+  })
+})
+
 describe('resolverDatosDeInforme -- estados incompletos (§32/§17)', () => {
   it('sin esquema de abastecimiento: incompleto, nunca inventa 0 ni "Cumple"', () => {
     const p = backfillLongitudesDePredimensionamiento(proyectoInicial)

@@ -90,3 +90,43 @@ describe('construirDocDefinition (REPORT-01A)', () => {
     expect(datos.m2.locales.length).toBeGreaterThan(1)
   })
 })
+
+describe('construirDocDefinition (REPORT-01B: memoria de cálculo)', () => {
+  it('la cabecera ya no dice "Módulo: demanda" -- identifica el documento como memoria de cálculo', () => {
+    const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => t.includes('Memoria de cálculo'))).toBe(true)
+    expect(textos.some((t) => t.startsWith('Módulo:'))).toBe(false)
+  })
+
+  it('M2 incluye el desarrollo de cálculo de velocidad, pérdida distribuida y localizada estimada', () => {
+    const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => t.includes('Desarrollo de cálculo'))).toBe(true)
+    expect(textos.some((t) => t.includes('V = Q / A'))).toBe(true)
+    expect(textos.some((t) => t.includes('Caso representativo'))).toBe(true)
+    expect(textos.some((t) => t.includes('K total ='))).toBe(true)
+  })
+
+  it('Verificación incluye la fórmula central, la nota de hfEquipoACS y el desarrollo del crítico', () => {
+    const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => t.includes('Presidual = Pdisponible − Δz − hfDistribuida − hfLocalizada − hfMedidor'))).toBe(true)
+    expect(textos.some((t) => t.includes('hfEquipoACS no participa'))).toBe(true)
+    expect(textos.some((t) => t.includes('menor margen respecto de Pmin'))).toBe(true)
+    expect(textos.some((t) => t.includes('Desarrollo de cálculo del terminal crítico'))).toBe(true)
+    expect(textos.some((t) => t.startsWith('Conclusión:'))).toBe(true)
+  })
+
+  it('la tabla de tuberías no repite la unidad en cada celda (unidad sólo en el header)', () => {
+    const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => t === 'V [m/s]')).toBe(true)
+    // Ninguna celda de valor debe traer "m/s" pegado (sólo el header lo tiene).
+    expect(textos.some((t) => /^\d[\d.,]* m\/s$/.test(t))).toBe(false)
+  })
+})
