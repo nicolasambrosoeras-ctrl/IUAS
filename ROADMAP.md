@@ -2750,6 +2750,63 @@ salvo bug inequívoco o decisión roja explícita.
     **`REPORT-01C: CERRADO`. `REPORT-01: CERRADO`** (M1-M4 +
     Verificación, memoria de cálculo trazable).
 
+- **D-δ.119 — PERSIST-01: persistencia local + exportar/importar
+  proyecto `.iuas` (CERRADO — pendiente validación manual).** Slice
+  transversal Nivel A, sin backend/cuentas/sincronización. Formato de
+  archivo versionado (`ArchivoIuas`: `format`/`schemaVersion`/
+  `appVersion`/`exportedAt`/`proyecto`), independiente del
+  `schemaVersion` propio del `Proyecto` (que ya tenía infraestructura de
+  migración sin usar, `modelo/proyecto/migraciones`, reutilizada tal
+  cual). Ver `docs/FORMATO-IUAS.md` para el detalle completo del
+  formato, qué se persiste/no se persiste, autosave, y política de
+  migraciones futuras.
+  - **Autosave:** `localStorage` (clave `iuas:project:autosave:v1`),
+    debounce ~500 ms, mismo serializer/envelope que la exportación
+    manual. Al bootstrapear, un autosave válido gana sobre el proyecto
+    de ejemplo; uno corrupto se ignora sin borrarse (diagnosticable) y
+    no rompe el arranque.
+  - **Export/Import:** botones "Exportar proyecto" / "Importar
+    proyecto" en el header, junto a "Reiniciar cálculo" (acciones
+    globales de proyecto). Import es atómico: leer → parsear → validar
+    → recién ahí reemplazar, con confirmación previa del usuario; un
+    archivo inválido nunca toca el proyecto activo. Reutiliza
+    `DialogoDeConfirmacion` existente.
+  - **Validación:** capas explícitas (JSON válido → `format === 'IUAS'`
+    → `schemaVersion` del envelope → estructura mínima → `schemaVersion`
+    del `Proyecto` vía `leerProyecto` ya existente → estructura mínima
+    del `Proyecto`), sin introducir ninguna dependencia de validación
+    nueva (no había zod/valibot/io-ts en el repo; se optó por guards
+    explícitos, mismo patrón que `modelo/proyecto/migraciones` y
+    `validacion/`).
+  - **Herencias/overrides:** el round-trip conserva la AUSENCIA de un
+    override no declarado (nunca la materializa con el valor efectivo
+    actual) — mismo criterio que ya regía el modelo antes de este slice.
+  - **Refactor de apoyo:** `VERSION_APP` (`src/version.ts`) como fuente
+    única de la versión de la app, reemplazando el literal `'0.1.0'`
+    antes duplicado en `calcularSimultaneidad.ts`.
+  - **`cargarAppLimpia`** (harness E2E) ahora limpia el autosave antes de
+    cada test — si no, un autosave de un test previo en el mismo
+    contexto de navegador haría arrancar la app con ese proyecto en vez
+    del demo.
+  - **Tests:** Vitest **1875/1875** (+38 nuevos: envelope, parser/
+    validador con todas las clases de error de las secciones 47-54 del
+    brief, autosave con mock de `localStorage`, nombre de archivo, y un
+    round-trip de un proyecto complejo multinivel con M2/M3/M4,
+    overrides, montante/tee/DN manual, verificando IDs conservados,
+    herencia no materializada, y ausencia de campos derivados conocidos
+    en el JSON exportado). `tsc -b` / `e2e:typecheck` / `build` limpios.
+    ESLint **11/0/0** (mismo baseline preexistente, ningún error nuevo).
+    E2E dirigido nuevo (`tests/e2e/persistencia.spec.ts`, 5 casos ×
+    desktop/mobile = 10/10 verde): reload tras editar, reload tras
+    multinivel, DN manual persistente, export→modificar→import restaura
+    el estado exportado (y el autosave se actualiza con lo importado),
+    import inválido con mensaje humano y proyecto intacto.
+  - **Fuera de alcance de este slice** (documentado, no diferido como
+    bug): backend, cuentas, sincronización cloud, File System Access
+    API, múltiples proyectos/slots, historial de versiones, cifrado,
+    compresión.
+  - **Estado:** `PERSIST-01: CERRADO — pendiente validación manual`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
@@ -2763,9 +2820,12 @@ optimizaciones, D-δ.78 — `v0.4.0-beta.4`) → **UX-03 / HYD-UX-01**
 (conectividad explícita + origen rápido de tanque elevado + trazabilidad
 Profesional, D-δ.79 — `v0.4.0-beta.5`) → **UX-TEST-01** (NO iniciada:
 observación de uso real de terceros; su output prioriza bugs / UX /
-contenido / nomenclatura "puntos" de M2 / PERSIST-01) → **REPORT-01**
-(**REPORT-01A cerrado D-δ.114, REPORT-01B cerrado D-δ.115,
-REPORT-01C cerrado D-δ.117** — pendiente validación visual manual final).
+contenido / nomenclatura "puntos" de M2) → **REPORT-01** (**REPORT-01A
+cerrado D-δ.114, REPORT-01B cerrado D-δ.115, REPORT-01C cerrado
+D-δ.117** — pendiente validación visual manual final) → **PERSIST-01**
+(persistencia local + `.iuas`, D-δ.119 — cerrado, pendiente validación
+manual; no se esperó a UX-TEST-01 porque la falta de persistencia era ya
+un riesgo directo para cualquier prueba real).
 
 **REPORT-01 — memoria técnica integral.** Extender el generador
 `pdfMake` (arrancaba centrado sólo en M1) hacia: Datos del proyecto ·
@@ -2829,10 +2889,9 @@ de bombas, presurizadores, `hfEquipoACS`, reporting PDF de M4.
   hidráulica explícita y semántica de montantes, M2-TOPO-E / D-δ.96).
   `docs/arquitectura/` sigue vacía.
 - **Piloto web (DEPLOY-01):**
-  - **Sin persistencia.** Los cambios viven sólo en la sesión de la
-    pestaña; recargar restablece el proyecto de ejemplo. Insumo directo
-    de las pruebas reales; candidato a **PERSIST-01** (autosave local y/o
-    export/import JSON) si el feedback lo confirma.
+  - ~~Sin persistencia.~~ **Resuelto por PERSIST-01 (D-δ.119):**
+    autosave local en `localStorage` + exportación/importación manual de
+    archivo `.iuas` versionado. Ver `docs/FORMATO-IUAS.md`.
   - **Memoria PDF sólo de Demanda (M1).** El botón lo dice explícito;
     **REPORT-01** extenderá el generador a M1–M4 + Verificación.
   - **Bundle ~2,2 MB (~924 kB gzip)**, dominado por `pdfmake` cargado de
