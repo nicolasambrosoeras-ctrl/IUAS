@@ -4,6 +4,7 @@ import type { Proyecto } from '../../../modelo/proyecto'
 import { localesDeUnidadFuncional } from '../../tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import type { ArtefactoNormativo } from '../../../normativa/eras-2023/catalogo-artefactos'
 import type { TipoProyectoNormativo } from '../../../normativa/eras-2023/coeficientes-mayoracion'
+import { VERSION_APP } from '../../../version'
 
 export interface EntradaCalculoSimultaneidad {
   readonly proyecto: Proyecto
@@ -186,7 +187,7 @@ export function calcularSimultaneidad(
     advertencias,
     referencias: ['ERAS-2023 §2.9.2.2', 'ERAS-2023 §2.9.2.1', 'ERAS-2023 §2.9.2.3'],
     metadatos: {
-      versionApp: '0.1.0',
+      versionApp: VERSION_APP,
       versionNormativa: entrada.proyecto.metadatos.versionNormativa,
       moduloId: 'demanda',
     },
