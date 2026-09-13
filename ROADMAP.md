@@ -2523,6 +2523,82 @@ salvo bug inequívoco o decisión roja explícita.
     revisar M1/M2/Montantes/crítico/densidad de tablas).
   - **Estado:** `REPORT-01A: CERRADO — pendiente validación manual`.
 
+- **D-δ.115 — REPORT-01B: M2 y Verificación hidráulica como memoria de
+  cálculo + polish visual (CERRADO — pendiente validación manual).**
+  Decisión de producto cerrada por el usuario: el informe deja de ser un
+  listado de resultados y se convierte en una memoria de cálculo -- M2 y
+  Verificación pasan a trazar fórmula/variables/sustitución numérica/
+  resultado, con el mismo lenguaje conceptual que M1 (nivel 1 =
+  resultados compactos, nivel 2 = desarrollo con UN caso representativo,
+  nunca repetido por cada fila).
+  - **`resolverDatosDeInforme.ts` — `SeccionM2DeInforme.desarrollo`:**
+    caso real de velocidad (`A=π·Di²/4`, `V=Q/A`) y pérdida distribuida
+    -- arqueología confirmó que el motor usa Hazen-Williams
+    (`J=10,67·Q^1,852/(C^1,852·D^4,87)`, `hf=J·L`) o Darcy-Weisbach
+    (`hf=f·(L/D)·(V²/2g)`) según `configuracionHidraulica.metodoPerdidaDistribuida`
+    del proyecto -- nunca se asumió una sola. Reutiliza
+    `resolverPerdidaDistribuidaDeTramo` sobre el mismo contexto memoizado
+    de M2 (brief §36, sin recalcular). Pérdida localizada estimada
+    (D-δ.40/D-δ.45, criterio vigente sin tocar): desglose real
+    n terminales / tees estimadas (`max(0,n−1)`) / singularidad terminal /
+    llave de paso, con `Ks` importados directamente de
+    `resolverPerdidaLocalizadaEstimadaDeLocal` (KS_ESTIMADO_TEE=3,00,
+    KS_ESTIMADO_SINGULARIDAD_TERMINAL=1,35, KS_ESTIMADO_LLAVE_DE_PASO=9,18).
+    En modo Detalladas, `casoPerdidaLocalizadaEstimada` queda `undefined`
+    a propósito (nunca se muestra la plantilla de Estimadas en un
+    proyecto Detalladas). El caso representativo se elige preferentemente
+    del Local+Red del terminal crítico (une M2 y Verificación
+    narrativamente); si no hay crítico determinado, cae al primer Tramo/
+    Local resoluble.
+  - **`SeccionVerificacionDeInforme.desarrolloCritico`:** identificación
+    completa (UF/Local/Artefacto/Red/cota terminal -- vía
+    `resolverCotaHidraulicaEfectivaDeArtefacto`, misma primitiva que ya
+    usa el motor, sólo releída para mostrar/origen) + fórmula central
+    `Presidual = Pdisponible − Δz − hfDistribuida − hfLocalizada −
+    hfMedidor` con los valores CRUDOS que ya resolvió
+    `resolverPresionResidualDeCamino`. `hfEquipoACS_mca` queda
+    explícitamente `undefined`: confirmado que `resolverBalanceDePresion`
+    NO incluye ese término en su firma (D-δ.15 sigue sin fórmula
+    normativa vigente) -- el renderer lo declara así, nunca inventa un 0
+    silencioso.
+  - **Corrección de cabecera:** el documento decía literalmente "Módulo:
+    demanda" pese a cubrir M1+M2+Verificación desde REPORT-01A (defecto
+    visual real, detectado en validación manual). Ahora "IUAS — Memoria
+    de cálculo" + "App vX · Normativa Y", sin mención de un único módulo.
+  - **Polish visual (tablas densas M2/Verificación):** unidad SÓLO en el
+    header (antes cada celda repetía "m.c.a."/"m/s", partiéndose en la
+    columna angosta); badge de estado compacto propio del PDF ("DN mín."
+    en vez de la etiqueta larga "○ DN mínimo comercial" que sigue intacta
+    en la UI interactiva -- se abrevia sólo la presentación impresa,
+    nunca se reinterpreta el estado de dominio `EstadoDeFila`). Columna
+    "Pérdida" de M2 aclarada en texto (hfDistribuida + hfLocalizada, nunca
+    mezcla hfMedidor). Δz mostrado con signo explícito entre paréntesis en
+    la sustitución de Presidual, para que un terminal bajo el origen
+    (Δz<0, gana presión estática) no se lea como doble negación confusa.
+    Criterio de selección del crítico (menor margen, nunca menor
+    Presidual bruto) explícito antes de la tabla.
+  - **Motor:** SIN CAMBIOS. Sólo composición/presentación nuevas; ninguna
+    fórmula se reimplementó ni se reinterpretó.
+  - **Tests:** Vitest **1808/1808** (176 archivos; +10 tests nuevos:
+    consistencia interna V=Q/A y K/hf localizada estimada contra los
+    mismos números del motor, elección del caso representativo del
+    crítico, Presidual reconstruido == el que ya resolvió el motor,
+    `hfEquipoACS_mca` siempre `undefined`, desarrollo ausente -- nunca
+    fabricado -- sin red hidráulica o sin crítico determinado; estructura
+    del `docDefinition`: cabecera sin "Módulo:", secciones de desarrollo
+    presentes, fórmula central + nota hfEquipoACS + criterio del crítico,
+    tabla sin unidades repetidas por celda). `tsc -b` / `e2e:typecheck` /
+    `build` limpios. ESLint **11/0/0** (mismo baseline preexistente, sin
+    regresión).
+  - **Pendiente para REPORT-01C:** M3 (medidores) completo, M4 completo
+    (esquema, Qconexión, reserva, volumen adoptado), desarrollos de
+    cálculo correspondientes, observaciones finales.
+  - **Validación manual pendiente** (generar el PDF real desde la app y
+    revisar que el desarrollo de cálculo de M2/Verificación se lea
+    correctamente, que la cabecera ya no diga "Módulo: demanda", y que la
+    columna Estado de M2 no se parta letra por letra).
+  - **Estado:** `REPORT-01B: CERRADO — pendiente validación visual manual`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
@@ -2537,22 +2613,30 @@ optimizaciones, D-δ.78 — `v0.4.0-beta.4`) → **UX-03 / HYD-UX-01**
 Profesional, D-δ.79 — `v0.4.0-beta.5`) → **UX-TEST-01** (NO iniciada:
 observación de uso real de terceros; su output prioriza bugs / UX /
 contenido / nomenclatura "puntos" de M2 / PERSIST-01) → **REPORT-01**
-(**REPORT-01A cerrado, D-δ.114** → REPORT-01B pendiente).
+(**REPORT-01A cerrado D-δ.114, REPORT-01B cerrado D-δ.115** →
+REPORT-01C pendiente).
 
 **REPORT-01 — memoria técnica integral.** Extender el generador
 `pdfMake` (arrancaba centrado sólo en M1) hacia: Datos del proyecto ·
 Demanda · Tuberías · Medidores · Abastecimiento y reserva · Verificación
-hidráulica · Metodología y fuentes. Mismo dominio, mismos resultados,
-**no** impresión del DOM. Mantiene: core M1–M4 congelado + arquitectura
-UI-01A + sistema visual UI-01B/UI-01C.
+hidráulica · Metodología y fuentes -- como MEMORIA DE CÁLCULO trazable
+(fórmula/variables/sustitución/resultado), no sólo un listado de
+resultados. Mismo dominio, mismos resultados, **no** impresión del DOM.
+Mantiene: core M1–M4 congelado + arquitectura UI-01A + sistema visual
+UI-01B/UI-01C.
 
 - **REPORT-01A (D-δ.114, cerrado):** arquitectura del informe
   (`DatosDeInforme`/`resolverDatosDeInforme.ts`), M1 multinivel
   preservado, M2 (tuberías + montantes) y Verificación hidráulica
   agregados. Ver detalle en el delta D-δ.114 más arriba.
-- **REPORT-01B (NO iniciada):** M3 (medidores), M4 completo (esquema,
-  Qconexión, reserva, volumen adoptado), observaciones/advertencias
-  finales consolidadas.
+- **REPORT-01B (D-δ.115, cerrado):** M2 y Verificación pasan a ser
+  memoria de cálculo (desarrollo de velocidad/pérdida distribuida/
+  localizada estimada y del terminal crítico), cabecera corregida
+  ("Memoria de cálculo", ya no "Módulo: demanda"), polish visual de
+  tablas densas. Ver detalle en el delta D-δ.115 más arriba.
+- **REPORT-01C (NO iniciada):** M3 (medidores) completo, M4 completo
+  (esquema, Qconexión, reserva, volumen adoptado), desarrollos de
+  cálculo correspondientes, observaciones finales consolidadas.
 
 **Hallazgos de M4-A:**
 

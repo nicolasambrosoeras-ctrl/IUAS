@@ -13461,3 +13461,78 @@ en `MotorDemandaPantalla.tsx`, ajeno a REPORT-01A, sigue igual).
 
 **Estado:** `REPORT-01A: CERRADO — pendiente validación manual`. Siguiente:
 **REPORT-01B — M3 + M4 + observaciones**.
+
+**Nota de renumeración (ver D-δ.115):** el usuario redefinió el alcance
+de REPORT-01B para que fuera "M2 y Verificación como memoria de cálculo +
+polish visual" en vez de "M3+M4+observaciones" como se anticipaba acá.
+M3/M4/observaciones pasaron a **REPORT-01C**. Esta nota no reescribe el
+delta D-δ.114 (que es un registro histórico correcto de lo que se sabía
+en ese momento), sólo corrige la referencia hacia adelante para quien
+lea este archivo linealmente.
+
+## D-δ.115 — REPORT-01B: M2 y Verificación hidráulica como memoria de cálculo + polish visual — CERRADA (pendiente validación manual)
+
+Decisión de producto cerrada por el usuario: el informe deja de ser un
+informe de resultados y pasa a ser una MEMORIA DE CÁLCULO -- M2 y
+Verificación deben trazar fórmula/variables/sustitución numérica/
+resultado, igual que ya hace M1, sin repetir el desarrollo por cada fila
+(un caso representativo real por fórmula, tabulando el resto).
+
+**Arqueología de fórmulas reales (antes de tocar nada):**
+- Velocidad: `A = π·Di²/4`, `V = Q/A` (`calcularVelocidad.ts`).
+- Pérdida distribuida: **dos métodos alternativos**, seleccionados por
+  `proyecto.configuracionHidraulica.metodoPerdidaDistribuida` -- NUNCA se
+  asumió Darcy-Weisbach de antemano (brief §9 lo pedía explícitamente).
+  Hazen-Williams (CRIT-A17): `J = 10,67·Q_m3s^1,852 / (C^1,852·D_m^4,87)`,
+  `hf = J·L`. Darcy-Weisbach (CRIT-A18): `hf = f·(L/D)·(V²/2g)`, con
+  `f` de `calcularFactorFriccionDarcy` (Reynolds + rugosidad).
+  `resolverPerdidaDistribuidaDeTramo` (N3) ya expone TODOS los datos
+  crudos de ambos métodos en su campo `detalle` -- no hizo falta ampliar
+  ningún resolver de motor, sólo leer lo que ya devuelve.
+- Pérdida localizada estimada (D-δ.40/D-δ.45, criterio YA cerrado, sin
+  tocar): `resolverPerdidaLocalizadaEstimadaDeLocal` expone
+  `nTerminalesLocal`, `nTeesEstimadas`, `nSingularidadTerminal`,
+  `nLlaveDePaso`, `velocidadReferencia_mps`, `hf_m`; los `Ks` (3,00/
+  1,35/9,18) se importan como las constantes exportadas
+  `KS_ESTIMADO_TEE`/`KS_ESTIMADO_SINGULARIDAD_TERMINAL`/
+  `KS_ESTIMADO_LLAVE_DE_PASO` del mismo archivo -- nunca hardcodeados de
+  nuevo en el PDF.
+- Balance de presión (`resolverBalanceDePresion.ts`): confirmado que la
+  fórmula real es `Presidual = Pdisponible − Δz − hfDistribuida −
+  hfLocalizada − hfMedidor` (5 términos) y que **`hfEquipoACS` NO
+  participa de esta firma** -- D-δ.15 sigue sin fórmula normativa
+  vigente, el propio comentario de archivo del motor lo dice
+  explícitamente ("hf_equipos (ACS) queda deliberadamente fuera de esta
+  firma"). El informe declara esto en texto en vez de inventar un
+  término numérico (brief §14 lo exigía).
+
+**Decisión de arquitectura:** ambos desarrollos (M2 y terminal crítico)
+eligen UN caso real representativo en vez de desarrollar todos los
+Tramos/terminales (brief §3, "Nivel 1 resultados / Nivel 2 desarrollo").
+El caso de M2 se elige preferentemente del Local+Red del terminal
+crítico cuando existe uno determinado -- une narrativamente ambas
+secciones del informe sin volver a resolver nada (mismo
+`ContextoDeCalculoM2` memoizado). Para eso, `resolverSeccionVerificacion`
+pasó a devolver también la referencia cruda (UF/Local/Red) del crítico,
+y `resolverDatosDeInforme` invierte el orden de resolución (Verificación
+antes que M2) para poder pasarla.
+
+**Defecto visual real corregido (detectado en validación manual de
+REPORT-01A):** la cabecera decía literalmente "Módulo: demanda" pese a
+que el informe ya cubre M1+M2+Verificación desde REPORT-01A -- quedó sin
+corregir en ese slice porque el foco era arquitectura de datos, no
+texto de cabecera. Ahora dice "IUAS — Memoria de cálculo" / "App vX ·
+Normativa Y". También se corrigió que "○ DN mínimo comercial" (etiqueta
+larga de la UI interactiva, correcta ahí) se partía letra por letra en
+la columna angosta de la tabla impresa -- el PDF arma su propia etiqueta
+corta ("DN mín.") a partir del mismo `estado` crudo, sin tocar la UI.
+
+**Motor:** confirmado SIN CAMBIOS -- todo lo implementado es lectura de
+datos ya resueltos + presentación nueva.
+
+**Tests:** Vitest 1808/1808 (176 archivos, +10 nuevos). `tsc -b` /
+`e2e:typecheck` / `build` limpios. ESLint 11/0/0 (mismo baseline
+preexistente).
+
+**Estado:** `REPORT-01B: CERRADO — pendiente validación visual manual`.
+Siguiente: **REPORT-01C — M3 + M4 + observaciones finales**.
