@@ -50,6 +50,10 @@ import { NavegacionDeSecciones, SeccionDeTrabajo } from './NavegacionDeSecciones
 import { MetodologiaYFuentesTecnicas } from './MetodologiaYFuentesTecnicas'
 import { resolverResumenDeProyecto } from './resolverResumenDeProyecto'
 import { resolverResolucionDeModulo2 } from './resolverResolucionDeModulo2'
+import { AccionesDeProyecto } from './AccionesDeProyecto'
+import { useAutosaveDeProyecto } from './useAutosaveDeProyecto'
+import { leerAutosaveDeProyecto } from '../../persistencia/autosave'
+import { mensajeHumanoDeErrorIuas } from '../../persistencia/parsearArchivoIuas'
 import './sistema-visual.css'
 import './navegacionUI.css'
 import './demandaM1.css'
@@ -1706,13 +1710,23 @@ function ResultadoDemandaModulo1({
 }
 
 export function MotorDemandaPantalla() {
-  // D-δ.51: precarga las longitudes iniciales de predimensionamiento
-  // (5/10/10) en el proyecto de ejemplo al montar, para que Rápido calcule
-  // DN/V/hf de entrada sin longitudes faltantes. No destructivo: si el
-  // fixture ya trajera longitudes, se respetan.
-  const [proyecto, setProyecto] = useState<Proyecto>(() =>
-    backfillLongitudesDePredimensionamiento(proyectoInicial),
-  )
+  // PERSIST-01 §32: si existe un autosave válido, gana sobre el proyecto
+  // de ejemplo -- no se sobreescribe con el demo durante el bootstrap
+  // antes de poder cargarlo. Si no hay autosave (o está corrupto), se cae
+  // al comportamiento anterior: D-δ.51 precarga las longitudes iniciales
+  // de predimensionamiento (5/10/10) en el proyecto de ejemplo, para que
+  // Rápido calcule DN/V/hf de entrada sin longitudes faltantes.
+  const [proyecto, setProyecto] = useState<Proyecto>(() => {
+    const autosave = leerAutosaveDeProyecto()
+    return autosave.tipo === 'valido' ? autosave.proyecto : backfillLongitudesDePredimensionamiento(proyectoInicial)
+  })
+  // §31: un autosave corrupto no rompe el arranque -- se ignora (se
+  // conserva en localStorage sin borrarlo) y se avisa una vez.
+  const [avisoAutosaveCorrupto] = useState<string | null>(() => {
+    const autosave = leerAutosaveDeProyecto()
+    return autosave.tipo === 'corrupto' ? mensajeHumanoDeErrorIuas(autosave.error) : null
+  })
+  const { errorDeGuardado: errorDeAutosave } = useAutosaveDeProyecto(proyecto)
 
   // GEOM-UX-01 §13-§17 — "Reiniciar cálculo". `generacionDeProyecto` es la
   // key del subárbol de trabajo (índice + contenido): al reiniciar se
@@ -1734,8 +1748,8 @@ export function MotorDemandaPantalla() {
   }
 
   function reiniciarCalculo() {
-    // Proyecto VACÍO real, NO el de ejemplo (§14). PERSIST-01 sigue fuera
-    // de alcance: esto es una acción React de sesión, no toca almacenamiento.
+    // Proyecto VACÍO real, NO el de ejemplo (§14). El autosave se
+    // actualiza solo, vía useAutosaveDeProyecto, cuando `proyecto` cambia.
     setProyecto(crearProyectoVacio())
     setGeneracionDeProyecto((generacion) => generacion + 1)
     setConfirmandoReinicio(false)
@@ -1745,6 +1759,17 @@ export function MotorDemandaPantalla() {
       window.scrollTo({ top: 0 })
     }
     botonReiniciarRef.current?.focus()
+  }
+
+  // PERSIST-01 §33: importar reemplaza el proyecto activo igual que
+  // reiniciar (mismo remonte del subárbol de trabajo, §17.2), y el
+  // autosave se actualiza solo vía useAutosaveDeProyecto.
+  function importarProyecto(proyectoImportado: Proyecto) {
+    setProyecto(proyectoImportado)
+    setGeneracionDeProyecto((generacion) => generacion + 1)
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0 })
+    }
   }
   const validacion = validarProyecto(proyecto, catalogoArtefactos, coeficientesMayoracion, catalogoSistemasDeTuberia)
   // FIX P0 (UI-CRIT-10): la dependencia es M1 -> M4, nunca al revés. Sólo
@@ -1802,13 +1827,28 @@ export function MotorDemandaPantalla() {
         {/* UX-02 / UI-01E (brief §47-49): Modo de trabajo global, a la
             derecha del título en desktop, apilado debajo en móvil. */}
         <SelectorDeModoDeTrabajo proyecto={proyecto} onCambiar={setProyecto} />
-        {/* DEPLOY-01 (preflight D): el proyecto vive sólo en memoria de la
-            pestaña -- no hay persistencia todavía (PERSIST-01 es un slice
-            posterior). Aviso único, no bloqueante, sin lenguaje de alarma. */}
+        {/* PERSIST-01: el proyecto se guarda automáticamente en este
+            navegador (localStorage) -- ya no se pierde al recargar. Sigue
+            sin salir de esta computadora/navegador (§42). */}
         <p className="app-aviso-piloto ui-callout ui-callout--info" role="note">
-          Versión piloto · Los cambios se conservan sólo durante esta sesión. Recargar la página restablece el proyecto de
-          ejemplo.
+          Versión piloto · El proyecto se guarda automáticamente en este navegador. Para llevarlo a otra computadora o
+          guardarlo aparte, usá "Exportar proyecto".
         </p>
+        {avisoAutosaveCorrupto !== null ? (
+          <p className="ui-callout ui-callout--warn" role="alert">
+            No se pudo recuperar el guardado automático anterior ({avisoAutosaveCorrupto}). Se abrió el proyecto de
+            ejemplo.
+          </p>
+        ) : null}
+        {errorDeAutosave !== null ? (
+          <p className="ui-callout ui-callout--warn" role="alert">
+            No se pudo guardar automáticamente el proyecto en este navegador. La edición sigue funcionando; usá
+            "Exportar proyecto" para no perder los cambios.
+          </p>
+        ) : null}
+        {/* PERSIST-01 §37: acciones GLOBALES del proyecto, junto a
+            "Reiniciar cálculo". */}
+        <AccionesDeProyecto proyecto={proyecto} onImportar={importarProyecto} />
         {/* GEOM-UX-01 §13: acción global secundaria/neutra. No vuelve al
             demo -- deja un proyecto vacío (§14). Confirmación previa (§13). */}
         <div className="app-header__reiniciar">
