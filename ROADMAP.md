@@ -2693,6 +2693,63 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `REPORT-01C: CERRADO — pendiente validación visual
     manual`. Tras esa validación: `REPORT-01: CERRADO`.
 
+- **D-δ.118 — FIX-REPORT-01C-VISUAL-01: cierre visual final de REPORT-01
+  (CERRADO).** La validación visual real de REPORT-01C encontró dos
+  defectos de presentación + un tercero reportado en la misma revisión
+  (orden hidráulico de M2). Sólo presentación pdfMake -- motor, fórmulas,
+  criterios, terminal crítico y M1-M4 SIN CAMBIOS.
+  - **P1 — Conclusión del crítico huérfana:** `renderizarDesarrolloCritico`
+    devolvía un array de nodos SUELTOS de pdfMake (sin ningún nodo que
+    los agrupara); pdfMake podía partir la página entre cualquier par
+    de ellos, típicamente dejando `Conclusión: NO CUMPLE` sola en una
+    página casi vacía justo antes del `pageBreak` explícito de la tabla
+    de detalle. Corregido agrupando todo el desarrollo (fórmula, tabla
+    de componentes, sustitución, margen, conclusión) en un único nodo
+    `stack` con `unbreakable: true`: pdfMake mueve el bloque COMPLETO a
+    la página siguiente como unidad si no entra entero, sin medir
+    alturas ni calcular posiciones a mano. El `pageBreak: 'before'` de
+    "Detalle de verificación por terminal" sigue exactamente igual,
+    ahora aplicado DESPUÉS de ese bloque unido.
+  - **P2 — M3 vs. Verificación, aplicabilidad de hfMedidor:** el medidor
+    general puede estar resuelto por M3 (Tabla N°6) y a la vez no
+    participar del balance de presión cuando el origen es tanque
+    elevado -- son preguntas distintas ("¿existe el medidor?" vs. "¿su
+    hf entra en ESTE camino?"). La señal de aplicabilidad NO se infirió
+    en el renderer: es la MISMA que ya usa el puente M3→M2
+    (`resolverPerdidasDeMedidoresParaTerminal`, D-δ.58 -- "el medidor
+    general pertenece al camino sólo con origen alimentación directa"),
+    ya expuesta en el snapshot como `verificacion.origenTexto`. Cuando
+    ese origen es "Tanque elevado" y hay medidor general, M3 ahora
+    agrega una nota humana explicando que no participa del balance --
+    nunca se oculta el medidor, nunca se cambia su hf, nunca se muestra
+    la nota con origen directa (ahí el medidor sí participa).
+  - **P3 — orden hidráulico de M2 (hallazgo adicional de la misma
+    validación):** la sección Tuberías mostraba Locales antes que
+    Montantes, invirtiendo la lectura real de la instalación
+    (alimentaciones generales → Montantes → redes de los Locales).
+    Reordenados sólo los bloques del renderer (Distribución general/
+    secundaria → Montantes → Locales → Desarrollo de cálculo); ningún
+    dato, cálculo, resolver ni topología cambió.
+  - **Tests:** Vitest **1837/1837** (176 archivos; +6 nuevos: Conclusión
+    dentro del bloque `unbreakable` antes del `pageBreak` del detalle;
+    detalle conserva su `pageBreak`; tanque elevado sin propiedad
+    horizontal -- M3 sigue mostrando el medidor general con la nota de
+    no-participación y Verificación mantiene `hfMedidor=0` sin cambios
+    de cálculo; origen directa nunca muestra la nota; orden Distribución
+    general → Montantes → Locales). `tsc -b` / `e2e:typecheck` / `build`
+    limpios. ESLint **11/0/0** (mismo baseline preexistente).
+  - **Motor:** confirmado SIN CAMBIOS.
+  - **Validación manual pendiente:** generar una última Memoria desde
+    producción y confirmar que ya no hay página casi vacía con sólo la
+    Conclusión, que el detalle por terminal sigue empezando limpio, que
+    M3 explica coherentemente la no-participación del medidor general
+    con tanque elevado, y que el orden de M2 (Distribución general →
+    Montantes → Locales) se lee correctamente.
+  - **Estado:** `FIX-REPORT-01C-VISUAL-01: CERRADO — pendiente
+    validación visual manual`. Tras esa validación:
+    **`REPORT-01C: CERRADO`. `REPORT-01: CERRADO`** (M1-M4 +
+    Verificación, memoria de cálculo trazable).
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /

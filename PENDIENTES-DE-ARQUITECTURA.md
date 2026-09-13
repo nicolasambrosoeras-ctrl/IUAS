@@ -13667,3 +13667,56 @@ Tras esa validación: `REPORT-01: CERRADO` (M1-M4 + Verificación, memoria
 de cálculo trazable). Siguiente fase futura: observaciones/advertencias
 finales consolidadas, si se decide abrir un REPORT-01D, o directamente
 otros pendientes (UX-TEST-01, PERSIST-01, ubicación del botón).
+
+## D-δ.118 — FIX-REPORT-01C-VISUAL-01: cierre visual final de REPORT-01 — CERRADA (pendiente validación visual manual)
+
+La validación visual real de REPORT-01C encontró dos defectos concretos
+de presentación, más un tercero (orden hidráulico de M2) reportado por
+el usuario durante la misma revisión. Slice exclusivamente de
+presentación pdfMake: motor, fórmulas, criterios, terminal crítico y
+M1-M4 SIN CAMBIOS.
+
+**P1 — causa raíz confirmada:** `renderizarDesarrolloCritico` devolvía
+`Content[]` -- un array de nodos pdfMake SUELTOS que `contenido.push(...)`
+esparcía como elementos independientes del árbol de contenido. pdfMake
+no tiene ninguna razón para mantener nodos sueltos consecutivos juntos
+al paginar: podía cortar entre "Margen" y "Conclusión" con la misma
+libertad que entre cualquier otro par de nodos top-level. La corrección
+NO fue agregar más `pageBreak` (eso sólo mueve el problema): se agrupó
+todo el desarrollo en un ÚNICO nodo `{ stack: [...], unbreakable: true }`.
+`unbreakable` es una propiedad estándar de pdfMake que fuerza a un nodo
+completo a moverse entero a la página siguiente si no entra en la
+actual, en vez de partirse -- exactamente el mecanismo que pdfMake ya
+ofrece para este problema, sin medir alturas ni calcular coordenadas en
+JS (que el brief prohibía explícitamente).
+
+**P2 — señal de aplicabilidad reutilizada, no inferida:** se confirmó
+por arqueología que `resolverPerdidasDeMedidoresParaTerminal` (D-δ.58)
+ya es la fuente de verdad de esta regla ("el medidor general pertenece
+al camino sólo con origen 'alimentacionDirecta'; con 'tanqueElevado'
+queda aguas arriba del almacenamiento") y que esa MISMA decisión ya
+llegaba al snapshot como `verificacion.origenTexto` (derivado de
+`resolverOrigenHidraulicoEfectivo`, que mapea tanto 'tanqueElevado' como
+'cisternaBombeoElevado' al mismo origen efectivo). No hizo falta ninguna
+lógica nueva ni ambigua -- se reutilizó el dato ya expuesto. La nota se
+agrega en M3 sólo cuando hay medidor general Y el origen es tanque
+elevado; nunca con origen directa (ahí el medidor sí participa,
+confirmado con test explícito).
+
+**P3 — orden hidráulico de M2:** hallazgo adicional de la misma
+validación, no anticipado en el brief original del slice. Cambio
+puramente de orden de bloques en el renderer (Distribución general/
+secundaria → Montantes → Locales → Desarrollo de cálculo, reflejando
+alimentaciones generales → Montantes → redes de los Locales); ningún
+dato, cálculo, resolver ni topología se tocó.
+
+**Tests:** Vitest 1837/1837 (176 archivos, +6 nuevos). `tsc -b` /
+`e2e:typecheck` / `build` limpios. ESLint 11/0/0 (mismo baseline
+preexistente).
+
+**Motor:** confirmado SIN CAMBIOS.
+
+**Estado:** `FIX-REPORT-01C-VISUAL-01: CERRADO — pendiente validación
+visual manual`. Tras esa validación: `REPORT-01C: CERRADO`.
+`REPORT-01: CERRADO` (M1-M4 + Verificación, memoria de cálculo trazable,
+cierre visual validado).
