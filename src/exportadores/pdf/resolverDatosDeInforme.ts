@@ -6,7 +6,7 @@
 // generarDocumentoPdf.ts, C-05/ADR-012). NO se persiste: se recalcula por
 // cada generación de PDF, igual que el resto de las proyecciones de
 // presentación de M2 (montantesDelProyecto.ts, resolverResumenDeProyecto.ts).
-import type { Local, Nivel, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
+import type { EsquemaDeAbastecimiento, Local, Nivel, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import type { TipoProyectoNormativo } from '../../normativa/eras-2023/coeficientes-mayoracion'
@@ -24,9 +24,15 @@ import {
   KS_ESTIMADO_LLAVE_DE_PASO,
 } from '../../motor/tuberias/presion/resolverPerdidaLocalizadaEstimadaDeLocal'
 import { resolverCotaHidraulicaEfectivaDeArtefacto, resolverNivelDeLocal } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
-import { resolverEstadoModulo4 } from '../../motor/modulo4/resolverEstadoModulo4'
+import { resolverEstadoModulo4, type EstadoModulo4, type ResultadoModulo4 } from '../../motor/modulo4/resolverEstadoModulo4'
+import type { PeloDeAguaMinimoEfectivo } from '../../motor/modulo4/resolverPeloDeAguaMinimoDeTanque'
+import { resolverEstadoModulo3, type EstadoModulo3, type ResultadoModulo3, type ResultadoModulo3Parcial } from '../../motor/modulo3/resolverEstadoModulo3'
+import { tipoProvisionACSEfectivo } from '../../motor/modulo3/tipoProvisionACSEfectivo'
 import type { EstadoModulo2 } from '../../motor/modulo2/resolverEstadoModulo2'
 import { resolverResolucionDeModulo2 } from '../../interfaz/paginas/resolverResolucionDeModulo2'
+import { describirMotivoIncompletitudModulo3 } from '../../interfaz/paginas/humanizarModulo3'
+import { describirMotivoIncompletitudModulo4 } from '../../interfaz/paginas/humanizarModulo4'
+import { describirProblemaDeValidacion } from '../../interfaz/paginas/mensajesDeValidacion'
 import { resolverFilaDeDimensionamiento, type EstadoDeFila } from '../../interfaz/paginas/resolverFilaDeDimensionamiento'
 import { resolverResultadoDeTramoParaUi } from '../../interfaz/paginas/resolverResultadoDeTramoParaUi'
 import {
@@ -652,7 +658,11 @@ function resolverSeccionVerificacion(
   proyecto: Proyecto,
   catalogoArtefactos: readonly ArtefactoNormativo[],
   coeficientesMayoracion: readonly TipoProyectoNormativo[],
-): { readonly seccion: SeccionVerificacionDeInforme; readonly criticoRef: ReferenciaDeLocalDelCritico | undefined } {
+): {
+  readonly seccion: SeccionVerificacionDeInforme
+  readonly criticoRef: ReferenciaDeLocalDelCritico | undefined
+  readonly peloDeAguaMinimoEfectivo: PeloDeAguaMinimoEfectivo
+} {
   const { entradas, estadoModulo2 } = resolverResolucionDeModulo2(proyecto, catalogoArtefactos, coeficientesMayoracion)
 
   const nodoIdCritico = estadoModulo2.estado === 'completo' ? estadoModulo2.terminalMasDesfavorable.nodoId : undefined
@@ -703,7 +713,118 @@ function resolverSeccionVerificacion(
       desarrolloCritico,
     },
     criticoRef,
+    peloDeAguaMinimoEfectivo: entradas.peloDeAguaMinimoEfectivo,
   }
+}
+
+// ---------------------------------------------------------------------
+// M3 -- Medidores (REPORT-01C). Pasa a través del resultado del motor
+// (ResultadoModulo3/Parcial) casi sin remodelar -- el renderer arma sus
+// propios textos con formatearNumero, igual que ya hace con resultadoM1.
+// Ningún Qcl/C/hf se recalcula acá.
+// ---------------------------------------------------------------------
+
+export type SeccionM3DeInforme = {
+  readonly estado: EstadoModulo3['estado']
+  readonly resultado: ResultadoModulo3 | undefined
+  readonly parcial: ResultadoModulo3Parcial | undefined
+  readonly esPropiedadHorizontal: boolean | undefined
+  // true si al menos una UF del proyecto tiene provisión de ACS individual
+  // (CRIT-A34, brief §10): habilita la nota de alcance ("el medidor de
+  // agua fría también alcanza el recorrido de agua caliente de esa UF").
+  readonly hayACSIndividual: boolean
+  readonly motivosDeIncompletitud: readonly string[]
+}
+
+function resolverSeccionM3(
+  proyecto: Proyecto,
+  catalogoArtefactos: readonly ArtefactoNormativo[],
+  coeficientesMayoracion: readonly TipoProyectoNormativo[],
+): SeccionM3DeInforme {
+  const estadoModulo3 = resolverEstadoModulo3(proyecto, catalogoArtefactos, coeficientesMayoracion)
+  const configuracionMedidores = proyecto.configuracionMedidores
+  const esPropiedadHorizontal = configuracionMedidores?.esPropiedadHorizontal
+  const hayACSIndividual =
+    configuracionMedidores !== undefined &&
+    esPropiedadHorizontal === true &&
+    proyecto.unidadesFuncionales.some(
+      (uf) => tipoProvisionACSEfectivo(configuracionMedidores, uf.id) === 'individual',
+    )
+
+  if (estadoModulo3.estado === 'evaluado') {
+    return { estado: 'evaluado', resultado: estadoModulo3.resultado, parcial: undefined, esPropiedadHorizontal, hayACSIndividual, motivosDeIncompletitud: [] }
+  }
+  if (estadoModulo3.estado === 'incompleto') {
+    return {
+      estado: 'incompleto',
+      resultado: undefined,
+      parcial: estadoModulo3.parcial,
+      esPropiedadHorizontal,
+      hayACSIndividual,
+      motivosDeIncompletitud: estadoModulo3.motivos.map(describirMotivoIncompletitudModulo3),
+    }
+  }
+  if (estadoModulo3.estado === 'error') {
+    return {
+      estado: 'error',
+      resultado: undefined,
+      parcial: undefined,
+      esPropiedadHorizontal,
+      hayACSIndividual,
+      motivosDeIncompletitud: estadoModulo3.problemas.map((p) => describirProblemaDeValidacion(p.problema.codigo)),
+    }
+  }
+  return { estado: 'noIniciado', resultado: undefined, parcial: undefined, esPropiedadHorizontal, hayACSIndividual, motivosDeIncompletitud: [] }
+}
+
+// ---------------------------------------------------------------------
+// M4 -- Alimentación y reserva (REPORT-01C). Mismo criterio que M3: pasa
+// a través de ResultadoModulo4 (esquema/conexión/reserva/adopción) sin
+// remodelar -- ningún Qconn/Pcalc/Dc/VReserva se recalcula acá.
+// ---------------------------------------------------------------------
+
+export type SeccionM4DeInforme = {
+  readonly estado: EstadoModulo4['estado']
+  readonly esquema: EsquemaDeAbastecimiento | undefined
+  readonly resultado: ResultadoModulo4 | undefined
+  readonly motivosDeIncompletitud: readonly string[]
+  // CRIT-A39: sólo tiene sentido con esquema 'tanqueElevado'. Se reutiliza
+  // el mismo valor ya resuelto para la Verificación (brief §22: no
+  // recalcular), no se vuelve a llamar resolverPeloDeAguaMinimoEfectivo.
+  readonly peloDeAguaMinimoEfectivo: PeloDeAguaMinimoEfectivo
+}
+
+function resolverSeccionM4(
+  proyecto: Proyecto,
+  catalogoArtefactos: readonly ArtefactoNormativo[],
+  coeficientesMayoracion: readonly TipoProyectoNormativo[],
+  peloDeAguaMinimoEfectivo: PeloDeAguaMinimoEfectivo,
+): SeccionM4DeInforme {
+  const estadoModulo4 = resolverEstadoModulo4({ proyecto, catalogoArtefactos, coeficientesMayoracion })
+  const esquema = proyecto.configuracionAbastecimiento?.esquema
+
+  if (estadoModulo4.estado === 'evaluado') {
+    return { estado: 'evaluado', esquema, resultado: estadoModulo4.resultado, motivosDeIncompletitud: [], peloDeAguaMinimoEfectivo }
+  }
+  if (estadoModulo4.estado === 'incompleto') {
+    return {
+      estado: 'incompleto',
+      esquema,
+      resultado: undefined,
+      motivosDeIncompletitud: estadoModulo4.motivos.map(describirMotivoIncompletitudModulo4),
+      peloDeAguaMinimoEfectivo,
+    }
+  }
+  if (estadoModulo4.estado === 'error') {
+    return {
+      estado: 'error',
+      esquema,
+      resultado: undefined,
+      motivosDeIncompletitud: estadoModulo4.problemas.map((p) => describirProblemaDeValidacion(p.problema.codigo)),
+      peloDeAguaMinimoEfectivo,
+    }
+  }
+  return { estado: 'noIniciado', esquema, resultado: undefined, motivosDeIncompletitud: [], peloDeAguaMinimoEfectivo }
 }
 
 // ---------------------------------------------------------------------
@@ -716,21 +837,22 @@ export type DatosDeInforme = {
   readonly unidadesFuncionalesM1: readonly UnidadFuncionalDeInforme[]
   readonly m2: SeccionM2DeInforme
   readonly verificacion: SeccionVerificacionDeInforme
-  // Resumen de origen/reserva de M4 -- sólo lo necesario para dar contexto
-  // a la verificación de presión (brief §20); M4 completo queda para
-  // REPORT-01B.
+  readonly m3: SeccionM3DeInforme
+  readonly m4: SeccionM4DeInforme
+  // Resumen corto de origen -- se sigue usando en la cabecera de la
+  // Verificación (brief §20 de REPORT-01A); la sección M4 completa (§15 de
+  // REPORT-01C) es ahora la fuente extendida del mismo dato.
   readonly origenM4Texto: string
 }
 
-function resolverOrigenM4Texto(proyecto: Proyecto, catalogoArtefactos: readonly ArtefactoNormativo[], coeficientesMayoracion: readonly TipoProyectoNormativo[]): string {
-  const estadoM4 = resolverEstadoModulo4({ proyecto, catalogoArtefactos, coeficientesMayoracion })
-  if (estadoM4.estado !== 'evaluado') {
+function resolverOrigenM4Texto(resultado: ResultadoModulo4 | undefined): string {
+  if (resultado === undefined) {
     return 'Origen hidráulico no determinado todavía'
   }
-  if (estadoM4.resultado.tipo === 'sinReservaPorTanque') {
+  if (resultado.tipo === 'sinReservaPorTanque') {
     return 'Alimentación directa (sin tanque de reserva)'
   }
-  return estadoM4.resultado.esquema === 'tanqueElevado' ? 'Tanque elevado' : 'Cisterna + bombeo + tanque elevado'
+  return resultado.esquema === 'tanqueElevado' ? 'Tanque elevado' : 'Cisterna + bombeo + tanque elevado'
 }
 
 export function resolverDatosDeInforme(
@@ -743,9 +865,15 @@ export function resolverDatosDeInforme(
   // Verificación primero: su terminal crítico (si lo hay) es el caso
   // representativo preferido del desarrollo de cálculo de M2 (une
   // narrativamente ambas secciones, brief REPORT-01B §8).
-  const { seccion: verificacion, criticoRef } = resolverSeccionVerificacion(proyecto, catalogoArtefactos, coeficientesMayoracion)
+  const {
+    seccion: verificacion,
+    criticoRef,
+    peloDeAguaMinimoEfectivo,
+  } = resolverSeccionVerificacion(proyecto, catalogoArtefactos, coeficientesMayoracion)
   const m2 = resolverSeccionM2(proyecto, catalogoArtefactos, criticoRef)
-  const origenM4Texto = resolverOrigenM4Texto(proyecto, catalogoArtefactos, coeficientesMayoracion)
+  const m3 = resolverSeccionM3(proyecto, catalogoArtefactos, coeficientesMayoracion)
+  const m4 = resolverSeccionM4(proyecto, catalogoArtefactos, coeficientesMayoracion, peloDeAguaMinimoEfectivo)
+  const origenM4Texto = resolverOrigenM4Texto(m4.resultado)
 
-  return { proyecto, resultadoM1, unidadesFuncionalesM1, m2, verificacion, origenM4Texto }
+  return { proyecto, resultadoM1, unidadesFuncionalesM1, m2, verificacion, m3, m4, origenM4Texto }
 }

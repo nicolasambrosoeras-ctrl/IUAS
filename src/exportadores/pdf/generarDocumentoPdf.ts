@@ -1,9 +1,9 @@
 // Renderizador de PDF (ADR-012, exportadores/pdf). Recibe un DatosDeInforme
 // (snapshot DERIVADO y puro, ver resolverDatosDeInforme.ts) y produce el
-// documento -- nunca recalcula (C-05). REPORT-01A: el informe deja de estar
-// centrado únicamente en M1 (Demanda) y agrega Tuberías (M2) y Verificación
-// hidráulica; M3 (medidores) y M4 (alimentación/reserva) completos quedan
-// para REPORT-01B (ver ROADMAP.md).
+// documento -- nunca recalcula (C-05). REPORT-01A agregó Tuberías (M2) y
+// Verificación hidráulica; REPORT-01B convirtió M2/Verificación en memoria
+// de cálculo trazable; REPORT-01C agrega Medidores (M3) y Alimentación y
+// reserva (M4), cerrando conceptualmente REPORT-01.
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import type { Content, TDocumentDefinitions } from 'pdfmake/interfaces'
@@ -16,6 +16,8 @@ import {
   sustitucionNumerica,
   textoValorCalculado,
 } from '../../presentacion/desarrolloDelCalculoDemanda'
+import { ETIQUETA_SERVICIO_MEDIDO } from '../../interfaz/paginas/humanizarModulo3'
+import { ETIQUETA_ESQUEMA_ABASTECIMIENTO, etiquetaDesnivelConexion } from '../../interfaz/paginas/humanizarModulo4'
 import { formatearNumero } from './formatearNumero'
 import {
   resolverDatosDeInforme,
@@ -25,6 +27,8 @@ import {
   type DesarrolloTerminalCritico,
   type FilaDeTuberiaDeInforme,
   type FilaDeVerificacionDeInforme,
+  type SeccionM3DeInforme,
+  type SeccionM4DeInforme,
   type UnidadFuncionalDeInforme,
 } from './resolverDatosDeInforme'
 
@@ -662,6 +666,306 @@ function renderizarSeccionVerificacion(datos: DatosDeInforme): Content[] {
 }
 
 // ---------------------------------------------------------------------
+// Medidores (REPORT-01C)
+// ---------------------------------------------------------------------
+
+type ResultadoModulo3NoUndefined = NonNullable<SeccionM3DeInforme['resultado']>
+type MedidorGeneralDeInforme = ResultadoModulo3NoUndefined['medidorGeneral']
+type MedidorIndividualDeInforme = ResultadoModulo3NoUndefined['medidoresIndividuales'][number]
+
+const ANCHOS_TABLA_MEDIDORES = ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto']
+const ENCABEZADO_TABLA_MEDIDORES = ['Medidor', 'Ámbito', 'Q [l/min]', 'DN [mm]', 'C [m³/h]', 'Adopción', 'hf [m.c.a.]']
+
+const FORMULA_MEDIDOR = 'hfMedidor = 0,036 · (Qcl / C)^2   [Qcl en l/min, C en m³/h -- ERAS-2023 fórmula 6]'
+
+function filaDeTablaMedidorGeneral(medidor: MedidorGeneralDeInforme): (string | Content)[] {
+  return [
+    'Medidor general',
+    'General',
+    formatearNumero(medidor.qcl_lpm, 'adimensional'),
+    String(medidor.adoptado.dnMedidor_mm),
+    formatearNumero(medidor.adoptado.capacidadMaxima_m3h, 'adimensional'),
+    medidor.adoptado.origen === 'manual' ? 'Manual' : 'Automático',
+    formatearNumero(medidor.adoptado.hfMedidor_mca, 'm'),
+  ]
+}
+
+function filaDeTablaMedidorIndividual(proyecto: Proyecto, medidor: MedidorIndividualDeInforme): (string | Content)[] {
+  const uf = proyecto.unidadesFuncionales.find((candidata) => candidata.id === medidor.resultado.unidadFuncionalId)
+  const etiqueta = `${uf?.nombre ?? medidor.resultado.unidadFuncionalId} · ${ETIQUETA_SERVICIO_MEDIDO[medidor.resultado.servicioMedido]}`
+  return [
+    etiqueta,
+    'Individual',
+    formatearNumero(medidor.resultado.qcl_lpm, 'adimensional'),
+    String(medidor.resultado.adoptado.dnMedidor_mm),
+    formatearNumero(medidor.resultado.adoptado.capacidadMaxima_m3h, 'adimensional'),
+    medidor.resultado.adoptado.origen === 'manual' ? 'Manual' : 'Automático',
+    formatearNumero(medidor.resultado.adoptado.hfMedidor_mca, 'm'),
+  ]
+}
+
+function renderizarSeccionM3(datos: DatosDeInforme): Content[] {
+  const { m3, proyecto } = datos
+  const contenido: Content[] = [{ text: 'Medidores', style: 'seccion', pageBreak: 'before' }]
+
+  if (m3.estado === 'noIniciado') {
+    contenido.push({ text: 'Módulo 3 todavía no fue iniciado.', style: 'advertencia' })
+    return contenido
+  }
+  if (m3.estado === 'error') {
+    contenido.push({ text: 'El proyecto tiene errores estructurales que impiden resolver los medidores.', style: 'advertencia' })
+    contenido.push(...m3.motivosDeIncompletitud.map((t): Content => ({ text: `- ${t}`, style: 'advertencia' })))
+    return contenido
+  }
+
+  // P11 (brief REPORT-01C §11): "No corresponde" en vez de C=0/hf=0 cuando
+  // el criterio vigente (CRIT-A34) directamente no exige medidor individual.
+  if (m3.esPropiedadHorizontal === false) {
+    contenido.push({
+      text: 'El proyecto no es de propiedad horizontal: no corresponde medidor individual (CRIT-A34).',
+      style: 'metadatos',
+    })
+  }
+
+  const medidorGeneral = m3.resultado?.medidorGeneral ?? m3.parcial?.medidorGeneral
+  const individuales = m3.resultado?.medidoresIndividuales ?? m3.parcial?.medidoresIndividuales ?? []
+
+  if (medidorGeneral === undefined && individuales.length === 0) {
+    contenido.push({ text: 'Todavía no se pudo determinar ningún medidor.', style: 'advertencia' })
+  } else {
+    const filas: (string | Content)[][] = [
+      ...(medidorGeneral !== undefined ? [filaDeTablaMedidorGeneral(medidorGeneral)] : []),
+      ...individuales.map((m) => filaDeTablaMedidorIndividual(proyecto, m)),
+    ]
+    contenido.push({
+      table: { headerRows: 1, widths: ANCHOS_TABLA_MEDIDORES, body: [ENCABEZADO_TABLA_MEDIDORES, ...filas] },
+      fontSize: 8,
+      margin: [0, 2, 0, 8],
+    })
+  }
+
+  if (m3.hayACSIndividual) {
+    contenido.push({
+      text:
+        'El medidor de agua fría de una unidad funcional con provisión de ACS individual también alcanza el ' +
+        'recorrido de agua caliente de esa unidad (no existe un medidor de agua caliente adicional para ese caso).',
+      style: 'metadatos',
+    })
+  }
+
+  if (m3.estado === 'incompleto' && m3.motivosDeIncompletitud.length > 0) {
+    contenido.push({ text: 'Medidores incompletos', style: 'subseccion' })
+    contenido.push(...m3.motivosDeIncompletitud.map((t): Content => ({ text: `- ${t}`, style: 'advertencia' })))
+  }
+
+  const casoDesarrollo =
+    medidorGeneral !== undefined
+      ? { etiqueta: 'Medidor general', qcl_lpm: medidorGeneral.qcl_lpm, adoptado: medidorGeneral.adoptado }
+      : individuales.length > 0
+        ? {
+            etiqueta: `${proyecto.unidadesFuncionales.find((u) => u.id === individuales[0]!.resultado.unidadFuncionalId)?.nombre ?? individuales[0]!.resultado.unidadFuncionalId} · ${ETIQUETA_SERVICIO_MEDIDO[individuales[0]!.resultado.servicioMedido]}`,
+            qcl_lpm: individuales[0]!.resultado.qcl_lpm,
+            adoptado: individuales[0]!.resultado.adoptado,
+          }
+        : undefined
+
+  contenido.push({ text: 'Desarrollo de cálculo — Medidores', style: 'subseccion' })
+  contenido.push({ text: FORMULA_MEDIDOR, style: 'formula' })
+  if (casoDesarrollo !== undefined) {
+    const sustitucion =
+      `hfMedidor = 0,036 · (${formatearNumero(casoDesarrollo.qcl_lpm, 'adimensional')} / ${formatearNumero(casoDesarrollo.adoptado.capacidadMaxima_m3h, 'adimensional')})^2` +
+      ` = ${formatearNumero(casoDesarrollo.adoptado.hfMedidor_mca, 'm')} m.c.a.`
+    contenido.push({ text: `Caso representativo: ${casoDesarrollo.etiqueta}`, style: 'subseccionNivel' })
+    contenido.push({ text: sustitucion, style: 'formula' })
+    contenido.push({
+      text: `Capacidad adoptada según Tabla N°6 (CRIT-A32) -- DN ${casoDesarrollo.adoptado.dnMedidor_mm} mm, C ${formatearNumero(casoDesarrollo.adoptado.capacidadMaxima_m3h, 'adimensional')} m³/h.`,
+      style: 'metadatos',
+    })
+  } else {
+    contenido.push({ text: 'Todavía no hay ningún medidor resuelto para mostrar un caso.', style: 'advertencia' })
+  }
+
+  return contenido
+}
+
+// ---------------------------------------------------------------------
+// Alimentación y reserva (REPORT-01C)
+// ---------------------------------------------------------------------
+
+type ResultadoModulo4NoUndefined = NonNullable<SeccionM4DeInforme['resultado']>
+type ResultadoAdopcionDeReservaDeInforme = Extract<ResultadoModulo4NoUndefined, { tipo: 'reservaCalculada' }>['adopcion']
+
+const FORMULA_PRESION_CONEXION = 'Pcalc = Pacera − desnivelConexion'
+const FORMULA_RESERVA = ['Dc = máx(0, Qc − Qconn)', 'VReserva = Dc[m³/h] · Tc[h]   (Dc[m³/h] = Dc[l/s] · 3,6)']
+
+function renderizarSeccionM4(datos: DatosDeInforme): Content[] {
+  const { m4 } = datos
+  const contenido: Content[] = [{ text: 'Alimentación y reserva', style: 'seccion', pageBreak: 'before' }]
+
+  if (m4.estado === 'noIniciado') {
+    contenido.push({ text: 'Módulo 4 todavía no fue iniciado.', style: 'advertencia' })
+    return contenido
+  }
+  if (m4.estado === 'error') {
+    contenido.push({ text: 'El proyecto tiene errores estructurales que impiden resolver la alimentación y reserva.', style: 'advertencia' })
+    contenido.push(...m4.motivosDeIncompletitud.map((t): Content => ({ text: `- ${t}`, style: 'advertencia' })))
+    return contenido
+  }
+
+  contenido.push({
+    text: `Esquema de abastecimiento: ${m4.esquema !== undefined ? ETIQUETA_ESQUEMA_ABASTECIMIENTO[m4.esquema] : 'No determinado'}`,
+    style: 'metadatos',
+  })
+
+  if (m4.estado === 'incompleto') {
+    contenido.push({ text: 'Alimentación y reserva incompleta', style: 'subseccion' })
+    contenido.push(...m4.motivosDeIncompletitud.map((t): Content => ({ text: `- ${t}`, style: 'advertencia' })))
+    return contenido
+  }
+
+  const resultado = m4.resultado
+  if (resultado === undefined) {
+    return contenido
+  }
+
+  if (resultado.tipo === 'sinReservaPorTanque') {
+    // P20 (brief §20): esquema directo -- no generar un bloque de reserva
+    // irrelevante que el motor no utiliza.
+    contenido.push({
+      text: 'Esquema de alimentación directa: la reserva por tanque no aplica (§2.10.2 no interviene en este esquema).',
+      style: 'metadatos',
+    })
+    return contenido
+  }
+
+  const { conexion, reserva, adopcion } = resultado
+
+  contenido.push({ text: 'Conexión', style: 'subseccion' })
+  contenido.push({
+    table: {
+      widths: ['auto', '*'],
+      body: [
+        ['Qc (Módulo 1)', `${formatearNumero(reserva.qc_lps, 'l/s')} l/s`],
+        ['DN de conexión', `${formatearNumero(conexion.diametroNominal_m * 1000, 'mm')} mm`],
+        ['Presión sobre acera', `${formatearNumero(conexion.presionSobreAcera_m, 'm')} m.c.a.`],
+        [etiquetaDesnivelConexion(resultado.esquema), formatearConSigno(conexion.desnivelConexion_m, 'm') + ' m'],
+        ['Presión de cálculo (Pcalc)', `${formatearNumero(conexion.presionCalculo_m, 'm')} m.c.a.`],
+        ['Caudal de conexión (Qconn, Tabla N°1)', `${formatearNumero(conexion.qConexion_lps, 'l/s')} l/s`],
+      ],
+    },
+    margin: [0, 2, 0, 4],
+  })
+
+  contenido.push({ text: 'Desarrollo de cálculo — Presión de conexión', style: 'subseccionNivel' })
+  contenido.push({ text: FORMULA_PRESION_CONEXION, style: 'formula' })
+  contenido.push({
+    text:
+      `Pcalc = ${formatearNumero(conexion.presionSobreAcera_m, 'm')} − (${formatearConSigno(conexion.desnivelConexion_m, 'm')}) ` +
+      `= ${formatearNumero(conexion.presionCalculo_m, 'm')} m.c.a.`,
+    style: 'formula',
+  })
+  contenido.push({
+    text: `Qconn resuelto por Tabla N°1 (§2.7): ${conexion.interpolacion.aplicada ? `interpolado entre ${formatearNumero(conexion.interpolacion.presionInferior_m, 'm')} m y ${formatearNumero(conexion.interpolacion.presionSuperior_m, 'm')} m` : `presión tabulada exacta (${formatearNumero(conexion.interpolacion.presionTabulada_m, 'm')} m)`}.`,
+    style: 'metadatos',
+  })
+
+  if (m4.peloDeAguaMinimoEfectivo.tipo === 'derivadoRapido') {
+    contenido.push({
+      text: `Cota mínima de agua considerada (modo Rápido, CRIT-A39): ${formatearNumero(m4.peloDeAguaMinimoEfectivo.cota_m, 'm')} m.`,
+      style: 'metadatos',
+    })
+  }
+
+  contenido.push({ text: 'Reserva', style: 'subseccion' })
+  contenido.push({
+    table: {
+      widths: ['auto', '*'],
+      body: [
+        ['Qc', `${formatearNumero(reserva.qc_lps, 'l/s')} l/s`],
+        ['Qconn', `${formatearNumero(reserva.qConexion_lps, 'l/s')} l/s`],
+        ['Déficit de caudal (Dc)', `${formatearNumero(reserva.deficit_lps, 'l/s')} l/s`],
+        ['Período de consumo máximo (Tc)', `${formatearNumero(reserva.tc_h, 'adimensional')} h`],
+        ['Volumen de reserva calculado', `${formatearNumero(reserva.volumenReservaDiseno_m3, 'adimensional')} m³`],
+      ],
+    },
+    margin: [0, 2, 0, 4],
+  })
+
+  contenido.push({ text: 'Desarrollo de cálculo — Reserva', style: 'subseccionNivel' })
+  contenido.push(...FORMULA_RESERVA.map((f): Content => ({ text: f, style: 'formula' })))
+  contenido.push({
+    text: `Dc = máx(0, ${formatearNumero(reserva.qc_lps, 'l/s')} − ${formatearNumero(reserva.qConexion_lps, 'l/s')}) = ${formatearNumero(reserva.deficit_lps, 'l/s')} l/s`,
+    style: 'formula',
+  })
+  contenido.push({
+    text: `VReserva = ${formatearNumero(reserva.deficit_m3h, 'adimensional')} m³/h × ${formatearNumero(reserva.tc_h, 'adimensional')} h = ${formatearNumero(reserva.volumenReservaDiseno_m3, 'adimensional')} m³`,
+    style: 'formula',
+  })
+
+  contenido.push({ text: 'Adopción de reserva', style: 'subseccionNivel' })
+  contenido.push(...renderizarAdopcionDeReserva(adopcion))
+
+  return contenido
+}
+
+function renderizarAdopcionDeReserva(adopcion: ResultadoAdopcionDeReservaDeInforme): Content[] {
+  switch (adopcion.tipo) {
+    case 'sinAdopcion':
+      return [
+        {
+          text: `Volumen calculado: ${formatearNumero(adopcion.volumenRequerido_m3, 'adimensional')} m³. Volumen adoptado: todavía no declarado.`,
+          style: 'metadatos',
+        },
+      ]
+    case 'verificada':
+      return [
+        {
+          text:
+            `Volumen calculado: ${formatearNumero(adopcion.volumenRequerido_m3, 'adimensional')} m³. ` +
+            `Volumen adoptado: ${formatearNumero(adopcion.volumenAdoptado_m3, 'adimensional')} m³.`,
+          style: 'metadatos',
+        },
+        {
+          text: `Conclusión: ${adopcion.estado === 'suficiente' ? 'SUFICIENTE' : 'INSUFICIENTE'} (diferencia ${formatearConSigno(adopcion.diferencia_m3, 'adimensional')} m³).`,
+          style: adopcion.estado === 'suficiente' ? 'conforme' : 'noConforme',
+        },
+      ]
+    case 'adopcionIncompleta':
+      return [
+        {
+          text:
+            `Volumen calculado: ${formatearNumero(adopcion.volumenRequerido_m3, 'adimensional')} m³. Falta declarar: ` +
+            `${[adopcion.faltaTanqueBombeo ? 'tanque de bombeo/cisterna' : null, adopcion.faltaTanqueElevado ? 'tanque elevado' : null].filter((s) => s !== null).join(' y ')}.`,
+          style: 'metadatos',
+        },
+      ]
+    case 'verificadaDistribuida':
+      return [
+        {
+          text:
+            `Volumen calculado: ${formatearNumero(adopcion.volumenRequerido_m3, 'adimensional')} m³ (mínimo por tanque, §2.11.3: ` +
+            `${formatearNumero(adopcion.minimoPorTanque_m3, 'adimensional')} m³).`,
+          style: 'metadatos',
+        },
+        {
+          text:
+            `Adoptado -- tanque de bombeo/cisterna: ${formatearNumero(adopcion.volumenTanqueBombeoAdoptado_m3, 'adimensional')} m³ ` +
+            `(${adopcion.tanqueBombeoCumpleMinimo ? 'cumple' : 'no cumple'} el mínimo); tanque elevado: ` +
+            `${formatearNumero(adopcion.volumenTanqueElevadoAdoptado_m3, 'adimensional')} m³ (${adopcion.tanqueElevadoCumpleMinimo ? 'cumple' : 'no cumple'} el mínimo); ` +
+            `total ${formatearNumero(adopcion.totalAdoptado_m3, 'adimensional')} m³.`,
+          style: 'metadatos',
+        },
+        {
+          text: `Conclusión: ${adopcion.estado === 'suficiente' ? 'SUFICIENTE' : 'INSUFICIENTE'}.`,
+          style: adopcion.estado === 'suficiente' ? 'conforme' : 'noConforme',
+        },
+      ]
+    case 'noAplica':
+      return []
+  }
+}
+
+// ---------------------------------------------------------------------
 // Documento
 // ---------------------------------------------------------------------
 
@@ -698,6 +1002,8 @@ export function construirDocDefinition(datos: DatosDeInforme): TDocumentDefiniti
       { text: '', pageBreak: 'before' },
       ...renderizarSeccionM2(datos.m2),
       ...renderizarSeccionVerificacion(datos),
+      ...renderizarSeccionM3(datos),
+      ...renderizarSeccionM4(datos),
     ],
     styles: {
       encabezado: { fontSize: 16, bold: true, margin: [0, 0, 0, 4] },
