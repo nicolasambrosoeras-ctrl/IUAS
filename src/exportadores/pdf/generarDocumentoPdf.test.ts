@@ -11,6 +11,7 @@ import { backfillLongitudesDePredimensionamiento } from '../../interfaz/paginas/
 import { proyectoInicial } from '../../interfaz/paginas/proyectoDeEjemplo'
 import { conCotaDeNodo, conDnComercialAdoptadoDeTramo } from '../../interfaz/paginas/actualizarRedHidraulica'
 import { conPropiedadHorizontal, conTipoProvisionACS } from '../../interfaz/paginas/actualizarConfiguracionMedidores'
+import { conMontanteNuevo } from '../../interfaz/paginas/montantesDelProyecto'
 import {
   conEsquemaDeAbastecimiento,
   conPeriodoConsumoMaximo,
@@ -250,5 +251,76 @@ describe('construirDocDefinition (REPORT-01C: Medidores + Alimentación y reserv
     const grande = generarProyectoDeEscala(NIVEL_DE_ESCALA.M)
     const datos = resolverDatosDeInforme(grande, catalogoArtefactos, coeficientesMayoracion)
     expect(() => construirDocDefinition(datos)).not.toThrow()
+  })
+})
+
+describe('construirDocDefinition (FIX-REPORT-01C-VISUAL-01)', () => {
+  it('P1.A: la Conclusión del crítico vive en el mismo bloque unbreakable que la fórmula/margen, antes del pageBreak del detalle', () => {
+    const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const contenido = doc.content as unknown as Record<string, unknown>[]
+
+    const indiceCritico = contenido.findIndex(
+      (c) => c['unbreakable'] === true && textosDe(c as unknown as Content).some((t) => t.startsWith('Conclusión:')),
+    )
+    const indiceDetalle = contenido.findIndex((c) => c['text'] === 'Detalle de verificación por terminal')
+
+    expect(indiceCritico).toBeGreaterThanOrEqual(0)
+    expect(indiceDetalle).toBeGreaterThan(indiceCritico)
+    // La fórmula y el margen deben vivir en el MISMO nodo que la Conclusión
+    // (no en nodos sueltos anteriores que pdfMage podría partir aparte).
+    const textosDelBloqueCritico = textosDe(contenido[indiceCritico] as unknown as Content)
+    expect(textosDelBloqueCritico.some((t) => t === 'Presidual = Pdisponible − Δz − hfDistribuida − hfLocalizada − hfMedidor')).toBe(true)
+    expect(textosDelBloqueCritico.some((t) => t.startsWith('Margen ='))).toBe(true)
+  })
+
+  it('P1.B: el detalle de verificación por terminal conserva su pageBreak:"before"', () => {
+    const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const contenido = doc.content as unknown as Record<string, unknown>[]
+    const indiceDetalle = contenido.findIndex((c) => c['text'] === 'Detalle de verificación por terminal')
+    expect(indiceDetalle).toBeGreaterThanOrEqual(0)
+    expect(contenido[indiceDetalle]!['pageBreak']).toBe('before')
+  })
+
+  it('P2.C: tanque elevado sin propiedad horizontal -- M3 sigue mostrando el medidor general, memoria aclara que no participa, Verificación mantiene hfMedidor=0 (sin cambios de cálculo)', () => {
+    const sinPH = conPropiedadHorizontal(canonico(), false)
+    const d = resolverDatosDeInforme(sinPH, catalogoArtefactos, coeficientesMayoracion)
+    expect(d.m3.resultado?.medidorGeneral).toBeDefined()
+    expect(d.m3.resultado!.medidorGeneral.adoptado.hfMedidor_mca).toBeGreaterThan(0)
+
+    const doc = construirDocDefinition(d)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => t.includes('Medidor general'))).toBe(true)
+    expect(textos.some((t) => t.includes('no participa del balance de'))).toBe(true)
+
+    // La Verificación sigue calculando hfMedidor con el MISMO criterio de
+    // siempre (resolverPerdidasDeMedidoresParaTerminal): sin PH y con
+    // origen tanque elevado, ningún medidor aplica -- hfMedidor = 0, nunca
+    // el hf del medidor general que M3 sí resolvió.
+    const filaConHfMedidorCero = d.verificacion.filas.some((f) => f.hfMedidorTexto === '0,000 m.c.a.')
+    expect(filaConHfMedidorCero).toBe(true)
+  })
+
+  it('P2.D: origen directa -- nunca muestra la nota de exclusión (el medidor general sí participa)', () => {
+    const directa = conPresionSobreAcera(conEsquemaDeAbastecimiento(canonico(), 'directa'), 25)
+    const d = resolverDatosDeInforme(directa, catalogoArtefactos, coeficientesMayoracion)
+    expect(d.m3.resultado?.medidorGeneral).toBeDefined()
+    const doc = construirDocDefinition(d)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => t.includes('no participa del balance de'))).toBe(false)
+  })
+
+  it('P3: orden hidráulico de M2 -- Distribución general/secundaria -> Montantes -> Locales', () => {
+    const conMontante = conMontanteNuevo(canonico(), 'AF').proyecto
+    const datos = resolverDatosDeInforme(conMontante, catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    const iGeneral = textos.indexOf('Distribución general / secundaria')
+    const iMontantes = textos.indexOf('Montantes')
+    const iLocales = textos.indexOf('Unidades funcionales — Locales')
+    expect(iGeneral).toBeGreaterThanOrEqual(0)
+    expect(iMontantes).toBeGreaterThan(iGeneral)
+    expect(iLocales).toBeGreaterThan(iMontantes)
   })
 })
