@@ -1728,15 +1728,17 @@ export function MotorDemandaPantalla() {
   })
   const { errorDeGuardado: errorDeAutosave } = useAutosaveDeProyecto(proyecto)
 
-  // GEOM-UX-01 §13-§17 — "Reiniciar cálculo". `generacionDeProyecto` es la
-  // key del subárbol de trabajo (índice + contenido): al reiniciar se
-  // incrementa y React DESMONTA/REMONTA todo ese subárbol, descartando de
-  // un golpe cualquier estado transitorio de UI que vive dentro (UF
-  // colapsadas, draft de artefacto, selector de conectividad pendiente,
-  // filas de tabla expandidas, <details> abiertos, estado local de los
-  // paneles de M3/M4/M2-B...). No hace falta enumerarlos ni resetearlos a
-  // mano: el remonte los limpia todos. El <header> queda montado a
-  // propósito -- no tiene estado transitorio, sólo lee del Proyecto.
+  // GEOM-UX-01 §13-§17 — "Nuevo proyecto" (copy renombrada de "Reiniciar
+  // cálculo" en FIX-PERSIST-01-NUEVO-PROYECTO-01; comportamiento sin
+  // cambios). `generacionDeProyecto` es la key del subárbol de trabajo
+  // (índice + contenido): al crear un proyecto nuevo se incrementa y React
+  // DESMONTA/REMONTA todo ese subárbol, descartando de un golpe cualquier
+  // estado transitorio de UI que vive dentro (UF colapsadas, draft de
+  // artefacto, selector de conectividad pendiente, filas de tabla
+  // expandidas, <details> abiertos, estado local de los paneles de
+  // M3/M4/M2-B...). No hace falta enumerarlos ni resetearlos a mano: el
+  // remonte los limpia todos. El <header> queda montado a propósito -- no
+  // tiene estado transitorio, sólo lee del Proyecto.
   const [generacionDeProyecto, setGeneracionDeProyecto] = useState(0)
   const [confirmandoReinicio, setConfirmandoReinicio] = useState(false)
   const botonReiniciarRef = useRef<HTMLButtonElement>(null)
@@ -1847,22 +1849,27 @@ export function MotorDemandaPantalla() {
           </p>
         ) : null}
         {/* PERSIST-01 §37: acciones GLOBALES del proyecto, junto a
-            "Reiniciar cálculo". */}
+            "Nuevo proyecto". */}
         <AccionesDeProyecto proyecto={proyecto} onImportar={importarProyecto} />
         {/* GEOM-UX-01 §13: acción global secundaria/neutra. No vuelve al
-            demo -- deja un proyecto vacío (§14). Confirmación previa (§13). */}
+            demo -- deja un proyecto vacío (§14). Confirmación previa (§13).
+            FIX-PERSIST-01-NUEVO-PROYECTO-01: copy renombrada ("Reiniciar
+            cálculo" era ambiguo -- podía leerse como "recalcular"; el
+            comportamiento real siempre fue reemplazar el proyecto activo
+            por uno vacío). Sin cambios de comportamiento, factory, ni
+            estado. */}
         <div className="app-header__reiniciar">
           <button type="button" ref={botonReiniciarRef} onClick={() => setConfirmandoReinicio(true)}>
-            Reiniciar cálculo
+            Nuevo proyecto
           </button>
         </div>
       </header>
 
       {confirmandoReinicio ? (
         <DialogoDeConfirmacion
-          titulo="¿Reiniciar el cálculo?"
-          descripcion="Se eliminarán los datos cargados durante esta sesión y se comenzará con un proyecto vacío."
-          etiquetaConfirmar="Reiniciar"
+          titulo="Nuevo proyecto"
+          descripcion="Se reemplazará el proyecto actual. Si querés conservarlo, exportalo antes. ¿Continuar?"
+          etiquetaConfirmar="Crear nuevo proyecto"
           onConfirmar={reiniciarCalculo}
           onCancelar={cerrarConfirmacionDeReinicio}
         />

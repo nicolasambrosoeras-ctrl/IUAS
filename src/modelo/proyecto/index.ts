@@ -455,6 +455,6 @@ export type Proyecto = {
   // proyectista por probar Rápido un momento (§9 Caso E). Es SÓLO memoria
   // de restauración: NUNCA es fuente de cálculo -- el motor lee
   // exclusivamente `configuracionHidraulica`, que es la config ACTIVA.
-  // Optativo/backward-compatible; "Reiniciar cálculo" lo deja ausente.
+  // Optativo/backward-compatible; "Nuevo proyecto" lo deja ausente.
   ultimaConfiguracionProfesional?: ConfiguracionHidraulica;
 };

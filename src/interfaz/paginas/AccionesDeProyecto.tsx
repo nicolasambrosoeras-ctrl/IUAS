@@ -1,6 +1,6 @@
 // Acciones GLOBALES de proyecto (PERSIST-01, §35-§39): exportar/importar
 // un archivo .iuas. Deliberadamente fuera de M1/M2/M3/M4 -- viven en el
-// header junto a "Reiniciar cálculo". Import es atómico (§23): el
+// header junto a "Nuevo proyecto". Import es atómico (§23): el
 // archivo se lee, parsea y valida ANTES de tocar cualquier estado; sólo
 // al confirmar el diálogo se reemplaza el proyecto activo. Si algo falla
 // en el camino, el proyecto actual queda exactamente igual.

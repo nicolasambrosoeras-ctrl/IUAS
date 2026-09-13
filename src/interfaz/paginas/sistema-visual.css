@@ -700,7 +700,8 @@ summary > h3 {
   gap: var(--esp-sm);
 }
 
-/* Disparador global "Reiniciar cálculo": acción secundaria/neutra en el
+/* Disparador global "Nuevo proyecto" (antes "Reiniciar cálculo",
+   FIX-PERSIST-01-NUEVO-PROYECTO-01): acción secundaria/neutra en el
    encabezado (§13). Fila propia bajo el título/modo, alineada a la
    izquierda; sin color de alarma. */
 .app-header__reiniciar {

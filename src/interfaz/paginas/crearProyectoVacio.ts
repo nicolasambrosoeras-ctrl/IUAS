@@ -1,8 +1,10 @@
 // Factory de un Proyecto VACÍO válido (GEOM-UX-01 §13-§16). Separado de
 // `proyectoDeEjemplo` (proyectoInicial) a propósito: el proyecto de
-// ejemplo es sólo el estado de bienvenida al abrir la app; "Reiniciar
-// cálculo" NO vuelve a él, deja todo a cero. Nunca comparte referencias
-// mutables -- cada llamada devuelve objetos y arrays nuevos.
+// ejemplo es sólo el estado de bienvenida al abrir la app; "Nuevo
+// proyecto" (antes "Reiniciar cálculo", FIX-PERSIST-01-NUEVO-PROYECTO-01,
+// sin cambio de comportamiento) NO vuelve a él, deja todo a cero. Nunca
+// comparte referencias mutables -- cada llamada devuelve objetos y
+// arrays nuevos.
 //
 // "Vacío válido" significa (§14):
 //   - 0 unidades funcionales / locales / artefactos;
@@ -14,8 +16,8 @@
 // Conserva únicamente lo que hace al Proyecto estructuralmente válido y
 // es del PRODUCTO, no del proyecto físico anterior:
 //   - schemaVersion / versión normativa;
-//   - `modoTrabajo: 'rapido'` EXPLÍCITO (MODE-UX-01 / D-δ.89): "Reiniciar
-//     cálculo" vuelve siempre a Rápido, sin arrastrar la memoria
+//   - `modoTrabajo: 'rapido'` EXPLÍCITO (MODE-UX-01 / D-δ.89): "Nuevo
+//     proyecto" vuelve siempre a Rápido, sin arrastrar la memoria
 //     Profesional de la sesión anterior (`ultimaConfiguracionProfesional`
 //     queda ausente);
 //   - `configuracionHidraulica` (obligatoria en el modelo) con el preset
@@ -45,7 +47,7 @@ export function crearProyectoVacio(): Proyecto {
       alturaArtefactoMasDesfavorable_m: 0,
     },
     unidadesFuncionales: [],
-    // MODE-UX-01 (D-δ.89): modo de trabajo EXPLÍCITO. "Reiniciar cálculo"
+    // MODE-UX-01 (D-δ.89): modo de trabajo EXPLÍCITO. "Nuevo proyecto"
     // deja siempre Rápido y SIN `ultimaConfiguracionProfesional` (no se
     // arrastra la memoria Profesional de la sesión anterior).
     modoTrabajo: 'rapido',
