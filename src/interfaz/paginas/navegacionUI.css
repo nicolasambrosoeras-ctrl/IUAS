@@ -249,6 +249,25 @@
     margin: 0 calc(-1 * var(--esp-sm));
     padding: var(--esp-xs) var(--esp-sm);
   }
+
+  /* FIX-PERSIST-01-PROJECT-ACTIONS-SPACING-01: `flex-wrap` (base rule,
+     sistema-visual.css) alcanza en desktop/tablet, pero en este ancho
+     "Nuevo proyecto" + "Cargar proyecto de ejemplo" ya no entran juntos
+     en una fila y se apilan a una columna -- deja de leerse como grilla
+     2×2. CSS Grid de 2 columnas fijas lo garantiza en cualquier ancho de
+     este rango: cada fila SIEMPRE tiene 2 celdas de igual ancho, el
+     texto del botón envuelve dentro de su celda si hace falta ("Cargar
+     proyecto de ejemplo" en dos líneas a 360px) en vez de apilarse. */
+  .app-header__reiniciar,
+  .app-header__acciones-proyecto {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-header__reiniciar button,
+  .app-header__acciones-proyecto button {
+    width: 100%;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {

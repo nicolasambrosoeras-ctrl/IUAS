@@ -186,3 +186,51 @@ test.describe('FIX-RESP-02 · M3 excepción de ACS por UF sin overflow', () => {
     })
   }
 })
+
+// FIX-PERSIST-01-PROJECT-ACTIONS-SPACING-01 · las 4 acciones globales del
+// proyecto (Nuevo proyecto / Cargar proyecto de ejemplo / Importar
+// proyecto / Exportar proyecto) deben leerse como una grilla 2×2 estable,
+// con separación uniforme -- antes de este fix, Importar/Exportar
+// proyecto no tenían NINGÚN gap entre sí (botones adyacentes pegados).
+test.describe('FIX-PERSIST-01-PROJECT-ACTIONS-SPACING-01 · separación entre acciones globales del proyecto', () => {
+  for (const vp of VIEWPORTS) {
+    test(`Nuevo/Ejemplo/Importar/Exportar sin overflow y con gap real @ ${vp.nombre}`, async ({
+      page,
+      errores,
+      baseURLEfectiva,
+    }, testInfo) => {
+      test.skip(testInfo.project.name !== 'desktop', 'viewport fijado en el test')
+      await page.setViewportSize({ width: vp.width, height: vp.height })
+      await cargarAppLimpia(page, baseURLEfectiva)
+
+      const m = await medir(page)
+      expect(m.docOverflow, `documentElement overflow @ ${vp.nombre}`).toBeLessThanOrEqual(1)
+      expect(m.bodyOverflow, `body overflow @ ${vp.nombre}`).toBeLessThanOrEqual(1)
+
+      // Grilla 2×2 real: cada par debe estar en la MISMA fila (mismo
+      // `top`) con un gap horizontal real -- nunca apilado a una columna.
+      // CSS Grid de 2 columnas fijas (ver sistema-visual.css /
+      // navegacionUI.css @media 560px) lo garantiza en todo el rango de
+      // viewports probado; `flex-wrap` solo no alcanzaba a 360px porque
+      // "Nuevo proyecto" + "Cargar proyecto de ejemplo" no entraban
+      // juntos en una fila y se apilaban (regresión detectada con
+      // Playwright durante este mismo hotfix).
+      async function gapHorizontal(nombreA: string, nombreB: string): Promise<number> {
+        const [cajaA, cajaB] = await Promise.all([
+          page.getByRole('button', { name: nombreA, exact: true }).evaluate((el) => el.getBoundingClientRect()),
+          page.getByRole('button', { name: nombreB, exact: true }).evaluate((el) => el.getBoundingClientRect()),
+        ])
+        expect(Math.abs(cajaA.top - cajaB.top), `"${nombreA}" y "${nombreB}" no están en la misma fila @ ${vp.nombre}`).toBeLessThanOrEqual(4)
+        return cajaA.left <= cajaB.left ? cajaB.left - cajaA.right : cajaA.left - cajaB.right
+      }
+
+      const gapNuevoEjemplo = await gapHorizontal('Nuevo proyecto', 'Cargar proyecto de ejemplo')
+      expect(gapNuevoEjemplo, `gap Nuevo/Ejemplo @ ${vp.nombre}`).toBeGreaterThanOrEqual(8)
+      const gapImportarExportar = await gapHorizontal('Importar proyecto', 'Exportar proyecto')
+      expect(gapImportarExportar, `gap Importar/Exportar @ ${vp.nombre}`).toBeGreaterThanOrEqual(8)
+
+      const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+      expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+    })
+  }
+})

@@ -2893,6 +2893,29 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `FIX-PERSIST-01-PROJECT-ACTIONS-01: CERRADO — pendiente
     validación manual`.
 
+- **D-δ.122 — FIX-PERSIST-01-PROJECT-ACTIONS-SPACING-01: espaciado de
+  las 4 acciones globales del proyecto en mobile (CERRADO — pendiente
+  validación manual).** Microfix Nivel C, exclusivamente CSS -- sin
+  cambios de handlers, copy, orden semántico ni comportamiento.
+  "Importar proyecto" / "Exportar proyecto" no tenían NINGÚN `gap`
+  (`.app-header__acciones-proyecto` no tenía regla CSS propia); a 360px,
+  además, `flex-wrap` dejaba "Nuevo proyecto" + "Cargar proyecto de
+  ejemplo" apilados en dos líneas (no entran juntos en una fila de ese
+  ancho) en vez de leerse como grilla 2×2 junto con Importar/Exportar --
+  detectado midiendo con Playwright, no a simple vista. Fix: `gap`
+  uniforme de 12px en ambos contenedores, y CSS Grid de 2 columnas fijas
+  (`repeat(2, minmax(0,1fr))`) sólo dentro del breakpoint mobile
+  existente (`@media max-width: 560px`, `navegacionUI.css`) -- garantiza
+  2 columnas iguales en cualquier ancho de ese rango, con el texto del
+  botón envolviendo dentro de su celda si hace falta. Desktop/tablet
+  conservan `flex-wrap` (ancho de sobra, layout natural sin forzar
+  columnas iguales). Test E2E nuevo en `responsive.spec.ts` (3
+  viewports × desktop, verde) que mide bounding boxes reales -- exige
+  misma fila + gap ≥8px para ambos pares. Vitest sin cambios
+  (1875/1875). `tsc -b` / `build` limpios. ESLint 11/0/0. Sin fuzz.
+  - **Estado:** `FIX-PERSIST-01-PROJECT-ACTIONS-SPACING-01: CERRADO —
+    pendiente validación manual`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /

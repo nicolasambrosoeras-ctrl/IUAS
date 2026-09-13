@@ -702,15 +702,24 @@ summary > h3 {
 
 /* Disparadores globales "Nuevo proyecto" / "Cargar proyecto de ejemplo"
    (FIX-PERSIST-01-PROJECT-ACTIONS-01; "Nuevo proyecto" antes "Reiniciar
-   cálculo", FIX-PERSIST-01-NUEVO-PROYECTO-01): acciones secundarias/
-   neutras en el encabezado (§13/§15). Fila propia bajo el título/modo,
-   alineada a la izquierda; `flex-wrap` + `gap` evitan overflow horizontal
-   en mobile con los dos botones. Sin color de alarma. */
-.app-header__reiniciar {
+   cálculo", FIX-PERSIST-01-NUEVO-PROYECTO-01) e "Importar proyecto" /
+   "Exportar proyecto": acciones secundarias/neutras en el encabezado
+   (§13/§15), cada par en su propia fila (`flex-basis: 100%`) bajo el
+   título/modo. Sin color de alarma. En desktop/tablet, `flex-wrap` +
+   `gap` alcanza (hay ancho de sobra para que ambos botones de cada fila
+   convivan). FIX-PERSIST-01-PROJECT-ACTIONS-SPACING-01: `gap` uniforme
+   de 12px para las 4 acciones -- antes Importar/Exportar no tenían
+   NINGÚN gap (botones adyacentes pegados). El override a grid en mobile
+   angosto vive en navegacionUI.css (ver ese archivo, @media 560px):
+   `flex-wrap` sólo no basta ahí porque "Cargar proyecto de ejemplo"
+   junto a "Nuevo proyecto" no entra en una fila de 360px y se apilaría a
+   una sola columna en vez de leerse como grilla 2×2. */
+.app-header__reiniciar,
+.app-header__acciones-proyecto {
   flex-basis: 100%;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--esp-sm);
+  gap: 0.75rem;
 }
 
 /* --- Segmented control (Rápido / Profesional, sección 36) --- */
