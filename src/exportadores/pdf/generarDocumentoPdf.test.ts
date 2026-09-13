@@ -196,3 +196,59 @@ describe('construirDocDefinition (FIX-REPORT-01B-VISUAL-01)', () => {
     expect(textos.some((t) => t.includes('× 10^'))).toBe(true)
   })
 })
+
+describe('construirDocDefinition (REPORT-01C: Medidores + Alimentación y reserva)', () => {
+  it('incluye las cinco secciones conceptuales de la memoria completa, sin lanzar ni mostrar IDs internos', () => {
+    const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos).toContain('Unidades funcionales') // M1
+    expect(textos).toContain('Tuberías') // M2
+    expect(textos).toContain('Verificación hidráulica') // Verificación
+    expect(textos).toContain('Medidores') // M3
+    expect(textos).toContain('Alimentación y reserva') // M4
+    expect(textos.some((t) => /\buf-\d|local-|artefacto-/.test(t))).toBe(false)
+  })
+
+  it('M3 incluye la fórmula del medidor, un caso representativo y la nota de alcance ACS individual', () => {
+    const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => t.includes('0,036 · (Qcl / C)^2'))).toBe(true)
+    expect(textos.some((t) => t.includes('Caso representativo'))).toBe(true)
+    expect(textos.some((t) => t.includes('también alcanza el'))).toBe(true)
+    expect(textos.some((t) => t.includes('Capacidad adoptada según Tabla N°6'))).toBe(true)
+  })
+
+  it('M4 incluye Pcalc con signo, Dc/VReserva y distingue calculado de adoptado', () => {
+    const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => t.includes('Pcalc = Pacera − desnivelConexion'))).toBe(true)
+    expect(textos.some((t) => t.includes('Dc = máx(0, Qc − Qconn)'))).toBe(true)
+    expect(textos.some((t) => t.includes('Volumen calculado') && t.includes('Volumen adoptado'))).toBe(true)
+  })
+
+  it('esquema directa: no genera un bloque de reserva irrelevante', () => {
+    const directa = conPresionSobreAcera(conEsquemaDeAbastecimiento(canonico(), 'directa'), 25)
+    const datos = resolverDatosDeInforme(directa, catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => t.includes('la reserva por tanque no aplica'))).toBe(true)
+    expect(textos.some((t) => t.includes('Dc = máx'))).toBe(false)
+  })
+
+  it('sin propiedad horizontal: declara explícitamente que no corresponde medidor individual', () => {
+    const sinPH = conPropiedadHorizontal(canonico(), false)
+    const datos = resolverDatosDeInforme(sinPH, catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => t.includes('no corresponde medidor individual'))).toBe(true)
+  })
+
+  it('proyecto de escala M: la memoria completa (M1-M4) no lanza', () => {
+    const grande = generarProyectoDeEscala(NIVEL_DE_ESCALA.M)
+    const datos = resolverDatosDeInforme(grande, catalogoArtefactos, coeficientesMayoracion)
+    expect(() => construirDocDefinition(datos)).not.toThrow()
+  })
+})
