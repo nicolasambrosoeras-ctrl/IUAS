@@ -61,11 +61,11 @@ export function AccionesDeProyecto({
 
   return (
     <div className="app-header__acciones-proyecto">
-      <button type="button" onClick={() => descargarProyectoComoIuas(proyecto)}>
-        Exportar proyecto
-      </button>
       <button type="button" ref={botonImportarRef} onClick={() => inputArchivoRef.current?.click()}>
         Importar proyecto
+      </button>
+      <button type="button" onClick={() => descargarProyectoComoIuas(proyecto)}>
+        Exportar proyecto
       </button>
       <input
         ref={inputArchivoRef}

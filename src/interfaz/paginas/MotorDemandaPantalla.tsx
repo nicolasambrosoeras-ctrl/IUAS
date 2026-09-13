@@ -1742,6 +1742,11 @@ export function MotorDemandaPantalla() {
   const [generacionDeProyecto, setGeneracionDeProyecto] = useState(0)
   const [confirmandoReinicio, setConfirmandoReinicio] = useState(false)
   const botonReiniciarRef = useRef<HTMLButtonElement>(null)
+  // FIX-PERSIST-01-PROJECT-ACTIONS-01: "Cargar proyecto de ejemplo" es una
+  // acción global DISTINTA de "Nuevo proyecto" (§13: nunca deben colapsar
+  // a la misma semántica) -- estado y ref propios, mismo patrón.
+  const [confirmandoCargaDeEjemplo, setConfirmandoCargaDeEjemplo] = useState(false)
+  const botonCargarEjemploRef = useRef<HTMLButtonElement>(null)
 
   function cerrarConfirmacionDeReinicio() {
     setConfirmandoReinicio(false)
@@ -1761,6 +1766,31 @@ export function MotorDemandaPantalla() {
       window.scrollTo({ top: 0 })
     }
     botonReiniciarRef.current?.focus()
+  }
+
+  function cerrarConfirmacionDeCargaDeEjemplo() {
+    setConfirmandoCargaDeEjemplo(false)
+    botonCargarEjemploRef.current?.focus()
+  }
+
+  function cargarProyectoDeEjemplo() {
+    // FIX-PERSIST-01-PROJECT-ACTIONS-01 §8: `proyectoInicial` es la ÚNICA
+    // fuente de verdad del demo -- ninguna factory nueva, ningún clon
+    // manual. Se pasa por el MISMO paso que ya usa el bootstrap
+    // (backfillLongitudesDePredimensionamiento) para obtener una
+    // instancia segura: esa función es pura y, cuando el proyecto ya
+    // tiene todas sus longitudes completas, devuelve la MISMA referencia
+    // sin clonar -- inofensivo porque todo el árbol de mutación del
+    // proyecto en este repo es inmutable (spread, nunca mutación in
+    // place), igual que en el montaje inicial. No genera IDs nuevos: el
+    // backfill sólo completa `longitud_m`/`longitudEsSugerida`.
+    setProyecto(backfillLongitudesDePredimensionamiento(proyectoInicial))
+    setGeneracionDeProyecto((generacion) => generacion + 1)
+    setConfirmandoCargaDeEjemplo(false)
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0 })
+    }
+    botonCargarEjemploRef.current?.focus()
   }
 
   // PERSIST-01 §33: importar reemplaza el proyecto activo igual que
@@ -1848,30 +1878,45 @@ export function MotorDemandaPantalla() {
             "Exportar proyecto" para no perder los cambios.
           </p>
         ) : null}
-        {/* PERSIST-01 §37: acciones GLOBALES del proyecto, junto a
-            "Nuevo proyecto". */}
-        <AccionesDeProyecto proyecto={proyecto} onImportar={importarProyecto} />
-        {/* GEOM-UX-01 §13: acción global secundaria/neutra. No vuelve al
-            demo -- deja un proyecto vacío (§14). Confirmación previa (§13).
-            FIX-PERSIST-01-NUEVO-PROYECTO-01: copy renombrada ("Reiniciar
-            cálculo" era ambiguo -- podía leerse como "recalcular"; el
-            comportamiento real siempre fue reemplazar el proyecto activo
-            por uno vacío). Sin cambios de comportamiento, factory, ni
-            estado. */}
+        {/* FIX-PERSIST-01-PROJECT-ACTIONS-01 (§2/§14): las 4 acciones
+            GLOBALES del proyecto, en orden lógico -- Nuevo proyecto,
+            Cargar proyecto de ejemplo, Importar proyecto, Exportar
+            proyecto. GEOM-UX-01 §13: "Nuevo proyecto" (antes "Reiniciar
+            cálculo", FIX-PERSIST-01-NUEVO-PROYECTO-01) no vuelve al demo
+            -- deja un proyecto vacío (§14) via `crearProyectoVacio()`.
+            "Cargar proyecto de ejemplo" reemplaza por `proyectoInicial`
+            (única fuente de verdad, misma instancia segura que usa el
+            bootstrap -- ver `cargarProyectoDeEjemplo`). Ambas con
+            confirmación previa y estilo secundario/neutro, sin color de
+            alarma. */}
         <div className="app-header__reiniciar">
           <button type="button" ref={botonReiniciarRef} onClick={() => setConfirmandoReinicio(true)}>
             Nuevo proyecto
           </button>
+          <button type="button" ref={botonCargarEjemploRef} onClick={() => setConfirmandoCargaDeEjemplo(true)}>
+            Cargar proyecto de ejemplo
+          </button>
         </div>
+        <AccionesDeProyecto proyecto={proyecto} onImportar={importarProyecto} />
       </header>
 
       {confirmandoReinicio ? (
         <DialogoDeConfirmacion
           titulo="Nuevo proyecto"
-          descripcion="Se reemplazará el proyecto actual. Si querés conservarlo, exportalo antes. ¿Continuar?"
+          descripcion="Se reemplazará el proyecto actual por un proyecto nuevo. Si querés conservar el actual, exportalo antes. ¿Continuar?"
           etiquetaConfirmar="Crear nuevo proyecto"
           onConfirmar={reiniciarCalculo}
           onCancelar={cerrarConfirmacionDeReinicio}
+        />
+      ) : null}
+
+      {confirmandoCargaDeEjemplo ? (
+        <DialogoDeConfirmacion
+          titulo="Cargar proyecto de ejemplo"
+          descripcion="Se reemplazará el proyecto actual por el proyecto de ejemplo de IUAS. Si querés conservar el actual, exportalo antes. ¿Continuar?"
+          etiquetaConfirmar="Cargar ejemplo"
+          onConfirmar={cargarProyectoDeEjemplo}
+          onCancelar={cerrarConfirmacionDeCargaDeEjemplo}
         />
       ) : null}
 

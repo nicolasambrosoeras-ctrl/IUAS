@@ -700,13 +700,17 @@ summary > h3 {
   gap: var(--esp-sm);
 }
 
-/* Disparador global "Nuevo proyecto" (antes "Reiniciar cálculo",
-   FIX-PERSIST-01-NUEVO-PROYECTO-01): acción secundaria/neutra en el
-   encabezado (§13). Fila propia bajo el título/modo, alineada a la
-   izquierda; sin color de alarma. */
+/* Disparadores globales "Nuevo proyecto" / "Cargar proyecto de ejemplo"
+   (FIX-PERSIST-01-PROJECT-ACTIONS-01; "Nuevo proyecto" antes "Reiniciar
+   cálculo", FIX-PERSIST-01-NUEVO-PROYECTO-01): acciones secundarias/
+   neutras en el encabezado (§13/§15). Fila propia bajo el título/modo,
+   alineada a la izquierda; `flex-wrap` + `gap` evitan overflow horizontal
+   en mobile con los dos botones. Sin color de alarma. */
 .app-header__reiniciar {
   flex-basis: 100%;
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-sm);
 }
 
 /* --- Segmented control (Rápido / Profesional, sección 36) --- */
