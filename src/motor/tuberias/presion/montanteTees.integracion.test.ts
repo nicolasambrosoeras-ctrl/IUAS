@@ -242,7 +242,7 @@ describe('M2-TOPO-D · fan-out 1->N (§40) + M2-TOPO-E (§8/§30)', () => {
     expect(c.tramos.length).toBeGreaterThan(0)
   })
 
-  it('HYD-EST sustituye §30-D: Estimadas para un montante 1->3 queda incompleta sin fallback agregado', () => {
+  it('§30-D: Estimadas para un montante 1->3 conserva el modelo agregado histórico (no lee la topología 1->N)', () => {
     const { proyecto } = montanteAfConLocales([4, 4, 4])
     const estimada = resolverPerdidaLocalizadaEstimadaDeLocal(
       proyecto,
@@ -252,7 +252,9 @@ describe('M2-TOPO-D · fan-out 1->N (§40) + M2-TOPO-E (§8/§30)', () => {
       catalogoArtefactos,
       catalogoSistemasDeTuberia,
     )
-    expect(estimada.caminos.length).toBeGreaterThan(0)
-    expect(estimada.caminos.every(c => c.resultado.tipo === 'incompleta')).toBe(true)
+    // El modelo agregado estimado (n-1 tees @ 3,00 + codo90 + llave, Vref)
+    // se resuelve igual que para cualquier topología -- nunca lee Nodo.tee
+    // ni el fan-out 1->N.
+    expect(estimada.tipo).toBe('estimada')
   })
 })

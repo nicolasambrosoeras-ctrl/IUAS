@@ -73,7 +73,7 @@ function proyecto(longRepresentativo: number | undefined): Proyecto {
 }
 
 describe('resolverFilaDeDimensionamiento (D-δ.51)', () => {
-  it('HYD-EST: Local+Red conserva la distribuida y remite a localizada por recorrido sin inventar un total único', () => {
+  it('con Local+Red: Pérdida total = hf distribuida del Tramo + hf localizada estimada, con el desglose', () => {
     const fila = resolverFilaDeDimensionamiento(proyecto(5), 't-bano', catalogoArtefactos, {
       unidadFuncionalId: 'uf-1',
       localId: 'l-bano',
@@ -81,9 +81,11 @@ describe('resolverFilaDeDimensionamiento (D-δ.51)', () => {
     })
 
     expect(fila.hfDistribuida_mca).toBeGreaterThan(0)
-    expect(fila.hfLocalizadaEstimada_mca).toBeUndefined()
-    expect(fila.perdidaTotal_mca).toBeUndefined()
-    expect(fila.perdidaTotalTexto).toContain('distrib. · localizada por recorrido')
+    expect(fila.hfLocalizadaEstimada_mca).toBeGreaterThan(0)
+    expect(fila.perdidaTotal_mca).toBeCloseTo(
+      (fila.hfDistribuida_mca ?? 0) + (fila.hfLocalizadaEstimada_mca ?? 0),
+      10,
+    )
     expect(fila.nPuntos).toBe(2)
     expect(fila.artefactos).toContain('avatorio')
     expect(fila.estado).toBe('ok')
@@ -99,7 +101,7 @@ describe('resolverFilaDeDimensionamiento (D-δ.51)', () => {
 
     expect(fila.hfDistribuida_mca).toBeUndefined()
     expect(fila.perdidaTotal_mca).toBeUndefined()
-    expect(fila.perdidaTotalTexto).toBe('— m.c.a. distrib. · localizada por recorrido')
+    expect(fila.perdidaTotalTexto).toBe('—')
     expect(fila.estado).toBe('incompleto')
   })
 

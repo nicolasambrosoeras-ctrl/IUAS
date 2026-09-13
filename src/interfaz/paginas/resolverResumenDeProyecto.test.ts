@@ -55,9 +55,31 @@ describe('resolverResumenDeProyecto (UI-01C)', () => {
     expect(r.qc.tipo).toBe('valor')
     expect(r.reserva.tipo).toBe('valor')
     if (r.reserva.tipo === 'valor') expect(r.reserva.texto).toMatch(/^\d[\d.,]* L$/)
-    // HYD-EST: el demo tiene derivaciones 1→N no modeladas.
-    expect(r.margenCritico).toEqual({ tipo: 'pendiente' })
-    expect(r.margenCumple).toBeUndefined()
+    expect(r.margenCritico.tipo).toBe('valor')
+    // Baseline transversal D-δ.70/D-δ.72: margen del crítico +3,836 m.c.a.
+    // → CUMPLE, con el pelo de agua mínimo manual (20 m).
+    //
+    // D-δ.79 (CRIT-A39): el fixture canónico es modo Rápido + tanque
+    // elevado simple, así que el pelo de agua mínimo EFECTIVO deja de ser
+    // el valor manual y pasa a estimarse como
+    // `desnivelConexion_m − 0,50 = 0 − 0,50 = −0,50 m`. El par histórico
+    // (pelo manual 20 m / desnivelConexion_m 0 m) eran knobs independientes
+    // antes de CRIT-A39 y quedó semánticamente inconsistente; con el
+    // origen estimado el margen del crítico era −16,664 m.c.a. → NO CUMPLE.
+    //
+    // GEOM-UX-01 (D-δ.86): la cota efectiva del crítico (receptáculo de
+    // ducha del baño) se deriva ahora como cota de piso de la UF (0) +
+    // altura IUAS de la ducha (2,00) = 2,00 m, en vez de la uniforme de
+    // 1,00 m -> 1,00 m más alto -> 1,00 m menos de residual -> el margen
+    // pasa a −17,664 m.c.a. (sigue NO CUMPLE). M1/M3/M4 y Tabla N°1 sin
+    // tocar.
+    //
+    // FIX-HYD-EST-SIMPLIFIED-01: Vref de la plantilla estimada pasa a ser
+    // la del Tramo representativo del Local+red (la fila que el usuario
+    // ve/edita), no el máximo entre los tramos que alimentan cada
+    // terminal. El margen pasa a −19,437 m.c.a. (sigue NO CUMPLE).
+    if (r.margenCritico.tipo === 'valor') expect(r.margenCritico.texto).toBe('-19,437 m.c.a.')
+    expect(r.margenCumple).toBe(false)
   })
 
   it('esquema "directa": la Reserva es "No aplica", no 0 (contrato de M4, §25)', () => {

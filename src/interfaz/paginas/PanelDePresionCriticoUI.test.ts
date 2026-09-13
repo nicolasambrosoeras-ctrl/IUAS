@@ -90,7 +90,7 @@ function balance(nodoId: string, presidual: number, pmin: number): CandidatoTerm
         { tramoId: 't-af-acs', hf_m: 0.5, hfBase_m: 0.3, longitudBase_m: 4, incrementoVertical_m: 3, hfIncrementoVertical_m: 0.2 },
         { tramoId: 't-ac-bano', hf_m: 0.2, hfBase_m: 0.2, longitudBase_m: 6, incrementoVertical_m: 0, hfIncrementoVertical_m: 0 },
       ],
-      hfLocalizada: { metodologia: 'estimado', hf_mca: 0.3, nTerminalesLocal: 1, nTeesEstimadas: 0, porSingularidad: [] },
+      hfLocalizada: { metodologia: 'estimado', hf_mca: 0.3, nTerminalesLocal: 1, nTeesEstimadas: 0, velocidadReferencia_mps: 1.5 },
       incrementoVerticalPorNivel: {
         aplica: true,
         nivel: 1,

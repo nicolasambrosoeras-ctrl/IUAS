@@ -718,23 +718,24 @@ describe('resolverPresionResidualDeCamino — metodoPerdidaLocalizada=estimado (
       hf_mca: 0,
       nTerminalesLocal: 0,
       nTeesEstimadas: 0,
-      porSingularidad: [],
+      velocidadReferencia_mps: 0,
     })
   })
 
-  // El tramo sin candidato admisible debe pertenecer al Local+red pero
-  // NO al camino del propio terminal consultado -- si perteneciera a su
-  // propio camino, acumularPerdidaDistribuidaDeCamino (que corre ANTES,
-  // sobre los mismos tramos) ya cortaria con 'perdidaDistribuidaIncompleta'
-  // (precedencia de etapas, mismo criterio que el resto de este archivo).
-  // Por eso se agrega un TERCER terminal hermano ('terminal-bidet', con
-  // una cantidad de artefacto deliberadamente atipica que hace que su
-  // tramo no resuelva comercialmente) cuyo tramo nunca es recorrido al
-  // pedir 'terminal-lavatorio', pero SI participa en el conteo/velocidad
-  // estimada de 'local-1'+AF. El motivo exacto (sinDemanda o
-  // sinCandidatoAdmisible) no es lo que se verifica -- lo relevante es
-  // que el corte proviene del tramo hermano, no del propio camino.
-  it('HYD-EST: agregar un tercer saliente deja incompleta la derivación recorrida, sin fallback por velocidad del hermano', () => {
+  // FIX-HYD-EST-SIMPLIFIED-01: la plantilla estimada usa la velocidad del
+  // Tramo REPRESENTATIVO del Local+red (la misma fila que ve/edita el
+  // usuario), no la de los tramos que alimentan cada terminal individual.
+  // Por eso un tramo HERMANO (mismo Local+red, fuera del camino
+  // consultado) que no resuelve comercialmente -- se agrega un TERCER
+  // terminal 'terminal-bidet' con una cantidad de artefacto
+  // deliberadamente atipica -- ya NO afecta la estimacion de
+  // 'terminal-lavatorio': el conteo de terminales SI sube a 3 (mueve
+  // nTeesEstimadas), pero Vref sigue viniendo del Tramo representativo,
+  // ajeno a la resolucion comercial de ese hermano en particular. Esto es
+  // el contrato de AISLAMIENTO explicito del hotfix (seccion 23): cambiar
+  // algo de un terminal hermano no debe invalidar semanticamente la
+  // estimacion de otro terminal del mismo Local+red.
+  it('tramo de un terminal HERMANO (mismo Local+red, fuera del camino consultado) sin resolucion comercial NO invalida la estimacion de otro terminal', () => {
     const proyectoBase = proyectoEstimadoDosTerminales()
     const redHidraulica = proyectoBase.redHidraulica!
     const proyecto: Proyecto = {
@@ -783,6 +784,18 @@ describe('resolverPresionResidualDeCamino — metodoPerdidaLocalizada=estimado (
     if (caminoLavatorio.tipo !== 'camino') throw new Error('fixture: se esperaba camino')
     expect(caminoLavatorio.tramos.map((t) => t.id)).toEqual(['t0', 't-lavatorio'])
 
+    // Resultado SIN el hermano (baseline de comparacion): mismo proyecto,
+    // sin agregar 'inst-bidet'/'terminal-bidet'.
+    const resultadoSinHermano = resolverPresionResidualDeCamino(
+      proyectoBase,
+      'terminal-lavatorio',
+      P_DISPONIBLE,
+      undefined,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+      catalogoMaterialesTuberia,
+    )
+
     const resultado = resolverPresionResidualDeCamino(
       proyecto,
       'terminal-lavatorio',
@@ -793,10 +806,29 @@ describe('resolverPresionResidualDeCamino — metodoPerdidaLocalizada=estimado (
       catalogoMaterialesTuberia,
     )
 
-    expect(resultado.tipo).toBe('perdidaLocalizadaEstimadaIncompleta')
-    if (resultado.tipo !== 'perdidaLocalizadaEstimadaIncompleta') return
-    expect(resultado.tramosNoResueltos.length).toBe(1)
-    expect(resultado.tramosNoResueltos[0]).toEqual({ tramoId: 't-lavatorio', motivo: 'derivacionMultipleNoModelada' })
+    // El hermano sin resolucion comercial NUNCA invalida la estimacion de
+    // 'terminal-lavatorio' -- el flujo sigue igual que sin el hermano
+    // (falta hfMedidor, no la localizada estimada).
+    if (resultadoSinHermano.tipo !== 'balanceIncompleto' || resultado.tipo !== 'balanceIncompleto') {
+      throw new Error('se esperaba balanceIncompleto en ambos casos (falta hfMedidor)')
+    }
+    expect(resultado.terminosFaltantes).toEqual(resultadoSinHermano.terminosFaltantes)
+    expect(resultado.hfLocalizada.metodologia).toBe('estimado')
+    if (resultado.hfLocalizada.metodologia !== 'estimado' || resultadoSinHermano.hfLocalizada.metodologia !== 'estimado') {
+      throw new Error('se esperaba metodologia estimado')
+    }
+    // Vref viene del Tramo representativo, ajeno al hermano: idéntica con
+    // o sin 'terminal-bidet' (el hermano no resuelve comercialmente, pero
+    // eso ya no participa del calculo de Vref).
+    expect(resultado.hfLocalizada.velocidadReferencia_mps).toBe(resultadoSinHermano.hfLocalizada.velocidadReferencia_mps)
+    // El conteo SI refleja el tercer terminal (afecta nTeesEstimadas y,
+    // con la misma Vref, sube hf_mca proporcionalmente al K total) --
+    // aunque el tramo del hermano no resuelva comercialmente.
+    expect(resultado.hfLocalizada.nTerminalesLocal).toBe(3)
+    expect(resultado.hfLocalizada.nTeesEstimadas).toBe(2)
+    expect(resultadoSinHermano.hfLocalizada.nTerminalesLocal).toBe(2)
+    expect(resultadoSinHermano.hfLocalizada.nTeesEstimadas).toBe(1)
+    expect(resultado.hfLocalizada.hf_mca).toBeGreaterThan(resultadoSinHermano.hfLocalizada.hf_mca)
   })
 })
 

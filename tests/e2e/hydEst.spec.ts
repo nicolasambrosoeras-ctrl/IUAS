@@ -1,51 +1,59 @@
-// HYD-EST-01 — E2E dirigido de la hf estimada por camino (path-aware).
-// Dos casos, ambos sobre el proyecto de ejemplo (demo) contra `vite` dev:
+// FIX-HYD-EST-SIMPLIFIED-01 — E2E dirigido de la plantilla estimada
+// agregada por (Local, red), corregida para que la hf localizada responda
+// al DN vigente de la fila. Dos casos, ambos sobre el proyecto de ejemplo
+// (demo):
 //
-// 1. DN -> V -> hf: en "Alimentación general" (AF), subir el DN comercial
-//    baja la velocidad y la pérdida distribuida; bajar el DN las sube de
-//    nuevo (reversibilidad). No depende de fan-out: es un tramo troncal
-//    único, no una tee.
-// 2. Fan-out 1->N no modelado: el demo original tiene bifurcaciones
-//    1->N (ej. Baño 1 · AF sirve 4 artefactos con una sola tee 1->N sin
-//    modelar). La fila queda "Incompleto" con DN/V/hf DISTRIBUIDA igual
-//    determinables y sin NaN/crash; la localizada estimada se marca
-//    incompleta en vez de inventar una cadena de tees.
+// 1. DN -> V -> hf: en "Alimentación general" (AF, tramo troncal), subir
+//    el DN comercial baja la velocidad y la pérdida distribuida; bajar el
+//    DN las sube de nuevo (reversibilidad).
+// 2. Baño 1 · AF (fan-out 1->4, plantilla estimada agregada): la fila es
+//    CALCULABLE (nunca "Incompleto" por la disposición física) y su hf
+//    localizada responde al DN de esa misma fila -- ya no queda
+//    desacoplada del DN que el usuario está dimensionando.
 import { test, expect } from './qa/fixtures'
 import { cargarAppLimpia, estabilizar } from './qa/estado'
 import { verificarInvariantes, primerFallo } from './qa/invariantes'
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 
 async function irATuberias(page: Page): Promise<void> {
   await page.getByRole('link', { name: /Tuber[ií]as/ }).first().click()
   await estabilizar(page)
 }
 
-function filaDeTramo(page: Page, nombre: string) {
+function filaDeTramo(page: Page, nombre: string): Locator {
   return page.getByRole('row', { name: new RegExp(nombre) })
 }
 
-async function leerV(fila: ReturnType<typeof filaDeTramo>): Promise<number> {
+async function leerV(fila: Locator): Promise<number> {
   const texto = await fila.innerText()
   const m = texto.match(/([\d,]+)\s*m\/s/)
   if (!m) throw new Error(`no se encontró V en la fila: ${texto}`)
   return Number(m[1]!.replace(',', '.'))
 }
 
-async function leerHf(fila: ReturnType<typeof filaDeTramo>): Promise<number> {
+async function leerHf(fila: Locator): Promise<number> {
   const texto = await fila.innerText()
   const m = texto.match(/([\d,]+)\s*m\.c\.a\./)
   if (!m) throw new Error(`no se encontró hf en la fila: ${texto}`)
   return Number(m[1]!.replace(',', '.'))
 }
 
-async function leerDn(fila: ReturnType<typeof filaDeTramo>): Promise<number> {
+async function leerDn(fila: Locator): Promise<number> {
   const texto = await fila.innerText()
   const m = texto.match(/(\d+)\s*mm/)
   if (!m) throw new Error(`no se encontró DN en la fila: ${texto}`)
   return Number(m[1])
 }
 
-test.describe('HYD-EST-01 · E2E dirigido', () => {
+// Baño 1 · AF es la PRIMERA fila de red de la primera UF del demo (antes
+// de Cocina/Lavadero/Toilette/Jardín) -- misma identificación por orden
+// que ya usa el resto de esta suite E2E, sin depender de un encabezado
+// de grupo por separado.
+function filaBanoAF(page: Page): Locator {
+  return page.locator('tr').filter({ hasText: 'Agua fría' }).nth(2)
+}
+
+test.describe('FIX-HYD-EST-SIMPLIFIED-01 · E2E dirigido', () => {
   test('DN -> V -> hf distribuida responde y es reversible en un tramo troncal', async ({
     page,
     errores,
@@ -96,7 +104,7 @@ test.describe('HYD-EST-01 · E2E dirigido', () => {
     expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
   })
 
-  test('fan-out 1->N no modelado: Incompleto sin hf ficticia, sin NaN, sin crash', async ({
+  test('Baño 1 · AF (fan-out 1->4): calculable, sin "Incompleto", y la hf localizada responde al DN de la fila', async ({
     page,
     errores,
     baseURLEfectiva,
@@ -104,24 +112,32 @@ test.describe('HYD-EST-01 · E2E dirigido', () => {
     await cargarAppLimpia(page, baseURLEfectiva)
     await irATuberias(page)
 
-    // El demo trae Baño 1 · AF con 4 artefactos detrás de una tee 1->N sin
-    // modelar (derivacionMultipleNoModelada). DN/V/hf DISTRIBUIDA del tramo
-    // representativo siguen siendo determinables; sólo la localizada
-    // estimada queda incompleta.
-    const filaBanoAF = page
-      .locator('tr')
-      .filter({ hasText: 'Agua fría' })
-      .filter({ hasText: 'localizada incompleta' })
-      .first()
-    await expect(filaBanoAF).toBeVisible()
-    const texto = await filaBanoAF.innerText()
+    const fila = filaBanoAF(page)
+    await expect(fila).toBeVisible()
+    const textoInicial = await fila.innerText()
+    expect(textoInicial).toMatch(/4\s*puntos/)
 
-    expect(texto).toMatch(/localizada incompleta/)
-    expect(texto).toMatch(/Incompleto/)
-    // La pérdida DISTRIBUIDA sigue mostrándose con un número real.
-    expect(texto).toMatch(/[\d,]+\s*m\.c\.a\. distrib\./)
-    // Nunca basura visible en vez de un valor.
-    expect(texto).not.toMatch(/NaN|undefined|\[object Object\]/)
+    // Calculable de punta a punta: nunca "Incompleto" por la disposición
+    // física de la derivación 1->4 (la plantilla estimada es agregada por
+    // Local+red, no path-aware).
+    expect(textoInicial).not.toMatch(/Incompleto/)
+    expect(textoInicial).not.toMatch(/localizada incompleta/)
+    expect(textoInicial).not.toMatch(/NaN|undefined|\[object Object\]/)
+
+    const hf0 = await leerHf(fila)
+    const dn0 = await leerDn(fila)
+
+    // Subir el DN de ESTA fila: la hf localizada estimada debe bajar --
+    // ya no queda desacoplada del DN que el usuario está dimensionando
+    // (el bug que motivó este hotfix).
+    const subir = fila.getByRole('button', { name: 'Adoptar el DN comercial inmediato superior' })
+    await subir.click()
+    await estabilizar(page)
+
+    const dn1 = await leerDn(fila)
+    const hf1 = await leerHf(fila)
+    expect(dn1).toBeGreaterThan(dn0)
+    expect(hf1).toBeLessThan(hf0)
 
     const violaciones = await verificarInvariantes(page, errores)
     expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()

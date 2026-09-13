@@ -52,40 +52,7 @@ import { sonNodosDeTeeEquivalentes } from './sonPropsDeDimensionamientoEquivalen
 import type { Proyecto } from '../../modelo/proyecto'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import type { identificarFilasPrincipalesDeLocales } from './identificarFilasDeModulo2'
-import { obtenerIndiceTopologicoDeContexto, obtenerTramosEntrantesIndexados, type ContextoDeCalculoM2 } from '../../motor/tuberias/contextoDeCalculoM2'
-import { obtenerIndiceEstimacionLocalizada } from '../../motor/tuberias/presion/resolverPerdidaLocalizadaEstimadaDeCamino'
-
-// HYD-EST: una tee aguas arriba puede usar el caudal de más de una UF.
-// Sólo se inspeccionan dependencias cuando cambió la lista de UF y el resto
-// de las props ya es equivalente. Agregar UF vacías o editar una rama que
-// no alimenta las tees recorridas no invalida esta tarjeta.
-function sonAportesCompartidosEquivalentes(prev: PropsDeSeccionDeUnidadFuncional, next: PropsDeSeccionDeUnidadFuncional): boolean {
-  if (prev.proyecto.unidadesFuncionales === next.proyecto.unidadesFuncionales ||
-      next.proyecto.configuracionHidraulica.metodoPerdidaLocalizada !== 'estimado') return true
-  const red = next.proyecto.redHidraulica
-  if (red === undefined) return true
-  const anteriores = new Map(prev.proyecto.unidadesFuncionales.map(u => [u.id, u]))
-  const cambiadas = new Set(next.proyecto.unidadesFuncionales.filter(u => anteriores.get(u.id) !== u).map(u => u.id))
-  const terminalesCambiados = red.nodos.filter(n => n.referencia?.tipo === 'artefacto' && cambiadas.has(n.referencia.unidadFuncionalId))
-  if (terminalesCambiados.length === 0) return true
-  const contexto = next.contextoDeCalculo
-  const estimacion = obtenerIndiceEstimacionLocalizada(next.proyecto, contexto)
-  const indice = obtenerIndiceTopologicoDeContexto(contexto, red)
-  const entrantes = obtenerTramosEntrantesIndexados(contexto, red.tramos)
-  const tramosDeTee = new Set<string>()
-  for (const nodo of red.nodos) {
-    if (nodo.referencia?.tipo !== 'artefacto' || nodo.referencia.unidadFuncionalId !== next.uf.id) continue
-    const camino = estimacion.caminos.get(nodo.id)
-    if (camino?.tipo !== 'camino') continue
-    for (const tramo of camino.tramos) {
-      if (entrantes.get(tramo.nodoOrigenId)?.length === 1 && indice.tramosSalientesPorNodo.get(tramo.nodoOrigenId)?.length === 2) tramosDeTee.add(tramo.id)
-    }
-  }
-  return terminalesCambiados.every(n => {
-    const camino = estimacion.caminos.get(n.id)
-    return camino?.tipo !== 'camino' || !camino.tramos.some(t => tramosDeTee.has(t.id))
-  })
-}
+import type { ContextoDeCalculoM2 } from '../../motor/tuberias/contextoDeCalculoM2'
 
 export type PropsDeSeccionDeUnidadFuncional = {
   readonly proyecto: Proyecto
@@ -111,7 +78,6 @@ export function sonPropsDeSeccionDeUnidadFuncionalEquivalentes(
     // para Demanda (M1).
     prev.proyecto.parametros.tipoDeProyecto === next.proyecto.parametros.tipoDeProyecto &&
     prev.catalogoArtefactos === next.catalogoArtefactos &&
-    prev.onCambiar === next.onCambiar &&
-    sonAportesCompartidosEquivalentes(prev, next)
+    prev.onCambiar === next.onCambiar
   )
 }

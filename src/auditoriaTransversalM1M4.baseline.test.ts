@@ -36,7 +36,6 @@
 // y Tabla N°1 sin cambios (la altura sólo mueve el `z` geométrico).
 import { describe, it, expect } from 'vitest'
 import { proyectoInicial } from './interfaz/paginas/proyectoDeEjemplo'
-import { ejemploConBifurcacionesDefinidas } from './pruebas/fixtures/ejemploConBifurcacionesDefinidas'
 import type { Proyecto } from './modelo/proyecto'
 import { catalogoArtefactos } from './normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion } from './normativa/eras-2023/coeficientes-mayoracion'
@@ -175,13 +174,13 @@ function m4Snapshot(p: Proyecto) {
 
 // --- construcción del Proyecto canónico ---------------------------------
 
-function canonico(conBifurcacionesDefinidas = true): Proyecto {
+function canonico(): Proyecto {
   // Se conserva la configuración hidráulica nativa del proyecto de ejemplo
   // (modo Rápido: simplificada + estimadas) -- es exactamente lo que ve el
   // usuario al abrir la app. El modo Profesional exige cotas por terminal
   // que esta red de ejemplo no declara; ese eje ya está cubierto por los
   // tests de M2. La baseline transversal usa el proyecto tal cual.
-  let p: Proyecto = backfillLongitudesDePredimensionamiento(conBifurcacionesDefinidas ? ejemploConBifurcacionesDefinidas(proyectoInicial) : proyectoInicial)
+  let p: Proyecto = backfillLongitudesDePredimensionamiento(proyectoInicial)
   // M2: cota de la raíz de la red (el panel la pide como "pelo de agua
   // mínimo" en tanque / "cota del punto de alimentación" en directa). Sin
   // ella el balance de cada terminal queda 'desnivelIncompleto'. Los
@@ -209,18 +208,6 @@ function canonico(conBifurcacionesDefinidas = true): Proyecto {
 
 describe('D-δ.70 · Baseline funcional transversal M1–M4', () => {
   const base = canonico()
-
-  it('HYD-EST: el demo original con fan-out conserva M1/M3/M4 y deja M2 incompleto sin presión ficticia', () => {
-    const demo = canonico(false)
-    const m2 = balanceM2(demo).estado
-    expect(m2.estado).toBe('incompleto')
-    if (m2.estado !== 'incompleto') throw new Error('se esperaba incompleto')
-    expect(m2.motivos.some(m => m.tipo === 'perdidaLocalizadaEstimadaIncompleta' && m.tramosNoResueltos.some(t => t.motivo === 'derivacionMultipleNoModelada'))).toBe(true)
-    expect(margenCritico(demo)).toBeUndefined()
-    expect(qcGlobal(demo)).toBe(qcGlobal(base))
-    expect(m3General(demo)).toEqual(m3General(base))
-    expect(m4Snapshot(demo)).toEqual(m4Snapshot(base))
-  })
 
   it('SNAPSHOT: el Proyecto canónico atraviesa M1→M4 con estado coherente', () => {
     const qc = qcGlobal(base)
@@ -277,15 +264,17 @@ describe('D-δ.70 · Baseline funcional transversal M1–M4', () => {
     // uniforme de 1,00 m, la ducha queda 1,00 m más alta y el margen pasa
     // a −17,664 m.c.a. (sigue NO CUMPLE).
     //
-    // HYD-EST: el canónico ahora atraviesa `ejemploConBifurcacionesDefinidas`
-    // (tees explícitas 1→2 con tramos propios en vez del fan-out 1→N
-    // original), lo que agrega tramos reales a los caminos AF/AC y cambia
-    // la hf distribuida y las singularidades estimadas por terminal. El
-    // margen pasa a −20,164 m.c.a. (sigue NO CUMPLE). M1/M3/M4/Tabla N°1
-    // intactos (ver test HYD-EST de más arriba, que compara contra el demo
-    // original con fan-out).
+    // FIX-HYD-EST-SIMPLIFIED-01: la plantilla estimada de pérdida
+    // localizada vuelve a ser agregada por (Local, red) (n−1 tees,
+    // singularidad terminal y llave de paso únicas), pero ahora la
+    // velocidad de referencia es la del Tramo REPRESENTATIVO de ese
+    // Local+red -- la misma fila que el usuario ve/edita en Módulo 2 --
+    // en vez del máximo entre los tramos que alimentan cada terminal
+    // individual. En el canónico eso cambia la Vref de la fila "Baño 1 ·
+    // AF" y el margen pasa a −19,437 m.c.a. (sigue NO CUMPLE). M1/M3/M4/
+    // Tabla N°1 intactos.
     if (m2.estado.estado === 'completo') {
-      expect(m2.estado.terminalMasDesfavorable.margen_mca).toBeCloseTo(-20.164, 3)
+      expect(m2.estado.terminalMasDesfavorable.margen_mca).toBeCloseTo(-19.437, 3)
       expect(m2.estado.terminalMasDesfavorable.cumpleMinimo).toBe(false)
     }
   })

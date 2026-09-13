@@ -8,7 +8,6 @@
 import type { UnidadFuncional } from '../../modelo/proyecto'
 import type { DiagnosticoIncompletitudModulo2 } from '../../motor/modulo2/resolverEstadoModulo2'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
-import { humanizarPerdidaEstimada } from './humanizarPerdidaEstimada'
 
 function pluralizar(n: number, singular: string, plural: string): string {
   return n === 1 ? singular : plural
@@ -98,15 +97,12 @@ export function agruparMotivosDeModulo2(
 
   const perdidaLocalizadaEstimadaIncompleta = motivos.filter((m) => m.tipo === 'perdidaLocalizadaEstimadaIncompleta')
   if (perdidaLocalizadaEstimadaIncompleta.length > 0) {
-    const causas = perdidaLocalizadaEstimadaIncompleta.flatMap(m => m.tramosNoResueltos)
-    const causasTopologicas = causas.filter(t => t.motivo !== 'sinDemanda' && t.motivo !== 'sinCandidatoAdmisible')
-    if (causasTopologicas.length > 0) lineas.push(`Pérdida localizada estimada incompleta. ${humanizarPerdidaEstimada(causasTopologicas.map(t => t.motivo))}`)
     const n = new Set(
       perdidaLocalizadaEstimadaIncompleta.flatMap((m) =>
-        m.tramosNoResueltos.filter(t => t.motivo === 'sinDemanda' || t.motivo === 'sinCandidatoAdmisible').map(t => t.tramoId),
+        m.tipo === 'perdidaLocalizadaEstimadaIncompleta' ? m.tramosNoResueltos.map((t) => t.tramoId) : [],
       ),
     ).size
-    if (n > 0) lineas.push(`Falta velocidad comercial resoluble en ${formatearNumero(n, 'conteo')} ${pluralizar(n, 'tramo', 'tramos')} (pérdida localizada estimada).`)
+    lineas.push(`Falta velocidad comercial resoluble en ${formatearNumero(n, 'conteo')} ${pluralizar(n, 'tramo', 'tramos')} (pérdida localizada estimada).`)
   }
 
   const balanceIncompleto = motivos.filter((m) => m.tipo === 'balanceIncompleto')

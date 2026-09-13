@@ -47,8 +47,10 @@ import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia
 import { contarTerminalesFisicosDeLocal } from '../../motor/tuberias/topologia/contarTerminalesFisicosDeLocal'
 import {
   resolverPerdidaLocalizadaEstimadaDeLocal,
+  KS_ESTIMADO_TEE,
+  KS_ESTIMADO_SINGULARIDAD_TERMINAL,
+  KS_ESTIMADO_LLAVE_DE_PASO,
 } from '../../motor/tuberias/presion/resolverPerdidaLocalizadaEstimadaDeLocal'
-import { humanizarPerdidaEstimada } from './humanizarPerdidaEstimada'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 import { ETIQUETA_RED, nombresDeArtefactosAguasAbajo } from './humanizarModulo2'
 import { construirArbolDeLocal, type NodoDelArbolDeLocal } from './construirArbolDeLocal'
@@ -341,32 +343,34 @@ function ResumenEstimadoDeLocal({
     catalogoSistemasDeTuberia,
   )
 
+  if (resultado.tipo === 'incompleta') {
+    return (
+      <p>
+        Pérdida localizada estimada incompleta: {resultado.tramosNoResueltos.length} tramo(s) sin velocidad
+        comercial resoluble.
+      </p>
+    )
+  }
+
   return (
     <div>
       <p>
         <small>Pérdidas localizadas: Estimadas</small>
       </p>
-      <p>{formatearNumero(resultado.nTerminalesLocal, 'conteo')} terminales · hf localizada por recorrido</p>
+      <p>
+        {formatearNumero(resultado.nTerminalesLocal, 'conteo')} terminales · {formatearNumero(resultado.nTeesEstimadas, 'conteo')}{' '}
+        tees estimadas · hf localizada: {formatearNumero(resultado.hf_m, 'm')} m.c.a.
+      </p>
       <details>
         <summary>Ver cálculo</summary>
-        <p>Cada recorrido usa las velocidades actuales de sus tramos. Incluye sólo la singularidad de su propio terminal.</p>
-        {resultado.caminos.map(({ terminalId, resultado: camino }) => {
-          const alimentador = redHidraulica.tramos.find(t => t.nodoDestinoId === terminalId)
-          const nombre = alimentador === undefined ? 'Terminal' : nombresDeArtefactosAguasAbajo(proyecto, catalogoArtefactos, alimentador.id)
-          return <div key={terminalId}>
-            <p><strong>{nombre}</strong> · {camino.tipo === 'estimada'
-              ? `hf localizada: ${formatearNumero(camino.hf_m, 'm')} m.c.a.`
-              : 'Pérdida localizada estimada incompleta'}</p>
-            {camino.tipo === 'incompleta'
-              ? <p>{humanizarPerdidaEstimada(camino.tramosNoResueltos.map(t => t.motivo))}</p>
-              : <ul>{camino.porSingularidad.map((s, i) => <li key={i}>
-                {s.tipo === 'tee' ? 'Tee del recorrido' : s.tipo === 'terminal' ? 'Singularidad terminal' : 'Llave de paso local'}
-                {' · K: '}{formatearNumero(s.ks, 'adimensional')}
-                {' · V: '}{formatearNumero(s.velocidad_mps, 'm/s')} m/s
-                {' · hf: '}{formatearNumero(s.hf_m, 'm')} m.c.a.
-              </li>)}</ul>}
-          </div>
-        })}
+        <p>Configuración típica IUAS (D-δ.45)</p>
+        <p>Tees estimadas: {formatearNumero(resultado.nTeesEstimadas, 'conteo')} · Ks por tee: {formatearNumero(KS_ESTIMADO_TEE, 'adimensional')}</p>
+        <p>
+          Singularidad terminal: {formatearNumero(resultado.nSingularidadTerminal, 'conteo')} · Ks: {formatearNumero(KS_ESTIMADO_SINGULARIDAD_TERMINAL, 'adimensional')}
+        </p>
+        <p>Llave de paso: {formatearNumero(resultado.nLlaveDePaso, 'conteo')} · Ks: {formatearNumero(KS_ESTIMADO_LLAVE_DE_PASO, 'adimensional')}</p>
+        <p>V referencia: {formatearNumero(resultado.velocidadReferencia_mps, 'm/s')} m/s (máxima velocidad real entre los tramos que alimentan directamente los terminales de este Local+red)</p>
+        <p>Cobertura: estimada (completa dentro de esta metodología)</p>
       </details>
     </div>
   )
