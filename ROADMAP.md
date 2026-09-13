@@ -2766,8 +2766,9 @@ salvo bug inequívoco o decisión roja explícita.
     de ejemplo; uno corrupto se ignora sin borrarse (diagnosticable) y
     no rompe el arranque.
   - **Export/Import:** botones "Exportar proyecto" / "Importar
-    proyecto" en el header, junto a "Reiniciar cálculo" (acciones
-    globales de proyecto). Import es atómico: leer → parsear → validar
+    proyecto" en el header, junto a "Reiniciar cálculo" (renombrado a
+    "Nuevo proyecto" en FIX-PERSIST-01-NUEVO-PROYECTO-01, D-δ.120 --
+    acciones globales de proyecto). Import es atómico: leer → parsear → validar
     → recién ahí reemplazar, con confirmación previa del usuario; un
     archivo inválido nunca toca el proyecto activo. Reutiliza
     `DialogoDeConfirmacion` existente.
@@ -2806,6 +2807,40 @@ salvo bug inequívoco o decisión roja explícita.
     API, múltiples proyectos/slots, historial de versiones, cifrado,
     compresión.
   - **Estado:** `PERSIST-01: CERRADO — pendiente validación manual`.
+
+- **D-δ.120 — FIX-PERSIST-01-NUEVO-PROYECTO-01: renombrar "Reiniciar
+  cálculo" → "Nuevo proyecto" (CERRADO — pendiente validación manual).**
+  Hotfix Nivel C, exclusivamente de copy/UX -- sin cambios de
+  persistencia, serializer, autosave, import/export, `localStorage`,
+  bootstrap, factory (`crearProyectoVacio`) ni motor. La etiqueta
+  "Reiniciar cálculo" era ambigua (podía leerse como "recalcular" o
+  "refrescar resultados"); el comportamiento real siempre fue reemplazar
+  el proyecto activo por un proyecto vacío nuevo -- ahora la copy lo dice
+  literal.
+  - **Copy:** botón `Reiniciar cálculo` → `Nuevo proyecto`; diálogo de
+    confirmación título `¿Reiniciar el cálculo?` → `Nuevo proyecto`,
+    descripción → "Se reemplazará el proyecto actual. Si querés
+    conservarlo, exportalo antes. ¿Continuar?", botón de confirmación
+    `Reiniciar` → `Crear nuevo proyecto`. Botón "Cancelar" sin cambios.
+  - **Sin cambios de comportamiento** (confirmado por arqueología antes
+    de tocar código, sin decisión roja): mismo handler
+    (`reiniciarCalculo`), misma factory (`crearProyectoVacio`), mismos
+    nombres internos/refs/estado/clase CSS (`app-header__reiniciar`) --
+    sólo texto visible y comentarios que hubieran quedado desactualizados.
+    Ubicación sin cambios (junto a Exportar/Importar proyecto); sin
+    estilo destructivo ni iconos nuevos.
+  - **Tests:** Vitest sigue **1875/1875** (ningún test unit nuevo --
+    el cambio es de copy, no de lógica). E2E: `tests/e2e/reiniciar-calculo.spec.ts`
+    renombrado a `tests/e2e/nuevo-proyecto.spec.ts` con selectores/copy
+    actualizados, más dos casos nuevos exigidos por el brief (Cancelar
+    conserva proyecto Y autosave tras un refresh; Confirmar sobrevive a
+    un refresh) -- 2 casos × desktop/mobile, verde. `modo-de-trabajo.spec.ts`
+    Caso 5 actualizado (mismo comportamiento, nueva copy). `tsc -b` /
+    `e2e:typecheck` / `build` limpios. ESLint **11/0/0** (mismo baseline,
+    sin errores nuevos). No se repitió el gate de fuzz Nivel A (la lógica
+    de persistencia no cambió).
+  - **Estado:** `FIX-PERSIST-01-NUEVO-PROYECTO-01: CERRADO — pendiente
+    validación manual`.
 
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto

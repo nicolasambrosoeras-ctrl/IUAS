@@ -13720,3 +13720,45 @@ preexistente).
 visual manual`. Tras esa validación: `REPORT-01C: CERRADO`.
 `REPORT-01: CERRADO` (M1-M4 + Verificación, memoria de cálculo trazable,
 cierre visual validado).
+
+## D-δ.120 — FIX-PERSIST-01-NUEVO-PROYECTO-01: renombrar "Reiniciar cálculo" → "Nuevo proyecto" — CERRADA (pendiente validación manual)
+
+Hotfix Nivel C, exclusivamente de copy/UX sobre PERSIST-01 (D-δ.119,
+técnicamente cerrado y desplegado). La etiqueta "Reiniciar cálculo" era
+semánticamente ambigua -- podía leerse como "volver a calcular" o
+"refrescar resultados" -- cuando su comportamiento real, desde
+GEOM-UX-01, siempre fue reemplazar el proyecto activo por un proyecto
+vacío nuevo (`crearProyectoVacio()`). Arqueología previa confirmó que no
+había ninguna lógica distinta a renombrar (sin decisión roja): mismo
+handler, misma factory, mismo remonte del subárbol de trabajo vía
+`generacionDeProyecto`, mismo `DialogoDeConfirmacion` reutilizado.
+
+**Cambios (sólo presentación):**
+- Botón: `Reiniciar cálculo` → `Nuevo proyecto`.
+- Diálogo: título `¿Reiniciar el cálculo?` → `Nuevo proyecto`;
+  descripción → "Se reemplazará el proyecto actual. Si querés
+  conservarlo, exportalo antes. ¿Continuar?"; botón de confirmación
+  `Reiniciar` → `Crear nuevo proyecto`. "Cancelar" sin cambios.
+- Ubicación, estilo (secundario, sin color destructivo) e íconos: sin
+  cambios -- sigue junto a "Exportar proyecto" / "Importar proyecto".
+- Nombres internos sin cambios (no forman parte del contrato de UI):
+  `reiniciarCalculo`, `confirmandoReinicio`, `botonReiniciarRef`,
+  `.app-header__reiniciar`. Comentarios de código que citaban la copy
+  vieja se actualizaron para no quedar desactualizados
+  (`crearProyectoVacio.ts`, `modelo/proyecto/index.ts`,
+  `AccionesDeProyecto.tsx`, `sistema-visual.css`).
+
+**Tests:** `tests/e2e/reiniciar-calculo.spec.ts` renombrado a
+`tests/e2e/nuevo-proyecto.spec.ts`, selectores/copy actualizados, y
+ampliado con los dos casos que exigía el brief del hotfix: Cancelar deja
+el proyecto Y el autosave intactos (verificado con un refresh posterior,
+no sólo con el estado en memoria); Confirmar sobrevive a un refresh
+(autosave se actualiza solo, PERSIST-01 §27-§33). `modo-de-trabajo.spec.ts`
+Caso 5 actualizado a la copy nueva, mismo comportamiento verificado.
+Vitest sigue **1875/1875** (ningún test unit nuevo -- cambio de copy, no
+de lógica). `tsc -b` / `e2e:typecheck` / `build` limpios. ESLint
+**11/0/0** (mismo baseline preexistente). No se repitió el gate de fuzz
+Nivel A ni el 20×30: la lógica de persistencia no cambió.
+
+**Estado:** `FIX-PERSIST-01-NUEVO-PROYECTO-01: CERRADO — pendiente
+validación manual`.
