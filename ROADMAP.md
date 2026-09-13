@@ -2648,6 +2648,51 @@ salvo bug inequívoco o decisión roja explícita.
     validación visual manual`. Recién tras esa validación, `REPORT-01B:
     CERRADO` (sin condicional) y se habilita **REPORT-01C**.
 
+- **D-δ.117 — REPORT-01C: Medidores (M3) + Alimentación y reserva (M4)
+  en la memoria de cálculo (CERRADO — pendiente validación visual
+  manual).** Cierra conceptualmente REPORT-01: M1-M4 con la misma
+  filosofía de memoria de cálculo. `SeccionM3DeInforme`/
+  `SeccionM4DeInforme` pasan A TRAVÉS de `ResultadoModulo3`/
+  `ResultadoModulo4` (mismo criterio que `resultadoM1`) -- ningún
+  Qcl/C/hf/Qconn/Pcalc/Dc/VReserva se recalcula en la capa de
+  presentación.
+  - **M3:** tabla (medidor/ámbito/Q/DN/C/adopción/hf) + desarrollo de
+    cálculo (`hfMedidor = 0,036·(Qcl/C)^2`) con un caso representativo
+    real. "No corresponde medidor individual" cuando el proyecto no es
+    de propiedad horizontal (CRIT-A34, nunca C=0/hf=0 fabricados). Nota
+    de alcance cuando hay ACS individual (el medidor de agua fría de la
+    UF también alcanza su recorrido de agua caliente -- nunca un
+    medidor AC ficticio).
+  - **M4:** conexión (Qconn vía Tabla N°1, DN, Pacera, desnivel con
+    signo, Pcalc) + reserva (Qc/Qconn/Dc/Tc/VReserva) con desarrollo de
+    cálculo (`Pcalc = Pacera − desnivelConexion`, `Dc = máx(0,
+    Qc−Qconn)`, `VReserva = Dc·3,6·Tc`). Adopción siempre distingue
+    volumen calculado vs. adoptado. Esquema `directa` omite el bloque de
+    reserva (irrelevante para ese esquema). CRIT-A39 (cota mínima de
+    agua estimada en modo Rápido) reutiliza el mismo valor ya resuelto
+    para la Verificación -- no se recalcula.
+  - **Consistencia M3/M4 ↔ Verificación:** ambas secciones nuevas
+    consumen la MISMA resolución que ya usa la Verificación
+    (`entradas.peloDeAguaMinimoEfectivo`, `criticoRef`) -- test explícito
+    de que `hfMedidor` del terminal crítico coincide con el medidor de
+    M3 que le aplica, y que el esquema de M4 coincide con el origen que
+    consume la Verificación.
+  - **Motor:** confirmado SIN CAMBIOS. Ningún criterio, fórmula,
+    coeficiente ni Tabla N°1/N°6 se tocó.
+  - **Tests:** Vitest **1832/1832** (176 archivos; +18 nuevos). `tsc -b`
+    / `e2e:typecheck` / `build` limpios. ESLint **11/0/0** (mismo
+    baseline preexistente).
+  - **Fuera de alcance (confirmado, no implementado):** reserva
+    alternativa 12/24 h, Pmin alternativos, reevaluación de accesorios
+    tipo, VIS-TOPO, PERSIST, ubicación final del botón "Generar
+    memoria", hfEquipoACS.
+  - **Validación manual pendiente:** generar la Memoria de cálculo
+    completa desde producción y revisar M3/M4 (medidores, alcance,
+    capacidad, hf, fórmulas; esquema, conexión, presión, Dc, Tc,
+    VReserva, volumen calculado/adoptado; coherencia con Verificación).
+  - **Estado:** `REPORT-01C: CERRADO — pendiente validación visual
+    manual`. Tras esa validación: `REPORT-01: CERRADO`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
@@ -2662,8 +2707,8 @@ optimizaciones, D-δ.78 — `v0.4.0-beta.4`) → **UX-03 / HYD-UX-01**
 Profesional, D-δ.79 — `v0.4.0-beta.5`) → **UX-TEST-01** (NO iniciada:
 observación de uso real de terceros; su output prioriza bugs / UX /
 contenido / nomenclatura "puntos" de M2 / PERSIST-01) → **REPORT-01**
-(**REPORT-01A cerrado D-δ.114, REPORT-01B cerrado D-δ.115** →
-REPORT-01C pendiente).
+(**REPORT-01A cerrado D-δ.114, REPORT-01B cerrado D-δ.115,
+REPORT-01C cerrado D-δ.117** — pendiente validación visual manual final).
 
 **REPORT-01 — memoria técnica integral.** Extender el generador
 `pdfMake` (arrancaba centrado sólo en M1) hacia: Datos del proyecto ·
@@ -2683,9 +2728,14 @@ UI-01B/UI-01C.
   localizada estimada y del terminal crítico), cabecera corregida
   ("Memoria de cálculo", ya no "Módulo: demanda"), polish visual de
   tablas densas. Ver detalle en el delta D-δ.115 más arriba.
-- **REPORT-01C (NO iniciada):** M3 (medidores) completo, M4 completo
-  (esquema, Qconexión, reserva, volumen adoptado), desarrollos de
-  cálculo correspondientes, observaciones finales consolidadas.
+- **REPORT-01C (D-δ.117, cerrado):** M3 (medidores) y M4 (esquema,
+  Qconexión, reserva, volumen calculado/adoptado) incorporados como
+  memoria de cálculo, con desarrollo matemático y consistencia explícita
+  con la Verificación. Ver detalle en el delta D-δ.117 más arriba.
+
+**REPORT-01: técnicamente completo (M1-M4 + Verificación, como memoria
+de cálculo trazable) — pendiente validación visual manual final antes
+de considerarlo `CERRADO` sin condicional.**
 
 **Hallazgos de M4-A:**
 

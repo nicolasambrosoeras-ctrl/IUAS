@@ -13595,3 +13595,75 @@ preexistente).
 visual manual`. Recién tras esa validación: `REPORT-01B: CERRADO` (sin
 condicional), y se habilita **REPORT-01C — M3 + M4 + observaciones
 finales**.
+
+## D-δ.117 — REPORT-01C: Medidores (M3) + Alimentación y reserva (M4) en la memoria de cálculo — CERRADA (pendiente validación visual manual)
+
+Cierra conceptualmente REPORT-01: la memoria de cálculo cubre ahora
+M1-M4 + Verificación con la misma filosofía (dato/fórmula/variables/
+sustitución/resultado/unidad/procedencia) en las cinco secciones.
+
+**Arqueología M3:** `resolverEstadoModulo3` compone
+`seleccionarMedidorGeneral`/`seleccionarMedidorIndividual` (núcleo común
+`resolverSeleccionYPerdidaDeMedidor`, Tabla N°6/CRIT-A32) +
+`resolverMedidorAdoptado` (M3-D, D-δ.57: recomendado automático vs.
+adoptado manual, con `hf` recalculada desde el DN adoptado -- nunca
+desde el automático). `calcularPerdidaCargaMedidor` confirma la fórmula
+6 de ERAS-2023: `Jm = 0,036·(Qcl/C)^2`, `Qcl` en l/min, `C` en m³/h.
+CRIT-A34 vive en `resolverAlcancesDeMedidoresIndividuales` +
+`tipoProvisionACSEfectivo`: con ACS individual, el alcance del medidor
+de una UF es SIEMPRE `aguaFria` únicamente (nunca se genera un alcance
+`aguaCaliente` adicional para esa UF) -- confirmado con test explícito
+de que ninguna UF con ACS individual aparece con más de un servicio
+medido. El puente M3→M2 (`resolverPerdidasDeMedidoresParaTerminal`,
+D-δ.58) ya hacía explícito que el medidor de agua fría de una UF con
+ACS individual aporta su `hf` también a los terminales de agua caliente
+de esa UF -- la memoria sólo documenta esta regla ya cerrada, no la
+reimplementa.
+
+**Arqueología M4:** `resolverEstadoModulo4` compone
+`resolverPresionDeCalculoDeConexion` (CRIT-A37: `Pcalc = Pacera −
+desnivelConexion`, resta firmada sin `Math.abs()`), `resolverGastoTabla01`
+(Tabla N°1 §2.7, con interpolación lineal explícita entre dos filas
+tabuladas o presión exacta), `calcularReservaDiaria` (CRIT-A35: `Dc =
+máx(0, Qc−Qconexión)`, `VReserva = Dc[m³/h]·Tc[h]`) y
+`resolverAdopcionDeReserva` (CRIT-A38: capacidad adoptada vs. requerida,
+con el caso `cisternaBombeoElevado` verificando además el mínimo de 1/3
+por tanque, §2.11.3). Ninguna fórmula se tocó.
+
+**Decisión de arquitectura:** `SeccionM3DeInforme`/`SeccionM4DeInforme`
+pasan A TRAVÉS de `ResultadoModulo3`/`ResultadoModulo4` casi sin
+remodelar (mismo criterio ya usado por `resultadoM1` desde REPORT-01A):
+el renderer arma sus propios textos con `formatearNumero` directamente
+sobre los campos del motor, en vez de que `resolverDatosDeInforme.ts`
+preformatee cada string. Esto redujo significativamente el código
+nuevo del snapshot y evita una capa de remapeo que no aportaba valor
+(los tipos del motor ya son legibles y están bien documentados).
+
+**Consistencia explícita M3/M4 ↔ Verificación (brief §26/§27):** en vez
+de recalcular nada para comparar, ambas secciones nuevas CONSUMEN la
+misma resolución que ya usa la Verificación --
+`resolverSeccionVerificacion` ahora también devuelve
+`peloDeAguaMinimoEfectivo` (ya resuelto por `resolverEntradasDeVerificacion`)
+para que M4 lo reutilice sin llamar de nuevo a
+`resolverPeloDeAguaMinimoEfectivo`. La consistencia es estructural, no
+verificada por casualidad: un test confirma que `hfMedidor` del
+desarrollo del terminal crítico coincide exactamente con el medidor de
+M3 que le aplica (mismo camino, mismo dato), y otro que el esquema que
+documenta M4 coincide con el origen que consumió la Verificación.
+
+**Fuera de alcance (confirmado explícitamente, no implementado):**
+reserva alternativa 12/24 h, Pmin alternativos, reevaluación de
+accesorios tipo, VIS-TOPO, PERSIST, ubicación final del botón "Generar
+memoria técnica", `hfEquipoACS`.
+
+**Tests:** Vitest 1832/1832 (176 archivos, +18 nuevos). `tsc -b` /
+`e2e:typecheck` / `build` limpios. ESLint 11/0/0 (mismo baseline
+preexistente).
+
+**Motor:** confirmado SIN CAMBIOS.
+
+**Estado:** `REPORT-01C: CERRADO — pendiente validación visual manual`.
+Tras esa validación: `REPORT-01: CERRADO` (M1-M4 + Verificación, memoria
+de cálculo trazable). Siguiente fase futura: observaciones/advertencias
+finales consolidadas, si se decide abrir un REPORT-01D, o directamente
+otros pendientes (UX-TEST-01, PERSIST-01, ubicación del botón).
