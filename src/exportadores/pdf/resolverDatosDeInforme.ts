@@ -28,6 +28,7 @@ import { resolverEstadoModulo4 } from '../../motor/modulo4/resolverEstadoModulo4
 import type { EstadoModulo2 } from '../../motor/modulo2/resolverEstadoModulo2'
 import { resolverResolucionDeModulo2 } from '../../interfaz/paginas/resolverResolucionDeModulo2'
 import { resolverFilaDeDimensionamiento, type EstadoDeFila } from '../../interfaz/paginas/resolverFilaDeDimensionamiento'
+import { resolverResultadoDeTramoParaUi } from '../../interfaz/paginas/resolverResultadoDeTramoParaUi'
 import {
   identificarFilasDistribucionGeneral,
   identificarFilasPrincipalesDeLocales,
@@ -84,7 +85,12 @@ export type FilaDeTuberiaDeInforme = {
   readonly etiqueta: string
   readonly red: RedDeTramo
   readonly longitudTexto: string
+  // DN comercial adoptado ("20 mm", denominación de catálogo) -- DISTINTO
+  // de diTexto (FIX-REPORT-01B-VISUAL-01, P3: antes se mostraba el mismo
+  // valor dos veces bajo una única columna "DN / Di" ambigua).
   readonly dnTexto: string
+  // Di REAL interior efectivo, en mm, bare number sin unidad ("14,40") --
+  // nunca igual al DN comercial (ver comentario de dnTexto).
   readonly diTexto: string
   readonly vTexto: string
   readonly qcTexto: string
@@ -184,6 +190,13 @@ function resolverFilaDeTuberiaDeInforme(
   contexto: ReturnType<typeof crearContextoDeCalculoM2>,
 ): FilaDeTuberiaDeInforme {
   const fila = resolverFilaDeDimensionamiento(proyecto, tramoId, catalogoArtefactos, contextoLocal, contexto)
+  // P3 (FIX-REPORT-01B-VISUAL-01): DN (denominación comercial, "20 mm") y Di
+  // real ("14,40" mm) son datos DISTINTOS -- resolverFilaDeDimensionamiento
+  // (view-model compartido con la UI) sólo expone el DN. Se relee
+  // diEfectivoTexto de resolverResultadoDeTramoParaUi para el mismo tramoId
+  // sobre el MISMO contexto memoizado -- no es una segunda resolución
+  // hidráulica, es leer un campo que ese resolver ya calcula y expone.
+  const diReal = resolverResultadoDeTramoParaUi(proyecto, tramoId, catalogoArtefactos, contexto).textos.diEfectivoTexto
   const hfLocalizadaTexto =
     fila.hfLocalizadaEstimada_mca === undefined ? GUION : `${formatearNumero(fila.hfLocalizadaEstimada_mca, 'm')} m.c.a.`
   return {
@@ -193,7 +206,7 @@ function resolverFilaDeTuberiaDeInforme(
     red,
     longitudTexto: longitudTextoDeTramo(proyecto, tramoId),
     dnTexto: fila.dnTexto,
-    diTexto: fila.dnTexto,
+    diTexto: diReal,
     vTexto: `${fila.vTexto} m/s`,
     qcTexto: fila.qcTexto,
     hfDistribuidaTexto: `${fila.hfDistribuidaTexto} m.c.a.`,

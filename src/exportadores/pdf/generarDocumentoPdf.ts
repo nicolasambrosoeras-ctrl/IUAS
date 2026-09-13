@@ -59,7 +59,20 @@ function etiquetaRegimen(regimen: RegimenLocal | undefined): string {
 // se recorta el sufijo conocido para la celda de una tabla compacta. Es
 // manipulación de string sobre un valor ya formateado, nunca un recálculo.
 function soloValor(texto: string): string {
-  return texto.replace(/ m\.c\.a\.$/, '').replace(/ m\/s$/, '').replace(/ m$/, '')
+  return texto.replace(/ m\.c\.a\.$/, '').replace(/ m\/s$/, '').replace(/ mm$/, '').replace(/ m$/, '')
+}
+
+// Notación científica ASCII-segura (FIX-REPORT-01B-VISUAL-01, P6): pdfMake
+// ya renderiza bien `1,6286e-4` como texto (no hay glifo roto), pero es
+// poco legible en una Memoria profesional. Es manipulación de PRESENTACIÓN
+// sobre un número ya calculado -- no cambia ningún valor.
+function formatearNotacionCientifica(valor: number, decimales: number): string {
+  if (valor === 0) {
+    return '0'
+  }
+  const exponente = Math.floor(Math.log10(Math.abs(valor)))
+  const mantisa = valor / Math.pow(10, exponente)
+  return `${mantisa.toFixed(decimales).replace('.', ',')} × 10^${exponente}`
 }
 
 export interface EntradaGeneracionPdf {
@@ -228,19 +241,22 @@ function renderizarVerificacionM1(v: Verificacion): Content {
 // M2 -- Tuberías / Montantes
 // ---------------------------------------------------------------------
 
-const ANCHOS_TABLA_TUBERIA = ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto']
-const ENCABEZADO_TABLA_TUBERIA = ['Tramo / Local', 'Red', 'Long. [m]', 'DN / Di', 'V [m/s]', 'Pérdida [m.c.a.]', 'Estado']
+const ANCHOS_TABLA_TUBERIA = ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto']
+const ENCABEZADO_TABLA_TUBERIA = ['Tramo / Local', 'Red', 'Long. [m]', 'DN [mm]', 'Di [mm]', 'V [m/s]', 'Pérdida [m.c.a.]', 'Estado']
 
-// Badge compacto PROPIO del PDF (REPORT-01B §19): la etiqueta larga
-// "○ DN mínimo comercial" que ya usa la UI interactiva (ETIQUETA_ESTADO en
+// Badge compacto PROPIO del PDF (REPORT-01B §19, corregido en
+// FIX-REPORT-01B-VISUAL-01 P2): la etiqueta larga "○ DN mínimo comercial"
+// que ya usa la UI interactiva (ETIQUETA_ESTADO en
 // resolverFilaDeDimensionamiento.ts) se parte letra por letra en la columna
-// angosta de una tabla impresa. Se arma acá, a partir del mismo `estado`
-// crudo ('ok'|'controlar'|'incompleto') que ya expone el dominio -- no
-// reinterpreta el estado, sólo cambia cuántas palabras usa para mostrarlo.
+// angosta de una tabla impresa. Los símbolos ✓/⚠ del primer intento se
+// veían como glifos rotos con la fuente vfs de pdfMake -- se reemplazan
+// por texto ASCII robusto. Se arma a partir del mismo `estado` crudo
+// ('ok'|'controlar'|'incompleto') que ya expone el dominio -- no
+// reinterpreta el estado, sólo cambia cuántas palabras/símbolos usa.
 const ETIQUETA_ESTADO_PDF: Readonly<Record<FilaDeTuberiaDeInforme['estado'], string>> = {
-  ok: '✓',
+  ok: 'OK',
   controlar: 'DN mín.',
-  incompleto: '⚠ Incompl.',
+  incompleto: 'Incompleto',
 }
 
 function filaDeTablaTuberia(fila: FilaDeTuberiaDeInforme): (string | Content)[] {
@@ -248,7 +264,8 @@ function filaDeTablaTuberia(fila: FilaDeTuberiaDeInforme): (string | Content)[] 
     fila.etiqueta,
     fila.red === 'AF' ? 'AF' : 'AC',
     soloValor(fila.longitudTexto),
-    fila.dnTexto,
+    soloValor(fila.dnTexto),
+    fila.diTexto,
     soloValor(fila.vTexto),
     soloValor(fila.perdidaTotalTexto),
     ETIQUETA_ESTADO_PDF[fila.estado],
@@ -268,8 +285,15 @@ function tablaDeTuberia(filas: readonly FilaDeTuberiaDeInforme[]): Content {
 }
 
 const FORMULA_VELOCIDAD = ['A = π · Di² / 4', 'V = Q / A']
+// P1 (FIX-REPORT-01B-VISUAL-01): la fórmula de Hazen-Williams se veía rota
+// -- combinaba superíndices Unicode apilados (dígito + punto + dígitos,
+// "¹∙⁸⁵²"/"⁴∙⁸⁷") que la fuente vfs de pdfMake no representa bien, y
+// además mostraba "Q³" (incorrecto: el exponente real es 1,852, no 3).
+// ASCII técnico estable (`^1,852`, `^4,87`) en vez de superíndice --
+// mismos exponentes que ya usa correctamente la sustitución numérica de
+// abajo (CRIT-A17), sólo se corrige el texto de la fórmula general.
 const FORMULA_PERDIDA_DISTRIBUIDA: Readonly<Record<'hazenWilliams' | 'darcyWeisbach', readonly string[]>> = {
-  hazenWilliams: ['J = 10,67 · Q³ / (C¹∙⁸⁵² · Di⁴∙⁸⁷)  [Q en m³/s, Di en m -- CRIT-A17]', 'hf = J · L'],
+  hazenWilliams: ['J = 10,67 · Q^1,852 / (C^1,852 · Di^4,87)  [Q en m³/s, Di en m -- CRIT-A17]', 'hf = J · L'],
   darcyWeisbach: ['hf = f · (L / Di) · (V² / (2·g))  [g = 9,81 m/s² -- CRIT-A18]'],
 }
 
@@ -280,18 +304,19 @@ function renderizarCasoVelocidadYPerdidaDistribuida(caso: CasoVelocidadYPerdidaD
   const q_m3s = caso.qc_lps / 1000
   const di_m = caso.diametroInteriorEfectivo_mm / 1000
   const a_m2 = (Math.PI * di_m ** 2) / 4
+  const a_m2Texto = formatearNotacionCientifica(a_m2, 4)
   const sustitucionV =
-    `A = π·Di²/4 = π·(${formatearNumero(caso.diametroInteriorEfectivo_mm, 'mm')}mm)²/4 = ${a_m2.toExponential(4)} m²` +
-    `  →  V = Q/A = ${formatearNumero(caso.qc_lps, 'l/s')} l/s / ${a_m2.toExponential(4)} m² = ${formatearNumero(caso.velocidad_mps, 'm/s')} m/s`
+    `A = π·Di²/4 = π·(${formatearNumero(caso.diametroInteriorEfectivo_mm, 'mm')}mm)²/4 = ${a_m2Texto} m²` +
+    `  →  V = Q/A = ${formatearNumero(caso.qc_lps, 'l/s')} l/s / ${a_m2Texto} m² = ${formatearNumero(caso.velocidad_mps, 'm/s')} m/s`
 
   const detalleTexto: string[] =
     caso.detalle.metodo === 'hazenWilliams'
       ? [
-          `J = 10,67 · (${q_m3s.toExponential(3)})^1,852 / (${formatearNumero(caso.detalle.coeficienteC, 'adimensional')}^1,852 · ${di_m.toFixed(4)}^4,87) = ${caso.detalle.perdidaUnitaria_J_m_m.toExponential(4)} m/m`,
-          `hf = J · L = ${caso.detalle.perdidaUnitaria_J_m_m.toExponential(4)} × ${formatearNumero(caso.longitud_m, 'm')} m = ${formatearNumero(caso.hfDistribuida_m, 'm')} m.c.a.`,
+          `J = 10,67 · (${formatearNotacionCientifica(q_m3s, 4)})^1,852 / (${formatearNumero(caso.detalle.coeficienteC, 'adimensional')}^1,852 · ${di_m.toFixed(4)}^4,87) = ${formatearNotacionCientifica(caso.detalle.perdidaUnitaria_J_m_m, 4)} m/m`,
+          `hf = J · L = ${formatearNotacionCientifica(caso.detalle.perdidaUnitaria_J_m_m, 4)} × ${formatearNumero(caso.longitud_m, 'm')} m = ${formatearNumero(caso.hfDistribuida_m, 'm')} m.c.a.`,
         ]
       : [
-          `Re = ${caso.detalle.reynolds.toFixed(0)} (ν = ${caso.detalle.viscosidadCinematica_m2s.toExponential(3)} m²/s @ ${formatearNumero(caso.detalle.temperaturaReferencia_C, 'adimensional')}°C)`,
+          `Re = ${caso.detalle.reynolds.toFixed(0)} (ν = ${formatearNotacionCientifica(caso.detalle.viscosidadCinematica_m2s, 4)} m²/s @ ${formatearNumero(caso.detalle.temperaturaReferencia_C, 'adimensional')}°C)`,
           `f = ${formatearNumero(caso.detalle.factorFriccion, 'adimensional')} (rugosidad = ${formatearNumero(caso.detalle.rugosidadAbsoluta_mm, 'mm')} mm)`,
           `hf = f · (L/Di) · (V²/2g) = ${formatearNumero(caso.detalle.factorFriccion, 'adimensional')} × (${formatearNumero(caso.longitud_m, 'm')}/${di_m.toFixed(4)}) × (${formatearNumero(caso.velocidad_mps, 'm/s')}²/19,62) = ${formatearNumero(caso.hfDistribuida_m, 'm')} m.c.a.`,
         ]
@@ -524,7 +549,11 @@ function renderizarDesarrolloCritico(d: DesarrolloTerminalCritico): Content[] {
   return [
     { text: 'Desarrollo de cálculo del terminal crítico', style: 'subseccion' },
     {
-      text: `${d.ufNombre} — ${d.localEtiqueta} — ${d.artefactoNombre}${d.red !== undefined ? ` (${d.red})` : ''}`,
+      // P4 (FIX-REPORT-01B-VISUAL-01): `d.localEtiqueta` ya incluye el
+      // nombre de la UF (etiquetaHumanaDeLocal, "Baño 1 · Unidad
+      // funcional 1") -- anteponer `d.ufNombre` la duplicaba
+      // ("Unidad funcional 1 — Baño 1 · Unidad funcional 1 — ...").
+      text: `${d.localEtiqueta} — ${d.artefactoNombre}${d.red !== undefined ? ` (${d.red})` : ''}`,
       style: 'subseccionNivel',
     },
     { text: `Cota terminal: ${cotaTexto} · Origen: ${d.origenTexto}`, style: 'metadatos' },
@@ -553,7 +582,12 @@ function renderizarSeccionVerificacion(datos: DatosDeInforme): Content[] {
   const { verificacion, origenM4Texto } = datos
   const contenido: Content[] = [
     { text: 'Verificación hidráulica', style: 'seccion', pageOrientation: 'landscape' },
-    { text: `Origen hidráulico: ${verificacion.origenTexto} (${origenM4Texto})`, style: 'metadatos' },
+    // P4 (FIX-REPORT-01B-VISUAL-01): origenM4Texto ya es una descripción
+    // completa ("Alimentación directa (sin tanque de reserva)", "Tanque
+    // elevado", "Cisterna + bombeo + tanque elevado") -- envolverla junto
+    // a verificacion.origenTexto duplicaba el mismo label ("Alimentación
+    // directa (Alimentación directa (sin tanque de reserva))").
+    { text: `Origen hidráulico: ${origenM4Texto}`, style: 'metadatos' },
     {
       text: `Presión disponible: ${verificacion.presionDisponibleTexto ?? 'No provista todavía'}`,
       style: 'metadatos',
@@ -604,6 +638,15 @@ function renderizarSeccionVerificacion(datos: DatosDeInforme): Content[] {
   }
 
   if (verificacion.filas.length > 0) {
+    // P5 (FIX-REPORT-01B-VISUAL-01): sin este salto, la tabla arrancaba
+    // apretada contra el desarrollo del crítico y terminaba desbordando a
+    // una página final casi vacía con sólo las últimas filas -- pdfMake
+    // no mide alturas por nosotros (no se calculan posiciones en JS), sólo
+    // se le da un punto de corte explícito para que la tabla empiece
+    // limpia al tope de una página nueva y fluya de forma natural desde
+    // ahí (headerRows:1 ya repite el encabezado en cada página que la
+    // tabla ocupe, sin configuración adicional).
+    contenido.push({ text: 'Detalle de verificación por terminal', style: 'subseccion', pageBreak: 'before' })
     contenido.push({
       table: {
         headerRows: 1,
