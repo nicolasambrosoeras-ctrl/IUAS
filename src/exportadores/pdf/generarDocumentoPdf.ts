@@ -1,13 +1,13 @@
-// Renderizador de PDF (ADR-012, exportadores/pdf). Recibe el Proyecto y su
-// ResultadoDeCalculo y produce el documento -- nunca recalcula (C-05).
-// A1: contrato mínimo {proyecto, resultado}, no la MemoriaDeProyecto
-// completa (ADR-014) -- esa forma exige enlaces/criteriosAplicados/modulos
-// que todavía no tienen contenido real para un único módulo (Demanda).
+// Renderizador de PDF (ADR-012, exportadores/pdf). Recibe un DatosDeInforme
+// (snapshot DERIVADO y puro, ver resolverDatosDeInforme.ts) y produce el
+// documento -- nunca recalcula (C-05). REPORT-01A: el informe deja de estar
+// centrado únicamente en M1 (Demanda) y agrega Tuberías (M2) y Verificación
+// hidráulica; M3 (medidores) y M4 (alimentación/reserva) completos quedan
+// para REPORT-01B (ver ROADMAP.md).
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import type { Content, TDocumentDefinitions } from 'pdfmake/interfaces'
-import type { Local, Proyecto, RegimenLocal, TipoDeLocal, UnidadFuncional } from '../../modelo/proyecto'
-import { localesDeUnidadFuncional } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
+import type { Local, Proyecto, RegimenLocal, TipoDeLocal } from '../../modelo/proyecto'
 import type { Paso, ResultadoDeCalculo, Verificacion } from '../../modelo/resultado'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
@@ -17,6 +17,13 @@ import {
   textoValorCalculado,
 } from '../../presentacion/desarrolloDelCalculoDemanda'
 import { formatearNumero } from './formatearNumero'
+import {
+  resolverDatosDeInforme,
+  type DatosDeInforme,
+  type FilaDeTuberiaDeInforme,
+  type FilaDeVerificacionDeInforme,
+  type UnidadFuncionalDeInforme,
+} from './resolverDatosDeInforme'
 
 pdfMake.addVirtualFileSystem(pdfFonts)
 
@@ -45,7 +52,6 @@ function etiquetaRegimen(regimen: RegimenLocal | undefined): string {
 
 export interface EntradaGeneracionPdf {
   readonly proyecto: Proyecto
-  readonly resultado: ResultadoDeCalculo
 }
 
 function renderizarDatosDelProyecto(proyecto: Proyecto): Content {
@@ -62,6 +68,10 @@ function renderizarDatosDelProyecto(proyecto: Proyecto): Content {
     margin: [0, 0, 0, 4],
   }
 }
+
+// ---------------------------------------------------------------------
+// M1 -- Demanda (multinivel-aware, GEOM-UX-01)
+// ---------------------------------------------------------------------
 
 // extraerN replica exactamente la misma lógica que ya usa la interfaz
 // (MotorDemandaPantalla.tsx): n no vive en resultado.resultados, solo en
@@ -143,21 +153,22 @@ function renderizarLocal(local: Local): Content {
   }
 }
 
-function renderizarUnidadFuncional(uf: UnidadFuncional): Content {
+function renderizarUnidadFuncionalM1(uf: UnidadFuncionalDeInforme): Content {
+  const cuerpo: Content[] = uf.mostrarNiveles
+    ? uf.niveles.flatMap((nivel): Content[] => [
+        { text: `Nivel: ${nivel.nombre}`, style: 'subseccionNivel' },
+        ...nivel.locales.map(renderizarLocal),
+      ])
+    : uf.niveles.flatMap((nivel) => nivel.locales.map(renderizarLocal))
+
   return {
-    stack: [
-      { text: `Unidad funcional: ${uf.nombre}`, style: 'subseccion' },
-      ...localesDeUnidadFuncional(uf).map(renderizarLocal),
-    ],
+    stack: [{ text: `Unidad funcional: ${uf.nombre}`, style: 'subseccion' }, ...cuerpo],
     margin: [0, 0, 0, 8],
   }
 }
 
-function renderizarUnidadesFuncionales(proyecto: Proyecto): Content[] {
-  return [
-    { text: 'Unidades funcionales', style: 'seccion' },
-    ...proyecto.unidadesFuncionales.map(renderizarUnidadFuncional),
-  ]
+function renderizarUnidadesFuncionalesM1(unidadesFuncionales: readonly UnidadFuncionalDeInforme[]): Content[] {
+  return [{ text: 'Unidades funcionales', style: 'seccion' }, ...unidadesFuncionales.map(renderizarUnidadFuncionalM1)]
 }
 
 function renderizarPaso(paso: Paso): Content {
@@ -192,7 +203,7 @@ function renderizarPaso(paso: Paso): Content {
   }
 }
 
-function renderizarVerificacion(v: Verificacion): Content {
+function renderizarVerificacionM1(v: Verificacion): Content {
   const noConforme = v.estado === 'no_conforme'
   const texto =
     `${v.concepto}: ${formatearNumero(v.valorObtenido.valor, v.valorObtenido.unidad)} ${v.valorObtenido.unidad}` +
@@ -201,38 +212,250 @@ function renderizarVerificacion(v: Verificacion): Content {
   return { text: texto, style: noConforme ? 'noConforme' : 'conforme', margin: [0, 2, 0, 2] }
 }
 
-export function generarDocumentoPdf(entrada: EntradaGeneracionPdf): void {
-  const { proyecto, resultado } = entrada
-  const docDefinition: TDocumentDefinitions = {
+// ---------------------------------------------------------------------
+// M2 -- Tuberías / Montantes
+// ---------------------------------------------------------------------
+
+const ANCHOS_TABLA_TUBERIA = ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto']
+const ENCABEZADO_TABLA_TUBERIA = ['Tramo / Local', 'Red', 'Longitud', 'DN / Di', 'V', 'Pérdida', 'Estado']
+
+function filaDeTablaTuberia(fila: FilaDeTuberiaDeInforme): (string | Content)[] {
+  return [
+    fila.etiqueta,
+    fila.red === 'AF' ? 'AF' : 'AC',
+    fila.longitudTexto,
+    fila.dnTexto,
+    fila.vTexto,
+    fila.perdidaTotalTexto,
+    fila.estadoTexto,
+  ]
+}
+
+function tablaDeTuberia(filas: readonly FilaDeTuberiaDeInforme[]): Content {
+  return {
+    table: {
+      headerRows: 1,
+      widths: ANCHOS_TABLA_TUBERIA,
+      body: [ENCABEZADO_TABLA_TUBERIA, ...filas.map(filaDeTablaTuberia)],
+    },
+    fontSize: 8,
+    margin: [0, 2, 0, 8],
+  }
+}
+
+function renderizarSeccionM2(m2: DatosDeInforme['m2']): Content[] {
+  if (!m2.hayRedHidraulica) {
+    return [
+      { text: 'Tuberías', style: 'seccion' },
+      { text: 'El proyecto todavía no tiene una red hidráulica modelada (Módulo 2).', style: 'advertencia' },
+    ]
+  }
+
+  const contenido: Content[] = [
+    { text: 'Tuberías', style: 'seccion' },
+    {
+      text: `Método de pérdida localizada: ${m2.metodoPerdidaLocalizada === 'estimado' ? 'Estimadas' : 'Detalladas'}`,
+      style: 'metadatos',
+    },
+  ]
+
+  if (m2.distribucionGeneral.length > 0) {
+    contenido.push({ text: 'Distribución general / secundaria', style: 'subseccion' })
+    contenido.push(tablaDeTuberia(m2.distribucionGeneral))
+  }
+  if (m2.distribucionSecundaria.length > 0) {
+    contenido.push(tablaDeTuberia(m2.distribucionSecundaria))
+  }
+
+  if (m2.locales.length > 0) {
+    contenido.push({ text: 'Unidades funcionales — Locales', style: 'subseccion' })
+    for (const grupo of m2.locales) {
+      contenido.push({ text: grupo.nombre, style: 'subseccionNivel' })
+      contenido.push(tablaDeTuberia(grupo.filas))
+    }
+  }
+
+  if (m2.montantes.length > 0) {
+    contenido.push({ text: 'Montantes', style: 'subseccion' })
+    for (const montante of m2.montantes) {
+      contenido.push({
+        text: `${montante.nombre} (${montante.red === 'AF' ? 'Agua fría' : 'Agua caliente'})`,
+        style: 'subseccionNivel',
+      })
+      contenido.push({
+        text:
+          montante.localesServidos.length > 0
+            ? `Locales alimentados: ${montante.localesServidos.join(', ')}`
+            : 'Sin locales alimentados todavía.',
+        style: 'metadatos',
+      })
+      if (montante.segmentos.length > 0) {
+        contenido.push(tablaDeTuberia(montante.segmentos))
+      }
+    }
+  }
+
+  return contenido
+}
+
+// ---------------------------------------------------------------------
+// Verificación hidráulica
+// ---------------------------------------------------------------------
+
+const ANCHOS_TABLA_VERIFICACION = ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto']
+const ENCABEZADO_TABLA_VERIFICACION = [
+  'Local / Artefacto',
+  'Red',
+  'Δz',
+  'hf dist.',
+  'hf loc.',
+  'hf medidor',
+  'P residual',
+  'Pmin',
+  'Margen',
+]
+
+function estiloDeFilaVerificacion(fila: FilaDeVerificacionDeInforme): string {
+  if (fila.esCritico) {
+    return 'filaCritica'
+  }
+  if (fila.estado === 'completo' && fila.cumple === false) {
+    return 'filaNoConforme'
+  }
+  return 'filaNormal'
+}
+
+function filaDeTablaVerificacion(fila: FilaDeVerificacionDeInforme): Content[] {
+  const etiqueta = `${fila.localEtiqueta} — ${fila.artefactoNombre}${fila.esCritico ? ' (crítico)' : ''}`
+  const estadoTexto =
+    fila.estado === 'completo'
+      ? fila.cumple
+        ? 'Cumple'
+        : 'No cumple'
+      : fila.estado === 'fueraDeAlcance'
+        ? (fila.notaTexto ?? 'Fuera de alcance')
+        : (fila.notaTexto ?? 'Incompleto')
+  const estilo = estiloDeFilaVerificacion(fila)
+  const celda = (texto: string): Content => ({ text: texto, style: estilo })
+  return [
+    celda(etiqueta),
+    celda(fila.red ?? '—'),
+    celda(fila.desnivelTexto),
+    celda(fila.hfDistribuidaTexto),
+    celda(fila.hfLocalizadaTexto),
+    celda(fila.hfMedidorTexto),
+    celda(fila.presionResidualTexto),
+    celda(fila.presionMinimaTexto),
+    celda(fila.estado === 'completo' ? fila.margenTexto : estadoTexto),
+  ]
+}
+
+function renderizarSeccionVerificacion(datos: DatosDeInforme): Content[] {
+  const { verificacion, origenM4Texto } = datos
+  const contenido: Content[] = [
+    { text: 'Verificación hidráulica', style: 'seccion', pageOrientation: 'landscape' },
+    { text: `Origen hidráulico: ${verificacion.origenTexto} (${origenM4Texto})`, style: 'metadatos' },
+    {
+      text: `Presión disponible: ${verificacion.presionDisponibleTexto ?? 'No provista todavía'}`,
+      style: 'metadatos',
+    },
+  ]
+
+  if (verificacion.estadoGlobal === 'noIniciado') {
+    contenido.push({ text: 'Módulo 2 todavía no fue iniciado.', style: 'advertencia' })
+    return contenido
+  }
+  if (verificacion.estadoGlobal === 'error') {
+    contenido.push({ text: 'El proyecto tiene errores estructurales que impiden verificar la presión.', style: 'advertencia' })
+    return contenido
+  }
+
+  if (verificacion.terminalCriticoNodoId !== undefined) {
+    const critico = verificacion.filas.find((f) => f.nodoId === verificacion.terminalCriticoNodoId)
+    if (critico !== undefined) {
+      contenido.push({
+        table: {
+          widths: ['auto', '*'],
+          body: [
+            ['Terminal crítico', `${critico.localEtiqueta} — ${critico.artefactoNombre}`],
+            ['Presión residual', critico.presionResidualTexto],
+            ['Presión mínima', critico.presionMinimaTexto],
+            ['Margen', critico.margenTexto],
+            ['Estado', critico.cumple ? 'Cumple' : 'No cumple'],
+          ],
+        },
+        style: 'filaCritica',
+        margin: [0, 4, 0, 8],
+      })
+    }
+  } else {
+    contenido.push({ text: 'Todavía no se puede determinar un terminal crítico.', style: 'advertencia' })
+  }
+
+  if (verificacion.motivosDeIncompletitud.length > 0) {
+    contenido.push({ text: 'Verificación incompleta', style: 'subseccion' })
+    contenido.push(...verificacion.motivosDeIncompletitud.map((linea): Content => ({ text: `- ${linea}`, style: 'advertencia' })))
+  }
+
+  if (verificacion.filas.length > 0) {
+    contenido.push({
+      table: {
+        headerRows: 1,
+        widths: ANCHOS_TABLA_VERIFICACION,
+        body: [ENCABEZADO_TABLA_VERIFICACION, ...verificacion.filas.map(filaDeTablaVerificacion)],
+      },
+      fontSize: 7,
+      margin: [0, 4, 0, 4],
+    })
+  }
+
+  return contenido
+}
+
+// ---------------------------------------------------------------------
+// Documento
+// ---------------------------------------------------------------------
+
+// Puramente sintáctico (arma el docDefinition de pdfMake) -- sin efectos ni
+// llamada al motor. Separado de generarDocumentoPdf para poder testear la
+// ESTRUCTURA del informe (secciones, paginación, contenido de tablas) sin
+// depender de la apertura real del PDF en el navegador (brief §26/§33).
+export function construirDocDefinition(datos: DatosDeInforme): TDocumentDefinitions {
+  const { proyecto, resultadoM1 } = datos
+  return {
     content: [
-      { text: 'IUAS -- Memoria de cálculo', style: 'encabezado' },
+      { text: 'IUAS -- Informe técnico', style: 'encabezado' },
       {
-        text: `Módulo: ${resultado.metadatos.moduloId} | App v${resultado.metadatos.versionApp} | Normativa ${resultado.metadatos.versionNormativa}`,
+        text: `Módulo: ${resultadoM1.metadatos.moduloId} | App v${resultadoM1.metadatos.versionApp} | Normativa ${resultadoM1.metadatos.versionNormativa}`,
         style: 'metadatos',
       },
       renderizarDatosDelProyecto(proyecto),
-      ...renderizarUnidadesFuncionales(proyecto),
-      ...renderizarResumenResultados(resultado),
-      ...(resultado.advertencias.length > 0
+      ...renderizarUnidadesFuncionalesM1(datos.unidadesFuncionalesM1),
+      ...renderizarResumenResultados(resultadoM1),
+      ...(resultadoM1.advertencias.length > 0
         ? [
             { text: 'Advertencias', style: 'seccion' } as Content,
-            ...resultado.advertencias.map((a): Content => ({ text: `- ${a.mensaje}`, style: 'advertencia' })),
+            ...resultadoM1.advertencias.map((a): Content => ({ text: `- ${a.mensaje}`, style: 'advertencia' })),
           ]
         : []),
-      { text: 'Desarrollo del cálculo', style: 'seccion' },
-      ...resultado.pasos.map(renderizarPaso),
-      ...(resultado.verificaciones.length > 0
+      { text: 'Desarrollo del cálculo (Demanda)', style: 'seccion' },
+      ...resultadoM1.pasos.map(renderizarPaso),
+      ...(resultadoM1.verificaciones.length > 0
         ? [
-            { text: 'Verificaciones', style: 'seccion' } as Content,
-            ...resultado.verificaciones.map(renderizarVerificacion),
+            { text: 'Verificaciones normativas (Demanda)', style: 'seccion' } as Content,
+            ...resultadoM1.verificaciones.map(renderizarVerificacionM1),
           ]
         : []),
+      { text: '', pageBreak: 'before' },
+      ...renderizarSeccionM2(datos.m2),
+      ...renderizarSeccionVerificacion(datos),
     ],
     styles: {
       encabezado: { fontSize: 16, bold: true, margin: [0, 0, 0, 4] },
       metadatos: { fontSize: 8, color: '#555555', margin: [0, 0, 0, 12] },
       seccion: { fontSize: 12, bold: true, margin: [0, 8, 0, 4] },
-      subseccion: { fontSize: 10, bold: true, margin: [0, 2, 0, 0] },
+      subseccion: { fontSize: 10, bold: true, margin: [0, 6, 0, 2] },
+      subseccionNivel: { fontSize: 9, bold: true, italics: true, margin: [0, 4, 0, 2] },
       qcDestacado: { fontSize: 13, bold: true, margin: [0, 0, 0, 4] },
       tituloPaso: { fontSize: 10, bold: true },
       formula: { fontSize: 10, italics: true, margin: [0, 2, 0, 2] },
@@ -241,9 +464,15 @@ export function generarDocumentoPdf(entrada: EntradaGeneracionPdf): void {
       advertencia: { fontSize: 9, color: '#8a6d00' },
       conforme: { fontSize: 9, color: '#1a7a1a' },
       noConforme: { fontSize: 9, bold: true, color: '#b00020', fillColor: '#fdecea' },
+      filaNormal: { fontSize: 7 },
+      filaNoConforme: { fontSize: 7, color: '#b00020' },
+      filaCritica: { fontSize: 8, bold: true, color: '#b00020' },
     },
     defaultStyle: { fontSize: 10 },
   }
+}
 
-  pdfMake.createPdf(docDefinition).open()
+export function generarDocumentoPdf(entrada: EntradaGeneracionPdf): void {
+  const datos = resolverDatosDeInforme(entrada.proyecto, catalogoArtefactos, coeficientesMayoracion)
+  pdfMake.createPdf(construirDocDefinition(datos)).open()
 }

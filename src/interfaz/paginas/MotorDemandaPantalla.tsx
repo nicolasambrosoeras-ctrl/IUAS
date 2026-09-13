@@ -1697,8 +1697,8 @@ function ResultadoDemandaModulo1({
       <summary>Resultado de demanda</summary>
       <Advertencias advertencias={resultado.advertencias} />
       <Resultados resultado={resultado} />
-      <button type="button" onClick={() => generarDocumentoPdf({ proyecto, resultado })}>
-        Generar memoria PDF de Demanda
+      <button type="button" onClick={() => generarDocumentoPdf({ proyecto })}>
+        Generar informe técnico PDF
       </button>
       <Pasos pasos={resultado.pasos} />
     </details>
