@@ -148,7 +148,7 @@ test.describe('MODE-UX-01 · modo de trabajo desacoplado de la configuración hi
     expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
   })
 
-  test('Caso 5 · Reiniciar cálculo desde Profesional custom deja proyecto vacío en Rápido, sin memoria Profesional vieja', async ({
+  test('Caso 5 · Nuevo proyecto desde Profesional custom deja proyecto vacío en Rápido, sin memoria Profesional vieja', async ({
     page,
     errores,
     baseURLEfectiva,
@@ -159,11 +159,11 @@ test.describe('MODE-UX-01 · modo de trabajo desacoplado de la configuración hi
     await irATuberias(page)
     await fijarEjes(page, CUSTOM_PROFESIONAL)
 
-    // Reiniciar cálculo.
-    await page.getByRole('button', { name: 'Reiniciar cálculo' }).click()
+    // Nuevo proyecto (antes "Reiniciar cálculo", FIX-PERSIST-01-NUEVO-PROYECTO-01).
+    await page.getByRole('button', { name: 'Nuevo proyecto' }).click()
     const dialogo = page.getByRole('dialog')
     await expect(dialogo).toBeVisible()
-    await dialogo.getByRole('button', { name: 'Reiniciar', exact: true }).click()
+    await dialogo.getByRole('button', { name: 'Crear nuevo proyecto', exact: true }).click()
     await estabilizar(page)
 
     // Proyecto vacío real y modo Rápido (crearProyectoVacio fija

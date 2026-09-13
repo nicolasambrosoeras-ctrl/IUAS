@@ -1,5 +1,6 @@
-// GEOM-UX-01 §14-§16 — "Reiniciar cálculo" produce un proyecto vacío
-// REAL (no el de ejemplo) y estructuralmente válido.
+// GEOM-UX-01 §14-§16 — "Nuevo proyecto" (antes "Reiniciar cálculo",
+// FIX-PERSIST-01-NUEVO-PROYECTO-01) produce un proyecto vacío REAL (no
+// el de ejemplo) y estructuralmente válido.
 import { describe, it, expect } from 'vitest'
 import { crearProyectoVacio } from './crearProyectoVacio'
 import { proyectoInicial } from './proyectoDeEjemplo'

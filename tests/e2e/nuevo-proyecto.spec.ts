@@ -1,7 +1,10 @@
-// GEOM-UX-01 §13-§17 — "Reiniciar cálculo": desde el proyecto de ejemplo
-// con M1/M3/M4 tocados y estados de UI abiertos, reiniciar debe dejar un
-// proyecto VACÍO real (no el demo), con la app sana en la etapa Demanda.
-// También: Reiniciar → Cancelar conserva el proyecto intacto.
+// GEOM-UX-01 §13-§17 — "Nuevo proyecto" (antes "Reiniciar cálculo",
+// renombrado en FIX-PERSIST-01-NUEVO-PROYECTO-01 -- comportamiento sin
+// cambios): desde el proyecto de ejemplo con M1/M3/M4 tocados y estados
+// de UI abiertos, la acción debe dejar un proyecto VACÍO real (no el
+// demo), con la app sana en la etapa Demanda. También: Cancelar conserva
+// el proyecto y el autosave intactos, y Confirmar sobrevive a un refresh
+// (PERSIST-01 §27-§33: el autosave se actualiza solo).
 import { test, expect } from './qa/fixtures'
 import { cargarAppLimpia, estabilizar } from './qa/estado'
 import { verificarInvariantes, primerFallo } from './qa/invariantes'
@@ -12,8 +15,8 @@ async function irA(page: Page, nombre: RegExp): Promise<void> {
   await estabilizar(page)
 }
 
-test.describe('GEOM-UX-01 · Reiniciar cálculo', () => {
-  test('deja un proyecto vacío real (no el demo) y la app sana en Demanda', async ({
+test.describe('GEOM-UX-01 · Nuevo proyecto', () => {
+  test('deja un proyecto vacío real (no el demo), la app sana en Demanda, y sobrevive a un refresh', async ({
     page,
     errores,
     baseURLEfectiva,
@@ -52,12 +55,13 @@ test.describe('GEOM-UX-01 · Reiniciar cálculo', () => {
       await estabilizar(page)
     }
 
-    // --- Reiniciar cálculo (con confirmación) ---
-    await page.getByRole('button', { name: 'Reiniciar cálculo' }).click()
+    // --- Nuevo proyecto (con confirmación) ---
+    await page.getByRole('button', { name: 'Nuevo proyecto' }).click()
     const dialogo = page.getByRole('dialog')
     await expect(dialogo).toBeVisible()
-    await expect(dialogo.getByText('¿Reiniciar el cálculo?')).toBeVisible()
-    await dialogo.getByRole('button', { name: 'Reiniciar', exact: true }).click()
+    await expect(dialogo.getByRole('heading', { name: 'Nuevo proyecto' })).toBeVisible()
+    await expect(dialogo.getByText(/reemplazará el proyecto actual/)).toBeVisible()
+    await dialogo.getByRole('button', { name: 'Crear nuevo proyecto', exact: true }).click()
     await estabilizar(page)
 
     // --- Proyecto vacío real ---
@@ -80,22 +84,50 @@ test.describe('GEOM-UX-01 · Reiniciar cálculo', () => {
     // Sin pageerror / console.error / ids viejos / códigos técnicos / overflow.
     const violaciones = await verificarInvariantes(page, errores)
     expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+
+    // PERSIST-01: el autosave se actualiza solo -- un refresh sigue
+    // mostrando el proyecto vacío recién creado, no el demo.
+    await page.waitForTimeout(700)
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await irA(page, /Demanda/)
+    await expect(page.getByText('Total de unidades funcionales: 0')).toBeVisible()
+    await expect(page.getByText(/Proyecto vac[ií]o/)).toBeVisible()
   })
 
-  test('Reiniciar → Cancelar conserva el proyecto intacto', async ({ page, errores, baseURLEfectiva }) => {
+  test('Nuevo proyecto → Cancelar conserva el proyecto y el autosave intactos', async ({
+    page,
+    errores,
+    baseURLEfectiva,
+  }) => {
     await cargarAppLimpia(page, baseURLEfectiva)
     await irA(page, /Demanda/)
     await expect(page.getByText('Total de unidades funcionales: 1')).toBeVisible()
 
-    await page.getByRole('button', { name: 'Reiniciar cálculo' }).click()
+    // Modificar el proyecto ANTES de cancelar, para que exista un autosave
+    // real que "Cancelar" pueda (o no) tocar -- si no se edita nada, el
+    // autosave nunca se escribió y la comprobación de "intacto" sería
+    // trivial por falta de estado, no por el comportamiento de Cancelar.
+    await page.getByRole('button', { name: '+ Agregar unidad funcional' }).first().click()
+    await estabilizar(page)
+    await expect(page.getByText('Total de unidades funcionales: 2')).toBeVisible()
+    await page.waitForTimeout(700)
+
+    await page.getByRole('button', { name: 'Nuevo proyecto' }).click()
     const dialogo = page.getByRole('dialog')
     await expect(dialogo).toBeVisible()
     await dialogo.getByRole('button', { name: 'Cancelar', exact: true }).click()
     await estabilizar(page)
 
     await expect(page.getByRole('dialog')).toHaveCount(0)
-    // El proyecto de ejemplo sigue intacto.
-    await expect(page.getByText('Total de unidades funcionales: 1')).toBeVisible()
+    // El proyecto editado sigue intacto -- Cancelar no lo tocó.
+    await expect(page.getByText('Total de unidades funcionales: 2')).toBeVisible()
+    await expect(page.getByText(/Proyecto vac[ií]o/)).toHaveCount(0)
+
+    // El autosave tampoco se tocó: un refresh sigue mostrando el proyecto
+    // editado (2 UF), no el demo original ni un proyecto vacío.
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await irA(page, /Demanda/)
+    await expect(page.getByText('Total de unidades funcionales: 2')).toBeVisible()
     await expect(page.getByText(/Proyecto vac[ií]o/)).toHaveCount(0)
 
     const violaciones = await verificarInvariantes(page, errores)
