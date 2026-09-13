@@ -4,10 +4,19 @@
 import type { Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
-// La app es una SPA: cada run parte de una pagina recien cargada, que
-// vuelve al proyecto de ejemplo (no hay persistencia todavia -- PERSIST-01).
+// La app es una SPA: cada run parte de una pagina recien cargada. Desde
+// PERSIST-01 el proyecto se autoguarda en localStorage, así que "limpia"
+// requiere borrar el autosave ANTES de navegar -- si no, un autosave
+// dejado por un test previo en el mismo contexto haría que la app
+// arranque con ese proyecto en vez del demo (Playwright aísla el storage
+// por BrowserContext, pero varios `page.goto`/reload dentro del MISMO
+// test comparten origin). No se puede escribir en localStorage antes de
+// tener un documento cargado en ese origin, por eso primero se navega y
+// recién después se limpia y se recarga.
 export async function cargarAppLimpia(page: Page, baseURL: string): Promise<void> {
   await page.goto(baseURL, { waitUntil: 'domcontentloaded' })
+  await page.evaluate(() => window.localStorage.clear())
+  await page.reload({ waitUntil: 'domcontentloaded' })
   await esperarAppLista(page)
 }
 
