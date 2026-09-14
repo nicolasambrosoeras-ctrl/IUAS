@@ -30,6 +30,7 @@
   "author": "",
   "license": "UNLICENSED",
   "dependencies": {
+    "@dagrejs/dagre": "^3.1.1",
     "pdfmake": "^0.3.11",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
