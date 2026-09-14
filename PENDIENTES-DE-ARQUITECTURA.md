@@ -13849,3 +13849,116 @@ acción (edición normal, Nuevo proyecto, o Cargar ejemplo). Sin ADR.
 
 **Estado:** `FIX-PERSIST-01-PROJECT-ACTIONS-01: CERRADO — pendiente
 validación manual`.
+
+## D-δ.123 — VIS-TOPO-01: Esquema hidráulico read-only en Módulo 2 — CERRADA (pendiente validación manual)
+
+Primer visor topológico hidráulico de IUAS, derivado y read-only, cerrando
+la serie que arrancó en `VIS-TOPO-00` (investigación,
+`docs/VIS-TOPO-00-INVESTIGACION.md`, commit documental sin D-δ propio,
+previo a D-δ.122). Detalle completo
+en `docs/VIS-TOPO-01.md`; este registro resume las decisiones de
+arquitectura y el cierre de QA.
+
+**Arquitectura de tres capas**, tal como recomendó VIS-TOPO-00 §13/§22:
+`resolverGrafoVisual.ts` (Proyecto → `GrafoVisual`, función pura, sin
+React/SVG/coordenadas) → `layoutGrafoVisual.ts` (`GrafoVisual` →
+`GrafoVisualPosicionado`, envuelve `@dagrejs/dagre`) →
+`EsquemaHidraulico.tsx` (React + SVG, pan/zoom/filtros). Ningún resolver
+del motor se modificó; `RedHidraulica` sigue siendo la única fuente de
+verdad (ADR-0001) y `resolverGrafoVisual` la consume sólo con los
+resolvers ya existentes (`proyectarMontante`, `obtenerArtefactosAguasAbajo`,
+`resolverOrigenHidraulicoEfectivo`, `crearIndiceTopologico`, etc.) más
+`indexarUbicacionDeLocales`/clasificación de nodos por conectividad,
+escritos en este slice.
+
+**Dependencia nueva:** `@dagrejs/dagre@^3.1.1` (MIT, fork mantenido del
+`dagre` histórico, tipos incluidos) — única dependencia agregada, tal
+como exigía el brief (sin ELK, sin React Flow).
+
+**Hallazgo técnico durante la implementación (no una decisión roja, sí
+documentado):** `@dagrejs/dagre` en modo multigraph puede lanzar `"Not
+possible to find intersection inside of the rectangle"` con 3+ aristas
+paralelas entre el mismo par de nodos si ese par tiene un nodo hermano en
+el mismo rank — reproducido de forma aislada con un caso mínimo,
+independiente de este código. Es exactamente el caso de un Local con 3+
+artefactos colgando del mismo nodo de derivación (p. ej. Baño con
+lavatorio+ducha+bidet), o sea, un caso MUY común, no un borde raro.
+Resuelto acotando Dagre a resolver sólo rank/orden de nodos (una arista
+por par origen/destino alcanza para eso) y calculando el trazado real de
+CADA arista (incluidas las duplicadas) con geometría propia — clip al
+borde del rectángulo del nodo + offset paralelo determinista. Ningún
+Tramo real se pierde ni se fusiona; el fan-out sigue mostrando sus N
+aristas reales tal como exige VIS-TOPO-00 §10.
+
+**Modelo `GrafoVisual`:** nodos tipados `'origen' | 'intermedio' |
+'derivacion' | 'local'`, clasificados exclusivamente por conectividad real
+(el dominio no tiene un campo `Nodo.tipo`, VIS-TOPO-00 §2) — nunca por
+heurística de nombres/orden. Local = destino agregado por
+`(unidadFuncionalId, localId)` (id determinista `local:<uf>:<local>`),
+recibiendo tantas aristas AF/AC como Tramos reales aterricen ahí, sin
+fusionarlas en una arista bicolor (VIS-TOPO-00 §11). Montante nunca es un
+nodo: sus segmentos siguen siendo aristas reales agrupadas sólo por
+`montanteId` + el nombre humano del montante adjunto una única vez, al
+primer segmento de la cadena (`proyectarMontante`). UF/Nivel son
+`GrupoVisual`, nunca nodos hidráulicos; Nivel sólo genera grupo/sublabel
+cuando la UF tiene 2+ niveles (mismo criterio que la UX de M1,
+ADR-0002 §5). DN/longitud se muestran tal como están persistidos en el
+Tramo, sin invocar el motor hidráulico — DN ausente (el caso más común,
+automático) se omite en vez de mostrar "DN pendiente" (decisión de
+implementación dentro del alcance delegado: ese texto sugeriría un dato
+faltante cuando en realidad está resuelto en otra parte de M2).
+
+**Renderer:** SVG propio (sin React Flow/Canvas/Graphviz), pan/zoom vía
+`viewBox` + pointer events + rueda del mouse, botón "Ajustar" que
+recalcula el bounding box según los nodos visibles (respeta filtros).
+Filtros AF/AC/Etiquetas con estado React efímero. Colores reutilizan los
+tokens ya existentes (`--color-af`/`--color-ac`, mismos que `BadgeDeRed`)
+— AC nunca se confunde con el rojo de error. CSS namespaced
+`.vis-topo-*` / `.esquema-hidraulico` (`esquemaHidraulico.css`), sin tocar
+reglas genéricas de M1/M2.
+
+**Ubicación:** bloque `<section className="esquema-hidraulico">` dentro
+de M2 (`ResultadoHidraulicoDeTramo.tsx`), después de
+`ListaDeUnidadesFuncionales`, visible con el mismo gate de cobertura
+física que `ConstructorDeMontantes`. Sin ruta nueva, arquitectura
+one-page intacta.
+
+**Persistencia:** confirmado sin cambios — `.iuas` no gana ningún campo
+nuevo; x/y/zoom/pan/filtros son estado React puro. Test dedicado
+(`resolverGrafoVisual.test.ts`) serializa el Proyecto antes/después de
+`resolverGrafoVisual` y exige igualdad byte a byte.
+
+**Performance:** pipeline memoizado por identidad de `proyecto` (mismo
+criterio que `ContextoDeCalculoM2`/PERF-SCALE-01C) — nunca recalcula por
+pan/zoom/filtros. Medido en E2E local sobre un proyecto de 20 UF × 5
+Locales (escala "medium" de VIS-TOPO-00 §16, generado con
+`generarProyectoDeEscala`): 203 nodos visuales, layout + render en
+~591 ms sobre build de desarrollo sin minificar. Sin evidencia de
+degradación; no se abrió un `PERF-SCALE-01` nuevo.
+
+**Tests:** Vitest **1894/1894** (+19 sobre el baseline de 1875:
+`resolverGrafoVisual.test.ts` 12 casos incluyendo los 6 de estudio de
+VIS-TOPO-00 §19 A-F, `layoutGrafoVisual.test.ts` 7 casos de invariantes
+de layout). `tsc -b` / `npm run e2e:typecheck` / `npm run build` limpios.
+ESLint sin errores nuevos (mismo baseline preexistente de 11 errores en
+archivos ajenos a este slice, no tocados). E2E dirigido nuevo
+`tests/e2e/vis-topo.spec.ts` (5 casos × desktop/mobile, 10/10 verde):
+render con nodos AF/AC reales, fan-out marcado no detallado, filtros,
+Ajustar/zoom sin crash, toggle de etiquetas. Regresión dirigida verde:
+`montantes.spec.ts`, `multinivel.spec.ts`, `multi-uf.spec.ts` (35/36 —
+el único fallo, "escala ~30 UF", se reprodujo IDÉNTICO en el código
+ANTERIOR a este slice vía `git stash`, confirmando que es preexistente y
+ajeno a VIS-TOPO-01, no un bug introducido acá), `persistencia.spec.ts`,
+`responsive.spec.ts` (incluye el caso M2 Detalladas/Profesional en mobile
+con el Esquema hidráulico ya montado, sin overflow). Fuzz proporcional de
+cierre: seed histórica `424242`, 3 runs × 25 pasos, **TODO VERDE**.
+
+**Diferido a VIS-TOPO-02** (documentado en `docs/VIS-TOPO-01.md` §11):
+expansión Local → artefactos, resaltado de terminal crítico (bloqueado
+por el hallazgo de VIS-TOPO-00 de que `resolverTerminalMasDesfavorable`
+resuelve hoy siempre `'candidatoProvisional'` en la práctica, D-δ.35
+abierta — limitación temporal conocida, no comportamiento aceptado),
+click-to-highlight, tooltips ricos, ELK si un proyecto XL lo justifica,
+reutilización del SVG en REPORT.
+
+**Estado:** `VIS-TOPO-01: CERRADO — pendiente validación manual`.
