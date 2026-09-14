@@ -234,3 +234,127 @@ test.describe('FIX-PERSIST-01-PROJECT-ACTIONS-SPACING-01 · separación entre ac
     })
   }
 })
+
+// FIX-PERSIST-01-PROJECT-ACTIONS-DESKTOP-ROW-01 · en desktop con ancho
+// suficiente las 4 acciones globales del proyecto comparten UNA sola fila
+// (antes cada par -- Nuevo/Ejemplo e Importar/Exportar -- forzaba su
+// propia fila completa vía `flex-basis: 100%`, dando siempre 2×2 sin
+// importar el ancho disponible). Medido con Playwright (no breakpoint a
+// ciegas): el wrap natural a una fila ocurre entre 680px y 700px; no se
+// fuerza ningún breakpoint adicional -- `flex-wrap` alcanza. Mobile
+// (≤560px, ver navegacionUI.css) sigue con la grilla 2×2 intacta.
+test.describe('FIX-PERSIST-01-PROJECT-ACTIONS-DESKTOP-ROW-01 · una sola fila en desktop ancho', () => {
+  const NOMBRES = ['Nuevo proyecto', 'Cargar proyecto de ejemplo', 'Importar proyecto', 'Exportar proyecto'] as const
+
+  async function cajas(page: Page) {
+    const resultado: Record<string, DOMRect> = {}
+    for (const nombre of NOMBRES) {
+      resultado[nombre] = await page
+        .getByRole('button', { name: nombre, exact: true })
+        .evaluate((el) => el.getBoundingClientRect())
+    }
+    return resultado
+  }
+
+  for (const vp of [
+    { nombre: '1280x900 (desktop)', width: 1280, height: 900 },
+    { nombre: '1440x900 (desktop ancho)', width: 1440, height: 900 },
+  ] as const) {
+    test(`las 4 acciones comparten una fila @ ${vp.nombre}`, async ({ page, errores, baseURLEfectiva }, testInfo) => {
+      test.skip(testInfo.project.name !== 'desktop', 'viewport fijado en el test')
+      await page.setViewportSize({ width: vp.width, height: vp.height })
+      await cargarAppLimpia(page, baseURLEfectiva)
+
+      const c = await cajas(page)
+
+      // Las 4 están visibles y en la misma fila (mismo `top`).
+      const tops = NOMBRES.map((n) => c[n].top)
+      for (const t of tops) {
+        expect(Math.abs(t - tops[0]), `las 4 acciones no comparten fila @ ${vp.nombre}`).toBeLessThanOrEqual(2)
+      }
+
+      // Orden X correcto: Nuevo < Cargar < Importar < Exportar.
+      for (let i = 0; i < NOMBRES.length - 1; i++) {
+        expect(
+          c[NOMBRES[i]].left,
+          `orden incorrecto entre "${NOMBRES[i]}" y "${NOMBRES[i + 1]}" @ ${vp.nombre}`,
+        ).toBeLessThan(c[NOMBRES[i + 1]].left)
+      }
+
+      // Gap horizontal >= 12px entre cada par adyacente, sin overlap.
+      for (let i = 0; i < NOMBRES.length - 1; i++) {
+        const gap = c[NOMBRES[i + 1]].left - c[NOMBRES[i]].right
+        expect(gap, `gap entre "${NOMBRES[i]}" y "${NOMBRES[i + 1]}" @ ${vp.nombre}`).toBeGreaterThanOrEqual(11)
+      }
+
+      // Anchos naturales: no cuatro columnas iguales ocupando todo el
+      // header (el ancho de "Cargar proyecto de ejemplo" -- el texto más
+      // largo -- debe ser visiblemente mayor al de "Nuevo proyecto").
+      const anchoNuevo = c['Nuevo proyecto'].right - c['Nuevo proyecto'].left
+      const anchoCargar = c['Cargar proyecto de ejemplo'].right - c['Cargar proyecto de ejemplo'].left
+      expect(anchoCargar, `anchos no son naturales @ ${vp.nombre}`).toBeGreaterThan(anchoNuevo)
+
+      const m = await medir(page)
+      expect(m.docOverflow, `documentElement overflow @ ${vp.nombre}`).toBeLessThanOrEqual(1)
+      expect(m.bodyOverflow, `body overflow @ ${vp.nombre}`).toBeLessThanOrEqual(1)
+
+      const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+      expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+    })
+  }
+
+  test('mobile conserva la grilla 2×2 (sin regresión) @ 390x844', async ({ page, errores, baseURLEfectiva }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'viewport fijado en el test')
+    await page.setViewportSize({ width: 390, height: 844 })
+    await cargarAppLimpia(page, baseURLEfectiva)
+
+    const c = await cajas(page)
+    // Nuevo/Cargar en una fila, Importar/Exportar en la fila siguiente.
+    expect(Math.abs(c['Nuevo proyecto'].top - c['Cargar proyecto de ejemplo'].top)).toBeLessThanOrEqual(2)
+    expect(Math.abs(c['Importar proyecto'].top - c['Exportar proyecto'].top)).toBeLessThanOrEqual(2)
+    expect(c['Importar proyecto'].top).toBeGreaterThan(c['Nuevo proyecto'].bottom - 2)
+
+    const m = await medir(page)
+    expect(m.docOverflow).toBeLessThanOrEqual(1)
+    expect(m.bodyOverflow).toBeLessThanOrEqual(1)
+
+    const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+  })
+
+  // Tablet/ancho intermedio: no se exige una sola fila (puede wrappear si
+  // físicamente no entra), pero nunca overlap ni overflow horizontal.
+  for (const vp of [
+    { nombre: '768x1024', width: 768, height: 1024 },
+    { nombre: '900x1024', width: 900, height: 1024 },
+    { nombre: '1024x900', width: 1024, height: 900 },
+  ] as const) {
+    test(`sin overlap ni overflow, wrap coherente @ ${vp.nombre}`, async ({ page, errores, baseURLEfectiva }, testInfo) => {
+      test.skip(testInfo.project.name !== 'desktop', 'viewport fijado en el test')
+      await page.setViewportSize({ width: vp.width, height: vp.height })
+      await cargarAppLimpia(page, baseURLEfectiva)
+
+      const c = await cajas(page)
+      // Ninguna caja se superpone con otra (overlap real en X e Y a la vez).
+      for (let i = 0; i < NOMBRES.length; i++) {
+        for (let j = i + 1; j < NOMBRES.length; j++) {
+          const a = c[NOMBRES[i]]
+          const b = c[NOMBRES[j]]
+          const seSuperponeX = a.left < b.right && b.left < a.right
+          const seSuperponeY = a.top < b.bottom && b.top < a.bottom
+          expect(
+            seSuperponeX && seSuperponeY,
+            `"${NOMBRES[i]}" y "${NOMBRES[j]}" se superponen @ ${vp.nombre}`,
+          ).toBe(false)
+        }
+      }
+
+      const m = await medir(page)
+      expect(m.docOverflow, `documentElement overflow @ ${vp.nombre}`).toBeLessThanOrEqual(1)
+      expect(m.bodyOverflow, `body overflow @ ${vp.nombre}`).toBeLessThanOrEqual(1)
+
+      const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+      expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+    })
+  }
+})

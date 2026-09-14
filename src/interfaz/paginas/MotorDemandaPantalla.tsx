@@ -1888,16 +1888,22 @@ export function MotorDemandaPantalla() {
             (única fuente de verdad, misma instancia segura que usa el
             bootstrap -- ver `cargarProyectoDeEjemplo`). Ambas con
             confirmación previa y estilo secundario/neutro, sin color de
-            alarma. */}
-        <div className="app-header__reiniciar">
-          <button type="button" ref={botonReiniciarRef} onClick={() => setConfirmandoReinicio(true)}>
-            Nuevo proyecto
-          </button>
-          <button type="button" ref={botonCargarEjemploRef} onClick={() => setConfirmandoCargaDeEjemplo(true)}>
-            Cargar proyecto de ejemplo
-          </button>
+            alarma. FIX-PERSIST-01-PROJECT-ACTIONS-DESKTOP-ROW-01: los dos
+            grupos comparten un wrapper (`app-header__acciones-globales`)
+            para que en desktop/tablet con ancho suficiente compartan una
+            sola fila en vez de que cada grupo fuerce su propia fila
+            completa (ver sistema-visual.css). */}
+        <div className="app-header__acciones-globales">
+          <div className="app-header__reiniciar">
+            <button type="button" ref={botonReiniciarRef} onClick={() => setConfirmandoReinicio(true)}>
+              Nuevo proyecto
+            </button>
+            <button type="button" ref={botonCargarEjemploRef} onClick={() => setConfirmandoCargaDeEjemplo(true)}>
+              Cargar proyecto de ejemplo
+            </button>
+          </div>
+          <AccionesDeProyecto proyecto={proyecto} onImportar={importarProyecto} />
         </div>
-        <AccionesDeProyecto proyecto={proyecto} onImportar={importarProyecto} />
       </header>
 
       {confirmandoReinicio ? (

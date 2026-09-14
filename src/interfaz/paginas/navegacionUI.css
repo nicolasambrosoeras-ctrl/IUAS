@@ -257,9 +257,15 @@
      2×2. CSS Grid de 2 columnas fijas lo garantiza en cualquier ancho de
      este rango: cada fila SIEMPRE tiene 2 celdas de igual ancho, el
      texto del botón envuelve dentro de su celda si hace falta ("Cargar
-     proyecto de ejemplo" en dos líneas a 360px) en vez de apilarse. */
+     proyecto de ejemplo" en dos líneas a 360px) en vez de apilarse.
+     FIX-PERSIST-01-PROJECT-ACTIONS-DESKTOP-ROW-01: cada grupo vuelve a
+     necesitar `flex-basis: 100%` acá (fuera de mobile ya no lo tiene,
+     ver sistema-visual.css) para que las columnas del grid tengan un
+     ancho de referencia -- si no, el grupo se angosta a su contenido y
+     las 2 columnas del grid colapsan. */
   .app-header__reiniciar,
   .app-header__acciones-proyecto {
+    flex-basis: 100%;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

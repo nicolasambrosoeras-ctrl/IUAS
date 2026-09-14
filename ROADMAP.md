@@ -2988,6 +2988,42 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `VIS-TOPO-01B-SIDEBAR-ORTHO: CERRADO — pendiente
     validación manual`.
 
+- **D-δ.125 — FIX-PERSIST-01-PROJECT-ACTIONS-DESKTOP-ROW-01: una sola
+  fila para las 4 acciones globales del proyecto en desktop (CERRADO —
+  pendiente validación manual).** Microfix Nivel C, exclusivamente
+  layout -- sin cambios de handlers, copy, confirmaciones ni
+  persistencia. En desktop ancho las 4 acciones seguían leyéndose 2×2
+  aunque sobraba espacio horizontal para una sola fila: causa raíz, los
+  dos grupos (`.app-header__reiniciar` e `.app-header__acciones-proyecto`)
+  cada uno con `flex-basis: 100%` propio, forzaban su propia fila
+  completa dentro de `.app-header` sin importar el ancho disponible --
+  no era un problema de `flex-wrap` faltante. Fix: nuevo wrapper
+  `.app-header__acciones-globales` (envuelve ambos grupos en
+  `MotorDemandaPantalla.tsx`, sin tocar la lógica de `AccionesDeProyecto`)
+  que hereda el `flex-basis: 100%` (ahora es él, y no cada grupo, quien
+  ocupa su propia fila bajo título/modo); los dos grupos internos
+  perdieron ese `flex-basis: 100%` fuera de mobile, así que
+  `flex-wrap` + `gap` naturales los dejan compartir una sola fila cuando
+  entran. Mobile (`@media max-width: 560px`, `navegacionUI.css`)
+  conserva la grilla 2×2 intacta -- los grupos recuperan
+  `flex-basis: 100%` sólo ahí (necesario para que las 2 columnas del
+  grid tengan un ancho de referencia). Medido con Playwright en
+  360/390/561/580/600/620/650/680/700/720/740/768/900/1024/1280/1440px
+  (no breakpoint a ciegas): el wrap natural a una fila ocurre entre
+  680px y 700px, sin overflow ni overlap en ningún ancho probado. Test
+  E2E nuevo en `responsive.spec.ts` (fila única + orden + gap ≥12px en
+  1280/1440, grilla 2×2 intacta en 390, sin overlap/overflow en
+  768/900/1024) más los 12 tests responsive/spacing preexistentes,
+  todos verdes. Smoke funcional verde (`nuevo-proyecto`,
+  `cargar-proyecto-de-ejemplo`, `persistencia` -- exportar/importar).
+  Vitest 1899/1901 (2 fallos preexistentes de timeout en tests de
+  performance del motor, confirmados como no relacionados: reproducen
+  igual en `main` sin este cambio). `tsc -b` / `build` limpios. ESLint:
+  0 errores nuevos (los 3 preexistentes están fuera de este diff). Sin
+  fuzz.
+  - **Estado:** `FIX-PERSIST-01-PROJECT-ACTIONS-DESKTOP-ROW-01: CERRADO
+    — pendiente validación manual`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
