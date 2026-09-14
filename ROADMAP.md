@@ -2950,6 +2950,44 @@ salvo bug inequívoco o decisión roja explícita.
   hiciera falta, integración REPORT. Detalle en `docs/VIS-TOPO-01.md`.
   - **Estado:** `VIS-TOPO-01: CERRADO — pendiente validación manual`.
 
+- **D-δ.124 — VIS-TOPO-01B: reubicación del visor + routing ortogonal +
+  AF azul / AC rojo (CERRADO — pendiente validación manual).** La
+  validación manual de VIS-TOPO-01 pidió tres cambios de presentación,
+  sin tocar semántica del grafo (`resolverGrafoVisual.ts` intacto).
+  **Desktop:** el bloque grande inline se retira del cuerpo de M2; pasa a
+  un panel chico y contraído por defecto dentro de `.app-nav`
+  (`NavegacionDeSecciones.tsx`), debajo del índice + resumen del
+  proyecto -- mismo breakpoint YA existente de 900px que separa sidebar
+  de barra horizontal (`navegacionUI.css`), sin inventar uno nuevo.
+  **Mobile:** botón compacto "Visualizar esquema" (visible sólo <= 900px)
+  que abre un overlay de pantalla casi completa vía `<dialog>` nativo +
+  `showModal()` (mismo mecanismo que `DialogoDeConfirmacion.tsx` -- foco/
+  Escape/backdrop de fábrica, sin Fullscreen API ni segunda librería de
+  modal); auto-`Ajustar` en cada apertura, foco devuelto al disparador al
+  cerrar. **Routing ortogonal** (`layoutGrafoVisual.ts`): Dagre sigue
+  resolviendo sólo rank/posición de nodo; el trazado de arista ahora sale
+  por el borde inferior del origen y entra por el superior del destino,
+  vertical pura si están alineados o codo vertical-horizontal-vertical si
+  no -- nunca diagonal (invariante verificado por test). Un fan-out real
+  comparte `branchY` automáticamente (misma fórmula, mismos extremos);
+  aristas paralelas llevan offset determinista por índice (±8px).
+  **Colores:** AF/AC pasan a azul/rojo SÓLO dentro del visor (tokens
+  propios `--vis-topo-af`/`--vis-topo-ac` en `esquemaHidraulico.css`) --
+  `--color-ac` (salmón) sigue siendo el color compartido de `BadgeDeRed`
+  en el resto de M2, sin rediseño global. De paso se corrigió un bug real
+  de VIS-TOPO-01: los arrowheads compartían un único `<marker>` con
+  `currentColor` que un selector descendiente nunca podía alcanzar (un
+  `<marker>` vive en `<defs>`, fuera del árbol de la arista) -- de ahí las
+  "flechas negras" reportadas; ahora cada red tiene su propio `<marker>`
+  coloreado directamente. Vitest **1901/1901** (+7 de ortogonalidad).
+  `tsc -b`/`e2e:typecheck`/`build` limpios; ESLint sin errores nuevos.
+  E2E `vis-topo.spec.ts` reescrito para la nueva ubicación (9×desktop/
+  mobile, 18/18 verde); regresión `montantes`/`multinivel`/`persistencia`/
+  `responsive`/`smoke` 30/30 verde. Fuzz proporcional seed `424242`
+  verde. Detalle en `docs/VIS-TOPO-01B-SIDEBAR-ORTHO.md`.
+  - **Estado:** `VIS-TOPO-01B-SIDEBAR-ORTHO: CERRADO — pendiente
+    validación manual`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /

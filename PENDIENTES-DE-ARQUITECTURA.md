@@ -13962,3 +13962,133 @@ click-to-highlight, tooltips ricos, ELK si un proyecto XL lo justifica,
 reutilización del SVG en REPORT.
 
 **Estado:** `VIS-TOPO-01: CERRADO — pendiente validación manual`.
+
+## D-δ.124 — VIS-TOPO-01B: reubicación del visor + routing ortogonal + AF azul / AC rojo — CERRADA (pendiente validación manual)
+
+Segundo slice de la serie VIS-TOPO, disparado por la validación manual de
+`VIS-TOPO-01` (D-δ.123): la arquitectura de tres capas funcionaba, pero
+la presentación no era la definitiva. Detalle completo en
+`docs/VIS-TOPO-01B-SIDEBAR-ORTHO.md`; este registro resume las
+decisiones. **Restricción central respetada de punta a punta:
+`resolverGrafoVisual.ts` no se modificó** -- ni un tipo, ni un nodo, ni
+una arista, ni la agregación de Local, ni el número de Tramos
+representados. Este slice cambia CÓMO y DÓNDE se dibuja, nunca QUÉ
+significa el grafo.
+
+**Arqueología del breakpoint real (sin inventar uno nuevo):** `900px` ya
+era, en todo el shell de la aplicación, el límite entre "existe sidebar"
+y "no existe sidebar" -- `.app-layout` colapsa su grid de 2 columnas a 1
+(`navegacionUI.css:176-184`), `.app-nav` pasa de columna sticky a barra
+horizontal (`navegacionUI.css:201-234`), y `.resumen-proyecto` (que ya
+vive dentro de `.app-nav`) se oculta en ese mismo rango
+(`resumenDeProyecto.css:58-62`). VIS-TOPO-01B reutiliza ese breakpoint
+exacto para las dos ubicaciones nuevas del visor, sin introducir un
+segundo criterio responsive paralelo.
+
+**Desktop -- panel sidebar contraído por defecto.** `NavegacionDeSecciones.tsx`
+ahora acepta un `proyecto?: Proyecto` opcional y monta
+`PanelEsquemaHidraulicoSidebar` dentro de `.app-nav`, debajo del índice +
+`ResumenDeProyectoPanel`. Es un `<button aria-expanded>` con flecha
+`▸`/`▾` (mismo patrón que `CabeceraDeUnidadFuncional`), contraído en cada
+bootstrap (`useState(false)`, sin persistir en `Proyecto`/`.iuas`/
+`localStorage`/autosave -- D-δ.123 sigue vigente en ese punto). Visible
+sólo por CSS (`@media (min-width: 901px)`): se monta siempre para no
+condicionar hooks, pero no hace ningún trabajo visible fuera de rango.
+Al expandirse por primera vez ejecuta `Ajustar` automáticamente (una
+sola vez por sesión de expansión). Usa el ancho real de la columna
+lateral (232px) con su propio pan/zoom interno para el detalle -- nunca
+ensancha la aplicación.
+
+**Mobile -- botón + overlay.** El bloque grande `<EsquemaHidraulico>` que
+vivía al final del cuerpo de M2 se retiró por completo. En su lugar,
+`ResultadoHidraulicoDeTramo.tsx` monta `BotonVisualizarEsquema` justo
+antes de `DistribucionGeneral` (mismo gate de cobertura física que el
+resto del cuerpo), visible sólo vía CSS en `@media (max-width: 900px)`.
+Al tocarlo abre un `<dialog className="vis-topo-overlay">` real +
+`showModal()` -- el MISMO mecanismo que `DialogoDeConfirmacion.tsx`
+(trampa de foco, Escape vía evento `cancel`, backdrop nativos: no se creó
+una segunda librería de modal ni se usó `requestFullscreen()`, el overlay
+ocupa `100vw`/`100vh` por CSS propio). Ejecuta `Ajustar` en **cada**
+apertura (a diferencia del panel desktop, que sólo lo hace la primera
+vez). Como el `<dialog>` se desmonta en vez de cerrarse con `.close()`,
+el foco no vuelve solo al disparador tras cerrar: se restaura
+explícitamente. Ambos puntos de montaje (`PanelEsquemaHidraulicoSidebar`
+y `BotonVisualizarEsquema`) instancian el mismo hook
+(`useEsquemaHidraulico`, extraído de la lógica de VIS-TOPO-01) de forma
+independiente -- cada uno con su propio pan/zoom/filtros, aceptable
+porque nunca están visibles los dos a la vez; el costo es que
+`resolverGrafoVisual`+`layoutGrafoVisual` corren dos veces por cambio de
+Proyecto en vez de una, aceptado como costo menor (cada resolución sigue
+siendo sub-segundo incluso a escala de 20 UF).
+
+**Routing ortogonal (`layoutGrafoVisual.ts`).** Dagre sigue resolviendo
+EXCLUSIVAMENTE rank/orden/posición de nodo (`x`/`y`); el trazado de cada
+arista ahora se calcula con geometría propia: sale por el borde inferior
+del nodo origen, entra por el borde superior del destino. Si
+`|origen.x − destino.x| < 0.5` es una línea vertical pura (2 puntos); si
+no, un codo de 3 tramos vertical→horizontal→vertical (4 puntos) con
+`branchY` = punto medio entre la salida del origen y la entrada del
+destino. Cuando varios hijos de un mismo origen comparten rank (un
+fan-out real), sus `branchY` coinciden automáticamente -- misma fórmula,
+mismos extremos -- así que el "bus horizontal compartido" que pedía el
+brief emerge sin ninguna lógica especial de agrupamiento. Las aristas
+paralelas (mismo par origen/destino visual -- p. ej. varios artefactos de
+un Local que nacen del mismo nodo de derivación) llevan un offset
+determinista por índice (±8px para 3 aristas), aplicado como
+desplazamiento lateral en el caso alineado o como desplazamiento de
+`branchY` en el caso con codo. Invariante verificado por test: para todo
+par de puntos consecutivos de toda arista, `x1≈x2` o `y1≈y2` (tolerancia
+0.01) -- nunca ambos distintos. `SEPARACION_PARALELA` se ajustó de 14 a 8
+para acompañar el ejemplo del brief (±8px con 3 aristas).
+
+**Colores -- AF azul / AC rojo, SÓLO dentro del visor.** `--color-ac`
+(salmón, `#a4442f`) es el token COMPARTIDO que usa `BadgeDeRed` en toda
+la interfaz de M2 (tablas, cards de montante); cambiarlo globalmente
+habría repintado todas esas pills, un alcance mayor al de este slice
+("no abrir rediseño global"). En cambio, `esquemaHidraulico.css` define
+tokens propios (`--vis-topo-af` = `var(--color-af)`, ya adecuado;
+`--vis-topo-ac` = `#c0392b`, un rojo técnico distinto tanto del salmón
+compartido como de `--color-error` (`#b02a21`) -- ambos leen como "rojo"
+por decisión explícita del brief, la distinción entre AC y un futuro
+estado de error se hace por icono/borde/texto, nunca por el matiz
+exacto). **Bug real encontrado y corregido en el camino:** los
+arrowheads de VIS-TOPO-01 usaban un único `<marker>` compartido con
+`fill: currentColor`, más una regla `.vis-topo-arista.vis-topo-red-af
+.vis-topo-flecha` que NUNCA podía matchear -- un `<marker>` vive una sola
+vez dentro de `<defs>`, fuera del árbol de cualquier arista concreta, así
+que ningún selector descendiente llega a tocarlo; el resultado real eran
+las "flechas negras" reportadas en la validación manual. Corregido con
+dos `<marker>` (`vis-topo-flecha-af`/`vis-topo-flecha-ac`), cada uno con
+su propio `fill` fijo por CSS, más discretos que antes
+(`markerWidth`/`markerHeight` 5.5 en vez de 7).
+
+**Labels de arista.** Con routing ortogonal el punto "del medio" de la
+lista de puntos ya no cae necesariamente sobre un tramo horizontal
+legible (con 4 puntos el índice central es un vértice). Los labels
+(DN/longitud, nombre de Montante) se reposicionan sobre el segmento MÁS
+LARGO del trazado (`puntoSobreSegmentoMasLargo`) -- sin cambios de datos:
+DN ausente sigue omitiéndose, nunca "DN pendiente".
+
+**Tests:** Vitest **1901/1901** (+7 sobre el baseline de 1894:
+`layoutGrafoVisual.test.ts` suma un bloque de ortogonalidad -- 1→1
+alineado/desalineado, 1→2, 1→4, aristas paralelas, bus compartido,
+montante, dirección top-down). `resolverGrafoVisual.test.ts` sin cambios
+(capa semántica intacta, confirma la restricción central). `tsc -b` /
+`npm run e2e:typecheck` / `npm run build` limpios. ESLint sin errores
+nuevos (mismo baseline preexistente ajeno a este slice). E2E
+`tests/e2e/vis-topo.spec.ts` reescrito íntegramente para la nueva
+ubicación (9 casos × desktop/mobile, 18/18 verde): ausencia del bloque
+inline viejo, panel sidebar contraído por defecto, expandir/colapsar sin
+desplazar el contenido principal (medido por `offsetTop` del elemento,
+invariante al auto-scroll que dispara el click de Playwright -- el
+primer intento con `boundingBox()` daba un falso positivo de "salto" por
+esa razón), controles del panel (AF/AC/Etiquetas/zoom/Ajustar), fan-out
+marcado, botón mobile visible sin panel ni grafo inline, overlay
+(título/Cerrar/toolbar/SVG/auto-Ajustar/sin overflow horizontal), cerrar
+vuelve a M2 sin cambiar de sección, Escape cierra, filtros dentro del
+overlay. Regresión dirigida verde: `montantes.spec.ts`,
+`multinivel.spec.ts`, `persistencia.spec.ts`, `responsive.spec.ts`,
+`smoke.spec.ts` (30/30). Fuzz proporcional de cierre: seed histórica
+`424242`, verde.
+
+**Estado:** `VIS-TOPO-01B-SIDEBAR-ORTHO: CERRADO — pendiente validación manual`.
