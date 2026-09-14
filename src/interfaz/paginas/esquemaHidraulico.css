@@ -1,13 +1,27 @@
-/* VIS-TOPO-01 -- estilos del Esquema hidráulico (M2). Namespace propio
-   (.esquema-hidraulico / .vis-topo-*) para no contaminar reglas
-   genéricas de M1/M2 (VIS-TOPO-00 B51). Reutiliza tokens de
-   sistema-visual.css (--color-af / --color-ac / --color-advertencia /
-   --color-naranja / --esp-* / --radio-control) -- ningún color nuevo. */
+/* VIS-TOPO-01 / VIS-TOPO-01B -- estilos del Esquema hidráulico. Namespace
+   propio (.esquema-hidraulico / .vis-topo-*) para no contaminar reglas
+   genéricas de M1/M2 (VIS-TOPO-00 B51).
 
-.esquema-hidraulico {
-  margin-top: var(--esp-lg);
-  padding-top: var(--esp-lg);
-  border-top: 1px solid var(--color-borde);
+   VIS-TOPO-01B §25-§27: AF = azul, AC = ROJO (ya no salmón) -- pero
+   SÓLO dentro del visor. `--color-ac` (salmón) sigue siendo el color
+   compartido de `BadgeDeRed`/M2 en el resto de la interfaz -- cambiarlo
+   globalmente repintaría todas las pills de Agua caliente de las tablas
+   de M2, un alcance mayor al de este slice ("no abrir rediseño global",
+   §27). Por eso el visor define sus propios tokens `--vis-topo-af` /
+   --vis-topo-ac`, con AC en un rojo técnico propio, distinto del rojo de
+   error (`--color-error`) -- ambos son "rojo" (decisión explícita: la
+   distinción entre AC y error se hace por icono/borde/texto, nunca sólo
+   por el matiz exacto), pero con tonos ligeramente distintos para que un
+   ojo entrenado los distinga en contexto. */
+.esquema-hidraulico,
+.vis-topo-sidebar-panel,
+.vis-topo-overlay {
+  --vis-topo-af: var(--color-af);
+  --vis-topo-af-suave: var(--color-af-suave);
+  --vis-topo-af-borde: var(--color-af-borde);
+  --vis-topo-ac: #c0392b;
+  --vis-topo-ac-suave: #f9e2de;
+  --vis-topo-ac-borde: #eec3ba;
 }
 
 .esquema-hidraulico__intro {
@@ -40,15 +54,15 @@
 }
 
 .vis-topo-toolbar__toggle--af[aria-pressed='true'] {
-  border-color: var(--color-af-borde);
-  background: var(--color-af-suave);
-  color: var(--color-af);
+  border-color: var(--vis-topo-af-borde);
+  background: var(--vis-topo-af-suave);
+  color: var(--vis-topo-af);
 }
 
 .vis-topo-toolbar__toggle--ac[aria-pressed='true'] {
-  border-color: var(--color-ac-borde);
-  background: var(--color-ac-suave);
-  color: var(--color-ac);
+  border-color: var(--vis-topo-ac-borde);
+  background: var(--vis-topo-ac-suave);
+  color: var(--vis-topo-ac);
 }
 
 .vis-topo-toolbar__separador {
@@ -133,30 +147,36 @@
 }
 
 /* --- Aristas --- */
-
+/* Routing ortogonal (VIS-TOPO-01B §13): esquinas en ángulo recto, nunca
+   redondeadas -- una curva en el codo insinuaría una diagonal que la
+   geometría ya evita. */
 .vis-topo-arista path {
   fill: none;
   stroke-width: 2;
+  stroke-linejoin: miter;
+  stroke-linecap: square;
 }
 
 .vis-topo-arista.vis-topo-red-af path {
-  stroke: var(--color-af);
+  stroke: var(--vis-topo-af);
 }
 
 .vis-topo-arista.vis-topo-red-ac path {
-  stroke: var(--color-ac);
+  stroke: var(--vis-topo-ac);
 }
 
-.vis-topo-flecha {
-  fill: currentColor;
+/* Los arrowheads son discretos (VIS-TOPO-01B §22) y van cada uno como su
+   propio <marker>, coloreado directamente (no via `currentColor`
+   heredado: un <marker> vive en <defs>, fuera del árbol de la arista que
+   lo referencia, así que un selector descendiente del tipo
+   ".vis-topo-red-af .vis-topo-flecha" nunca podía matchear -- la causa
+   real de las "flechas negras" reportadas en la validación manual). */
+.vis-topo-flecha-af {
+  fill: var(--vis-topo-af);
 }
 
-.vis-topo-arista.vis-topo-red-af .vis-topo-flecha {
-  fill: var(--color-af);
-}
-
-.vis-topo-arista.vis-topo-red-ac .vis-topo-flecha {
-  fill: var(--color-ac);
+.vis-topo-flecha-ac {
+  fill: var(--vis-topo-ac);
 }
 
 .vis-topo-texto-arista {
@@ -196,11 +216,11 @@
 }
 
 .vis-topo-leyenda__swatch.vis-topo-red-af {
-  background: var(--color-af);
+  background: var(--vis-topo-af);
 }
 
 .vis-topo-leyenda__swatch.vis-topo-red-ac {
-  background: var(--color-ac);
+  background: var(--vis-topo-ac);
 }
 
 .vis-topo-leyenda__swatch--no-detallado {
@@ -217,5 +237,189 @@
   .vis-topo-viewport {
     min-height: 360px;
     height: 60vh;
+  }
+}
+
+/* ============================================================
+   VIS-TOPO-01B — panel lateral desktop (sidebar, > 900px)
+   ============================================================
+   Mismo breakpoint que `.app-nav`/`.app-layout`/`.resumen-proyecto`
+   (navegacionUI.css, resumenDeProyecto.css) -- no se inventa uno nuevo.
+   Compacto, secundario, contraído por defecto (§6-§8): vive DENTRO de
+   `.app-nav`, después del resumen del proyecto. */
+.vis-topo-sidebar-panel {
+  display: none;
+  margin-top: var(--esp-sm);
+  padding-top: var(--esp-sm);
+  border-top: 1px solid var(--color-borde);
+}
+
+@media (min-width: 901px) {
+  .vis-topo-sidebar-panel {
+    display: block;
+  }
+}
+
+.vis-topo-sidebar-panel__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-xs);
+  width: 100%;
+  padding: 0.3rem var(--esp-xs);
+  background: none;
+  border: none;
+  border-radius: var(--radio-control);
+  color: var(--color-texto-2);
+  font-size: var(--fs-meta);
+  font-weight: var(--peso-semibold);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.vis-topo-sidebar-panel__cabecera:hover {
+  background: var(--color-superficie-2);
+  color: var(--color-texto);
+}
+
+.vis-topo-sidebar-panel__flecha {
+  flex: none;
+  font-size: 0.7em;
+}
+
+.vis-topo-sidebar-panel__cuerpo {
+  margin-top: var(--esp-xs);
+  /* La columna lateral es angosta (232px, VIS-TOPO-01B §8): el visor no
+     ensancha la app -- usa ese ancho real y confía en pan/zoom interno
+     para el detalle. */
+  width: 100%;
+}
+
+.vis-topo-sidebar-panel__cuerpo .vis-topo-viewport {
+  min-height: 220px;
+  height: 260px;
+  max-height: 260px;
+}
+
+.vis-topo-sidebar-panel__cuerpo .vis-topo-toolbar {
+  gap: 0.3rem;
+}
+
+.vis-topo-sidebar-panel__cuerpo .vis-topo-toolbar button {
+  padding: 0.25rem 0.4rem;
+  font-size: 0.75rem;
+}
+
+.vis-topo-sidebar-panel__cuerpo .esquema-hidraulico__intro,
+.vis-topo-sidebar-panel__cuerpo .vis-topo-resumen-textual {
+  font-size: 0.72rem;
+}
+
+.vis-topo-sidebar-panel__cuerpo .vis-topo-leyenda {
+  font-size: 0.7rem;
+  gap: var(--esp-xs) var(--esp-sm);
+}
+
+/* ============================================================
+   VIS-TOPO-01B — acceso mobile (botón + overlay, <= 900px)
+   ============================================================ */
+
+.vis-topo-boton-visualizar {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .vis-topo-boton-visualizar {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--esp-xs);
+    margin: 0 0 var(--esp-md);
+    padding: 0.45rem 0.8rem;
+    border: 1px solid var(--color-borde-fuerte);
+    border-radius: var(--radio-control);
+    background: var(--color-superficie);
+    color: var(--color-texto);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+}
+
+/* `<dialog>` nativo (mismo mecanismo que `.ui-dialogo`, DialogoDeConfirmacion.tsx):
+   trampa de foco + Escape + backdrop de fábrica, sin reimplementar nada.
+   A diferencia de `.ui-dialogo` (confirmación chica, ~28rem), este ocupa
+   prácticamente todo el viewport (§10) -- por eso es un namespace propio,
+   no un modifier de `.ui-dialogo`. */
+.vis-topo-overlay {
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  display: flex;
+  flex-direction: column;
+}
+
+.vis-topo-overlay::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.vis-topo-overlay__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--esp-sm);
+  padding: var(--esp-sm) var(--esp-md);
+  border-bottom: 1px solid var(--color-borde);
+  flex: none;
+}
+
+.vis-topo-overlay__titulo {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.vis-topo-overlay__cerrar {
+  flex: none;
+  border: 1px solid var(--color-borde-fuerte);
+  border-radius: var(--radio-control);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  padding: 0.4rem 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vis-topo-overlay__cuerpo {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--esp-sm) var(--esp-md) var(--esp-md);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.vis-topo-overlay__cuerpo .vis-topo-viewport {
+  flex: 1 1 auto;
+  min-height: 320px;
+  height: auto;
+  max-height: none;
+}
+
+@media (max-width: 480px) {
+  .vis-topo-overlay__titulo {
+    font-size: 0.9rem;
+  }
+
+  .vis-topo-overlay__cabecera {
+    padding: var(--esp-xs) var(--esp-sm);
+  }
+
+  .vis-topo-overlay__cuerpo {
+    padding: var(--esp-xs) var(--esp-sm) var(--esp-sm);
   }
 }

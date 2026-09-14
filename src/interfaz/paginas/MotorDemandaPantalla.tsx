@@ -1921,7 +1921,7 @@ export function MotorDemandaPantalla() {
       ) : null}
 
       <div className="app-layout" key={generacionDeProyecto}>
-        <NavegacionDeSecciones resumen={resumen} />
+        <NavegacionDeSecciones resumen={resumen} proyecto={proyecto} />
 
         <main className="app-contenido">
           {/* UI-01C (D-δ.74): el encabezado "01 Demanda" abre la etapa,

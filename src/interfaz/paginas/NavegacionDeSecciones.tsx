@@ -1,12 +1,21 @@
 // UI-01A (D-δ.72) — Navegación lateral / índice de la one-page y wrapper
-// de sección. PRESENTACIÓN pura: no toca el Proyecto, no ejecuta
-// resolvers, no participa de ningún cálculo. La sidebar es un índice con
-// anchors (`<a href="#...">`), NO un router: no cambia de ruta ni
-// desmonta módulos; todas las etapas permanecen montadas.
+// de sección. El índice en sí es PRESENTACIÓN pura: no toca el Proyecto,
+// no ejecuta resolvers, no participa de ningún cálculo. La sidebar es un
+// índice con anchors (`<a href="#...">`), NO un router: no cambia de
+// ruta ni desmonta módulos; todas las etapas permanecen montadas.
+//
+// VIS-TOPO-01B (§6): esta barra también aloja el panel chico y
+// contraído del Esquema hidráulico (`PanelEsquemaHidraulicoSidebar`),
+// debajo del índice -- ese panel SÍ deriva del Proyecto (vía
+// resolverGrafoVisual/layoutGrafoVisual), pero delega esa lógica
+// enteramente a EsquemaHidraulico.tsx: este archivo sigue sin ejecutar
+// ningún resolver por su cuenta, sólo compone dónde vive el panel.
 import { useEffect, useState, type ReactNode } from 'react'
 import { EncabezadoDeEtapa } from './EncabezadoDeEtapa'
 import { ResumenDeProyectoPanel } from './ResumenDeProyecto'
 import type { ResumenDeProyecto } from './resolverResumenDeProyecto'
+import type { Proyecto } from '../../modelo/proyecto'
+import { PanelEsquemaHidraulicoSidebar } from './EsquemaHidraulico'
 
 // Las cinco etapas del flujo de trabajo del proyectista (UI-CRIT-01):
 // Demanda → Tuberías → Medidores → Abastecimiento → Verificación
@@ -97,7 +106,17 @@ function useSaltoInicialAlAncla(): void {
   }, [])
 }
 
-export function NavegacionDeSecciones({ resumen }: { resumen?: ResumenDeProyecto | undefined }) {
+export function NavegacionDeSecciones({
+  resumen,
+  proyecto,
+}: {
+  resumen?: ResumenDeProyecto | undefined
+  // VIS-TOPO-01B: sólo para montar el panel chico y contraído del
+  // Esquema hidráulico DEBAJO de este índice (§6). Ausente => la
+  // navegación se comporta exactamente igual que antes, sin panel
+  // (defensivo -- todos los llamadores reales pasan `proyecto`).
+  proyecto?: Proyecto | undefined
+}) {
   const activa = useSeccionActiva(SECCIONES.map((seccion) => seccion.id))
   useSaltoInicialAlAncla()
 
@@ -125,6 +144,12 @@ export function NavegacionDeSecciones({ resumen }: { resumen?: ResumenDeProyecto
           existentes vía `resolverResumenDeProyecto`; no calcula ni
           persiste nada. Se oculta en la barra horizontal (≤ 900 px). */}
       {resumen !== undefined ? <ResumenDeProyectoPanel resumen={resumen} /> : null}
+      {/* VIS-TOPO-01B §6: panel chico, contraído por defecto, debajo del
+          índice + resumen -- visible sólo en el rango de viewport donde
+          esta barra ES la sidebar (> 900px, esquemaHidraulico.css). En
+          mobile no ocupa lugar acá: el acceso es el botón "Visualizar
+          esquema" dentro del cuerpo de M2 (ResultadoHidraulicoDeTramo.tsx). */}
+      {proyecto !== undefined ? <PanelEsquemaHidraulicoSidebar proyecto={proyecto} /> : null}
     </nav>
   )
 }
