@@ -50,6 +50,7 @@ import { AccesoriosDeTramoEditor } from './AccesoriosDeTramoEditor'
 import { LocalYRedCard } from './LocalYRedCard'
 import { EncabezadoDeEtapa } from './EncabezadoDeEtapa'
 import { ConstructorDeMontantes } from './ConstructorDeMontantes'
+import { EsquemaHidraulico } from './EsquemaHidraulico'
 import { elegirElementoActivoTrasCambio } from './estadoDeElementoActivo'
 
 // Duplicado intencional de la etiqueta homónima en MotorDemandaPantalla.tsx
@@ -805,6 +806,8 @@ function ResultadoHidraulicoDeTramoBase({
             onCambiar={onCambiar}
             contextoDeCalculo={contextoDeCalculo}
           />
+
+          <EsquemaHidraulico proyecto={proyecto} />
         </>
       )}
     </details>

@@ -1,0 +1,221 @@
+/* VIS-TOPO-01 -- estilos del Esquema hidráulico (M2). Namespace propio
+   (.esquema-hidraulico / .vis-topo-*) para no contaminar reglas
+   genéricas de M1/M2 (VIS-TOPO-00 B51). Reutiliza tokens de
+   sistema-visual.css (--color-af / --color-ac / --color-advertencia /
+   --color-naranja / --esp-* / --radio-control) -- ningún color nuevo. */
+
+.esquema-hidraulico {
+  margin-top: var(--esp-lg);
+  padding-top: var(--esp-lg);
+  border-top: 1px solid var(--color-borde);
+}
+
+.esquema-hidraulico__intro {
+  margin: 0 0 var(--esp-sm);
+  color: var(--color-texto-2);
+}
+
+.vis-topo-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--esp-xs);
+  margin-bottom: var(--esp-sm);
+}
+
+.vis-topo-toolbar button {
+  border: 1px solid var(--color-borde-fuerte);
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  border-radius: var(--radio-control);
+  padding: var(--esp-xs) var(--esp-sm);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.vis-topo-toolbar button[aria-pressed='true'] {
+  background: var(--color-superficie-sel);
+  border-color: var(--color-borde-fuerte);
+  font-weight: 600;
+}
+
+.vis-topo-toolbar__toggle--af[aria-pressed='true'] {
+  border-color: var(--color-af-borde);
+  background: var(--color-af-suave);
+  color: var(--color-af);
+}
+
+.vis-topo-toolbar__toggle--ac[aria-pressed='true'] {
+  border-color: var(--color-ac-borde);
+  background: var(--color-ac-suave);
+  color: var(--color-ac);
+}
+
+.vis-topo-toolbar__separador {
+  width: 1px;
+  align-self: stretch;
+  background: var(--color-borde);
+  margin: 0 var(--esp-xs);
+}
+
+.vis-topo-viewport {
+  position: relative;
+  width: 100%;
+  min-height: 420px;
+  height: 55vh;
+  max-height: 640px;
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio-control);
+  background: var(--color-superficie-2);
+  overflow: hidden;
+}
+
+.vis-topo-svg {
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+
+.vis-topo-svg:active {
+  cursor: grabbing;
+}
+
+/* --- Nodos --- */
+
+.vis-topo-nodo-origen rect {
+  fill: var(--color-superficie);
+  stroke: var(--color-borde-fuerte);
+  stroke-width: 1.5;
+}
+
+.vis-topo-nodo-local rect {
+  fill: var(--color-superficie);
+  stroke: var(--color-borde-fuerte);
+  stroke-width: 1.5;
+}
+
+.vis-topo-nodo-derivacion rect {
+  fill: var(--color-superficie-2);
+  stroke: var(--color-borde-fuerte);
+  stroke-width: 1.25;
+}
+
+.vis-topo-nodo-derivacion--no-detallado rect {
+  fill: var(--color-naranja-suave);
+  stroke: var(--color-naranja-borde);
+}
+
+.vis-topo-nodo-intermedio {
+  fill: var(--color-borde-fuerte);
+  stroke: none;
+}
+
+.vis-topo-texto-nodo {
+  fill: var(--color-texto);
+  font-size: 11px;
+}
+
+.vis-topo-texto-nodo--principal {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.vis-topo-texto-nodo--sublabel {
+  fill: var(--color-texto-2);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.vis-topo-nodo-derivacion--no-detallado .vis-topo-texto-nodo {
+  fill: var(--color-naranja);
+  font-size: 10px;
+}
+
+/* --- Aristas --- */
+
+.vis-topo-arista path {
+  fill: none;
+  stroke-width: 2;
+}
+
+.vis-topo-arista.vis-topo-red-af path {
+  stroke: var(--color-af);
+}
+
+.vis-topo-arista.vis-topo-red-ac path {
+  stroke: var(--color-ac);
+}
+
+.vis-topo-flecha {
+  fill: currentColor;
+}
+
+.vis-topo-arista.vis-topo-red-af .vis-topo-flecha {
+  fill: var(--color-af);
+}
+
+.vis-topo-arista.vis-topo-red-ac .vis-topo-flecha {
+  fill: var(--color-ac);
+}
+
+.vis-topo-texto-arista {
+  fill: var(--color-texto-2);
+  font-size: 10px;
+}
+
+.vis-topo-texto-montante {
+  fill: var(--color-texto-2);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* --- Leyenda --- */
+
+.vis-topo-leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--esp-md);
+  margin-top: var(--esp-sm);
+  font-size: 0.8rem;
+  color: var(--color-texto-2);
+}
+
+.vis-topo-leyenda__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--esp-xs);
+}
+
+.vis-topo-leyenda__swatch {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  border-radius: 3px;
+  background: var(--color-borde-fuerte);
+}
+
+.vis-topo-leyenda__swatch.vis-topo-red-af {
+  background: var(--color-af);
+}
+
+.vis-topo-leyenda__swatch.vis-topo-red-ac {
+  background: var(--color-ac);
+}
+
+.vis-topo-leyenda__swatch--no-detallado {
+  background: var(--color-naranja);
+}
+
+.vis-topo-resumen-textual {
+  margin: var(--esp-xs) 0 0;
+  color: var(--color-texto-3);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 480px) {
+  .vis-topo-viewport {
+    min-height: 360px;
+    height: 60vh;
+  }
+}
