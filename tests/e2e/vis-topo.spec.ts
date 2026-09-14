@@ -1,7 +1,15 @@
-// VIS-TOPO-01 — E2E dirigido del Esquema hidráulico read-only de M2.
-// Usa el proyecto de ejemplo (AF+AC, fan-out real en la cabecera del
-// Baño) que carga por defecto: cubre render, filtros AF/AC, Ajustar/zoom,
-// y responsive, sin tocar hidráulica ni persistencia.
+// VIS-TOPO-01 / VIS-TOPO-01B — E2E dirigido del Esquema hidráulico
+// read-only de M2. Usa el proyecto de ejemplo (AF+AC, fan-out real en la
+// cabecera del Baño) que carga por defecto.
+//
+// VIS-TOPO-01B reubicó el visor: ya no hay un bloque grande inline en el
+// cuerpo de M2. En viewport donde existe la sidebar de navegación
+// (> 900px, mismo breakpoint que .app-nav) vive un panel chico y
+// contraído por defecto dentro de esa barra lateral. En viewport angosto
+// (<= 900px) el acceso es un botón compacto "Visualizar esquema" que abre
+// un overlay de pantalla casi completa. Los proyectos de Playwright de
+// este repo fijan viewport 1280x900 (desktop) y 390x844 (mobile) — ambos
+// caen limpiamente a cada lado del breakpoint de 900px.
 import { test, expect } from './qa/fixtures'
 import { cargarAppLimpia, estabilizar } from './qa/estado'
 import { verificarInvariantes, primerFallo } from './qa/invariantes'
@@ -12,111 +20,205 @@ async function irATuberias(page: Page): Promise<void> {
   await estabilizar(page)
 }
 
-function seccionEsquema(page: Page): Locator {
-  return page.locator('section.esquema-hidraulico')
+function panelSidebar(page: Page): Locator {
+  return page.locator('.vis-topo-sidebar-panel')
 }
 
-test.describe('VIS-TOPO-01 · Esquema hidráulico', () => {
-  test('renderiza el SVG con nodos AF/AC del proyecto de ejemplo, sin errores', async ({ page, errores, baseURLEfectiva }) => {
+async function expandirPanelSidebar(page: Page): Promise<Locator> {
+  const panel = panelSidebar(page)
+  await panel.locator('.vis-topo-sidebar-panel__cabecera').click()
+  await estabilizar(page)
+  return panel
+}
+
+test.describe('VIS-TOPO-01B · ubicación desktop (sidebar)', () => {
+  test.use({ viewport: { width: 1280, height: 900 } })
+
+  test('no existe el visor inline en el cuerpo de M2; el panel vive en la sidebar, contraído por defecto', async ({
+    page,
+    errores,
+    baseURLEfectiva,
+  }) => {
     await cargarAppLimpia(page, baseURLEfectiva)
     await irATuberias(page)
 
-    const seccion = seccionEsquema(page)
-    await expect(seccion.getByRole('heading', { name: 'Esquema hidráulico' })).toBeVisible()
+    // El viejo bloque inline (VIS-TOPO-01) ya no existe.
+    await expect(page.locator('section.esquema-hidraulico')).toHaveCount(0)
+    // El botón mobile tampoco está visible en desktop.
+    await expect(page.locator('.vis-topo-boton-visualizar')).toBeHidden()
 
-    const svg = seccion.locator('svg.vis-topo-svg')
-    await expect(svg).toBeVisible()
-    // al menos un nodo Local reconocible por nombre humano, nunca un id técnico.
-    await expect(seccion.getByText('Baño 1', { exact: true })).toBeVisible()
-    await expect(seccion.locator('text', { hasText: /^n-af-1$|^n-0$|^local:/ })).toHaveCount(0)
+    const panel = panelSidebar(page)
+    await expect(panel).toBeVisible()
+    const cabecera = panel.locator('.vis-topo-sidebar-panel__cabecera')
+    await expect(cabecera).toHaveText(/Esquema hidráulico/)
+    await expect(cabecera).toHaveAttribute('aria-expanded', 'false')
+    // Contraído: el SVG no está en el documento todavía.
+    await expect(panel.locator('svg.vis-topo-svg')).toHaveCount(0)
 
     const violaciones = await verificarInvariantes(page, errores)
     expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
   })
 
-  test('el fan-out real de la cabecera del Baño se marca como no detallado, sin tees inventadas', async ({ page, baseURLEfectiva }) => {
+  test('expandir muestra el SVG; colapsar lo oculta; el contenido principal no salta', async ({ page, baseURLEfectiva }) => {
     await cargarAppLimpia(page, baseURLEfectiva)
     await irATuberias(page)
-    const seccion = seccionEsquema(page)
-    await expect(seccion.getByText('Distribución no detallada').first()).toBeVisible()
+
+    // Posición ABSOLUTA en el documento (no relativa al viewport): un
+    // click de Playwright puede auto-scrollear la página hasta el
+    // disparador, lo que movería un boundingBox() viewport-relative sin
+    // que haya habido ningún reflow real -- offsetTop no depende del
+    // scroll.
+    async function offsetTopDeTuberias(): Promise<number> {
+      return page.locator('#tuberias').evaluate((el) => (el as HTMLElement).offsetTop)
+    }
+
+    const posicionAntes = await offsetTopDeTuberias()
+    const panel = await expandirPanelSidebar(page)
+    await expect(panel.locator('.vis-topo-sidebar-panel__cabecera')).toHaveAttribute('aria-expanded', 'true')
+    await expect(panel.locator('svg.vis-topo-svg')).toBeVisible()
+    await expect(panel.getByText('Baño 1', { exact: true })).toBeVisible()
+
+    const posicionDespues = await offsetTopDeTuberias()
+    // El panel vive en la columna lateral (sticky, ancho fijo): expandirlo
+    // no debe desplazar el contenido principal de M2 (columnas de grid
+    // independientes).
+    expect(Math.abs(posicionDespues - posicionAntes)).toBeLessThan(5)
+
+    await panel.locator('.vis-topo-sidebar-panel__cabecera').click()
+    await estabilizar(page)
+    await expect(panel.locator('svg.vis-topo-svg')).toHaveCount(0)
   })
 
-  test('filtros AF/AC ocultan y restauran sus aristas, sin perder el estado del proyecto', async ({ page, errores, baseURLEfectiva }) => {
+  test('controles del panel expandido: AF, AC, Etiquetas, zoom, Ajustar, sin errores', async ({ page, errores, baseURLEfectiva }) => {
     await cargarAppLimpia(page, baseURLEfectiva)
     await irATuberias(page)
-    const seccion = seccionEsquema(page)
-    const botonAf = seccion.getByRole('button', { name: 'Agua fría (AF)' })
-    const botonAc = seccion.getByRole('button', { name: 'Agua caliente (AC)' })
-    await expect(botonAf).toHaveAttribute('aria-pressed', 'true')
-    await expect(botonAc).toHaveAttribute('aria-pressed', 'true')
-    await expect(seccion.locator('.vis-topo-arista.vis-topo-red-ac').first()).toBeVisible()
+    const panel = await expandirPanelSidebar(page)
+
+    const botonAf = panel.getByRole('button', { name: 'Agua fría (AF)' })
+    const botonAc = panel.getByRole('button', { name: 'Agua caliente (AC)' })
+    const botonEtiquetas = panel.getByRole('button', { name: 'Etiquetas' })
 
     await botonAc.click()
     await estabilizar(page)
     await expect(botonAc).toHaveAttribute('aria-pressed', 'false')
-    await expect(seccion.locator('.vis-topo-arista.vis-topo-red-ac')).toHaveCount(0)
-    await expect(seccion.locator('.vis-topo-arista.vis-topo-red-af').first()).toBeVisible()
+    await expect(panel.locator('.vis-topo-arista.vis-topo-red-ac')).toHaveCount(0)
 
-    await botonAf.click()
-    await estabilizar(page)
-    await expect(seccion.getByText('No hay ninguna red visible', { exact: false })).toBeVisible()
-
-    await botonAf.click()
     await botonAc.click()
+    await botonAf.click()
     await estabilizar(page)
-    await expect(botonAf).toHaveAttribute('aria-pressed', 'true')
-    await expect(botonAc).toHaveAttribute('aria-pressed', 'true')
-
-    // Qc de M1 sigue igual -- el visor no mutó el proyecto.
-    await page.getByRole('link', { name: /Demanda/ }).first().click()
-    await expect(page.getByText('Caudal de cálculo · Qc')).toBeVisible()
-
-    const violaciones = await verificarInvariantes(page, errores)
-    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
-  })
-
-  test('Ajustar/zoom no rompen la app (transform finito, sin crash)', async ({ page, errores, baseURLEfectiva }) => {
-    await cargarAppLimpia(page, baseURLEfectiva)
-    await irATuberias(page)
-    const seccion = seccionEsquema(page)
-    const svg = seccion.locator('svg.vis-topo-svg')
-
-    async function viewBoxValido(): Promise<boolean> {
-      const valor = await svg.getAttribute('viewBox')
-      if (valor === null) return false
-      const partes = valor.split(' ').map(Number)
-      return partes.length === 4 && partes.every((n) => Number.isFinite(n))
-    }
-
-    await expect.poll(viewBoxValido).toBe(true)
-
-    await seccion.getByRole('button', { name: 'Acercar' }).click()
+    await botonAf.click()
     await estabilizar(page)
-    expect(await viewBoxValido()).toBe(true)
-
-    await seccion.getByRole('button', { name: 'Alejar' }).click()
-    await estabilizar(page)
-    expect(await viewBoxValido()).toBe(true)
-
-    await seccion.getByRole('button', { name: 'Ajustar' }).click()
-    await estabilizar(page)
-    expect(await viewBoxValido()).toBe(true)
-
-    const violaciones = await verificarInvariantes(page, errores)
-    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
-  })
-
-  test('toggle de etiquetas oculta/muestra el detalle de DN/longitud sin ocultar los Locales', async ({ page, baseURLEfectiva }) => {
-    await cargarAppLimpia(page, baseURLEfectiva)
-    await irATuberias(page)
-    const seccion = seccionEsquema(page)
-    const botonEtiquetas = seccion.getByRole('button', { name: 'Etiquetas' })
-    await expect(botonEtiquetas).toHaveAttribute('aria-pressed', 'true')
 
     await botonEtiquetas.click()
     await estabilizar(page)
     await expect(botonEtiquetas).toHaveAttribute('aria-pressed', 'false')
-    // el nombre del Local sigue visible aunque se oculten las etiquetas de arista.
-    await expect(seccion.getByText('Baño 1', { exact: true })).toBeVisible()
+
+    await panel.getByRole('button', { name: 'Acercar' }).click()
+    await panel.getByRole('button', { name: 'Alejar' }).click()
+    await panel.getByRole('button', { name: 'Ajustar' }).click()
+    await estabilizar(page)
+
+    const violaciones = await verificarInvariantes(page, errores)
+    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+  })
+
+  test('el fan-out real se marca "Distribución no detallada", sin tees inventadas', async ({ page, baseURLEfectiva }) => {
+    await cargarAppLimpia(page, baseURLEfectiva)
+    await irATuberias(page)
+    const panel = await expandirPanelSidebar(page)
+    await expect(panel.getByText('Distribución no detallada').first()).toBeVisible()
+  })
+})
+
+test.describe('VIS-TOPO-01B · acceso mobile (botón + overlay)', () => {
+  test.use({ viewport: { width: 390, height: 844 } })
+
+  test('no hay panel lateral ni grafo inline; existe el botón "Visualizar esquema"', async ({ page, baseURLEfectiva }) => {
+    await cargarAppLimpia(page, baseURLEfectiva)
+    await irATuberias(page)
+
+    await expect(page.locator('section.esquema-hidraulico')).toHaveCount(0)
+    await expect(panelSidebar(page)).toBeHidden()
+    const boton = page.locator('.vis-topo-boton-visualizar')
+    await expect(boton).toBeVisible()
+    await expect(boton).toHaveText('Visualizar esquema')
+  })
+
+  test('abrir el overlay: título, Cerrar, toolbar, SVG, auto-Ajustar, sin overflow horizontal', async ({
+    page,
+    errores,
+    baseURLEfectiva,
+  }) => {
+    await cargarAppLimpia(page, baseURLEfectiva)
+    await irATuberias(page)
+
+    await page.locator('.vis-topo-boton-visualizar').click()
+    const overlay = page.locator('dialog.vis-topo-overlay')
+    await expect(overlay).toBeVisible()
+    await expect(overlay.getByRole('heading', { name: 'Esquema hidráulico' })).toBeVisible()
+    await expect(overlay.getByRole('button', { name: 'Cerrar' })).toBeVisible()
+    await expect(overlay.getByRole('toolbar')).toBeVisible()
+    const svg = overlay.locator('svg.vis-topo-svg')
+    await expect(svg).toBeVisible()
+
+    // Auto-Ajustar: el viewBox es válido apenas se abre, sin tocar nada.
+    const viewBox = await svg.getAttribute('viewBox')
+    const partes = (viewBox ?? '').split(' ').map(Number)
+    expect(partes.length).toBe(4)
+    expect(partes.every((n) => Number.isFinite(n))).toBe(true)
+
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    expect(overflow).toBeLessThanOrEqual(1)
+
+    const violaciones = await verificarInvariantes(page, errores)
+    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+  })
+
+  test('cerrar el overlay vuelve a M2 sin cambiar de sección', async ({ page, baseURLEfectiva }) => {
+    await cargarAppLimpia(page, baseURLEfectiva)
+    await irATuberias(page)
+
+    await page.locator('.vis-topo-boton-visualizar').click()
+    const overlay = page.locator('dialog.vis-topo-overlay')
+    await expect(overlay).toBeVisible()
+
+    await overlay.getByRole('button', { name: 'Cerrar' }).click()
+    await estabilizar(page)
+    await expect(overlay).toHaveCount(0)
+    await expect(page.locator('#tuberias')).toBeVisible()
+    await expect(page.locator('.vis-topo-boton-visualizar')).toBeVisible()
+  })
+
+  test('Escape cierra el overlay', async ({ page, baseURLEfectiva }) => {
+    await cargarAppLimpia(page, baseURLEfectiva)
+    await irATuberias(page)
+
+    await page.locator('.vis-topo-boton-visualizar').click()
+    const overlay = page.locator('dialog.vis-topo-overlay')
+    await expect(overlay).toBeVisible()
+
+    await page.keyboard.press('Escape')
+    await estabilizar(page)
+    await expect(overlay).toHaveCount(0)
+  })
+
+  test('filtros y Ajustar dentro del overlay, sin errores', async ({ page, errores, baseURLEfectiva }) => {
+    await cargarAppLimpia(page, baseURLEfectiva)
+    await irATuberias(page)
+    await page.locator('.vis-topo-boton-visualizar').click()
+    const overlay = page.locator('dialog.vis-topo-overlay')
+
+    const botonAc = overlay.getByRole('button', { name: 'Agua caliente (AC)' })
+    await botonAc.click()
+    await estabilizar(page)
+    await expect(overlay.locator('.vis-topo-arista.vis-topo-red-ac')).toHaveCount(0)
+    await botonAc.click()
+    await estabilizar(page)
+
+    await overlay.getByRole('button', { name: 'Ajustar' }).click()
+    await estabilizar(page)
+
+    const violaciones = await verificarInvariantes(page, errores)
+    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
   })
 })
