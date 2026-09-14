@@ -6,18 +6,20 @@
 // inserción de nodos/aristas, sin aleatoriedad).
 //
 // Dagre sólo resuelve RANGO/ORDEN/POSICIÓN de nodos (x/y por nodo). El
-// TRAZADO de cada arista se calcula acá con geometría simple (clip al
-// borde del rectángulo del nodo + offset paralelo determinista cuando
-// varios Tramos reales comparten el mismo par origen/destino visual --
-// p. ej. varios artefactos de un mismo Local que nacen del mismo nodo de
-// derivación, VIS-TOPO-00 §8). Motivo: Dagre en multigraph con 3+ aristas
-// paralelas entre el mismo par de nodos puede lanzar
-// "Not possible to find intersection inside of the rectangle" cuando ese
-// par tiene además un nodo hermano en el mismo rank (bug reproducido de
-// forma aislada, ajeno a este adaptador, con @dagrejs/dagre 3.1.1) --
-// evitarlo por diseño es más simple y más robusto que parchear Dagre, y
-// además da rutas más limpias para un esquema técnico de este tamaño
-// (VIS-TOPO-01 B57: "diagrama técnico limpio", no spaghetti graph).
+// TRAZADO de cada arista se calcula acá con geometría ORTOGONAL propia
+// (VIS-TOPO-01B): nunca un segmento diagonal -- salida por el borde
+// inferior del nodo origen, entrada por el borde superior del destino,
+// con un codo horizontal intermedio cuando no están alineados (ver
+// `rutaOrtogonal`). Motivo original de NO delegar el trazado a Dagre
+// (VIS-TOPO-01): en multigraph, 3+ aristas paralelas entre el mismo par
+// de nodos pueden lanzar "Not possible to find intersection inside of
+// the rectangle" cuando ese par tiene además un nodo hermano en el mismo
+// rank (bug reproducido de forma aislada, ajeno a este adaptador, con
+// @dagrejs/dagre 3.1.1) -- evitarlo por diseño sigue siendo más simple y
+// más robusto que parchear Dagre, y el routing ortogonal propio además
+// da la lectura de "red técnica" que pidió la validación manual de
+// VIS-TOPO-01 (troncales verticales, ramificaciones horizontales a 90°,
+// VIS-TOPO-01B §13).
 //
 // Esta capa NO interpreta topología: sólo traduce nodos/aristas ya
 // adaptados por resolverGrafoVisual.ts a coordenadas. x/y NUNCA se
@@ -66,8 +68,9 @@ const ANCHO_DERIVACION_NO_DETALLADA = 190
 const ALTO_DERIVACION_NO_DETALLADA = 40
 
 // Separación entre aristas paralelas (mismo origen/destino visual), en
-// unidades de mundo -- perpendicular a la dirección de la arista.
-const SEPARACION_PARALELA = 14
+// unidades de mundo -- VIS-TOPO-01B §19: pequeña, simétrica, determinista
+// según el índice estable de la arista (p. ej. 3 aristas -> -8/0/+8).
+const SEPARACION_PARALELA = 8
 
 function tamanoDeNodo(nodo: NodoVisual): { ancho: number; alto: number } {
   if (nodo.tipo === 'derivacion' && nodo.noDetallado === true) {
@@ -76,27 +79,75 @@ function tamanoDeNodo(nodo: NodoVisual): { ancho: number; alto: number } {
   return TAMANO_POR_TIPO[nodo.tipo]
 }
 
-// Punto donde el rayo centro->hacia cruza el borde del rectángulo
-// (ancho x alto) centrado en (cx,cy). Determinista y sin casos
-// degenerados salvo hacia === centro (excluido: resolverGrafoVisual ya
-// descarta aristas con origenId === destinoId).
-function puntoEnBorde(cx: number, cy: number, ancho: number, alto: number, haciaX: number, haciaY: number): PuntoVisual {
-  const dx = haciaX - cx
-  const dy = haciaY - cy
-  const mitadAncho = ancho / 2
-  const mitadAlto = alto / 2
-  const tx = dx !== 0 ? mitadAncho / Math.abs(dx) : Number.POSITIVE_INFINITY
-  const ty = dy !== 0 ? mitadAlto / Math.abs(dy) : Number.POSITIVE_INFINITY
-  const t = Math.min(tx, ty, 1)
-  return { x: cx + dx * t, y: cy + dy * t }
+// Tolerancia para "misma coordenada" -- Dagre no siempre entrega x
+// idéntico bit a bit para nodos que están lógicamente alineados
+// (rank-alignment interno con redondeo propio). Por debajo de este
+// margen, dos coordenadas se tratan como iguales para decidir routing
+// puramente vertical vs. codo ortogonal.
+const EPSILON_ALINEACION = 0.5
+
+// VIS-TOPO-01B: routing ORTOGONAL determinista (VIS-TOPO-00 seguía la
+// recomendación de un SVG técnico limpio; la validación manual de
+// VIS-TOPO-01 pidió eliminar el aspecto de "grafo genérico diagonal").
+// Cada arista sale por el borde INFERIOR de su nodo origen y entra por
+// el borde SUPERIOR de su nodo destino (layout siempre TB) -- nunca por
+// un punto lateral ni por el centro. Invariante que exige VIS-TOPO-01B
+// §13: para cada par de puntos consecutivos del path, x1===x2 (tramo
+// vertical) o y1===y2 (tramo horizontal), nunca ambos distintos.
+//
+//   - origen.x ≈ destino.x (dentro de EPSILON_ALINEACION): línea vertical
+//     pura, 2 puntos.
+//   - si no: codo en 3 tramos (vertical → horizontal → vertical), 4
+//     puntos, con una `branchY` intermedia entre ambos nodos (VIS-TOPO-01B
+//     §14-§16). Si además la arista pertenece a un grupo de aristas
+//     paralelas (mismo par origen/destino visual, VIS-TOPO-00 §18), cada
+//     una recibe su propia `branchY` desplazada por índice -- un
+//     "escalonado" determinista en vez de superponerse (VIS-TOPO-01B
+//     §18-§19). Para el caso alineado (línea vertical pura) el desplazamiento
+//     paralelo se aplica lateralmente en su lugar (offset de x, igual en
+//     ambos puntos -- sigue siendo una vertical pura, sólo desplazada).
+function puntoInferior(nodo: { x: number; y: number; alto: number }): PuntoVisual {
+  return { x: nodo.x, y: nodo.y + nodo.alto / 2 }
 }
 
-function normalUnitaria(dx: number, dy: number): PuntoVisual {
-  const longitud = Math.hypot(dx, dy)
-  if (longitud === 0) {
-    return { x: 0, y: 0 }
+function puntoSuperior(nodo: { x: number; y: number; alto: number }): PuntoVisual {
+  return { x: nodo.x, y: nodo.y - nodo.alto / 2 }
+}
+
+function rutaOrtogonal(
+  origen: { x: number; y: number; alto: number },
+  destino: { x: number; y: number; alto: number },
+  offsetLateral: number,
+): readonly PuntoVisual[] {
+  const salida = puntoInferior(origen)
+  const entrada = puntoSuperior(destino)
+
+  if (Math.abs(origen.x - destino.x) < EPSILON_ALINEACION) {
+    // Alineados: vertical pura, desplazada lateralmente si es una lane
+    // de un grupo de aristas paralelas (offsetLateral === 0 en el caso
+    // normal de 1 sola arista entre ese par).
+    const x = salida.x + offsetLateral
+    return [
+      { x, y: salida.y },
+      { x, y: entrada.y },
+    ]
   }
-  return { x: -dy / longitud, y: dx / longitud }
+
+  // Codo determinista: la cota de quiebre es el punto medio entre la
+  // salida del origen y la entrada del destino (VIS-TOPO-01B §16). Si
+  // varias aristas comparten el mismo par origen/destino, cada una
+  // desplaza SU bus por `offsetLateral` -- un fan-out real desde el
+  // mismo origen hacia distintos destinos del mismo rank comparte la
+  // misma `branchY` de forma natural (misma fórmula, mismos y de salida/
+  // entrada), leyéndose como un único bus horizontal aunque cada arista
+  // dibuje su propio tramo.
+  const branchY = (salida.y + entrada.y) / 2 + offsetLateral
+  return [
+    salida,
+    { x: salida.x, y: branchY },
+    { x: destino.x, y: branchY },
+    entrada,
+  ]
 }
 
 // Clave estable para un par (origen,destino) visual. Separador literal
@@ -175,19 +226,10 @@ export function layoutGrafoVisual(grafo: GrafoVisual): GrafoVisualPosicionado {
     if (origen === undefined || destino === undefined) {
       continue
     }
-    const normal = normalUnitaria(destino.x - origen.x, destino.y - origen.y)
     const cantidad = grupo.length
     grupo.forEach((arista, indice) => {
-      const offset = (indice - (cantidad - 1) / 2) * SEPARACION_PARALELA
-      const puntoInicio = puntoEnBorde(origen.x, origen.y, origen.ancho, origen.alto, destino.x, destino.y)
-      const puntoFin = puntoEnBorde(destino.x, destino.y, destino.ancho, destino.alto, origen.x, origen.y)
-      aristas.push({
-        ...arista,
-        puntos: [
-          { x: puntoInicio.x + normal.x * offset, y: puntoInicio.y + normal.y * offset },
-          { x: puntoFin.x + normal.x * offset, y: puntoFin.y + normal.y * offset },
-        ],
-      })
+      const offsetLateral = (indice - (cantidad - 1) / 2) * SEPARACION_PARALELA
+      aristas.push({ ...arista, puntos: rutaOrtogonal(origen, destino, offsetLateral) })
     })
   }
   // Orden estable: igual al de `grafo.aristas` (no al de inserción por
