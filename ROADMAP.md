@@ -3304,6 +3304,74 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `BETA-UI-POLISH-01: CERRADO — pendiente validación
     manual`.
 
+- **D-δ.133 — REPORT-POLISH-01: rediseño editorial de la Memoria de
+  cálculo (CERRADO — pendiente validación manual).** Arquitectura
+  `resolverDatosDeInforme → DatosDeInforme → construirDocDefinition →
+  pdfMake` intacta -- ningún dato nuevo calculado, ningún archivo de
+  `src/motor/` tocado; el test que garantiza que `generarDocumentoPdf.ts`
+  nunca importa `motor/` sigue verde. **Bug real encontrado y corregido**
+  (no sólo estético): `ENCABEZADO_TABLA_TUBERIA` era un array compartido
+  reutilizado por referencia como header de TODAS las tablas de Tuberías
+  (una por Local, una por segmento de Montante...) -- pdfMake muta los
+  nodos de una tabla durante el layout, así que a partir de la segunda
+  tabla el header quedaba en blanco, invisible antes de este slice sin
+  fondo de header que lo evidenciara. Corregido con un array nuevo por
+  llamada. **Portada** nueva (wordmark textual "IUAS", título, tipología,
+  modo de trabajo, fecha es-AR) + **Resumen del cálculo** (4-6 KPIs ya
+  resueltos: Qc, cantidad de UF, esquema, estado CUMPLE/NO CUMPLE/No
+  evaluado, margen y terminal crítico) inmediatamente después. Jerarquía
+  numerada (1. Demanda · 2. Tuberías con 2.1-2.4 · 3. Medidores · 4.
+  Abastecimiento y reserva · 5. Verificación hidráulica · 6. Metodología y
+  fuentes) -- Medidores/Abastecimiento se reordenaron ANTES de
+  Verificación (que cierra como síntesis final; antes iba justo después
+  de Tuberías) -- reordena sólo el array de render, cada sección sigue
+  leyendo los mismos datos. Locales de M2 agrupados por UF (antes cada
+  Local repetía "· Unidad funcional X" en su propio encabezado; ahora la
+  UF aparece una vez, con los Locales debajo) -- nuevo campo derivado
+  `GrupoDeLocalDeInforme.unidadFuncionalNombre` en
+  `resolverDatosDeInforme.ts`, agrupado por `(unidadFuncionalId,
+  localId)` en vez de por texto (evita colisión entre UF distintas con
+  Locales de igual nombre). Layout de tabla compartido (header con fondo
+  suave, líneas grises finas) aplicado a TODAS las tablas del documento;
+  bloques heading+tabla chicos marcados `unbreakable` (Local de M1,
+  Local/Montante de M2) para no dejar títulos huérfanos. Glyph roto
+  corregido: la sustitución de velocidad usaba una flecha Unicode (→) que
+  la fuente vfs de pdfMake no renderiza -- separada en dos líneas (mismo
+  contenido matemático, ninguna fórmula cambiada). Banner grande
+  CUMPLE/NO CUMPLE al inicio de Verificación (texto en mayúsculas, nunca
+  depende sólo del color). Bug de saltos de página desperdiciados
+  corregido: "Medidores"/"Alimentación y reserva" forzaban `pageBreak:
+  'before'` SIEMPRE, incluso con el módulo "todavía no iniciado" (una
+  sola línea) -- confirmado visualmente en el proyecto de ejemplo: dos
+  páginas casi vacías. Ahora el salto sólo se fuerza cuando el módulo
+  tiene contenido real. Header/footer + paginación nuevos (pdfMake
+  `header`/`footer` dinámicos, ausentes en portada, "IUAS — Memoria de
+  cálculo"/nombre de proyecto + "Página X de Y" desde página 2);
+  metadata PDF (`info`: title/subject/author); filename real
+  (`IUAS_Memoria_de_calculo_<proyecto>.pdf`, sanitizado) vía
+  `pdfMake.download()` en vez de `.open()` sin nombre. Colores de marca
+  IUAS (mismos valores que `sistema-visual.css`) para acentos de sección,
+  sin depender del color para ningún estado (siempre hay texto). Tests:
+  13 nuevos en `generarDocumentoPdf.test.ts` (portada, resumen con
+  "No evaluado" para módulos sin evaluar, orden de secciones numeradas,
+  header/footer/paginación, metadata, estilos de banner, bloque crítico
+  unbreakable, headerRows en tablas técnicas, ausencia de
+  undefined/NaN/[object Object], UF no repetida por Local,
+  `resolverNombreDeArchivo` sanitizado) + nuevo E2E
+  `reportPolish.spec.ts` (click real -> descarga del PDF, con nombre Local
+  personalizado, con proyecto incompleto). QA visual manual: generados y
+  revisados página por página (vía `pdfmake` server-side + conversión a
+  PNG) un proyecto de ejemplo completo y el fixture de escala M (14 UF,
+  ~294 terminales, 31 páginas) -- confirmado el fix del bug de header en
+  blanco, el fix de páginas casi vacías, y ausencia de huérfanos tras el
+  fix de `unbreakable`. `tsc -b`/`e2e:typecheck`/`build` limpios. Vitest
+  **1974/1974** (baseline 1961 + 13 nuevos). ESLint: mismos 11 errores
+  preexistentes, 0 nuevos. Tamaño/tiempo: ejemplo 7 páginas/~72 KB/~1,2 s,
+  escala M 31 páginas/~261 KB/~3,5 s (generación Node, sin threshold
+  rígido).
+  - **Estado:** `REPORT-POLISH-01: CERRADO — pendiente validación
+    manual`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
