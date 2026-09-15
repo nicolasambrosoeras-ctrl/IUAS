@@ -130,6 +130,32 @@ describe('construirDocDefinition (REPORT-01B: memoria de cálculo)', () => {
     // Ninguna celda de valor debe traer "m/s" pegado (sólo el header lo tiene).
     expect(textos.some((t) => /^\d[\d.,]* m\/s$/.test(t))).toBe(false)
   })
+
+  // HYD-ACS-MANUAL-LOSS-01 (D-δ.129): el terminal crítico de canonico() es
+  // de red AC (verificado en resolverDatosDeInforme.test.ts) -- caso real
+  // para ejercitar la memoria de cálculo con el dato manual informado.
+  it('hfEquipoACS_mca informado: la memoria muestra la ecuación con el término, sin el warning de "no informado"', () => {
+    const conDato = { ...canonico(), hfEquipoACS_mca: 2.4 }
+    const datos = resolverDatosDeInforme(conDato, catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+
+    expect(textos.some((t) => t.includes('Presidual = Pdisponible − Δz − hfDistribuida − hfLocalizada − hfMedidor − hfEquipoACS'))).toBe(true)
+    expect(textos.some((t) => t.includes('hfEquipoACS (dato manual del fabricante)'))).toBe(true)
+    expect(textos.some((t) => t.includes('2,400 m.c.a.'))).toBe(true)
+    expect(textos.some((t) => t.includes('Pérdida del equipo ACS adoptada manualmente'))).toBe(true)
+    // El warning de "no informado" no debe aparecer más en el desarrollo del crítico.
+    expect(textos.some((t) => t.includes('hfEquipoACS no participa de este balance: todavía no fue informado'))).toBe(false)
+  })
+
+  it('hfEquipoACS_mca ausente: sigue mostrando la fórmula base y el warning de "no informado"', () => {
+    const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+
+    expect(textos.some((t) => t.includes('hfEquipoACS no participa de este balance: todavía no fue informado'))).toBe(true)
+    expect(textos.some((t) => t.includes('Presidual = Pdisponible − Δz − hfDistribuida − hfLocalizada − hfMedidor − hfEquipoACS'))).toBe(false)
+  })
 })
 
 describe('construirDocDefinition (FIX-REPORT-01B-VISUAL-01)', () => {

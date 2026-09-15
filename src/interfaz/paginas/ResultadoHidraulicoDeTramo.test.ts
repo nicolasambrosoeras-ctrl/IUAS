@@ -487,3 +487,84 @@ describe('CabeceraDeModulo2 -- toggle de modo de trabajo (D-δ.51)', () => {
     expect(html).toMatch(/<details open=""><summary>Configuración avanzada/)
   })
 })
+
+// HYD-ACS-MANUAL-LOSS-01 (D-δ.129): input de "Pérdida de carga del equipo
+// ACS" junto a la fila "Alimentación ACS" de Distribución general.
+describe('ResultadoHidraulicoDeTramo (UI) — hfEquipoACS_mca (HYD-ACS-MANUAL-LOSS-01)', () => {
+  function proyectoConAlimentacionAcs(hfEquipoACS_mca?: number): Proyecto {
+    const artefacto: Artefacto = { id: 'a1', artefactoId: 'receptaculoDucha', cantidad: 1, origen: 'normativo' }
+    const local: Local = { id: 'l1', tipo: 'bano', regimen: 'domiciliario', artefactos: [artefacto] }
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'UF 1',
+      niveles: [{ id: 'uf-1-nivel-1', nombre: 'Nivel 1', nivel: 0, cotaHidraulicaReferencia_m: 1, locales: [local] }],
+    }
+    const nodos: Nodo[] = [
+      { id: 'n-general' },
+      { id: 'n0' },
+      { id: 'n-acs', referencia: { tipo: 'produccionACS' } },
+      { id: 'n-ac', referencia: referenciaA('uf-1', 'l1', 'a1') },
+    ]
+    const tramos: Tramo[] = [
+      { id: 't-general', nodoOrigenId: 'n-general', nodoDestinoId: 'n0', red: 'AF', longitud_m: 10 },
+      { id: 't-af-acs', nodoOrigenId: 'n0', nodoDestinoId: 'n-acs', red: 'AF', longitud_m: 4 },
+      { id: 't-ac', nodoOrigenId: 'n-acs', nodoDestinoId: 'n-ac', red: 'AC', longitud_m: 5 },
+    ]
+    const redHidraulica: RedHidraulica = { nodos, tramos }
+    return {
+      metadatos: metadatos(),
+      parametros: { tipoDeProyecto: 'viviendaIndividual', presionSobreAcera_m: 0, alturaArtefactoMasDesfavorable_m: 0 },
+      unidadesFuncionales: [uf],
+      redHidraulica,
+      configuracionHidraulica: { metodoPerdidaDistribuida: 'hazenWilliams', metodoPerdidaLocalizada: 'estimado', granularidadHidraulica: 'simplificada', materialTuberiaId: 'ppr', sistemaDeTuberiaId: 'acquaSystemMagnumPn20' },
+      ...(hfEquipoACS_mca !== undefined ? { hfEquipoACS_mca } : {}),
+    }
+  }
+
+  it('proyecto CON Alimentación ACS: muestra el input, vacío cuando el dato está ausente', () => {
+    const html = renderToStaticMarkup(
+      createElement(ResultadoHidraulicoDeTramo, { proyecto: proyectoConAlimentacionAcs(), catalogoArtefactos, onCambiar: () => {} }),
+    )
+
+    expect(html).toContain('Pérdida de carga del equipo ACS [m.c.a.]')
+    expect(html).toContain('Dato manual del fabricante.')
+    expect(html).toMatch(/aria-label="Pérdida de carga del equipo ACS \[m\.c\.a\.\]"[^>]*value=""/)
+  })
+
+  it('proyecto con hfEquipoACS_mca=2.4: el input refleja el valor persistido', () => {
+    const html = renderToStaticMarkup(
+      createElement(ResultadoHidraulicoDeTramo, { proyecto: proyectoConAlimentacionAcs(2.4), catalogoArtefactos, onCambiar: () => {} }),
+    )
+
+    expect(html).toMatch(/aria-label="Pérdida de carga del equipo ACS \[m\.c\.a\.\]"[^>]*value="2\.4"/)
+  })
+
+  it('proyecto con hfEquipoACS_mca=0 explícito: el input muestra 0, no vacío', () => {
+    const html = renderToStaticMarkup(
+      createElement(ResultadoHidraulicoDeTramo, { proyecto: proyectoConAlimentacionAcs(0), catalogoArtefactos, onCambiar: () => {} }),
+    )
+
+    expect(html).toMatch(/aria-label="Pérdida de carga del equipo ACS \[m\.c\.a\.\]"[^>]*value="0"/)
+  })
+
+  it('proyecto SIN Alimentación ACS (sólo AF): el input no aparece', () => {
+    const html = renderToStaticMarkup(
+      createElement(ResultadoHidraulicoDeTramo, { proyecto: proyectoConToilette(), catalogoArtefactos, onCambiar: () => {} }),
+    )
+
+    expect(html).not.toContain('Pérdida de carga del equipo ACS')
+  })
+
+  it('el input aparece también en modo Profesional (no exclusivo de Rápido)', () => {
+    const proyecto = proyectoConAlimentacionAcs()
+    const proyectoProfesional: Proyecto = {
+      ...proyecto,
+      configuracionHidraulica: { ...proyecto.configuracionHidraulica, granularidadHidraulica: 'profesional' },
+    }
+    const html = renderToStaticMarkup(
+      createElement(ResultadoHidraulicoDeTramo, { proyecto: proyectoProfesional, catalogoArtefactos, onCambiar: () => {} }),
+    )
+
+    expect(html).toContain('Pérdida de carga del equipo ACS [m.c.a.]')
+  })
+})

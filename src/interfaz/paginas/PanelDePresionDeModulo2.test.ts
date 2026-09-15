@@ -130,6 +130,8 @@ function candidatoCompleto(nodoId: string, presidual: number, pmin: number): Can
         incrementoPorTramoId: new Map(),
         tramosConIncremento: [],
       },
+      redDelTerminal: 'AF',
+      hfEquipoACSAplicado_mca: undefined,
     },
   }
 }
@@ -389,5 +391,26 @@ describe('PanelDePresionDeModulo2 (UI)', () => {
     const html = render(proyectoCon([uf], { redHidraulica: red }))
 
     expect(html).not.toContain('hfEquipoACS')
+  })
+
+  // --- HYD-ACS-MANUAL-LOSS-01 (D-δ.129) ---
+
+  it('informado (hfEquipoACS_mca=2.4): la advertencia de exclusión desaparece, se muestra el valor incluido', () => {
+    const { uf, red } = ufConTerminal()
+    const proyecto: Proyecto = { ...proyectoCon([uf], { redHidraulica: red }), hfEquipoACS_mca: 2.4 }
+    const html = render(proyecto, resolucionCompleta(proyecto, 'terminal', 7, 5))
+
+    expect(html).toContain('✓ CUMPLE')
+    expect(html).not.toContain('no incluye automáticamente')
+    expect(html).toContain('Pérdida del equipo ACS incluida en el balance: 2,400 m.c.a.')
+  })
+
+  it('informado con 0 explícito: NO muestra el warning de "no informado" (0 es un valor adoptado, no ausencia)', () => {
+    const { uf, red } = ufConTerminal()
+    const proyecto: Proyecto = { ...proyectoCon([uf], { redHidraulica: red }), hfEquipoACS_mca: 0 }
+    const html = render(proyecto, resolucionCompleta(proyecto, 'terminal', 7, 5))
+
+    expect(html).not.toContain('no incluye automáticamente')
+    expect(html).toContain('Pérdida del equipo ACS incluida en el balance: 0,000 m.c.a.')
   })
 })

@@ -78,6 +78,8 @@ function balanceCompleto(nodoId: string, presidual: number, pmin: number): Candi
     hfDistribuidaPorTramo: [],
     hfLocalizada: { metodologia: 'estimado', hf_mca: 0.2, nTerminalesLocal: 1, nTeesEstimadas: 0, velocidadReferencia_mps: 1 },
     incrementoVerticalPorNivel: { aplica: true, nivel: 1, deltaLVertical_m: 3, incrementoPorTramoId: new Map(), tramosConIncremento: [] },
+    redDelTerminal: 'AF',
+    hfEquipoACSAplicado_mca: undefined,
   } satisfies ResultadoPresionResidualDeCamino
   return { nodoId, resultado }
 }

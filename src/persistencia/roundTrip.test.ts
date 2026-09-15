@@ -185,6 +185,9 @@ function proyectoComplejoDeFixture(): Proyecto {
       volumenTanqueElevadoAdoptado_m3: 5,
     },
     modoTrabajo: 'profesional',
+    // HYD-ACS-MANUAL-LOSS-01 (D-δ.129): informado, para ejercitar el
+    // round-trip general del proyecto complejo con el campo presente.
+    hfEquipoACS_mca: 1.85,
   };
 }
 
@@ -304,5 +307,61 @@ describe('round-trip export -> import de un proyecto complejo', () => {
     for (const prohibida of clavesProhibidas) {
       expect(claves.has(prohibida)).toBe(false);
     }
+  });
+
+  it('preserva hfEquipoACS_mca informado (dato manual del fabricante)', () => {
+    if (!resultado.exito) throw new Error('import falló');
+    expect(resultado.proyecto.hfEquipoACS_mca).toBe(1.85);
+  });
+});
+
+// HYD-ACS-MANUAL-LOSS-01 (D-δ.129): round-trip dedicado a los tres casos
+// que la ausencia/cero de hfEquipoACS_mca debe distinguir -- undefined, 0 y
+// un valor real -- y a la compatibilidad con proyectos guardados antes del
+// slice (sin el campo en absoluto).
+describe('round-trip hfEquipoACS_mca — ausente / cero / informado (HYD-ACS-MANUAL-LOSS-01)', () => {
+  function exportarEImportar(proyecto: Proyecto): Proyecto {
+    const archivo = serializarProyecto(proyecto, { ahora: () => new Date('2026-09-15T00:00:00.000Z') });
+    const resultado = parsearArchivoIuas(JSON.stringify(archivo));
+    if (!resultado.exito) throw new Error('import falló');
+    return resultado.proyecto;
+  }
+
+  it('ausente en el original -> sigue ausente tras el round-trip (nunca reaparece como 0)', () => {
+    const proyectoSinHf = proyectoComplejoDeFixture();
+    delete proyectoSinHf.hfEquipoACS_mca;
+    const importado = exportarEImportar(proyectoSinHf);
+    expect(importado.hfEquipoACS_mca).toBeUndefined();
+    expect('hfEquipoACS_mca' in importado).toBe(false);
+  });
+
+  it('0 explícito en el original -> se conserva como 0, distinto de ausente', () => {
+    const proyecto: Proyecto = { ...proyectoComplejoDeFixture(), hfEquipoACS_mca: 0 };
+    const importado = exportarEImportar(proyecto);
+    expect(importado.hfEquipoACS_mca).toBe(0);
+    expect('hfEquipoACS_mca' in importado).toBe(true);
+  });
+
+  it('valor real (1.85) en el original -> se conserva exactamente', () => {
+    const proyecto: Proyecto = { ...proyectoComplejoDeFixture(), hfEquipoACS_mca: 1.85 };
+    const importado = exportarEImportar(proyecto);
+    expect(importado.hfEquipoACS_mca).toBe(1.85);
+  });
+
+  it('un archivo .iuas anterior al slice (sin hfEquipoACS_mca en el JSON) importa sin error y con el campo ausente', () => {
+    const proyectoAnterior = proyectoComplejoDeFixture();
+    delete proyectoAnterior.hfEquipoACS_mca;
+    const archivo = serializarProyecto(proyectoAnterior, { ahora: () => new Date('2026-01-01T00:00:00.000Z') });
+    // Simula un archivo real anterior: nunca tuvo la clave en el JSON.
+    const textoAnterior = JSON.stringify(archivo);
+    expect(textoAnterior.includes('hfEquipoACS_mca')).toBe(false);
+
+    const resultado = parsearArchivoIuas(textoAnterior);
+    expect(resultado.exito).toBe(true);
+    if (!resultado.exito) return;
+    expect(resultado.proyecto.hfEquipoACS_mca).toBeUndefined();
+    // Resto del proyecto sigue intacto -- ningún resultado hidráulico
+    // depende de este campo para importar.
+    expect(resultado.proyecto.unidadesFuncionales.map((uf) => uf.id)).toEqual(['uf-1', 'uf-2']);
   });
 });

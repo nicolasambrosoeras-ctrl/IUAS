@@ -27,6 +27,8 @@ describe('filtrarCandidatosParaTerminalCritico (D-δ.47)', () => {
     hfDistribuida_mca: 0.1,
     hfDistribuidaPorTramo: [],
     incrementoVerticalPorNivel: { aplica: false, nivel: undefined, deltaLVertical_m: 0, incrementoPorTramoId: new Map(), tramosConIncremento: [] },
+    redDelTerminal: 'AF',
+    hfEquipoACSAplicado_mca: undefined,
     hfLocalizada: { metodologia: 'detallado', hf_mca: 0, porTramo: [] },
   }
   const sinPresionMinima: ResultadoPresionResidualDeCamino = { tipo: 'terminalSinPresionMinima', nodoId: 't2', artefactoIdCatalogo: 'maquinaLavavajillas' }

@@ -19,6 +19,8 @@ function traza() {
     hfDistribuida_mca: 0.5,
     hfDistribuidaPorTramo: [],
     incrementoVerticalPorNivel: { aplica: false, nivel: undefined, deltaLVertical_m: 0, incrementoPorTramoId: new Map(), tramosConIncremento: [] },
+    redDelTerminal: 'AF' as const,
+    hfEquipoACSAplicado_mca: undefined,
     hfLocalizada: { metodologia: 'detallado' as const, hf_mca: 0.1, porTramo: [] },
   }
 }

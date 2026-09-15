@@ -21,6 +21,8 @@ describe('TarjetaDeTerminal (D-δ.46)', () => {
     hfDistribuida_mca: 0.5,
     hfDistribuidaPorTramo: [],
     incrementoVerticalPorNivel: { aplica: false, nivel: undefined, deltaLVertical_m: 0, incrementoPorTramoId: new Map(), tramosConIncremento: [] },
+    redDelTerminal: 'AF',
+    hfEquipoACSAplicado_mca: undefined,
     hfLocalizada: { metodologia: 'detallado', hf_mca: 0, porTramo: [] },
   }
 

@@ -986,4 +986,112 @@ describe("resolverPresionResidualDeCamino — cota efectiva derivada (GEOM-UX-01
     // rol de "punto de alimentacion" de este Nodo degenerado.
     expect(resultado.desnivel_m).toBe(0)
   })
+
+  // HYD-ACS-MANUAL-LOSS-01 (D-δ.129): reutiliza proyectoTerminalesAFyAC
+  // (caminos AF y AC totalmente independientes del mismo Artefacto) para
+  // demostrar que la adopcion manual se aplica UNA vez a caminos AC, nunca
+  // a AF, y que ausente/0 se distinguen.
+  describe('hfEquipoACS_mca (HYD-ACS-MANUAL-LOSS-01, D-δ.129)', () => {
+    const HF_MEDIDOR_MCA = 1.3
+
+    function resolver(proyecto: Proyecto, nodoTerminalId: string) {
+      const resultado = resolverPresionResidualDeCamino(
+        proyecto,
+        nodoTerminalId,
+        P_DISPONIBLE,
+        HF_MEDIDOR_MCA,
+        catalogoArtefactos,
+        catalogoSistemasDeTuberia,
+        catalogoMaterialesTuberia,
+      )
+      if (resultado.tipo !== 'balanceCompleto') throw new Error('se esperaba balanceCompleto')
+      return resultado
+    }
+
+    it('redDelTerminal expone la red del ultimo Tramo del camino', () => {
+      const proyecto = proyectoTerminalesAFyAC(7)
+      expect(resolver(proyecto, 'terminal-af').redDelTerminal).toBe('AF')
+      expect(resolver(proyecto, 'terminal-ac').redDelTerminal).toBe('AC')
+    })
+
+    it('hfEquipoACS_mca ausente en el Proyecto -> nunca aplicado, ni en AF ni en AC (regresión, mismo Presidual que antes del slice)', () => {
+      const proyecto = proyectoTerminalesAFyAC(7)
+
+      const af = resolver(proyecto, 'terminal-af')
+      const ac = resolver(proyecto, 'terminal-ac')
+
+      expect(af.hfEquipoACSAplicado_mca).toBeUndefined()
+      expect(ac.hfEquipoACSAplicado_mca).toBeUndefined()
+      expect(af.presionResidual_mca).toBeCloseTo(
+        P_DISPONIBLE - af.desnivel_m - af.hfDistribuida_mca - af.hfLocalizada.hf_mca - HF_MEDIDOR_MCA,
+        12,
+      )
+    })
+
+    it('hfEquipoACS_mca informado -> AF nunca lo recibe (Presidual idéntico con o sin el dato)', () => {
+      const sinDato = proyectoTerminalesAFyAC(7)
+      const conDato: Proyecto = { ...proyectoTerminalesAFyAC(7), hfEquipoACS_mca: 2.4 }
+
+      const afSinDato = resolver(sinDato, 'terminal-af')
+      const afConDato = resolver(conDato, 'terminal-af')
+
+      expect(afConDato.hfEquipoACSAplicado_mca).toBeUndefined()
+      expect(afConDato.presionResidual_mca).toBeCloseTo(afSinDato.presionResidual_mca, 12)
+    })
+
+    it('hfEquipoACS_mca informado -> AC lo recibe UNA vez, restado del Presidual', () => {
+      const sinDato = proyectoTerminalesAFyAC(7)
+      const conDato: Proyecto = { ...proyectoTerminalesAFyAC(7), hfEquipoACS_mca: 2.4 }
+
+      const acSinDato = resolver(sinDato, 'terminal-ac')
+      const acConDato = resolver(conDato, 'terminal-ac')
+
+      expect(acConDato.hfEquipoACSAplicado_mca).toBe(2.4)
+      expect(acConDato.presionResidual_mca).toBeCloseTo(acSinDato.presionResidual_mca - 2.4, 12)
+    })
+
+    it('hfEquipoACS_mca = 0 explícito en AC -> aplicado (hfEquipoACSAplicado_mca=0), Presidual idéntico a ausente pero semánticamente informado', () => {
+      const ausente = proyectoTerminalesAFyAC(7)
+      const ceroExplicito: Proyecto = { ...proyectoTerminalesAFyAC(7), hfEquipoACS_mca: 0 }
+
+      const acAusente = resolver(ausente, 'terminal-ac')
+      const acCero = resolver(ceroExplicito, 'terminal-ac')
+
+      expect(acAusente.hfEquipoACSAplicado_mca).toBeUndefined()
+      expect(acCero.hfEquipoACSAplicado_mca).toBe(0)
+      expect(acCero.presionResidual_mca).toBeCloseTo(acAusente.presionResidual_mca, 12)
+    })
+
+    it('varios terminales AC del mismo proyecto reciben la pérdida cada uno UNA vez, sin acumulación cruzada', () => {
+      const base = proyectoTerminalesAFyAC(7)
+      const redHidraulica = base.redHidraulica!
+      const referenciaTerminalAc = redHidraulica.nodos.find((n) => n.id === 'terminal-ac')!.referencia!
+      // Segundo terminal AC hermano, colgado de la MISMA raíz AC (no
+      // comparte Nodo intermedio con 'mid-ac' para no crear una
+      // bifurcacion real que exigiria tee configurada).
+      const proyecto: Proyecto = {
+        ...base,
+        hfEquipoACS_mca: 2,
+        redHidraulica: {
+          nodos: [
+            ...redHidraulica.nodos,
+            { id: 'mid-ac-2' },
+            { id: 'terminal-ac-2', referencia: referenciaTerminalAc, cota_m: -999 },
+          ],
+          tramos: [
+            ...redHidraulica.tramos,
+            { id: 't0-ac-2', nodoOrigenId: 'raiz-ac', nodoDestinoId: 'mid-ac-2', red: 'AC', longitud_m: 4, accesorios: [] },
+            { id: 't-ac-2', nodoOrigenId: 'mid-ac-2', nodoDestinoId: 'terminal-ac-2', red: 'AC', longitud_m: 3, accesorios: [] },
+          ],
+        },
+      }
+      expect(validarRedHidraulica(proyecto)).toEqual([])
+
+      const ac1 = resolver(proyecto, 'terminal-ac')
+      const ac2 = resolver(proyecto, 'terminal-ac-2')
+
+      expect(ac1.hfEquipoACSAplicado_mca).toBe(2)
+      expect(ac2.hfEquipoACSAplicado_mca).toBe(2)
+    })
+  })
 })

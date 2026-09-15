@@ -241,7 +241,8 @@ describe('resolverDatosDeInforme -- REPORT-01B: desarrollo del terminal crítico
     expect(dc!.presionResidual_mca).toBeCloseTo(presidualEsperada, 6)
     expect(dc!.margen_mca).toBeCloseTo(dc!.presionResidual_mca - dc!.presionMinimaRequerida_mca, 6)
     expect(dc!.cumpleMinimo).toBe(false)
-    // hfEquipoACS nunca se inventa (D-δ.15 sin fórmula normativa vigente).
+    // hfEquipoACS_mca ausente en el Proyecto -> nunca se inventa
+    // (HYD-ACS-MANUAL-LOSS-01, D-δ.129: ausente != 0).
     expect(dc!.hfEquipoACS_mca).toBeUndefined()
   })
 
@@ -249,6 +250,20 @@ describe('resolverDatosDeInforme -- REPORT-01B: desarrollo del terminal crítico
     const p = backfillLongitudesDePredimensionamiento(proyectoInicial)
     const d = datos(p)
     expect(d.verificacion.desarrolloCritico).toBeUndefined()
+  })
+
+  // HYD-ACS-MANUAL-LOSS-01 (D-δ.129): el terminal crítico de `canonico()`
+  // es de red AC (verificado empíricamente) -- caso real para ejercitar la
+  // propagación del dato manual hasta el desarrollo del crítico del REPORT.
+  it('hfEquipoACS_mca informado en el Proyecto: se propaga al desarrollo del crítico (red AC) y se resta del Presidual', () => {
+    const sinDato = datos(canonico())
+    const conDato = datos({ ...canonico(), hfEquipoACS_mca: 2.4 })
+
+    const dcSinDato = sinDato.verificacion.desarrolloCritico!
+    const dcConDato = conDato.verificacion.desarrolloCritico!
+    expect(dcConDato.red).toBe('AC')
+    expect(dcConDato.hfEquipoACS_mca).toBe(2.4)
+    expect(dcConDato.presionResidual_mca).toBeCloseTo(dcSinDato.presionResidual_mca - 2.4, 6)
   })
 })
 

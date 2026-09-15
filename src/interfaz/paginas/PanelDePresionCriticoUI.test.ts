@@ -73,7 +73,12 @@ function proyecto(): Proyecto {
 
 const REF: ReferenciaDeArtefacto = { tipo: 'artefacto', unidadFuncionalId: 'uf-2', localId: 'local-bano', artefactoId: 'art-ducha' }
 
-function balance(nodoId: string, presidual: number, pmin: number): CandidatoTerminal {
+function balance(
+  nodoId: string,
+  presidual: number,
+  pmin: number,
+  opts?: { readonly redDelTerminal?: 'AF' | 'AC'; readonly hfEquipoACSAplicado_mca?: number | undefined },
+): CandidatoTerminal {
   return {
     nodoId,
     resultado: {
@@ -101,6 +106,8 @@ function balance(nodoId: string, presidual: number, pmin: number): CandidatoTerm
           { tramoId: 't-af-acs', rol: 'alimentacionAcs', incremento_m: 3 },
         ],
       },
+      redDelTerminal: opts?.redDelTerminal ?? 'AC',
+      hfEquipoACSAplicado_mca: opts?.hfEquipoACSAplicado_mca,
     } satisfies ResultadoPresionResidualDeCamino,
   }
 }
@@ -179,5 +186,47 @@ describe('CalculoDelCriticoDetalle (D-δ.50 seccion 29)', () => {
     // El resto del desglose (Presión residual, Margen) sigue igual.
     expect(html).toContain('Presión residual')
     expect(html).toContain('Margen')
+  })
+
+  // HYD-ACS-MANUAL-LOSS-01 (D-δ.129)
+
+  it('AC + informado (2.4): muestra el término en la tabla, nunca la nota de "no incluido"', () => {
+    const critico = balance('n-ac-ducha', 7.2, 6, { redDelTerminal: 'AC', hfEquipoACSAplicado_mca: 2.4 }).resultado
+    if (critico.tipo !== 'balanceCompleto') throw new Error('fixture invalido')
+
+    const html = renderToStaticMarkup(
+      createElement(CalculoDelCriticoDetalle, {
+        proyecto: proyecto(),
+        catalogoArtefactos,
+        resultado: critico,
+        presionDisponible_mca: 20,
+        hfMedidor_mca: 1,
+        origenTexto: 'Tanque elevado',
+        cotaRaiz_m: 0,
+      }),
+    )
+
+    expect(html).toContain('hf equipo ACS')
+    expect(html).not.toContain('hfEquipoACS no incluido automáticamente')
+  })
+
+  it('AF: nunca muestra ninguna línea/nota de hfEquipoACS, aunque el proyecto tenga el dato informado globalmente', () => {
+    const critico = balance('n-ac-ducha', 7.2, 6, { redDelTerminal: 'AF', hfEquipoACSAplicado_mca: undefined }).resultado
+    if (critico.tipo !== 'balanceCompleto') throw new Error('fixture invalido')
+
+    const html = renderToStaticMarkup(
+      createElement(CalculoDelCriticoDetalle, {
+        proyecto: proyecto(),
+        catalogoArtefactos,
+        resultado: critico,
+        presionDisponible_mca: 20,
+        hfMedidor_mca: 1,
+        origenTexto: 'Tanque elevado',
+        cotaRaiz_m: 0,
+      }),
+    )
+
+    expect(html).not.toContain('hfEquipoACS')
+    expect(html).not.toContain('hf equipo ACS')
   })
 })

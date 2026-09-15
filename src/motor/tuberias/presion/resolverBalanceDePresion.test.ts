@@ -155,6 +155,76 @@ describe('resolverBalanceDePresion — balance completo', () => {
   })
 })
 
+// HYD-ACS-MANUAL-LOSS-01 (D-δ.129): hfEquipoACS_mca es OPCIONAL (a
+// diferencia de hfMedidor_mca) -- su ausencia nunca convierte el balance en
+// 'incompleto', y su presencia se resta UNA vez.
+describe('resolverBalanceDePresion — hfEquipoACS (HYD-ACS-MANUAL-LOSS-01)', () => {
+  it('hfEquipoACS_mca ausente -> balance completo, mismo Presidual que antes del slice (regresión)', () => {
+    const resultado = resolverBalanceDePresion(
+      20,
+      3,
+      { hfDistribuida_mca: 2, hfLocalizada: { tipo: 'completa', hf_mca: 0.5 }, hfMedidor_mca: 1 },
+      0.6,
+    )
+
+    if (resultado.tipo !== 'completo') {
+      throw new Error('se esperaba completo')
+    }
+    expect(resultado.presionResidual_mca).toBeCloseTo(13.5, 9)
+  })
+
+  it('hfEquipoACS_mca informado -> se resta una vez del Presidual', () => {
+    const sinACS = resolverBalanceDePresion(
+      20,
+      3,
+      { hfDistribuida_mca: 2, hfLocalizada: { tipo: 'completa', hf_mca: 0.5 }, hfMedidor_mca: 1 },
+      0.6,
+    )
+    const conACS = resolverBalanceDePresion(
+      20,
+      3,
+      { hfDistribuida_mca: 2, hfLocalizada: { tipo: 'completa', hf_mca: 0.5 }, hfMedidor_mca: 1, hfEquipoACS_mca: 2.4 },
+      0.6,
+    )
+
+    if (sinACS.tipo !== 'completo' || conACS.tipo !== 'completo') {
+      throw new Error('se esperaba completo en ambos')
+    }
+    expect(conACS.presionResidual_mca).toBeCloseTo(sinACS.presionResidual_mca - 2.4, 9)
+  })
+
+  it('hfEquipoACS_mca = 0 explícito -> mismo Presidual que ausente (0 no cambia el numero, sólo la semántica de "informado")', () => {
+    const ausente = resolverBalanceDePresion(
+      20,
+      3,
+      { hfDistribuida_mca: 2, hfLocalizada: { tipo: 'completa', hf_mca: 0.5 }, hfMedidor_mca: 1 },
+      0.6,
+    )
+    const ceroExplicito = resolverBalanceDePresion(
+      20,
+      3,
+      { hfDistribuida_mca: 2, hfLocalizada: { tipo: 'completa', hf_mca: 0.5 }, hfMedidor_mca: 1, hfEquipoACS_mca: 0 },
+      0.6,
+    )
+
+    if (ausente.tipo !== 'completo' || ceroExplicito.tipo !== 'completo') {
+      throw new Error('se esperaba completo en ambos')
+    }
+    expect(ceroExplicito.presionResidual_mca).toBeCloseTo(ausente.presionResidual_mca, 9)
+  })
+
+  it('hfEquipoACS_mca ausente + hfLocalizada/hfMedidor faltantes -> sigue incompleto por los otros terminos, hfEquipoACS nunca aparece en terminosFaltantes', () => {
+    const resultado = resolverBalanceDePresion(
+      20,
+      3,
+      { hfDistribuida_mca: 2, hfLocalizada: { tipo: 'ausente' }, hfMedidor_mca: undefined },
+      0.6,
+    )
+
+    expect(resultado).toEqual({ tipo: 'incompleto', terminosFaltantes: ['hfLocalizada', 'hfMedidor'] })
+  })
+})
+
 describe('resolverBalanceDePresion — validaciones', () => {
   it('presionMinimaRequerida_kgcm2 <= 0: throw', () => {
     expect(() =>
@@ -176,5 +246,16 @@ describe('resolverBalanceDePresion — validaciones', () => {
         0.6,
       ),
     ).toThrow(/hfDistribuida_mca no puede ser negativa/)
+  })
+
+  it('hfEquipoACS_mca negativa: throw', () => {
+    expect(() =>
+      resolverBalanceDePresion(
+        20,
+        0,
+        { hfDistribuida_mca: 1, hfLocalizada: { tipo: 'completa', hf_mca: 0 }, hfMedidor_mca: 0, hfEquipoACS_mca: -1 },
+        0.6,
+      ),
+    ).toThrow(/hfEquipoACS_mca no puede ser negativa/)
   })
 })
