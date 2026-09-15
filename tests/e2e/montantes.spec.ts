@@ -402,3 +402,56 @@ test.describe('UI-M2-MONTANTE-COMPACT-01 · cuerpo compacto del Montante', () =>
     expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
   })
 })
+
+test.describe('BETA-UI-POLISH-01 · Montantes colapsadas más compactas', () => {
+  test('varias Montantes colapsadas: filas compactas, sin overlap, gap consistente; la expandida sigue usable', async ({
+    page,
+    errores,
+    baseURLEfectiva,
+  }) => {
+    await cargarAppLimpia(page, baseURLEfectiva)
+    await irATuberias(page)
+    const seccion = seccionMontantes(page)
+
+    // UI-M2-GROUP-02: sólo un Montante puede quedar activo a la vez -- al
+    // crear varios en secuencia, sólo el último creado queda expandido y
+    // los anteriores se colapsan solos.
+    await agregarMontante(page, 'Agua fría')
+    await agregarMontante(page, 'Agua fría')
+    await agregarMontante(page, 'Agua caliente')
+    await agregarMontante(page, 'Agua caliente')
+
+    const cards = seccion.locator('.montante-card')
+    await expect(cards).toHaveCount(4)
+    await expect(seccion.locator('.montante-card__cuerpo')).toHaveCount(1)
+
+    const cabeceras = seccion.locator('.montante-card__cabecera-toggle')
+    const cajas: { x: number; y: number; width: number; height: number }[] = []
+    for (let i = 0; i < 4; i += 1) {
+      const caja = await cabeceras.nth(i).boundingBox()
+      expect(caja, `cabecera ${i} sin bounding box`).not.toBeNull()
+      cajas.push(caja as { x: number; y: number; width: number; height: number })
+    }
+
+    // Las tres primeras (colapsadas) son claramente más compactas que el
+    // piso de altura previo a este slice (min-height: 2.5rem = 40px del
+    // toggle de UI-M2-MONTANTE-COMPACT-01) -- acá el piso bajó a 2.15rem.
+    for (let i = 0; i < 3; i += 1) {
+      expect(cajas[i]!.height, `cabecera ${i} no se compactó`).toBeLessThan(40)
+    }
+
+    // Sin overlap: cada cabecera empieza en o después de donde termina la
+    // anterior (el orden vertical se respeta y no se superponen).
+    for (let i = 1; i < 4; i += 1) {
+      expect(cajas[i]!.y).toBeGreaterThanOrEqual(cajas[i - 1]!.y + cajas[i - 1]!.height - 1)
+    }
+
+    // La Montante expandida (la última creada) sigue siendo cómoda de usar:
+    // su campo de nombre editable está visible.
+    const cardActiva = cards.last()
+    await expect(cardActiva.getByLabel(/^Nombre del /)).toBeVisible()
+
+    const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
+    expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
+  })
+})

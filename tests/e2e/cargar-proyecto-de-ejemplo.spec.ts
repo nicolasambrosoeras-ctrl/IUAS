@@ -94,11 +94,13 @@ test.describe('FIX-PERSIST-01-PROJECT-ACTIONS-01 · Cargar proyecto de ejemplo',
     await estabilizar(page)
 
     await expect(page.getByRole('dialog')).toHaveCount(0)
-    // Sigue el proyecto vacío editado -- NO el demo. El párrafo del header
-    // sólo distingue por CANTIDAD de UF ("Proyecto de ejemplo" con >=1,
-    // así que no sirve para diferenciar del demo real, que también tiene
-    // 1 UF) -- la señal confiable es que la UF agregada no trae ningún
-    // Local (el demo sí: Baño/Cocina/Lavadero/Toilette/Jardín).
+    // Sigue el proyecto vacío editado -- NO el demo. BETA-UI-POLISH-01: el
+    // párrafo del header ya no afirma "Proyecto de ejemplo" (esa heurística
+    // por cantidad de UF podía mentir); ahora muestra la Tipología de
+    // proyecto real, que por default es la misma ("Vivienda individual")
+    // para el demo y para un proyecto nuevo, así que tampoco sirve para
+    // diferenciarlos -- la señal confiable sigue siendo que la UF agregada
+    // no trae ningún Local (el demo sí: Baño/Cocina/Lavadero/Toilette/Jardín).
     await expect(page.getByText('Total de unidades funcionales: 1')).toBeVisible()
     await expect(page.locator('.m1-local')).toHaveCount(0)
 

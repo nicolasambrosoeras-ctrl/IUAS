@@ -69,6 +69,43 @@ describe('Jerarquía colapsable -- estados default (brief §9/§13)', () => {
   })
 })
 
+describe('Header de Local sin redundancia Nombre·Tipo (BETA-UI-POLISH-01 §4/§7)', () => {
+  const html = render()
+
+  it('Baño (único de su tipo, sin nombre personalizado): el tipo NO se repite en la meta', () => {
+    const inicio = html.indexOf('id="local-contenido-local-bano"')
+    expect(inicio).toBeGreaterThan(-1)
+    const cabecera = html.slice(Math.max(0, inicio - 700), inicio)
+    expect(cabecera).toContain('m1-local__nombre">Baño<')
+    expect(cabecera).toContain('m1-local__meta">· 4 artefactos<')
+    // nunca "Baño · Baño"
+    expect(cabecera).not.toContain('Baño · Baño')
+  })
+
+  it('Cocina (único de su tipo, sin nombre personalizado): mismo criterio', () => {
+    const inicio = html.indexOf('id="local-contenido-local-cocina"')
+    expect(inicio).toBeGreaterThan(-1)
+    const cabecera = html.slice(Math.max(0, inicio - 700), inicio)
+    expect(cabecera).toContain('m1-local__nombre">Cocina<')
+    expect(cabecera).toContain('m1-local__meta">· 2 artefactos<')
+    expect(cabecera).not.toContain('Cocina · Cocina')
+  })
+})
+
+describe('Botón de memoria técnica y subtítulo del proyecto (BETA-UI-POLISH-01 §23/§26)', () => {
+  const html = render()
+
+  it('el botón dice "Generar memoria técnica", sin "PDF" en el copy visible', () => {
+    expect(html).toContain('Generar memoria técnica')
+    expect(html).not.toContain('Generar informe técnico PDF')
+  })
+
+  it('el subtítulo del proyecto de ejemplo NO afirma "Proyecto de ejemplo" -- usa la Tipología real', () => {
+    expect(html).not.toContain('Proyecto de ejemplo')
+    expect(html).toContain('Vivienda individual · Todos los datos pueden modificarse.')
+  })
+})
+
 describe('Renombrar un Local no altera resultados numéricos del motor (brief §53)', () => {
   it('Kc/K/Qmax/Qc de calcularSimultaneidad son idénticos antes y después de personalizar Local.nombre', () => {
     const entrada = { normativa: { catalogoArtefactos, coeficientesMayoracion } }
