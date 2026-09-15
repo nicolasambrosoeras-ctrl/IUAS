@@ -98,6 +98,21 @@ function simboloDeCumplimiento(cumple: boolean): string {
   return cumple ? '✓' : '✕'
 }
 
+// HYD-ACS-DISCLOSURE-01 (D-δ.128): mismo texto/verdad técnica que
+// `NOTA_HF_EQUIPO_ACS` en `exportadores/pdf/generarDocumentoPdf.ts` --
+// hfEquipoACS sigue fuera de la firma de `resolverBalanceDePresion`
+// (D-δ.15, sin fórmula normativa ERAS vigente), así que "Completo"/
+// "Cumple" en este panel nunca lo incluyó ni lo incluye ahora. Antes de
+// este slice esa exclusión sólo se advertía en el PDF -- un usuario que
+// nunca exporta la memoria de cálculo no tenía ninguna señal de que el
+// balance interactivo tampoco la cuenta (HYD-CLOSE-00, hallazgo H0).
+// Se muestra siempre que el panel llega a mostrar un veredicto (mismo
+// criterio incondicional que REPORT: `renderizarSeccionVerificacion`
+// empuja la nota para cualquier `estadoGlobal` distinto de
+// `noIniciado`/`error`, sin condicionarla a que existan terminales AC).
+const NOTA_HF_EQUIPO_ACS =
+  'El balance de presión no incluye automáticamente la pérdida de carga propia del equipo de agua caliente (hfEquipoACS). Verificá este término según el equipo seleccionado y la información del fabricante.'
+
 // UI-01C (D-δ.74 / UI-CRIT-05): "estado del cálculo" ≠ "resultado de
 // cumplimiento". El discriminante interno sigue siendo `completo`, pero en
 // la superficie principal ese estado se llama "cálculo disponible" para no
@@ -473,6 +488,9 @@ export function PanelDePresionDeModulo2({
             {cumpleGlobal
               ? '✓ TODOS LOS PUNTOS VERIFICABLES CUMPLEN'
               : `✕ ${resumenDeCumplimiento.verificables - resumenDeCumplimiento.cumplen} DE ${resumenDeCumplimiento.verificables} PUNTOS NO CUMPLEN`}
+          </p>
+          <p className="ui-callout ui-callout--info" role="note">
+            <small>{NOTA_HF_EQUIPO_ACS}</small>
           </p>
           {!cumpleGlobal && filaCritico?.margen_mca !== undefined ? (
             <p>

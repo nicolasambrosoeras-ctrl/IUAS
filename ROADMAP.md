@@ -3022,6 +3022,40 @@ salvo bug inequívoco o decisión roja explícita.
   `npm run build` limpios (slice documental, sin tests nuevos).
   - **Estado:** `HYD-CLOSE-00: CERRADO`.
 
+- **D-δ.128 — HYD-ACS-DISCLOSURE-01: declarar en M2 interactivo que
+  hfEquipoACS todavía no participa del balance (CERRADO — pendiente
+  validación manual).** Fix de divulgación/UX derivado del único
+  hallazgo H0 de HYD-CLOSE-00 (D-δ.127). No agrega fórmula para
+  `hfEquipoACS`, no inventa un valor cero, no cambia el motor hidráulico
+  ni el significado de "Completo"/"Cumple". La advertencia ya existía en
+  el PDF de REPORT (`NOTA_HF_EQUIPO_ACS`, `generarDocumentoPdf.ts`) pero
+  no en el panel interactivo de Verificación hidráulica -- un usuario
+  que nunca exporta el PDF no tenía ninguna señal de que ese término
+  falta. Se agregó la misma verdad técnica en dos lugares: un callout
+  informativo (`ui-callout ui-callout--info`) junto al veredicto CUMPLE/
+  NO CUMPLE en `PanelDePresionDeModulo2.tsx`, siempre visible cuando el
+  panel llega a mostrar un resultado (mismo criterio incondicional que
+  REPORT, sin inventar una detección de "existe producción ACS" que el
+  modelo no sostiene con certeza); y una línea breve en el desglose "Ver
+  cálculo del crítico" (`CalculoDelCriticoDetalle.tsx`), espejo de la
+  nota del PDF en ese mismo desarrollo. Deliberadamente NO se repite por
+  terminal en `TarjetaDeTerminal.tsx` (evita ruido de N advertencias
+  idénticas en las listas de terminales). Tests: 4 unit nuevos en
+  `PanelDePresionDeModulo2.test.ts` (CUMPLE, NO CUMPLE, callout
+  informativo -- no error/advertencia --, ausencia en estado
+  incompleto) + 1 en `PanelDePresionCriticoUI.test.ts`
+  (`CalculoDelCriticoDetalle`); E2E nuevo
+  (`tests/e2e/hydAcsDisclosure.spec.ts`, 5 casos: veredicto + nota,
+  detalle del crítico, responsive 360/390/1280 sin overflow) contra el
+  proyecto de ejemplo real, desktop y mobile. `tsc -b`/`e2e:typecheck`/
+  `build` limpios. Vitest **1879/1880** (1 fallo preexistente de timeout
+  en un test de performance ajeno a este slice, no relacionado a M2/UI).
+  ESLint **11/0/0** (mismo baseline preexistente, sin errores nuevos).
+  Regresión E2E dirigida (`smoke`/`responsive`/`montantes`/`hydEst`)
+  **26/26** verde.
+  - **Estado:** `HYD-ACS-DISCLOSURE-01: CERRADO — pendiente validación
+    manual`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /

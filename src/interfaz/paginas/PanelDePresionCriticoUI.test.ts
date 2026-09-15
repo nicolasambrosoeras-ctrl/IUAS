@@ -152,4 +152,32 @@ describe('CalculoDelCriticoDetalle (D-δ.50 seccion 29)', () => {
     // Carga geométrica = Pdisponible - Δz = 20 - 3 = 17.
     expect(html).toContain('Carga geométrica')
   })
+
+  // HYD-ACS-DISCLOSURE-01 (D-δ.128): misma verdad técnica que la nota de
+  // REPORT (`NOTA_HF_EQUIPO_ACS` en generarDocumentoPdf.ts) -- referencia
+  // breve en el desarrollo del crítico, siempre presente (mismo criterio
+  // incondicional que el PDF), nunca afirmando que participa del balance.
+  it('incluye la referencia a hfEquipoACS sin afirmar que participa del balance', () => {
+    const critico = balance('n-ac-ducha', 7.2, 6).resultado
+    if (critico.tipo !== 'balanceCompleto') throw new Error('fixture invalido')
+
+    const html = renderToStaticMarkup(
+      createElement(CalculoDelCriticoDetalle, {
+        proyecto: proyecto(),
+        catalogoArtefactos,
+        resultado: critico,
+        presionDisponible_mca: 20,
+        hfMedidor_mca: 1,
+        origenTexto: 'Tanque elevado',
+        cotaRaiz_m: 0,
+      }),
+    )
+
+    expect(html).toContain('hfEquipoACS no incluido automáticamente en este balance.')
+    expect(html).not.toContain('hfEquipoACS = 0')
+    expect(html).not.toContain('se desprecia')
+    // El resto del desglose (Presión residual, Margen) sigue igual.
+    expect(html).toContain('Presión residual')
+    expect(html).toContain('Margen')
+  })
 })

@@ -663,6 +663,18 @@ panel interactivo, cambio de UI puro, sin fórmula nueva). El resto de
 esta lista permanece abierto tal como está, sin resolución en este
 registro.
 
+**Cierre del H0 (HYD-ACS-DISCLOSURE-01, D-δ.128):** implementado. La
+advertencia de `hfEquipoACS` ahora es visible en el panel interactivo de
+Verificación hidráulica (junto al veredicto CUMPLE/NO CUMPLE) y en el
+desglose "Ver cálculo del crítico", con la misma verdad técnica que ya
+declaraba el PDF de REPORT. Detalle en
+`docs/HYD-ACS-DISCLOSURE-01.md`. La fórmula de `hfEquipoACS` en sí
+(pérdida hidráulica propia del calefón/termotanque, composición
+normativa de `Pmin` del calentador con `Pmin` del terminal) sigue
+genuinamente diferida -- no se resolvió en este registro ni en
+HYD-ACS-DISCLOSURE-01, sigue requiriendo investigación bibliográfica
+externa.
+
 ### D-δ.16 — Universo de CRIT-A8 sobre subconjuntos de Módulo 2 (CERRADO)
 
 **Decisión adoptada**: para el cálculo de un Tramo, CRIT-A8 opera

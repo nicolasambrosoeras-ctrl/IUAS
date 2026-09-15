@@ -18,6 +18,8 @@ import type {
 } from '../../modelo/proyecto'
 import type { Nodo, ReferenciaDeArtefacto, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
+import type { CandidatoTerminal } from '../../motor/tuberias/presion/resolverTerminalMasDesfavorable'
+import type { ResolucionDeModulo2 } from './resolverResolucionDeModulo2'
 import { PanelDePresionDeModulo2 } from './PanelDePresionDeModulo2'
 
 function metadatos(): MetadatosProyecto {
@@ -91,10 +93,73 @@ function ufConTerminal(): { uf: UnidadFuncional; red: RedHidraulica } {
   return { uf, red: { nodos, tramos } }
 }
 
-function render(proyecto: Proyecto): string {
+function render(proyecto: Proyecto, resolucionM2?: ResolucionDeModulo2): string {
   return renderToStaticMarkup(
-    createElement(PanelDePresionDeModulo2, { proyecto, catalogoArtefactos, onCambiar: () => {} }),
+    createElement(PanelDePresionDeModulo2, {
+      proyecto,
+      catalogoArtefactos,
+      onCambiar: () => {},
+      ...(resolucionM2 !== undefined ? { resolucionM2 } : {}),
+    }),
   )
+}
+
+// HYD-ACS-DISCLOSURE-01: fixture con balanceCompleto inyectado directo vía
+// `resolucionM2` (mismo patrón que PanelDePresionCriticoUI.test.ts) --
+// llegar a `estado: 'completo'` recorriendo todo el motor desde cero
+// exigiría un Proyecto plenamente dimensionado; acá sólo importa que el
+// panel llegue a la card de veredicto CUMPLE/NO CUMPLE.
+function candidatoCompleto(nodoId: string, presidual: number, pmin: number): CandidatoTerminal {
+  return {
+    nodoId,
+    resultado: {
+      tipo: 'balanceCompleto',
+      presionResidual_mca: presidual,
+      presionMinimaRequerida_mca: pmin,
+      cumpleMinimo: presidual >= pmin,
+      raizId: 'raiz',
+      terminalId: nodoId,
+      desnivel_m: 0,
+      hfDistribuida_mca: 0,
+      hfDistribuidaPorTramo: [],
+      hfLocalizada: { metodologia: 'estimado', hf_mca: 0, nTerminalesLocal: 1, nTeesEstimadas: 0, velocidadReferencia_mps: 0 },
+      incrementoVerticalPorNivel: {
+        aplica: false,
+        nivel: undefined,
+        deltaLVertical_m: 0,
+        incrementoPorTramoId: new Map(),
+        tramosConIncremento: [],
+      },
+    },
+  }
+}
+
+function resolucionCompleta(proyecto: Proyecto, nodoId: string, presidual: number, pmin: number): ResolucionDeModulo2 {
+  const candidato = candidatoCompleto(nodoId, presidual, pmin)
+  return {
+    entradas: {
+      origenEfectivo: 'directa',
+      origenTexto: 'Alimentación directa',
+      presionDisponible_mca: presidual + 2,
+      peloDeAguaMinimoEfectivo: { tipo: 'noAplica' },
+      proyectoParaVerificacion: proyecto,
+      perdidasDeMedidoresDeTerminal: () => undefined,
+      hfMedidorDeTerminal: () => 0,
+    },
+    estadoModulo2: {
+      estado: 'completo',
+      terminalMasDesfavorable: {
+        tipo: 'determinado',
+        nodoId,
+        presionResidual_mca: presidual,
+        presionMinimaRequerida_mca: pmin,
+        cumpleMinimo: presidual >= pmin,
+        margen_mca: presidual - pmin,
+      },
+      terminalesFueraDeAlcance: [],
+      candidatos: [candidato],
+    },
+  }
 }
 
 describe('PanelDePresionDeModulo2 (UI)', () => {
@@ -273,5 +338,56 @@ describe('PanelDePresionDeModulo2 (UI)', () => {
     expect(html).toContain('Falta configurar el esquema de abastecimiento en el Módulo 4.')
     expect(html).not.toContain('>raiz<')
     expect(html).not.toContain('>terminal<')
+  })
+
+  // --- HYD-ACS-DISCLOSURE-01 (D-δ.128) ---
+
+  it('CUMPLE: muestra la advertencia de hfEquipoACS junto al veredicto, sin alterar margen ni CUMPLE', () => {
+    const { uf, red } = ufConTerminal()
+    const proyecto = proyectoCon([uf], { redHidraulica: red })
+    const html = render(proyecto, resolucionCompleta(proyecto, 'terminal', 7, 5))
+
+    expect(html).toContain('✓ CUMPLE')
+    // Contenido técnico: menciona el concepto, nunca afirma que participa
+    // ni que vale cero -- sólo frases NEGADAS ("no incluido"/"no incluye")
+    // están permitidas cerca de "hfEquipoACS".
+    expect(html).toContain('hfEquipoACS')
+    expect(html).toContain('no incluye automáticamente')
+    expect(html).not.toContain('hfEquipoACS incluido')
+    expect(html).not.toContain('hfEquipoACS incluye')
+    expect(html).not.toContain('hfEquipoACS = 0')
+    expect(html).not.toContain('hfEquipoACS vale 0')
+    expect(html).not.toContain('se desprecia')
+    // El resultado hidráulico no cambia por la nota: mismo margen que sin ella.
+    expect(html).toContain('+2,000 m.c.a.')
+  })
+
+  it('NO CUMPLE: también muestra la advertencia, sin volverla un error del sistema', () => {
+    const { uf, red } = ufConTerminal()
+    const proyecto = proyectoCon([uf], { redHidraulica: red })
+    const html = render(proyecto, resolucionCompleta(proyecto, 'terminal', 3, 5))
+
+    expect(html).toContain('✕ NO CUMPLE')
+    expect(html).toContain('hfEquipoACS')
+    // La nota en sí (no el resto del panel, que legítimamente usa
+    // ui-card--error/ui-badge--error para NO CUMPLE) no dice "error".
+    const notaAcs = html.match(/<p class="ui-callout ui-callout--info" role="note"><small>([^<]*)<\/small><\/p>/)
+    expect(notaAcs).not.toBeNull()
+    expect(notaAcs![1]).not.toMatch(/error/i)
+  })
+
+  it('la nota usa el callout informativo existente (ui-callout--info), no el de error/advertencia', () => {
+    const { uf, red } = ufConTerminal()
+    const proyecto = proyectoCon([uf], { redHidraulica: red })
+    const html = render(proyecto, resolucionCompleta(proyecto, 'terminal', 7, 5))
+
+    expect(html).toContain('ui-callout ui-callout--info')
+  })
+
+  it('estado incompleto: la advertencia de hfEquipoACS no aparece (el balance todavía no llegó a un veredicto)', () => {
+    const { uf, red } = ufConTerminal()
+    const html = render(proyectoCon([uf], { redHidraulica: red }))
+
+    expect(html).not.toContain('hfEquipoACS')
   })
 })

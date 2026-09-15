@@ -199,6 +199,13 @@ export function CalculoDelCriticoDetalle({
           </tr>
         </tbody>
       </table>
+      {/* HYD-ACS-DISCLOSURE-01 (D-δ.128): referencia breve, misma verdad
+          técnica que el panel general (PanelDePresionDeModulo2.tsx) y que
+          `NOTA_HF_EQUIPO_ACS` en el PDF de REPORT -- hfEquipoACS sigue sin
+          participar de este balance (D-δ.15). */}
+      <p>
+        <small>hfEquipoACS no incluido automáticamente en este balance.</small>
+      </p>
     </div>
   )
 }
