@@ -8,6 +8,12 @@
 // validarProyecto y calcularSimultaneidad y muestra lo que devuelven.
 import { useMemo, useRef, useState } from 'react'
 import type { Proyecto, UnidadFuncional, Nivel, Local, TipoDeLocal, RegimenLocal, Artefacto } from '../../modelo/proyecto'
+import { nombreVisibleDeLocal } from '../../modelo/proyecto/nombreVisibleDeLocal'
+import {
+  alternarEnConjunto,
+  estadoInicialDeLocalesColapsados,
+  estadoInicialDeNivelesColapsados,
+} from './estadoDeExpansionDeJerarquia'
 import type { ConectividadFisica, RedDeTramo } from '../../modelo/redHidraulica'
 import type { ResultadoDeCalculo, Paso, ValorCalculado } from '../../modelo/resultado'
 import type { ProblemaValidacion, AlcanceValidacion } from '../../validacion'
@@ -58,7 +64,7 @@ import './sistema-visual.css'
 import './navegacionUI.css'
 import './demandaM1.css'
 import { parsearCota } from './parsearCota'
-import { calcularCotaHidraulicaDefaultDeNivel, nombreDeNivel } from './nivelUnidadFuncional'
+import { calcularCotaHidraulicaDefaultDeNivel, nombreDeNivel, resumenDeNivel } from './nivelUnidadFuncional'
 import { obtenerAlturaHidraulicaIuas, AYUDA_ALTURA_HIDRAULICA_IUAS } from '../../normativa/eras-2023/catalogo-artefactos/alturasHidraulicasIuas'
 import {
   resolverCotaHidraulicaEfectivaDeArtefacto,
@@ -421,24 +427,24 @@ function ArtefactoFormulario({
   )
 }
 
-function LocalFormulario({
+// UX-HIERARCHY-POLISH-01: cuerpo editable COMPLETO de un Local (Nombre +
+// Tipo/Régimen + cota de piso + Artefactos + declaración pendiente). Se
+// monta sólo con el Local expandido -- separado de la cabecera/acciones
+// (que viven en el `LocalFormulario` colapsable de abajo) por el mismo
+// motivo que `CuerpoDeUnidadFuncional`: el conditional rendering del
+// colapso queda legible sin repetir la jerarquía JSX previa a este slice.
+function CuerpoDeLocal({
   local,
-  etiqueta,
   proyecto,
   unidadFuncionalId,
   onCambiar,
   onCambiarProyecto,
-  onEliminar,
-  onDuplicar,
 }: {
   local: Local
-  etiqueta: string
   proyecto: Proyecto
   unidadFuncionalId: string
   onCambiar: (local: Local) => void
   onCambiarProyecto: (proyecto: Proyecto) => void
-  onEliminar: () => void
-  onDuplicar: () => void
 }) {
   // CAT-CONN-01: el selector de alimentación se refiere SIEMPRE a un
   // Artefacto que YA existe en el Local (por id de fila). Aparece sólo
@@ -695,10 +701,6 @@ function LocalFormulario({
     setDeclaracionPendiente(null)
   }
 
-  // La `etiqueta` llega como "Local: Baño" / "Local: Baño 2"; en la card
-  // el prefijo es redundante (ya es una card de Local).
-  const tituloLocal = etiqueta.replace(/^Local:\s*/, '')
-
   // GEOM-UX-01 §11: jerarquía de cotas. El Nivel (UI-M1-MULTINIVEL-01, ex
   // UF) aporta la cota de piso heredable; el Local puede tener override;
   // cada artefacto deriva su cota hidráulica efectiva de la cadena.
@@ -716,19 +718,7 @@ function LocalFormulario({
   }
 
   return (
-    <article className="m1-local">
-      <div className="m1-local__cabecera">
-        <h4 className="m1-local__nombre">{tituloLocal}</h4>
-        <div className="m1-local__acciones">
-          <button type="button" className="ui-btn--fantasma" onClick={onDuplicar}>
-            Duplicar local
-          </button>
-          <button type="button" className="m1-btn-eliminar" onClick={onEliminar}>
-            Eliminar local
-          </button>
-        </div>
-      </div>
-
+    <>
       <div className="m1-local__tipos">
         <label>
           Tipo:{' '}
@@ -977,6 +967,114 @@ function LocalFormulario({
           </div>
         </div>
       )}
+    </>
+  )
+}
+
+// UX-HIERARCHY-POLISH-01: wrapper colapsable de UN Local, mismo patrón de
+// disclosure que UnidadFuncionalFormulario (botón con aria-expanded en la
+// cabecera, contenido con `hidden` + unmount real cuando está colapsado).
+// Agrega el campo "Nombre" editable (personalizado, con fallback al label
+// automático) y mueve las acciones destructivas/Duplicar fuera de la
+// cabecera colapsada (brief §12/§38): sólo se ven con el Local expandido.
+function LocalFormulario({
+  local,
+  etiquetaAutomatica,
+  proyecto,
+  unidadFuncionalId,
+  onCambiar,
+  onCambiarProyecto,
+  onEliminar,
+  onDuplicar,
+  colapsado,
+  onAlternarColapso,
+}: {
+  local: Local
+  etiquetaAutomatica: string
+  proyecto: Proyecto
+  unidadFuncionalId: string
+  onCambiar: (local: Local) => void
+  onCambiarProyecto: (proyecto: Proyecto) => void
+  onEliminar: () => void
+  onDuplicar: () => void
+  colapsado: boolean
+  onAlternarColapso: () => void
+}) {
+  const nombreVisible = nombreVisibleDeLocal(local, etiquetaAutomatica)
+  const contenidoId = `local-contenido-${local.id}`
+  const cantidadArtefactos = local.artefactos.length
+  const resumenArtefactos = `${cantidadArtefactos} ${cantidadArtefactos === 1 ? 'artefacto' : 'artefactos'}`
+
+  // Brief §20: vaciar completamente el campo vuelve al nombre automático --
+  // NUNCA se persiste un string vacío (mismo criterio que
+  // `nombrePersonalizadoDeLocal`, que ya trata '' como ausente en lectura;
+  // acá se refuerza también en la escritura para no dejar `nombre: ''` en
+  // `Proyecto`).
+  function cambiarNombrePersonalizado(valorCrudo: string) {
+    if (valorCrudo.trim() === '') {
+      const localSinNombre = { ...local }
+      delete localSinNombre.nombre
+      onCambiar(localSinNombre)
+      return
+    }
+    onCambiar({ ...local, nombre: valorCrudo })
+  }
+
+  return (
+    <article className={colapsado ? 'm1-local m1-local--colapsado' : 'm1-local'}>
+      <div className="m1-local__cabecera">
+        <h4 className="m1-local__titulo">
+          <button
+            type="button"
+            className="m1-local__toggle"
+            aria-expanded={!colapsado}
+            aria-controls={contenidoId}
+            aria-label={colapsado ? `Expandir ${nombreVisible}` : `Contraer ${nombreVisible}`}
+            onClick={onAlternarColapso}
+          >
+            <span className="m1-local__chevron" aria-hidden="true">
+              {colapsado ? '▶' : '▼'}
+            </span>
+            <span className="m1-local__nombre">{nombreVisible}</span>
+            <span className="m1-local__meta">
+              · {ETIQUETA_TIPO_DE_LOCAL[local.tipo]} · {resumenArtefactos}
+            </span>
+          </button>
+        </h4>
+        {colapsado ? null : (
+          <div className="m1-local__acciones">
+            <button type="button" className="ui-btn--fantasma" onClick={onDuplicar}>
+              Duplicar local
+            </button>
+            <button type="button" className="m1-btn-eliminar" onClick={onEliminar}>
+              Eliminar local
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div id={contenidoId} className="m1-local__contenido" hidden={colapsado}>
+        {colapsado ? null : (
+          <>
+            <label>
+              Nombre:{' '}
+              <input
+                type="text"
+                aria-label="Nombre del local"
+                value={nombreVisible}
+                onChange={(evento) => cambiarNombrePersonalizado(evento.target.value)}
+              />
+            </label>
+            <CuerpoDeLocal
+              local={local}
+              proyecto={proyecto}
+              unidadFuncionalId={unidadFuncionalId}
+              onCambiar={onCambiar}
+              onCambiarProyecto={onCambiarProyecto}
+            />
+          </>
+        )}
+      </div>
     </article>
   )
 }
@@ -1095,6 +1193,8 @@ function NivelFormulario({
   onCambiar,
   onCambiarProyecto,
   onEliminarNivel,
+  colapsado,
+  onAlternarColapso,
 }: {
   nivel: Nivel
   esUnico: boolean
@@ -1103,8 +1203,24 @@ function NivelFormulario({
   onCambiar: (nivel: Nivel) => void
   onCambiarProyecto: (proyecto: Proyecto) => void
   onEliminarNivel: (() => void) | undefined
+  // UX-HIERARCHY-POLISH-01: colapso del Nivel -- sólo tiene efecto visual
+  // cuando `!esUnico` (una UF con un único Nivel nunca muestra chrome de
+  // colapso, brief §9). Presentación pura, nunca persistida.
+  colapsado: boolean
+  onAlternarColapso: () => void
 }) {
   const locales = nivel.locales
+  // Brief §13: primer Local abierto, resto colapsados por defecto (sólo si
+  // hay más de uno). Lazy init -- se calcula una sola vez al montar este
+  // Nivel; un Local agregado/duplicado después nace abierto (nunca entra
+  // retroactivamente al set).
+  const [localesColapsados, setLocalesColapsados] = useState<ReadonlySet<string>>(() =>
+    estadoInicialDeLocalesColapsados(nivel.locales),
+  )
+
+  function alternarColapsoLocal(localId: string) {
+    setLocalesColapsados((actual) => alternarEnConjunto(actual, localId))
+  }
 
   function cambiarLocales(locales: readonly Local[]) {
     onCambiar({ ...nivel, locales })
@@ -1124,27 +1240,90 @@ function NivelFormulario({
   }
 
   const etiquetas = etiquetasDeLocales(locales)
+  const contenidoId = `nivel-contenido-${nivel.id}`
 
-  return (
-    <div className={esUnico ? 'm1-nivel m1-nivel--unico' : 'm1-nivel'}>
-      {esUnico ? null : (
-        <div className="m1-nivel__cabecera">
-          <label>
-            Nombre del nivel:{' '}
-            <input
-              type="text"
-              aria-label="Nombre del nivel"
-              value={nivel.nombre}
-              onChange={(evento) => onCambiar({ ...nivel, nombre: evento.target.value })}
-            />
-          </label>
-          {onEliminarNivel === undefined ? null : (
-            <button type="button" className="m1-btn-eliminar" onClick={onEliminarNivel}>
-              Eliminar nivel
-            </button>
-          )}
-        </div>
+  const listaDeLocales = (
+    <>
+      <div className="m1-uf__locales">
+        {locales.map((local, indice) => (
+          <LocalFormulario
+            key={local.id}
+            local={local}
+            etiquetaAutomatica={(etiquetas[indice] ?? `Local: ${ETIQUETA_TIPO_DE_LOCAL[local.tipo]}`).replace(
+              /^Local:\s*/,
+              '',
+            )}
+            proyecto={proyecto}
+            unidadFuncionalId={unidadFuncionalId}
+            onCambiar={(localActualizado) =>
+              cambiarLocales(locales.map((l) => (l.id === local.id ? localActualizado : l)))
+            }
+            onCambiarProyecto={onCambiarProyecto}
+            onDuplicar={() =>
+              onCambiarProyecto(
+                duplicarLocalEnNivelDeUnidadFuncionalEnProyecto(proyecto, unidadFuncionalId, nivel.id, local.id),
+              )
+            }
+            onEliminar={() => {
+              // M2-D (BAJA de Local completo, D-δ.47): mismo principio que la
+              // baja de un Artefacto individual, pero además poda la cabecera
+              // de bifurcación exclusiva del Local (que ya no puede reutilizar
+              // ningún consumidor futuro, a diferencia de la baja de un solo
+              // Artefacto) para no dejar topología muerta en redHidraulica.
+              const proyectoSinConectividad = quitarConectividadFisicaDeLocal(proyecto, unidadFuncionalId, local.id)
+              onCambiarProyecto({
+                ...proyectoSinConectividad,
+                unidadesFuncionales: proyectoSinConectividad.unidadesFuncionales.map((unidad) =>
+                  unidad.id !== unidadFuncionalId
+                    ? unidad
+                    : {
+                        ...unidad,
+                        niveles: unidad.niveles.map((n) =>
+                          n.id !== nivel.id ? n : { ...n, locales: n.locales.filter((l) => l.id !== local.id) },
+                        ),
+                      },
+                ),
+              })
+            }}
+            colapsado={locales.length > 1 && localesColapsados.has(local.id)}
+            onAlternarColapso={() => alternarColapsoLocal(local.id)}
+          />
+        ))}
+      </div>
+
+      <button type="button" className="m1-agregar-contextual" onClick={agregarLocal}>
+        + Agregar local
+      </button>
+    </>
+  )
+
+  // Nombre del nivel + "Eliminar nivel": SÓLO con `!esUnico` (brief §8/§9),
+  // igual que antes de este slice. Con la jerarquía colapsable, además sólo
+  // se muestra con el Nivel expandido (brief §37).
+  const cabeceraDeNivel = (
+    <div className="m1-nivel__cabecera">
+      <label>
+        Nombre del nivel:{' '}
+        <input
+          type="text"
+          aria-label="Nombre del nivel"
+          value={nivel.nombre}
+          onChange={(evento) => onCambiar({ ...nivel, nombre: evento.target.value })}
+        />
+      </label>
+      {onEliminarNivel === undefined ? null : (
+        <button type="button" className="m1-btn-eliminar" onClick={onEliminarNivel}>
+          Eliminar nivel
+        </button>
       )}
+    </div>
+  )
+
+  // Select de Nivel + Cota de piso: SIEMPRE presentes, con o sin chrome de
+  // colapso (a diferencia de `cabeceraDeNivel`, que sólo existe con 2+
+  // Niveles) -- mismo comportamiento que antes de este slice.
+  const camposDeNivel = (
+    <>
       <div className="m1-uf__campos">
         <label>
           Nivel:{' '}
@@ -1197,59 +1376,52 @@ function NivelFormulario({
           />
         </label>
       </div>
-      <p className="m1-uf__ayuda">
-        <small>
-          Cota del piso terminado. La cota hidráulica de cada punto de consumo se deriva sumando la altura del
-          artefacto sobre el piso (valor de referencia IUAS por tipo, editable). Cada Local puede personalizar su
-          propia cota de piso.
-        </small>
-      </p>
+    </>
+  )
 
-      <div className="m1-uf__locales">
-        {locales.map((local, indice) => (
-          <LocalFormulario
-            key={local.id}
-            local={local}
-            etiqueta={etiquetas[indice] ?? `Local: ${ETIQUETA_TIPO_DE_LOCAL[local.tipo]}`}
-            proyecto={proyecto}
-            unidadFuncionalId={unidadFuncionalId}
-            onCambiar={(localActualizado) =>
-              cambiarLocales(locales.map((l) => (l.id === local.id ? localActualizado : l)))
-            }
-            onCambiarProyecto={onCambiarProyecto}
-            onDuplicar={() =>
-              onCambiarProyecto(
-                duplicarLocalEnNivelDeUnidadFuncionalEnProyecto(proyecto, unidadFuncionalId, nivel.id, local.id),
-              )
-            }
-            onEliminar={() => {
-              // M2-D (BAJA de Local completo, D-δ.47): mismo principio que la
-              // baja de un Artefacto individual, pero además poda la cabecera
-              // de bifurcación exclusiva del Local (que ya no puede reutilizar
-              // ningún consumidor futuro, a diferencia de la baja de un solo
-              // Artefacto) para no dejar topología muerta en redHidraulica.
-              const proyectoSinConectividad = quitarConectividadFisicaDeLocal(proyecto, unidadFuncionalId, local.id)
-              onCambiarProyecto({
-                ...proyectoSinConectividad,
-                unidadesFuncionales: proyectoSinConectividad.unidadesFuncionales.map((unidad) =>
-                  unidad.id !== unidadFuncionalId
-                    ? unidad
-                    : {
-                        ...unidad,
-                        niveles: unidad.niveles.map((n) =>
-                          n.id !== nivel.id ? n : { ...n, locales: n.locales.filter((l) => l.id !== local.id) },
-                        ),
-                      },
-                ),
-              })
-            }}
-          />
-        ))}
+  // Brief §9: una UF con un único Nivel no agrega chrome de colapso -- se
+  // ve exactamente como antes de este slice (sin cabecera de Nombre ni
+  // botón de plegado, pero CON el select de Nivel + Cota de piso, que
+  // nunca dependió de `esUnico`).
+  if (esUnico) {
+    return (
+      <div className="m1-nivel m1-nivel--unico">
+        {camposDeNivel}
+        {listaDeLocales}
       </div>
+    )
+  }
 
-      <button type="button" className="m1-agregar-contextual" onClick={agregarLocal}>
-        + Agregar local
-      </button>
+  const resumen = resumenDeNivel(nivel)
+
+  return (
+    <div className={colapsado ? 'm1-nivel m1-nivel--colapsado' : 'm1-nivel'}>
+      <div className="m1-nivel__toggle-cabecera">
+        <h4 className="m1-nivel__titulo">
+          <button
+            type="button"
+            className="m1-nivel__toggle"
+            aria-expanded={!colapsado}
+            aria-controls={contenidoId}
+            aria-label={colapsado ? `Expandir nivel ${resumen}` : `Contraer nivel ${resumen}`}
+            onClick={onAlternarColapso}
+          >
+            <span className="m1-nivel__chevron" aria-hidden="true">
+              {colapsado ? '▶' : '▼'}
+            </span>
+            <span className="m1-nivel__resumen">{resumen}</span>
+          </button>
+        </h4>
+      </div>
+      <div id={contenidoId} className="m1-nivel__contenido" hidden={colapsado}>
+        {colapsado ? null : (
+          <>
+            {cabeceraDeNivel}
+            {camposDeNivel}
+            {listaDeLocales}
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -1296,6 +1468,18 @@ function CuerpoDeUnidadFuncional({
 
   const esUnico = uf.niveles.length === 1
 
+  // Brief §9: con un único Nivel, abierto siempre (nada que colapsar). Con
+  // 2+ Niveles, el nivel BASE (`niveles[0]`) abre por defecto y el resto
+  // arranca colapsado. Lazy init -- una sola vez al montar esta UF; un
+  // Nivel agregado después nace abierto (nunca entra retroactivamente).
+  const [nivelesColapsados, setNivelesColapsados] = useState<ReadonlySet<string>>(() =>
+    estadoInicialDeNivelesColapsados(uf.niveles),
+  )
+
+  function alternarColapsoNivel(nivelId: string) {
+    setNivelesColapsados((actual) => alternarEnConjunto(actual, nivelId))
+  }
+
   return (
     <>
       <div className="m1-uf__campos">
@@ -1310,6 +1494,16 @@ function CuerpoDeUnidadFuncional({
         </label>
       </div>
 
+      {/* Brief §11: la ayuda larga de cota se muestra UNA sola vez por UF
+          (antes se repetía en cada Nivel). */}
+      <p className="m1-uf__ayuda">
+        <small>
+          Cota del piso terminado. La cota hidráulica de cada punto de consumo se deriva sumando la altura del
+          artefacto sobre el piso (valor de referencia IUAS por tipo, editable). Cada Local puede personalizar su
+          propia cota de piso.
+        </small>
+      </p>
+
       {uf.niveles.map((nivel, indice) => (
         <NivelFormulario
           key={nivel.id}
@@ -1320,6 +1514,8 @@ function CuerpoDeUnidadFuncional({
           onCambiar={cambiarNivel}
           onCambiarProyecto={onCambiarProyecto}
           onEliminarNivel={indice === 0 ? undefined : () => eliminarNivel(nivel.id)}
+          colapsado={!esUnico && nivelesColapsados.has(nivel.id)}
+          onAlternarColapso={() => alternarColapsoNivel(nivel.id)}
         />
       ))}
 

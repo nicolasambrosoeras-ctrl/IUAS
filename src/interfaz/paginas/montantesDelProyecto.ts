@@ -14,6 +14,7 @@
 //     proyección que consumirá VIS-TOPO (§19/§30): no se persiste ninguna
 //     lista paralela de tramos ni de Locales.
 import type { Local, Proyecto, TipoDeLocal, UnidadFuncional } from '../../modelo/proyecto'
+import { nombreVisibleDeLocal } from '../../modelo/proyecto/nombreVisibleDeLocal'
 import { localesDeUnidadFuncional } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import {
@@ -49,11 +50,15 @@ function claveLocal(unidadFuncionalId: string, localId: string): string {
 
 // Etiqueta humana de un Local dentro de su UF: "Baño 1 · UF 1". Nunca el
 // id técnico. El ordinal numera por tipo dentro de la UF, igual que el
-// resto de Módulo 2 (derivarOrdinalesDeLocal).
+// resto de Módulo 2 (derivarOrdinalesDeLocal). UX-HIERARCHY-POLISH-01:
+// si el Local tiene un nombre personalizado (`Local.nombre`), reemplaza
+// la parte "tipo + ordinal" -- el sufijo "· UF" se mantiene siempre para
+// no perder el contexto de a qué UF pertenece en tablas/PDF que agrupan
+// varias UF juntas.
 export function etiquetaHumanaDeLocal(uf: UnidadFuncional, local: Local): string {
   const ordinal = derivarOrdinalesDeLocal(localesDeUnidadFuncional(uf)).get(local.id)
   const base = `${ETIQUETA_TIPO_DE_LOCAL[local.tipo]}${ordinal === undefined ? '' : ` ${ordinal}`}`
-  return `${base} · ${uf.nombre}`
+  return `${nombreVisibleDeLocal(local, base)} · ${uf.nombre}`
 }
 
 // ------------------------------------------------------------------

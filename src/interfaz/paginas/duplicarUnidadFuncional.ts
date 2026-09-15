@@ -4,6 +4,7 @@
 // testing-library configurados, y este archivo no necesita ninguno de los
 // dos.
 import type { Artefacto, Local, Nivel, Proyecto, UnidadFuncional } from '../../modelo/proyecto'
+import { nombrePersonalizadoDeLocal } from '../../modelo/proyecto/nombreVisibleDeLocal'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import { determinarConectividadFisica } from '../../motor/tuberias/caudal/determinarConectividadFisica'
 import { redesDeConectividadFisica } from '../../motor/tuberias/topologia/resolverConectividadInicialDeArtefacto'
@@ -23,8 +24,20 @@ function duplicarArtefacto(artefacto: Artefacto): Artefacto {
   return { ...artefacto, id: generarId('artefacto') }
 }
 
+// UX-HIERARCHY-POLISH-01: si el original tiene un nombre PERSONALIZADO
+// (`Local.nombre`), la copia no hereda el mismo nombre literal -- dos
+// Locales visualmente idénticos ("Baño de invitados" x2) son confusos en
+// la jerarquía compacta. Se sugiere "{nombre} copia", que el usuario sigue
+// pudiendo editar libremente. Un Local SIN nombre personalizado no cambia
+// de comportamiento: el label automático se sigue derivando solo (ordinal
+// dentro del Nivel/UF), nada que fijar acá.
 export function duplicarLocal(local: Local): Local {
-  return { ...local, id: generarId('local'), artefactos: local.artefactos.map(duplicarArtefacto) }
+  const nombrePersonalizado = nombrePersonalizadoDeLocal(local)
+  const copia: Local = { ...local, id: generarId('local'), artefactos: local.artefactos.map(duplicarArtefacto) }
+  if (nombrePersonalizado === undefined) {
+    return copia
+  }
+  return { ...copia, nombre: `${nombrePersonalizado} copia` }
 }
 
 // UI-M1-MULTINIVEL-01: nombre/nivel/cotaHidraulicaReferencia_m del Nivel

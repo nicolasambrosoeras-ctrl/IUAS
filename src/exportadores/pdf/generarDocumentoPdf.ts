@@ -8,6 +8,7 @@ import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import type { Content, TDocumentDefinitions } from 'pdfmake/interfaces'
 import type { Local, Proyecto, RegimenLocal, TipoDeLocal } from '../../modelo/proyecto'
+import { nombreVisibleDeLocal } from '../../modelo/proyecto/nombreVisibleDeLocal'
 import type { Paso, ResultadoDeCalculo, Verificacion } from '../../modelo/resultado'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
@@ -167,7 +168,7 @@ function renderizarLocal(local: Local): Content {
   return {
     stack: [
       {
-        text: `Local: ${ETIQUETA_TIPO_DE_LOCAL[local.tipo]} — Régimen: ${etiquetaRegimen(local.regimen)}`,
+        text: `Local: ${nombreVisibleDeLocal(local, ETIQUETA_TIPO_DE_LOCAL[local.tipo])} — Régimen: ${etiquetaRegimen(local.regimen)}`,
       },
       {
         table: {

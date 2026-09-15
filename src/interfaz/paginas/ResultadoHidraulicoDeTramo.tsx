@@ -13,6 +13,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { sonPropsDeDimensionamientoEquivalentes } from './sonPropsDeDimensionamientoEquivalentes'
 import { sonPropsDeSeccionDeUnidadFuncionalEquivalentes } from './sonPropsDeSeccionDeUnidadFuncionalEquivalentes'
 import type { GranularidadHidraulica, MaterialTuberiaId, MetodoPerdidaDistribuida, MetodoPerdidaLocalizada, Proyecto, TipoDeLocal } from '../../modelo/proyecto'
+import { nombreVisibleDeLocal } from '../../modelo/proyecto/nombreVisibleDeLocal'
 import { crearContextoDeCalculoM2, type ContextoDeCalculoM2 } from '../../motor/tuberias/contextoDeCalculoM2'
 import type { ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
@@ -86,7 +87,7 @@ export function describirReferenciaPendiente(
     throw new Error('describirReferenciaPendiente: la referencia pendiente no resuelve contra el proyecto')
   }
 
-  const nombreLocal = ETIQUETA_TIPO_DE_LOCAL[resuelto.local.tipo]
+  const nombreLocal = nombreVisibleDeLocal(resuelto.local, ETIQUETA_TIPO_DE_LOCAL[resuelto.local.tipo])
   const artefactoNormativo = catalogoArtefactos.find((candidato) => candidato.id === resuelto.artefacto.artefactoId)
   const nombreArtefacto = artefactoNormativo?.nombre ?? resuelto.artefacto.artefactoId
 
@@ -576,7 +577,8 @@ function SeccionDeUnidadFuncionalBase({
 
   const entradas: EntradaDeTabla[] = locales.flatMap((local) => {
     const ordinal = ordinales.get(local.id)
-    const etiquetaLocal = `${ETIQUETA_TIPO_DE_LOCAL[local.tipo]} ${ordinal ?? ''}`.trim()
+    const etiquetaAutomatica = `${ETIQUETA_TIPO_DE_LOCAL[local.tipo]} ${ordinal ?? ''}`.trim()
+    const etiquetaLocal = nombreVisibleDeLocal(local, etiquetaAutomatica)
     return filasPrincipalesDeLocales
       .filter((fila) => fila.unidadFuncionalId === uf.id && fila.localId === local.id)
       .map((fila): EntradaDeTabla => ({

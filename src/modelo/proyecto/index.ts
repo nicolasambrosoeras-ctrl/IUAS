@@ -82,6 +82,15 @@ export type Local = {
   // motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto
   // (resolverCotaPisoDeLocal). Backward-compatible sin migración.
   cotaPiso_m?: number;
+  // UX-HIERARCHY-POLISH-01 (D-δ.131): nombre HUMANO editable del Local
+  // ("Baño de invitados"), optativo. Ausente = usar el label automático
+  // derivado de tipo + ordinal (mismo criterio histórico, ver
+  // interfaz/paginas/etiquetasDeLocales / montantesDelProyecto.ts
+  // etiquetaHumanaDeLocal). Un string vacío o sólo espacios NUNCA se
+  // persiste -- equivale a "sin nombre personalizado" (ver
+  // modelo/proyecto/nombreVisibleDeLocal.ts). Optativo y
+  // backward-compatible, sin migración (SCHEMA_VERSION_ACTUAL no cambia).
+  nombre?: string;
   artefactos: readonly Artefacto[];
 };
 

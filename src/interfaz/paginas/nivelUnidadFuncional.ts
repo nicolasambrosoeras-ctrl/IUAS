@@ -18,3 +18,28 @@ export function calcularCotaHidraulicaDefaultDeNivel(nivel: number): number {
 export function nombreDeNivel(nivel: number): string {
   return nivel === 0 ? 'PB' : `Piso ${nivel}`
 }
+
+// UX-HIERARCHY-POLISH-01: resumen compacto de un Nivel para su cabecera
+// colapsada, p.ej. "PB · +0,00 m · 5 locales". `nivel.nombre` es el
+// nombre humano EDITABLE (por default = nombreDeNivel de su `nivel`
+// numérico, pero el usuario puede personalizarlo) -- se usa tal cual,
+// nunca re-derivado acá. Formato de cota con signo duplicado
+// intencionalmente de `formatearCotaConSigno` en MotorDemandaPantalla.tsx
+// (GEOM-UX-01 §6/§11): mismo criterio que el resto de las etiquetas de
+// presentación chicas y puntuales de este proyecto (ver
+// ETIQUETA_TIPO_DE_LOCAL, duplicado a propósito en varios archivos) -- no
+// vale la pena una abstracción compartida para un formateador de 3 líneas.
+function formatearCotaConSignoParaResumenDeNivel(valor: number): string {
+  const abs = Math.abs(valor).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return `${valor < 0 ? '-' : '+'}${abs}`
+}
+
+export function resumenDeNivel(nivel: { readonly nombre: string; readonly cotaHidraulicaReferencia_m?: number; readonly locales: readonly unknown[] }): string {
+  const cotaTexto =
+    nivel.cotaHidraulicaReferencia_m === undefined
+      ? 'sin cota'
+      : `${formatearCotaConSignoParaResumenDeNivel(nivel.cotaHidraulicaReferencia_m)} m`
+  const cantidadLocales = nivel.locales.length
+  const localesTexto = `${cantidadLocales} ${cantidadLocales === 1 ? 'local' : 'locales'}`
+  return `${nivel.nombre} · ${cotaTexto} · ${localesTexto}`
+}

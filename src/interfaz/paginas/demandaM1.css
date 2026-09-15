@@ -246,6 +246,65 @@
   min-width: 0;
 }
 
+/* UX-HIERARCHY-POLISH-01: cabecera colapsable del Nivel (sólo con 2+
+   Niveles -- `.m1-nivel--unico` nunca lleva este chrome, brief §9). Mismo
+   patrón de disclosure que `.m1-uf__toggle`. */
+.m1-nivel__titulo {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.m1-nivel__toggle {
+  display: flex;
+  align-items: baseline;
+  gap: var(--esp-sm);
+  width: 100%;
+  padding: var(--esp-xs) 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  color: var(--color-texto);
+  cursor: pointer;
+}
+
+.m1-nivel__toggle:focus-visible {
+  outline: 2px solid var(--color-foco);
+  outline-offset: 2px;
+  border-radius: var(--radio-control);
+}
+
+.m1-nivel__chevron {
+  flex: none;
+  width: 0.9em;
+  font-size: 0.75em;
+  color: var(--color-texto-3);
+}
+
+.m1-nivel__resumen {
+  font-weight: var(--peso-semibold);
+  overflow-wrap: anywhere;
+}
+
+/* Nivel colapsado: franja compacta, mismo criterio que `.m1-uf--colapsada`. */
+.m1-nivel--colapsado {
+  gap: 0;
+  padding: var(--esp-sm) var(--esp-md);
+}
+
+.m1-nivel__contenido {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-sm);
+}
+
+.m1-nivel__contenido[hidden] {
+  display: none;
+}
+
 /* --- Card por Local --- */
 .m1-local {
   display: flex;
@@ -266,9 +325,68 @@
 }
 
 .m1-local__nombre {
-  margin: 0;
   font-size: var(--fs-titulo-card);
   font-weight: var(--peso-semibold);
+}
+
+/* UX-HIERARCHY-POLISH-01: cabecera colapsable del Local, mismo patrón que
+   `.m1-uf__toggle` / `.m1-nivel__toggle`. */
+.m1-local__titulo {
+  margin: 0;
+  flex: 1 1 16rem;
+  min-width: 0;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+.m1-local__toggle {
+  display: flex;
+  align-items: baseline;
+  gap: var(--esp-sm);
+  width: 100%;
+  padding: var(--esp-xs) 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  color: var(--color-texto);
+  cursor: pointer;
+}
+
+.m1-local__toggle:focus-visible {
+  outline: 2px solid var(--color-foco);
+  outline-offset: 2px;
+  border-radius: var(--radio-control);
+}
+
+.m1-local__chevron {
+  flex: none;
+  width: 0.9em;
+  font-size: 0.75em;
+  color: var(--color-texto-3);
+}
+
+.m1-local__meta {
+  color: var(--color-texto-2);
+  font-size: var(--fs-ayuda);
+  font-weight: normal;
+}
+
+/* Local colapsado: franja compacta, mismo criterio que `.m1-uf--colapsada`
+   / `.m1-nivel--colapsado`. */
+.m1-local--colapsado {
+  gap: 0;
+  padding: var(--esp-sm) var(--esp-md);
+}
+
+.m1-local__contenido {
+  display: flex;
+  flex-direction: column;
+  gap: var(--esp-sm);
+}
+
+.m1-local__contenido[hidden] {
+  display: none;
 }
 
 /* UI-M1-DUPLICAR-LOCAL-01: "Duplicar local" (secundaria, `ui-btn--fantasma`)

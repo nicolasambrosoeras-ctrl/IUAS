@@ -5,6 +5,7 @@
 // reimplementa el criterio de terminal critico (usa el mismo
 // margen = Presidual - PminRequerida que resolverTerminalMasDesfavorable).
 import type { Proyecto } from '../../modelo/proyecto'
+import { nombreVisibleDeLocal } from '../../modelo/proyecto/nombreVisibleDeLocal'
 import type { ReferenciaDeArtefacto } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
 import type { CandidatoTerminal } from '../../motor/tuberias/presion/resolverTerminalMasDesfavorable'
@@ -81,7 +82,8 @@ export function resolverFilaDeTerminalParaTabla(
   const nivel = uf === undefined ? undefined : resolverNivelDeLocal(uf, referencia.localId)
   const local = nivel?.locales.find((l) => l.id === referencia.localId)
   const nivelTexto = nivel?.nivel === undefined ? 'nivel sin clasificar' : nombreDeNivel(nivel.nivel)
-  const localTexto = local === undefined ? '' : ` · ${ETIQUETA_TIPO_DE_LOCAL[local.tipo] ?? local.tipo}`
+  const localTexto =
+    local === undefined ? '' : ` · ${nombreVisibleDeLocal(local, ETIQUETA_TIPO_DE_LOCAL[local.tipo] ?? local.tipo)}`
   const ubicacion = `${uf?.nombre ?? referencia.unidadFuncionalId} · ${nivelTexto}${localTexto}`
 
   const red = resolverRedDeTerminal(proyecto, candidato.nodoId)
