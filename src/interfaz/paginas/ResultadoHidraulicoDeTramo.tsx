@@ -141,8 +141,8 @@ function CabeceraDeModulo2({
         <p>
           <small>
             IUAS calcula primero con hipótesis típicas: PPR · cálculo habitual (Hazen-Williams) · pérdidas
-            localizadas estimadas. Valores iniciales — 5&nbsp;m por Local · 5&nbsp;m por segmento de montante ·
-            10&nbsp;m alimentación · +3&nbsp;m/piso según el nivel de la unidad funcional.{' '}
+            localizadas estimadas. Valores iniciales — 5&nbsp;m por Local · 10&nbsp;m de alimentación. En un
+            segmento nuevo de montante, la longitud sugerida es 5&nbsp;m de base + |Δz| entre cotas.{' '}
             <strong>Todos editables.</strong>
           </small>
         </p>
@@ -428,19 +428,14 @@ function DistribucionGeneral({
     <section>
       <h3>Distribución general</h3>
       <TablaDimensionamientoDeModulo2 entradas={entradas} encabezadoTramo="Tramo" />
-      {mostrarNotaVertical ? (
-        <p style={{ margin: '0.35rem 0 0.5rem' }}>
-          <small>
-            La longitud es la <strong>base</strong>. En modo rápido se suma +3,00&nbsp;m/piso automáticamente según el
-            nivel de cada unidad funcional (convención IUAS); la longitud efectiva por camino se ve en el detalle de
-            presión.
-          </small>
-        </p>
-      ) : null}
+      {/* BETA-UI-POLISH-01: la pérdida del equipo ACS queda asociada
+          visualmente a la fila "Alimentación ACS" de la tabla -- inmediatamente
+          debajo, como una subfila liviana (sin card ni callout), en vez de
+          quedar suelta después de la nota de longitud. */}
       {hayAlimentacionAcs ? (
-        <p style={{ margin: '0.35rem 0 0.5rem' }}>
+        <div className="m2-acs-subfila">
           <label>
-            Pérdida de carga del equipo ACS [m.c.a.]:{' '}
+            Pérdida del equipo ACS [m.c.a.]:{' '}
             <input
               type="number"
               min={0}
@@ -454,10 +449,16 @@ function DistribucionGeneral({
               }}
               style={{ width: '4.5rem' }}
             />
-          </label>{' '}
+          </label>
+          <small>Dato manual del fabricante. Se aplica una vez a los recorridos de agua caliente.</small>
+        </div>
+      ) : null}
+      {mostrarNotaVertical ? (
+        <p style={{ margin: '0.35rem 0 0.5rem' }}>
           <small>
-            Dato manual del fabricante. Ingresá la pérdida de carga indicada por el fabricante para el caudal de
-            cálculo. Si no se informa, no se incluye automáticamente en el balance.
+            La longitud indicada es la <strong>base</strong> del tramo. En modo Rápido, IUAS incorpora la
+            corrección vertical por Nivel cuando corresponde; los segmentos de montante ya incluyen el desnivel
+            |Δz| en su longitud sugerida.
           </small>
         </p>
       ) : null}

@@ -36,7 +36,11 @@
 .constructor-montantes__lista {
   display: flex;
   flex-direction: column;
-  gap: var(--esp-md);
+  /* BETA-UI-POLISH-01: varias Montantes colapsadas deben leerse como una
+     lista compacta -- gap chico entre cards, cada una ya separada además
+     por su propio borde (`.ui-card`), así que sigue habiendo separación
+     visible sin ocupar media pantalla. */
+  gap: var(--esp-xs);
   margin-bottom: var(--esp-md);
 }
 
@@ -69,11 +73,15 @@
   align-items: baseline;
   gap: var(--esp-sm);
   width: 100%;
-  padding: var(--esp-sm) var(--esp-md);
+  /* BETA-UI-POLISH-01: menos padding vertical + piso de altura más bajo --
+     el objetivo es que una Montante colapsada se sienta una FILA, no una
+     card (§17-§18). El cuerpo expandido (`.montante-card__cuerpo`) tiene su
+     propio padding independiente y no se toca acá. */
+  padding: 0.35rem var(--esp-md);
   background: var(--color-superficie-2);
   border: none;
   text-align: left;
-  min-height: 2.5rem;
+  min-height: 2.15rem;
 }
 
 .montante-card__flecha {

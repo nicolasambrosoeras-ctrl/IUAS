@@ -817,6 +817,32 @@ summary > h3 {
   background: var(--color-superficie-2);
 }
 
+/* BETA-UI-POLISH-01: subfila liviana de la pérdida del equipo ACS,
+   pegada visualmente al borde inferior de la tabla de dimensionamiento
+   (inmediatamente después de la fila "Alimentación ACS", nunca una
+   card/callout nueva). `margin-top: -1px` la solapa con el
+   `border-bottom` de la última fila de la tabla para que se sienta
+   continuación de esa fila, no un bloque aparte. */
+.m2-acs-subfila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem 0.6rem;
+  margin: -1px 0 0.5rem;
+  padding: 0.35rem 0.7rem;
+  background: var(--color-superficie-2);
+  border-bottom: 1px solid var(--color-borde);
+  font-size: var(--fs-ayuda);
+}
+
+.m2-acs-subfila label {
+  font-size: inherit;
+}
+
+.m2-acs-subfila small {
+  color: var(--color-texto-2);
+}
+
 .tabla-tecnica .col-num {
   text-align: right;
   font-variant-numeric: tabular-nums;

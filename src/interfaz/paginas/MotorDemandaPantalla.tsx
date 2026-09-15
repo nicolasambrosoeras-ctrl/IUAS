@@ -9,6 +9,8 @@
 import { useMemo, useRef, useState } from 'react'
 import type { Proyecto, UnidadFuncional, Nivel, Local, TipoDeLocal, RegimenLocal, Artefacto } from '../../modelo/proyecto'
 import { nombreVisibleDeLocal } from '../../modelo/proyecto/nombreVisibleDeLocal'
+import { metaDeCabeceraDeLocal } from './resumenDeCabeceraDeLocal'
+import { nombreDeTipoDeProyecto } from './nombreDeTipoDeProyecto'
 import {
   alternarEnConjunto,
   estadoInicialDeLocalesColapsados,
@@ -1004,6 +1006,12 @@ function LocalFormulario({
   const contenidoId = `local-contenido-${local.id}`
   const cantidadArtefactos = local.artefactos.length
   const resumenArtefactos = `${cantidadArtefactos} ${cantidadArtefactos === 1 ? 'artefacto' : 'artefactos'}`
+  // BETA-UI-POLISH-01: sin nombre personalizado y con un único Local de su
+  // tipo, `nombreVisible` YA ES la etiqueta de tipo ("Baño") -- repetirla en
+  // la meta ("Baño · Baño · N artefactos") es ruido puro. Con nombre
+  // numerado ("Baño 2") o personalizado ("Baño principal"), el tipo sigue
+  // aportando información y se mantiene.
+  const metaCabecera = metaDeCabeceraDeLocal(nombreVisible, ETIQUETA_TIPO_DE_LOCAL[local.tipo], resumenArtefactos)
 
   // Brief §20: vaciar completamente el campo vuelve al nombre automático --
   // NUNCA se persiste un string vacío (mismo criterio que
@@ -1036,9 +1044,7 @@ function LocalFormulario({
               {colapsado ? '▶' : '▼'}
             </span>
             <span className="m1-local__nombre">{nombreVisible}</span>
-            <span className="m1-local__meta">
-              · {ETIQUETA_TIPO_DE_LOCAL[local.tipo]} · {resumenArtefactos}
-            </span>
+            <span className="m1-local__meta">· {metaCabecera}</span>
           </button>
         </h4>
         {colapsado ? null : (
@@ -1898,7 +1904,7 @@ function ResultadoDemandaModulo1({
       <Advertencias advertencias={resultado.advertencias} />
       <Resultados resultado={resultado} />
       <button type="button" onClick={() => generarDocumentoPdf({ proyecto })}>
-        Generar informe técnico PDF
+        Generar memoria técnica
       </button>
       <Pasos pasos={resultado.pasos} />
     </details>
@@ -2049,7 +2055,7 @@ export function MotorDemandaPantalla() {
           <p>
             {proyecto.unidadesFuncionales.length === 0
               ? 'Proyecto vacío · Empezá agregando una unidad funcional.'
-              : 'Proyecto de ejemplo — vivienda unifamiliar · Todos los datos pueden modificarse.'}
+              : `${nombreDeTipoDeProyecto(proyecto.parametros.tipoDeProyecto)} · Todos los datos pueden modificarse.`}
           </p>
         </div>
         {/* UX-02 / UI-01E (brief §47-49): Modo de trabajo global, a la
