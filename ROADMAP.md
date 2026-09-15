@@ -11,15 +11,18 @@ ver `PENDIENTES-DE-ARQUITECTURA.md`.
 
 ## Estado actual
 
-### HYD-EST-01 — en implementación (D-δ.112)
+### HYD-EST-01 — CERRADO (D-δ.112/D-δ.113)
 
-Checkpoint local: Estimadas se calcula por recorrido y velocidades reales;
-la presión consume esas contribuciones. Derivaciones 1→N no modeladas
-dejan la localizada y su verificación incompletas, sin fallback histórico.
-Una singularidad K=1,35 por terminal sustituye esa cardinalidad de D-δ.45.
-Detalladas no se modifica. Pendientes: baselines afectados, auditoría final
-de memoización, E2E y gates completos Nivel A, fuzz y producción.
-Continuidad exacta en `HANDOFF-CONTEXT.md`. No es un cierre del slice.
+**Nota HYD-CLOSE-00:** esta sección quedó desactualizada tras el cierre
+real del slice -- el intento path-aware de D-δ.112 fue rechazado en
+validación manual y corregido por D-δ.113/FIX-HYD-EST-SIMPLIFIED-01
+(ver esa entrada más abajo, `Estado: HYD-EST-01: CERRADO`). El modelo
+Estimadas vigente es el agregado histórico por `(Local, red)`
+(D-δ.40/D-δ.45: `n-1` tees Ks=3,00, una singularidad terminal Ks=1,35,
+una llave de paso Ks=9,18), con `V_ref` corregida al Tramo
+representativo. `HANDOFF-CONTEXT.md` documenta ese cierre, no un
+checkpoint intermedio. Ver `docs/HYD-CLOSE-00-AUDITORIA.md` para la
+auditoría completa de pendientes hidráulicos pre-beta.
 
 ### Fase 0 — cerrada
 
@@ -2977,6 +2980,47 @@ salvo bug inequívoco o decisión roja explícita.
   REPORT, no se vuelve a proponer esta representación como tarea futura.
   - **Estado:** `REVERT-VIS-TOPO-01: CERRADO — pendiente validación
     manual`.
+
+- **D-δ.127 — HYD-CLOSE-00: auditoría de pendientes hidráulicos/
+  normativos pre-beta (CERRADO).** Investigación + documentación pura
+  (`docs/HYD-CLOSE-00-AUDITORIA.md`), sin cambios de motor, UI, schema
+  ni PERSIST. Veredicto: **motor cerrable con 1 ajuste**. Los dos
+  "pendientes obligatorios" que motivaron este slice resultaron, con
+  evidencia de código y tests, capítulos ya cerrados: **tee 1→2 en
+  Detallado** está completamente implementado desde CRIT-A31 (Ks reales
+  de Tabla N°7 ERAS-2023, UI `TeeDeNodoEditor.tsx` wireada) y el
+  **fan-out 1→N** se maneja correctamente como incompletitud explícita
+  desde M2-TOPO-E/D-δ.96 (con test de regresión de un "falso completo"
+  ya corregido). La composición del modo `Estimadas`
+  (K=3,00 tees/1,35 codo90/9,18 llave de paso) está cerrada por
+  decisiones rojas ya resueltas en D-δ.45, documentada explícitamente
+  como "pérdida equivalente conservadora", no reconstrucción física.
+  **Único hallazgo H0:** `hfEquipoACS` está correctamente excluido del
+  balance de presión (D-δ.15, sin fórmula normativa ERAS), pero esa
+  exclusión sólo se advierte en el PDF de memoria de cálculo -- el panel
+  interactivo de M2 (`PanelDePresionDeModulo2.tsx`, `TarjetaDeTerminal.tsx`,
+  `CalculoDelCriticoDetalle.tsx`) muestra "Completo"/"Cumple" sin
+  ninguna señal de esa exclusión. Roadmap mínimo propuesto: un único
+  slice, `HYD-ACS-DISCLOSURE-01` (agregar al panel interactivo el mismo
+  texto de advertencia que ya existe en el PDF -- cambio de UI puro, sin
+  fórmula nueva). Terminal crítico/`candidatoProvisional`: sin deuda
+  funcional real (el hallazgo de la era VIS-TOPO era una interpretación
+  incidental incorrecta, ya desactualizada por el cierre de M3 D-δ.58/59
+  -- quedan sólo dos comentarios de código obsoletos, higiene sin
+  impacto). M1/M3/M4: sin deuda bloqueante (M3/M4 conservan ítems
+  menores ya autorregistrados por el equipo al cerrar cada módulo,
+  ninguno bloqueante; M1 tiene una nota huérfana sin trazabilidad
+  documental, "A3 queda pendiente" en `calcularSimultaneidad.ts`, de
+  bajo impacto). Pmin alternativo y reserva/autonomía alternativa (12h/
+  24h/dotación): confirmados como criterios IUAS nuevos post-beta, no
+  deuda disfrazada -- Pmin ya es per-artefacto desde el catálogo
+  ERAS-2023, y CRIT-A35 (reserva) viene directo del texto normativo, que
+  además contraindica explícitamente el uso de dotación/24h para reserva
+  domiciliaria. Corregida de paso la nota "Estado actual" de este mismo
+  archivo (arriba), que seguía describiendo HYD-EST-01 como "en
+  implementación" pese a estar cerrado desde D-δ.113. `npx tsc -b` y
+  `npm run build` limpios (slice documental, sin tests nuevos).
+  - **Estado:** `HYD-CLOSE-00: CERRADO`.
 
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto

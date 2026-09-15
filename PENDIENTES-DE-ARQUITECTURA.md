@@ -649,6 +649,20 @@ búsqueda discreta y determinística, no una iteración numérica continua.
 Ninguno de estos puntos se convierte en criterio de `CRITERIOS.md` en
 este incremento.
 
+**Actualización (HYD-CLOSE-00, D-δ.127):** auditoría pre-beta confirmó
+que "pérdida hidráulica propia del calefón/termotanque" (`hfEquipoACS`)
+sigue genuinamente sin metodología normativa (ERAS-2023 no la publica;
+`REQUIERE INVESTIGACIÓN BIBLIOGRÁFICA EXTERNA` si se quiere resolver la
+fórmula) — eso permanece correctamente diferido. Pero se encontró que
+la exclusión de `hfEquipoACS` del balance sólo se advierte en el PDF de
+REPORT, nunca en el panel interactivo de M2 -- un usuario que no exporta
+el PDF ve "Completo"/"Cumple" sin saber que ese término falta.
+Clasificado H0 en `docs/HYD-CLOSE-00-AUDITORIA.md`; próxima acción
+propuesta: `HYD-ACS-DISCLOSURE-01` (agregar la advertencia también al
+panel interactivo, cambio de UI puro, sin fórmula nueva). El resto de
+esta lista permanece abierto tal como está, sin resolución en este
+registro.
+
 ### D-δ.16 — Universo de CRIT-A8 sobre subconjuntos de Módulo 2 (CERRADO)
 
 **Decisión adoptada**: para el cálculo de un Tramo, CRIT-A8 opera
