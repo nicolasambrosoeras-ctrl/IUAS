@@ -140,8 +140,9 @@ function CabeceraDeModulo2({
         <p>
           <small>
             IUAS calcula primero con hipótesis típicas: PPR · cálculo habitual (Hazen-Williams) · pérdidas
-            localizadas estimadas. Valores iniciales — 5&nbsp;m por Local · 10&nbsp;m alimentación · +3&nbsp;m/piso
-            según el nivel de la unidad funcional. <strong>Todos editables.</strong>
+            localizadas estimadas. Valores iniciales — 5&nbsp;m por Local · 5&nbsp;m por segmento de montante ·
+            10&nbsp;m alimentación · +3&nbsp;m/piso según el nivel de la unidad funcional.{' '}
+            <strong>Todos editables.</strong>
           </small>
         </p>
       ) : (

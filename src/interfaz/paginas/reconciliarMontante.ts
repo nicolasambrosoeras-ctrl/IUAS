@@ -23,14 +23,18 @@
 //    fuera de alcance de M2-TOPO-C, se devuelve 'origenIntermedioNoSoportado'
 //    sin mutar (DECISIÓN ROJA diferida).
 //
-//  - Longitud sugerida de cada segmento nuevo = |Δz| entre las cotas de
-//    sus extremos, con `longitudEsSugerida: true`. La longitud sigue
-//    significando recorrido físico real de cañería; |Δz| es sólo una
-//    precarga IUAS editable (RD-2, ya implementada en conLongitudDeTramo:
-//    al editar, el flag desaparece). Una longitud personalizada nunca se
-//    reparte, interpola, escala, traslada ni borra (RD-1). Un |Δz| de 0 o
-//    indeterminado NO fabrica un tramo de longitud 0 (CRIT-A20): el
-//    segmento existe pero queda sin longitud precargada.
+//  - Longitud sugerida de cada segmento nuevo = 5 m de desarrollo base +
+//    |Δz| entre las cotas de sus extremos (M2-MONTANTE-DEFAULT-LENGTH-01),
+//    con `longitudEsSugerida: true`. Los 5 m son una convención de
+//    predimensionamiento editable -- no un mínimo hidráulico ni una
+//    validación -- que representa el desarrollo horizontal/derivación
+//    típico de un segmento de montante; |Δz| es la única contribución
+//    vertical (RD-2, ya implementada en conLongitudDeTramo: al editar, el
+//    flag desaparece). Una longitud personalizada nunca se reparte,
+//    interpola, escala, traslada ni borra (RD-1). Si |Δz| es indeterminado
+//    (falta alguna cota), la sugerencia queda en los 5 m base sin inventar
+//    una diferencia vertical; esto es independiente de CRIT-A20, que sigue
+//    rigiendo la validez de una longitud explícita igual a 0.
 //
 //  - Origen canónico: para AF con esquema 'directa' la raíz está a cota 0
 //    (convención de resolverOrigenHidraulicoEfectivo); con tanque elevado,
@@ -192,21 +196,23 @@ function esLibrementeResegmentable(tramo: Tramo): boolean {
   return motivosDeBloqueoDeSegmento(tramo).length === 0
 }
 
-// Longitud sugerida entre dos cotas: |Δz|. Indeterminada (undefined) si
-// falta alguna cota. Un |Δz| de 0 NO se materializa como longitud 0
-// (CRIT-A20): se devuelve undefined y el segmento queda sin precarga.
-function longitudSugeridaEntre(za: number | undefined, zb: number | undefined): number | undefined {
+// Desarrollo base de un segmento nuevo de montante: convención de
+// predimensionamiento editable, NO un mínimo hidráulico ni una validación
+// (M2-MONTANTE-DEFAULT-LENGTH-01).
+export const LONGITUD_BASE_SEGMENTO_MONTANTE_M = 5
+
+// Longitud sugerida entre dos cotas: 5 m de desarrollo base + |Δz|. Si
+// falta alguna cota, |Δz| queda indeterminado y la sugerencia es sólo la
+// base de 5 m, sin inventar una diferencia vertical.
+function longitudSugeridaEntre(za: number | undefined, zb: number | undefined): number {
   if (za === undefined || zb === undefined) {
-    return undefined
+    return LONGITUD_BASE_SEGMENTO_MONTANTE_M
   }
-  const delta = Math.abs(za - zb)
-  return delta === 0 ? undefined : delta
+  return LONGITUD_BASE_SEGMENTO_MONTANTE_M + Math.abs(za - zb)
 }
 
-// Aplica una longitud sugerida a un segmento del montante, respetando
-// CRIT-A20: si la sugerencia es indeterminada o 0, el segmento queda sin
-// `longitud_m` ni `longitudEsSugerida`.
-function conLongitudSugerida(tramo: Tramo, longitud: number | undefined): Tramo {
+// Aplica la longitud sugerida a un segmento nuevo del montante.
+function conLongitudSugerida(tramo: Tramo, longitud: number): Tramo {
   const base: Tramo = {
     id: tramo.id,
     nodoOrigenId: tramo.nodoOrigenId,
@@ -215,9 +221,6 @@ function conLongitudSugerida(tramo: Tramo, longitud: number | undefined): Tramo 
     ...(tramo.accesorios !== undefined ? { accesorios: tramo.accesorios } : {}),
     ...(tramo.dnComercialAdoptado !== undefined ? { dnComercialAdoptado: tramo.dnComercialAdoptado } : {}),
     ...(tramo.montanteId !== undefined ? { montanteId: tramo.montanteId } : {}),
-  }
-  if (longitud === undefined) {
-    return base
   }
   return { ...base, longitud_m: longitud, longitudEsSugerida: true }
 }
