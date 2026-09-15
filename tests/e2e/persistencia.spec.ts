@@ -56,8 +56,22 @@ test.describe('PERSIST-01 · autosave y reload', () => {
     await page.reload({ waitUntil: 'domcontentloaded' })
     await irA(page, /Demanda/)
 
-    await expect(page.locator('.m1-uf').first().locator('.m1-nivel')).toHaveCount(2)
-    await expect(page.locator('.m1-uf').first().getByRole('button', { name: 'Eliminar nivel' })).toHaveCount(1)
+    const ufTrasReload = page.locator('.m1-uf').first()
+    await expect(ufTrasReload.locator('.m1-nivel')).toHaveCount(2)
+
+    // UX-HIERARCHY-POLISH-01: el estado de colapso es UI efímera, nunca
+    // persistida -- tras el reload, el Nivel adicional vuelve a nacer
+    // colapsado (política de default: sólo el nivel base abre). "Eliminar
+    // nivel" sólo se ofrece con el Nivel expandido -- hay que abrirlo
+    // primero para verificar que la jerarquía (el dato, no el plegado)
+    // sobrevivió al refresh.
+    const nivelAdicional = ufTrasReload.locator('.m1-nivel').nth(1)
+    const toggleNivel = nivelAdicional.getByRole('button', { name: /^Expandir nivel / })
+    if (await toggleNivel.isVisible().catch(() => false)) {
+      await toggleNivel.click()
+      await estabilizar(page)
+    }
+    await expect(ufTrasReload.getByRole('button', { name: 'Eliminar nivel' })).toHaveCount(1)
 
     const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
     expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()
