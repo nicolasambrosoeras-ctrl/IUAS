@@ -484,13 +484,18 @@ const ENCABEZADO_TABLA_VERIFICACION = [
 
 // Fórmula central de la verificación (brief REPORT-01B §14): estática,
 // nunca recalculada -- es la MISMA que resolverBalanceDePresion aplica
-// (ver comentario de archivo de ese resolver). hfEquipoACS queda
-// deliberadamente fuera de la fórmula: D-δ.15 todavía no tiene fórmula
-// normativa vigente, así que no participa del balance ni se muestra como
-// término (nunca un 0 inventado).
+// (ver comentario de archivo de ese resolver).
+//
+// HYD-ACS-MANUAL-LOSS-01 (D-δ.129): hfEquipoACS sigue sin fórmula
+// normativa AUTOMÁTICA (D-δ.15) -- pero ahora el proyectista puede
+// adoptarla manualmente. `FORMULA_BALANCE_DE_PRESION` es la base SIN ese
+// término (camino AF, o AC sin dato informado); `formulaBalanceDePresion`
+// agrega el término cuando corresponde mostrarlo.
 const FORMULA_BALANCE_DE_PRESION = 'Presidual = Pdisponible − Δz − hfDistribuida − hfLocalizada − hfMedidor'
-const NOTA_HF_EQUIPO_ACS =
-  'hfEquipoACS no participa de este balance: todavía no tiene fórmula normativa vigente (D-δ.15).'
+const FORMULA_BALANCE_DE_PRESION_CON_ACS =
+  'Presidual = Pdisponible − Δz − hfDistribuida − hfLocalizada − hfMedidor − hfEquipoACS'
+const NOTA_HF_EQUIPO_ACS_AUSENTE =
+  'hfEquipoACS no participa de este balance: todavía no fue informado (dato manual del fabricante, D-δ.129).'
 const NOTA_CRITERIO_CRITICO = 'Selección del terminal crítico: menor margen respecto de Pmin (nunca menor Presidual bruto).'
 
 function estiloDeFilaVerificacion(fila: FilaDeVerificacionDeInforme): string {
@@ -560,9 +565,16 @@ function renderizarDesarrolloCritico(d: DesarrolloTerminalCritico): Content {
   const cotaTexto = d.cotaTerminal_m === undefined ? '—' : `${formatearNumero(d.cotaTerminal_m, 'm')} m`
   const desnivelTexto = `${formatearConSigno(d.desnivel_m, 'm')} m`
 
-  const sustitucion =
-    `Presidual = ${formatearNumero(d.presionDisponible_mca, 'm')} − (${formatearConSigno(d.desnivel_m, 'm')}) − ${formatearNumero(d.hfDistribuida_mca, 'm')} ` +
-    `− ${formatearNumero(d.hfLocalizada_mca, 'm')} − ${formatearNumero(d.hfMedidor_mca, 'm')} = ${formatearNumero(d.presionResidual_mca, 'm')} m.c.a.`
+  // HYD-ACS-MANUAL-LOSS-01 (D-δ.129): el término sólo tiene sentido cuando
+  // este camino ES de red AC (nunca AF) Y el proyectista ya lo informó --
+  // mismo criterio condicional que la UI (CalculoDelCriticoDetalle.tsx).
+  const hfEquipoACSAplicable = d.red === 'AC' && d.hfEquipoACS_mca !== undefined
+
+  const sustitucion = hfEquipoACSAplicable
+    ? `Presidual = ${formatearNumero(d.presionDisponible_mca, 'm')} − (${formatearConSigno(d.desnivel_m, 'm')}) − ${formatearNumero(d.hfDistribuida_mca, 'm')} ` +
+      `− ${formatearNumero(d.hfLocalizada_mca, 'm')} − ${formatearNumero(d.hfMedidor_mca, 'm')} − ${formatearNumero(d.hfEquipoACS_mca!, 'm')} = ${formatearNumero(d.presionResidual_mca, 'm')} m.c.a.`
+    : `Presidual = ${formatearNumero(d.presionDisponible_mca, 'm')} − (${formatearConSigno(d.desnivel_m, 'm')}) − ${formatearNumero(d.hfDistribuida_mca, 'm')} ` +
+      `− ${formatearNumero(d.hfLocalizada_mca, 'm')} − ${formatearNumero(d.hfMedidor_mca, 'm')} = ${formatearNumero(d.presionResidual_mca, 'm')} m.c.a.`
 
   return {
     unbreakable: true,
@@ -577,7 +589,7 @@ function renderizarDesarrolloCritico(d: DesarrolloTerminalCritico): Content {
         style: 'subseccionNivel',
       },
       { text: `Cota terminal: ${cotaTexto} · Origen: ${d.origenTexto}`, style: 'metadatos' },
-      { text: FORMULA_BALANCE_DE_PRESION, style: 'formula' },
+      { text: hfEquipoACSAplicable ? FORMULA_BALANCE_DE_PRESION_CON_ACS : FORMULA_BALANCE_DE_PRESION, style: 'formula' },
       {
         table: {
           widths: ['auto', '*'],
@@ -587,11 +599,12 @@ function renderizarDesarrolloCritico(d: DesarrolloTerminalCritico): Content {
             ['hfDistribuida', `${formatearNumero(d.hfDistribuida_mca, 'm')} m.c.a.`],
             [`hfLocalizada (${d.metodologiaHfLocalizada === 'estimado' ? 'estimada' : 'detallada'})`, `${formatearNumero(d.hfLocalizada_mca, 'm')} m.c.a.`],
             ['hfMedidor', `${formatearNumero(d.hfMedidor_mca, 'm')} m.c.a.`],
+            ...(hfEquipoACSAplicable ? [['hfEquipoACS (dato manual del fabricante)', `${formatearNumero(d.hfEquipoACS_mca!, 'm')} m.c.a.`]] : []),
           ],
         },
         margin: [0, 2, 0, 4],
       },
-      { text: NOTA_HF_EQUIPO_ACS, style: 'metadatos' },
+      ...(d.red === 'AC' && !hfEquipoACSAplicable ? [{ text: NOTA_HF_EQUIPO_ACS_AUSENTE, style: 'metadatos' } as Content] : []),
       { text: sustitucion, style: 'formula' },
       { text: `Margen = Presidual − Pmin = ${formatearNumero(d.presionResidual_mca, 'm')} − ${formatearNumero(d.presionMinimaRequerida_mca, 'm')} = ${formatearMca(d.margen_mca)}`, style: 'formula' },
       { text: `Conclusión: ${d.cumpleMinimo ? 'CUMPLE' : 'NO CUMPLE'}`, style: d.cumpleMinimo ? 'conforme' : 'noConforme' },
@@ -625,7 +638,13 @@ function renderizarSeccionVerificacion(datos: DatosDeInforme): Content[] {
   }
 
   contenido.push({ text: FORMULA_BALANCE_DE_PRESION, style: 'formula' })
-  contenido.push({ text: NOTA_HF_EQUIPO_ACS, style: 'metadatos' })
+  contenido.push({
+    text:
+      datos.proyecto.hfEquipoACS_mca === undefined
+        ? NOTA_HF_EQUIPO_ACS_AUSENTE
+        : `Pérdida del equipo ACS adoptada manualmente: ${formatearNumero(datos.proyecto.hfEquipoACS_mca, 'm')} m.c.a. (se aplica a los caminos de Agua caliente que atraviesan la producción ACS).`,
+    style: 'metadatos',
+  })
   contenido.push({ text: NOTA_CRITERIO_CRITICO, style: 'metadatos' })
 
   if (verificacion.terminalCriticoNodoId !== undefined) {

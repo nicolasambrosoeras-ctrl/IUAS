@@ -98,19 +98,19 @@ function simboloDeCumplimiento(cumple: boolean): string {
   return cumple ? '✓' : '✕'
 }
 
-// HYD-ACS-DISCLOSURE-01 (D-δ.128): mismo texto/verdad técnica que
-// `NOTA_HF_EQUIPO_ACS` en `exportadores/pdf/generarDocumentoPdf.ts` --
-// hfEquipoACS sigue fuera de la firma de `resolverBalanceDePresion`
-// (D-δ.15, sin fórmula normativa ERAS vigente), así que "Completo"/
-// "Cumple" en este panel nunca lo incluyó ni lo incluye ahora. Antes de
-// este slice esa exclusión sólo se advertía en el PDF -- un usuario que
-// nunca exporta la memoria de cálculo no tenía ninguna señal de que el
-// balance interactivo tampoco la cuenta (HYD-CLOSE-00, hallazgo H0).
-// Se muestra siempre que el panel llega a mostrar un veredicto (mismo
+// HYD-ACS-DISCLOSURE-01 (D-δ.128) / HYD-ACS-MANUAL-LOSS-01 (D-δ.129):
+// mismo texto/verdad técnica que el PDF (generarDocumentoPdf.ts) -- ahora
+// CONDICIONAL a si el proyectista ya adoptó manualmente el dato del
+// fabricante (`Proyecto.hfEquipoACS_mca`). Ausente: el balance sigue sin
+// incluirlo automáticamente, se advierte exactamente igual que antes de
+// D-δ.129. Informado (incluido 0 explícito): el balance YA lo incluye
+// (D-δ.129 §2.5) -- el warning de exclusión dejaría de ser cierto, así
+// que se reemplaza por una nota neutra que refleja el valor incluido. Se
+// muestra siempre que el panel llega a mostrar un veredicto (mismo
 // criterio incondicional que REPORT: `renderizarSeccionVerificacion`
 // empuja la nota para cualquier `estadoGlobal` distinto de
 // `noIniciado`/`error`, sin condicionarla a que existan terminales AC).
-const NOTA_HF_EQUIPO_ACS =
+const NOTA_HF_EQUIPO_ACS_AUSENTE =
   'El balance de presión no incluye automáticamente la pérdida de carga propia del equipo de agua caliente (hfEquipoACS). Verificá este término según el equipo seleccionado y la información del fabricante.'
 
 // UI-01C (D-δ.74 / UI-CRIT-05): "estado del cálculo" ≠ "resultado de
@@ -490,7 +490,11 @@ export function PanelDePresionDeModulo2({
               : `✕ ${resumenDeCumplimiento.verificables - resumenDeCumplimiento.cumplen} DE ${resumenDeCumplimiento.verificables} PUNTOS NO CUMPLEN`}
           </p>
           <p className="ui-callout ui-callout--info" role="note">
-            <small>{NOTA_HF_EQUIPO_ACS}</small>
+            <small>
+              {proyecto.hfEquipoACS_mca === undefined
+                ? NOTA_HF_EQUIPO_ACS_AUSENTE
+                : `Pérdida del equipo ACS incluida en el balance: ${formatearNumero(proyecto.hfEquipoACS_mca, 'm')} m.c.a.`}
+            </small>
           </p>
           {!cumpleGlobal && filaCritico?.margen_mca !== undefined ? (
             <p>

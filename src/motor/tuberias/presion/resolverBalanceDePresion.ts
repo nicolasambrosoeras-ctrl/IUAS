@@ -12,9 +12,21 @@
 // ERAS-2023 SS2.12.1 (perdida localizada, CRIT-A26; perdida del medidor,
 // CRIT-A25), esta funcion NUNCA los trata como 0: devuelve 'incompleto'
 // en vez de fabricar un 'Presidual' que parezca una verificacion
-// terminada sin serlo. hf_equipos (ACS) queda deliberadamente fuera de
-// esta firma -- D-delta.15 sigue sin fórmula normativa, no se inventa
-// una acá.
+// terminada sin serlo.
+//
+// hfEquipoACS_mca (HYD-ACS-MANUAL-LOSS-01, D-delta.129) es DISTINTO de
+// hfLocalizada/hfMedidor: sigue sin fórmula normativa automática
+// (D-delta.15), pero ahora el proyectista puede ADOPTAR manualmente el
+// dato del fabricante. A diferencia de los otros terminos, su ausencia
+// NUNCA bloquea el balance (sigue siendo opcional, D-delta.129 §2.6) --
+// por eso no participa de `terminosFaltantes`. Cuando esta presente se
+// resta UNA vez; cuando esta ausente, la formula se comporta EXACTAMENTE
+// como antes de D-delta.129 (nunca se fabrica un 0 que sustituya "no
+// informado" en ningun otro lugar del sistema -- solo dentro de esta
+// resta es matematicamente equivalente a "el termino no participa").
+// El llamador (resolverPresionResidualDeCamino) es responsable de NUNCA
+// pasar este valor para un camino de red AF -- ver comentario de ese
+// archivo.
 //
 // hfLocalizada distingue TRES ejes que un simple `number | undefined` no
 // puede distinguir (auditoria M2-C, D-delta.33; ampliado D-delta.40):
@@ -75,6 +87,12 @@ export type TerminosDePerdidaDeBalance = {
   // undefined = medidor todavia no modelado en RedHidraulica (D-delta.35);
   // nunca se interpreta como 0.
   readonly hfMedidor_mca: number | undefined
+  // HYD-ACS-MANUAL-LOSS-01 (D-delta.129): adopcion manual del fabricante,
+  // ya resuelta por el llamador como aplicable a ESTE camino (red AC).
+  // undefined = no informado, o camino de red AF (no aplica) -- ver
+  // comentario de archivo. Optativo (a diferencia de hfMedidor_mca): su
+  // ausencia NUNCA convierte el balance en 'incompleto'.
+  readonly hfEquipoACS_mca?: number
 }
 
 export type ResultadoBalanceDePresion =
@@ -115,6 +133,11 @@ export function resolverBalanceDePresion(
       `resolverBalanceDePresion: hfDistribuida_mca no puede ser negativa (recibido: ${terminos.hfDistribuida_mca})`,
     )
   }
+  if (terminos.hfEquipoACS_mca !== undefined && terminos.hfEquipoACS_mca < 0) {
+    throw new Error(
+      `resolverBalanceDePresion: hfEquipoACS_mca no puede ser negativa (recibido: ${terminos.hfEquipoACS_mca})`,
+    )
+  }
 
   const terminosFaltantes: ('hfLocalizada' | 'hfMedidor')[] = []
   // 'completa' (detallado) y 'estimada' (D-delta.40) cuentan igual como
@@ -141,11 +164,18 @@ export function resolverBalanceDePresion(
   const hfLocalizada_mca = (terminos.hfLocalizada as { tipo: 'completa' | 'estimada'; hf_mca: number }).hf_mca
   const hfMedidor_mca = terminos.hfMedidor_mca as number
 
+  // HYD-ACS-MANUAL-LOSS-01: `?? 0` es seguro EXCLUSIVAMENTE acá, dentro de
+  // la aritmetica -- ausente y 0 explicito ya se distinguieron antes de
+  // llegar a esta funcion (persistencia, UI, disclosure) y matematicamente
+  // "no participa del balance" y "participa con valor 0" dan el mismo
+  // Presidual. Nunca se usa este patron para decidir que mostrar en UI/REPORT.
+  const hfEquipoACS_mca = terminos.hfEquipoACS_mca ?? 0
+
   // Δz>0 (ascenso) consume carga; Δz<0 (descenso) la aporta -- signo ya
   // conservado por calcularDiferenciaDeCota, se resta directamente sin
   // Math.abs().
   const presionResidual_mca =
-    presionDisponible_mca - desnivel_m - terminos.hfDistribuida_mca - hfLocalizada_mca - hfMedidor_mca
+    presionDisponible_mca - desnivel_m - terminos.hfDistribuida_mca - hfLocalizada_mca - hfMedidor_mca - hfEquipoACS_mca
 
   const presionMinimaRequerida_mca = presionMinimaRequerida_kgcm2 * MCA_POR_KGF_CM2
 

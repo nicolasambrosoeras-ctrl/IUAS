@@ -457,4 +457,21 @@ export type Proyecto = {
   // exclusivamente `configuracionHidraulica`, que es la config ACTIVA.
   // Optativo/backward-compatible; "Nuevo proyecto" lo deja ausente.
   ultimaConfiguracionProfesional?: ConfiguracionHidraulica;
+  // HYD-ACS-MANUAL-LOSS-01 (D-δ.129): pérdida de carga propia del equipo de
+  // producción de ACS, ADOPTADA MANUALMENTE por el proyectista a partir del
+  // dato del fabricante para el caudal de cálculo -- D-δ.15 sigue sin
+  // fórmula normativa AUTOMÁTICA, esto no la agrega. Global al Proyecto, no
+  // por Tramo/UF/Local: RedHidraulica modela una única producción ACS
+  // (ReferenciaDeProduccionACS, asegurarRaizAC), así que no hace falta (ni
+  // corresponde) asociarlo a una instancia particular. Optativo y
+  // backward-compatible (SCHEMA_VERSION_ACTUAL NO cambia, sin migración):
+  // `undefined` = "desconocido / no informado" -- NUNCA equivale a 0.
+  // `0` es un valor explícito y válido (el proyectista adoptó 0 m.c.a. para
+  // este equipo): la distinción ausente/cero es la única fuente de verdad
+  // sobre si el proyectista ya declaró el dato, ningún consumidor (motor,
+  // UI, REPORT, PERSIST) debe colapsarla con `?? 0` fuera de la aritmética
+  // interna de resolverBalanceDePresion. Se aplica UNA vez a cada camino
+  // hidráulico de Agua Caliente que atraviesa la producción ACS -- nunca a
+  // Agua Fría, nunca dos veces (ver resolverPresionResidualDeCamino).
+  hfEquipoACS_mca?: number;
 };

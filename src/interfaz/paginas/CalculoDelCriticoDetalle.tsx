@@ -143,6 +143,12 @@ export function CalculoDelCriticoDetalle({
             <th style={estiloCelda}>hf medidor</th>
             <td style={estiloNum}>{hfMedidor_mca !== undefined ? mca(hfMedidor_mca) : '—'}</td>
           </tr>
+          {resultado.redDelTerminal === 'AC' && resultado.hfEquipoACSAplicado_mca !== undefined ? (
+            <tr>
+              <th style={estiloCelda}>hf equipo ACS</th>
+              <td style={estiloNum}>{mca(resultado.hfEquipoACSAplicado_mca)}</td>
+            </tr>
+          ) : null}
           {perdidasDeMedidores?.estado === 'determinadas' && perdidasDeMedidores.componentes.length > 0
             ? perdidasDeMedidores.componentes.map((componente, indice) => (
                 <tr key={indice}>
@@ -199,13 +205,17 @@ export function CalculoDelCriticoDetalle({
           </tr>
         </tbody>
       </table>
-      {/* HYD-ACS-DISCLOSURE-01 (D-δ.128): referencia breve, misma verdad
-          técnica que el panel general (PanelDePresionDeModulo2.tsx) y que
-          `NOTA_HF_EQUIPO_ACS` en el PDF de REPORT -- hfEquipoACS sigue sin
-          participar de este balance (D-δ.15). */}
-      <p>
-        <small>hfEquipoACS no incluido automáticamente en este balance.</small>
-      </p>
+      {/* HYD-ACS-DISCLOSURE-01 (D-δ.128) / HYD-ACS-MANUAL-LOSS-01 (D-δ.129):
+          misma verdad técnica que el panel general (PanelDePresionDeModulo2.tsx)
+          y el PDF de REPORT -- condicional: sólo tiene sentido mencionar
+          hfEquipoACS cuando este camino específico ES de red AC (nunca para
+          AF, que jamás lo recibe); y sólo advierte "no incluido" cuando
+          además el proyectista todavía no lo informó (D-δ.129 §2.5/§13). */}
+      {resultado.redDelTerminal === 'AC' && resultado.hfEquipoACSAplicado_mca === undefined ? (
+        <p>
+          <small>hfEquipoACS no incluido automáticamente en este balance.</small>
+        </p>
+      ) : null}
     </div>
   )
 }

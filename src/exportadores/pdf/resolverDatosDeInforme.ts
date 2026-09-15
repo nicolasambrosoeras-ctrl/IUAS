@@ -469,10 +469,14 @@ export type FilaDeVerificacionDeInforme = {
 // Desarrollo de cálculo del terminal crítico (brief REPORT-01B §14/§15/
 // §16): todos los valores CRUDOS que ya resolvió resolverPresionResidualDeCamino
 // para este candidato -- la fórmula central se arma en el renderer a partir
-// de estos números, nunca se recalculan. `hfEquipoACS_mca` queda `undefined`
-// a propósito: resolverBalanceDePresion NO incluye ese término en su firma
-// (D-δ.15, sin fórmula normativa vigente) -- el renderer debe explicarlo,
-// nunca inventar un 0 silencioso ni omitir la mención.
+// de estos números, nunca se recalculan.
+//
+// `hfEquipoACS_mca` (HYD-ACS-MANUAL-LOSS-01, D-δ.129): lee directamente
+// `resultado.hfEquipoACSAplicado_mca` (ya resuelto por el motor como
+// aplicable a ESTE camino, ver resolverPresionResidualDeCamino) --
+// `undefined` cuando `red !== 'AC'` (nunca aplica a Agua Fría) o cuando el
+// proyectista todavía no lo informó; el renderer debe distinguir ambos
+// casos usando `red`, nunca inventar un 0 silencioso.
 export type DesarrolloTerminalCritico = {
   readonly ufNombre: string
   readonly localEtiqueta: string
@@ -486,7 +490,7 @@ export type DesarrolloTerminalCritico = {
   readonly hfLocalizada_mca: number
   readonly metodologiaHfLocalizada: 'detallado' | 'estimado'
   readonly hfMedidor_mca: number
-  readonly hfEquipoACS_mca: undefined
+  readonly hfEquipoACS_mca: number | undefined
   readonly presionResidual_mca: number
   readonly presionMinimaRequerida_mca: number
   readonly margen_mca: number
@@ -644,7 +648,7 @@ function resolverDesarrolloCritico(
     hfLocalizada_mca: resultado.hfLocalizada.hf_mca,
     metodologiaHfLocalizada: resultado.hfLocalizada.metodologia,
     hfMedidor_mca,
-    hfEquipoACS_mca: undefined,
+    hfEquipoACS_mca: resultado.hfEquipoACSAplicado_mca,
     presionResidual_mca: resultado.presionResidual_mca,
     presionMinimaRequerida_mca: resultado.presionMinimaRequerida_mca,
     margen_mca: resultado.presionResidual_mca - resultado.presionMinimaRequerida_mca,

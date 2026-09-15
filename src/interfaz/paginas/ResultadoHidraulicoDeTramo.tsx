@@ -39,6 +39,7 @@ import {
   conLongitudDeTramo,
   normalizarOverridesDeDnSegunSistema,
 } from './actualizarRedHidraulica'
+import { conHfEquipoACS, resolverCambioDeHfEquipoACS } from './actualizarHfEquipoACS'
 import { denominacionesComercialesDelSistema, resolverControlDeDnDeTramo } from './resolverControlDeDnDeTramo'
 import { resolverModoDeTrabajo } from './modoDeTrabajo'
 import { resumenDeUnidadFuncional } from './resumenDeUnidadFuncional'
@@ -392,6 +393,10 @@ function DistribucionGeneral({
   }
   const modoDetallado = proyecto.configuracionHidraulica.metodoPerdidaLocalizada === 'detallado'
   const mostrarNotaVertical = proyecto.configuracionHidraulica.granularidadHidraulica === 'simplificada'
+  // HYD-ACS-MANUAL-LOSS-01: la fila "Alimentación ACS" sólo existe cuando
+  // el proyecto ya tiene una producción ACS topológica (asegurarRaizAC) --
+  // sin esa fila no hay ningún equipo al que asociar la pérdida manual.
+  const hayAlimentacionAcs = filas.some((fila) => fila.etiqueta === 'Alimentación ACS')
 
   const entradas: EntradaDeTabla[] = filas.map((fila) => ({
     clave: fila.tramoId,
@@ -427,6 +432,30 @@ function DistribucionGeneral({
             La longitud es la <strong>base</strong>. En modo rápido se suma +3,00&nbsp;m/piso automáticamente según el
             nivel de cada unidad funcional (convención IUAS); la longitud efectiva por camino se ve en el detalle de
             presión.
+          </small>
+        </p>
+      ) : null}
+      {hayAlimentacionAcs ? (
+        <p style={{ margin: '0.35rem 0 0.5rem' }}>
+          <label>
+            Pérdida de carga del equipo ACS [m.c.a.]:{' '}
+            <input
+              type="number"
+              min={0}
+              step="any"
+              aria-label="Pérdida de carga del equipo ACS [m.c.a.]"
+              value={proyecto.hfEquipoACS_mca ?? ''}
+              onChange={(evento) => {
+                const resultado = resolverCambioDeHfEquipoACS(evento.target.value)
+                if (resultado.tipo === 'omitir') onCambiar(conHfEquipoACS(proyecto, undefined))
+                else if (resultado.tipo === 'establecer') onCambiar(conHfEquipoACS(proyecto, resultado.hfEquipoACS_mca))
+              }}
+              style={{ width: '4.5rem' }}
+            />
+          </label>{' '}
+          <small>
+            Dato manual del fabricante. Ingresá la pérdida de carga indicada por el fabricante para el caudal de
+            cálculo. Si no se informa, no se incluye automáticamente en el balance.
           </small>
         </p>
       ) : null}

@@ -27,6 +27,17 @@
 // undefined -- resolverBalanceDePresion sigue devolviendo 'incompleto'
 // tal como antes, nunca fabrica un 0.
 //
+// hfEquipoACS (HYD-ACS-MANUAL-LOSS-01, D-delta.129): a diferencia de
+// hfMedidor, NO es un parametro externo -- se lee directamente de
+// `proyecto.hfEquipoACS_mca` (adopcion manual del fabricante, persistida
+// una unica vez para todo el Proyecto porque RedHidraulica modela una
+// unica produccion ACS, ver asegurarRaizAC). Se aplica UNA vez, solo a
+// caminos cuyo ultimo Tramo es de red AC (`redDelTerminal`); nunca a AF;
+// nunca bloquea el balance si esta ausente (a diferencia de hfMedidor,
+// sigue siendo opcional). D-delta.15 sigue sin formula normativa
+// AUTOMATICA -- esto no la agrega, solo permite adoptar manualmente el
+// dato del fabricante.
+//
 // hfLocalizada (D-delta.33/D-delta.40): dos metodologias ALTERNATIVAS,
 // nunca aditivas, elegidas via proyecto.configuracionHidraulica.metodoPerdidaLocalizada.
 //
@@ -147,6 +158,18 @@ type TrazaDeCamino = {
   // granularidad 'simplificada'). aplica=false / deltaLVertical_m=0 en
   // 'profesional' y para PB. Insumo directo de "Ver calculo del critico".
   readonly incrementoVerticalPorNivel: IncrementoVerticalPorNivel
+  // HYD-ACS-MANUAL-LOSS-01 (D-δ.129): red del ultimo Tramo del camino (el
+  // que efectivamente alimenta al terminal) -- misma senal que ya usa
+  // metodoPerdidaLocalizada='estimado' un poco mas abajo para elegir la
+  // red del terminal. `undefined` solo en el caso degenerado terminal=raiz
+  // (camino.tramos===[]), donde ningun Tramo real alimenta al terminal.
+  readonly redDelTerminal: 'AF' | 'AC' | undefined
+  // hfEquipoACS_mca (Proyecto.hfEquipoACS_mca) YA resuelto como aplicable a
+  // ESTE camino: `undefined` cuando redDelTerminal!=='AC' (no aplica, AF
+  // nunca lo recibe) O cuando el proyectista no lo informo todavia. Nunca
+  // se puede distinguir "no aplica" de "no informado" solo con este campo
+  // -- quien lo consuma debe cruzarlo con `redDelTerminal`.
+  readonly hfEquipoACSAplicado_mca: number | undefined
 }
 
 export type ResultadoPresionResidualDeCamino =
@@ -380,6 +403,21 @@ export function resolverPresionResidualDeCamino(
 
   const t0PerdidaLocalizada = medicionActiva ? performance.now() : 0
 
+  // HYD-ACS-MANUAL-LOSS-01 (D-δ.129): red del ultimo Tramo del camino --
+  // misma senal estructural que ya usaba unicamente la rama 'estimado' mas
+  // abajo (ahora tambien la necesita 'detallado', asi que se resuelve una
+  // sola vez acá arriba). `undefined` solo si el terminal ES la raiz
+  // (camino.tramos===[]).
+  const redDelTerminal: 'AF' | 'AC' | undefined =
+    camino.tramos.length === 0 ? undefined : camino.tramos[camino.tramos.length - 1]!.red
+  // hfEquipoACS_mca aplica UNA vez a todo camino AC que atraviesa la
+  // produccion ACS (D-δ.129 §2.5) -- nunca a AF, nunca cuando el
+  // proyectista no lo informo. RedHidraulica modela una unica raiz AC
+  // (asegurarRaizAC), asi que "redDelTerminal==='AC'" ya identifica sin
+  // ambiguedad que este camino atraviesa la produccion ACS.
+  const hfEquipoACSAplicado_mca: number | undefined =
+    redDelTerminal === 'AC' ? proyecto.hfEquipoACS_mca : undefined
+
   let hfLocalizada: TrazaHfLocalizada
   let coberturaHfLocalizada: { readonly tipo: 'completa' | 'estimada'; readonly hf_mca: number }
 
@@ -414,13 +452,15 @@ export function resolverPresionResidualDeCamino(
     } else {
       // La red (AF/AC) de ESTE terminal es la del ultimo tramo del
       // camino -- el que efectivamente lo alimenta (por construccion de
-      // obtenerCaminoHaciaOrigen, su nodoDestinoId es el terminal).
-      const redDelTerminal = camino.tramos[camino.tramos.length - 1]!.red
+      // obtenerCaminoHaciaOrigen, su nodoDestinoId es el terminal). Ya
+      // resuelta arriba (redDelTerminal, D-δ.129) -- este `else` implica
+      // camino.tramos.length>0, asi que redDelTerminal nunca es undefined
+      // acá.
       const perdidaEstimada = resolverPerdidaLocalizadaEstimadaDeLocal(
         proyecto,
         referencia.unidadFuncionalId,
         referencia.localId,
-        redDelTerminal,
+        redDelTerminal!,
         catalogoArtefactos,
         catalogoSistemasDeTuberia,
         contexto,
@@ -455,6 +495,8 @@ export function resolverPresionResidualDeCamino(
     hfDistribuidaPorTramo: perdidaDistribuida.porTramo,
     hfLocalizada,
     incrementoVerticalPorNivel,
+    redDelTerminal,
+    hfEquipoACSAplicado_mca,
   }
 
   const balance = resolverBalanceDePresion(
@@ -464,6 +506,10 @@ export function resolverPresionResidualDeCamino(
       hfDistribuida_mca: perdidaDistribuida.hf_m,
       hfLocalizada: coberturaHfLocalizada,
       hfMedidor_mca,
+      // exactOptionalPropertyTypes: la clave sólo se incluye cuando hay
+      // valor -- `hfEquipoACS_mca: undefined` explícito no es asignable a
+      // un campo opcional bajo ese flag (ver TerminosDePerdidaDeBalance).
+      ...(hfEquipoACSAplicado_mca !== undefined ? { hfEquipoACS_mca: hfEquipoACSAplicado_mca } : {}),
     },
     presionMinima_kgcm2,
   )

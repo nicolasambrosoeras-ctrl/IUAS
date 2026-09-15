@@ -104,6 +104,16 @@ export function sonPropsDeDimensionamientoEquivalentes(
     // proyecto.parametros.tipoDeProyecto (coeficiente de simultaneidad `a`)
     // directamente -- afecta Qc/DN/V de cada tramo, no sólo Demanda (M1).
     prev.proyecto.parametros.tipoDeProyecto === next.proyecto.parametros.tipoDeProyecto &&
+    // HYD-ACS-MANUAL-LOSS-01 (D-δ.129): el input de "Pérdida de carga del
+    // equipo ACS" vive DENTRO de este mismo árbol memoizado (DistribucionGeneral),
+    // y `conHfEquipoACS` sólo reconstruye este campo top-level de Proyecto --
+    // ninguno de los campos ya comparados arriba (unidadesFuncionales,
+    // redHidraulica.tramos, configuracionHidraulica, montantes, tipoDeProyecto)
+    // cambia de referencia/valor. Comparado por VALOR (no identidad de
+    // Proyecto) porque es un primitivo: sin esta línea, el memo consideraba
+    // las props equivalentes tras cada tecla y el input nunca reflejaba lo
+    // tecleado (bug real, hallado por el E2E de este slice).
+    prev.proyecto.hfEquipoACS_mca === next.proyecto.hfEquipoACS_mca &&
     prev.catalogoArtefactos === next.catalogoArtefactos &&
     prev.onCambiar === next.onCambiar
   )
