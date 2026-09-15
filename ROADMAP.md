@@ -3124,6 +3124,56 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `HYD-ACS-MANUAL-LOSS-01: CERRADO — pendiente validación
     manual`.
 
+- **D-δ.130 — M2-MONTANTE-DEFAULT-LENGTH-01: convención de longitud
+  sugerida de un segmento nuevo de Montante (CERRADO — pendiente
+  validación manual).** Investigación previa a la implementación
+  encontró que la premisa inicial del encargo ("default fijo de 10 m")
+  no existía en el código: `reconciliarMontante.ts` (única fábrica de
+  segmentos de Montante, `agregarLocalAMontante`) ya asignaba como
+  longitud sugerida el `|Δz|` entre las cotas de los extremos del
+  segmento, decisión cerrada documentada como CRIT-A20 (un `|Δz|` de 0 o
+  indeterminado no fabricaba una longitud 0, el segmento quedaba sin
+  longitud precargada). DECISIÓN ROJA planteada y resuelta por el
+  usuario: la convención deseada no reemplaza `|Δz|` por un fijo ni lo
+  usa sólo como fallback, sino que **compone ambos**: longitud sugerida
+  = `LONGITUD_BASE_SEGMENTO_MONTANTE_M (5 m) + |Δz|`. Si `|Δz|` es
+  indeterminado (cota de origen o de Local sin resolver), la sugerencia
+  queda en los 5 m base sin inventar una diferencia vertical -- nunca
+  vuelve a `undefined`. Cambio acotado a `longitudSugeridaEntre`/
+  `conLongitudSugerida` en `reconciliarMontante.ts`; los tres sitios de
+  creación de segmento (montante vacío, extensión en la punta, split)
+  reusan el mismo helper, sin duplicar la constante. **Anti-doble-conteo
+  verificado, no modificado:** `resolverIncrementoVerticalPorNivel.ts`
+  suprime el `+3·nivel` automático de modo Rápido exclusivamente en
+  base a `Tramo.montanteId !== undefined` (M2-TOPO-C §37-§39) --
+  independiente del valor de `longitud_m` -- así que la única
+  contribución vertical de un segmento de Montante sigue siendo su
+  `|Δz|` real, ahora sumado a los 5 m de desarrollo base, nunca
+  duplicado con la corrección por piso. CRIT-A20 no se tocó: sigue
+  rigiendo exclusivamente la validez de una longitud explícita igual a
+  0, no la longitud sugerida de creación. **Preservación (RD-1/RD-2)
+  intacta:** un valor editado a mano (incluso menor a 5 m, ej. 3,5)
+  pierde `longitudEsSugerida` y sobrevive intacto a reconciliaciones
+  posteriores del mismo montante -- test nuevo dedicado. Alimentación
+  general/ACS (`LONGITUD_INICIAL_DISTRIBUCION_GENERAL_M = 10`) y Local
+  (`LONGITUD_INICIAL_LOCAL_RED_M = 5`,
+  `backfillLongitudesDePredimensionamiento.ts`) no se tocaron: son
+  mecanismos separados. El proyecto de ejemplo no declara montantes
+  explícitos (`proyectoDeEjemplo.ts`), así que no requirió cambios.
+  **Copy de M2** (`ResultadoHidraulicoDeTramo.tsx`, cabecera de modo
+  Rápido) actualizado para explicitar "5 m por segmento de montante"
+  junto a los defaults de Local/alimentación ya documentados. Tests:
+  5 expectativas existentes de `reconciliarMontante.test.ts`
+  actualizadas a `5 + |Δz|` (antes esperaban `|Δz|` puro o `undefined`
+  cuando la cota era indeterminada) + 1 test nuevo (crear en 5 m, editar
+  a 3,5, reconciliar el montante agregando otro Local, sigue 3,5).
+  `tsc -b`/`e2e:typecheck`/`build` limpios. Vitest **1920/1920**
+  (baseline 1919 + 1 test nuevo; un timeout de performance preexistente
+  no se reprodujo en corrida aislada). ESLint: mismos 11 errores
+  preexistentes en archivos ajenos a este diff, 0 errores nuevos.
+  - **Estado:** `M2-MONTANTE-DEFAULT-LENGTH-01: CERRADO — pendiente
+    validación manual`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
