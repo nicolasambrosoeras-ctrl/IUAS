@@ -2916,78 +2916,6 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `FIX-PERSIST-01-PROJECT-ACTIONS-SPACING-01: CERRADO —
     pendiente validación manual`.
 
-- **D-δ.123 — VIS-TOPO-01: Esquema hidráulico read-only en Módulo 2
-  (CERRADO — pendiente validación manual).** Primer visor topológico
-  derivado de IUAS, cierra la serie `VIS-TOPO-00` (investigación) →
-  `VIS-TOPO-01` (implementación). Arquitectura de 3 capas:
-  `resolverGrafoVisual.ts` (Proyecto → `GrafoVisual`, función pura) →
-  `layoutGrafoVisual.ts` (Dagre resuelve sólo rank/posición de nodos;
-  el trazado de cada arista se calcula con geometría propia -- ver
-  hallazgo abajo) → `EsquemaHidraulico.tsx` (SVG propio, pan/zoom/Fit/
-  filtros AF-AC-Etiquetas, sin librería de interacción nueva). Dependencia
-  nueva única: `@dagrejs/dagre@^3.1.1` (MIT, mantenido, tipos incluidos).
-  **Hallazgo técnico:** Dagre en multigraph puede lanzar `"Not possible
-  to find intersection..."` con 3+ aristas paralelas entre el mismo par
-  de nodos si ese par tiene un hermano en el mismo rank -- caso común
-  (Local con 3+ artefactos desde el mismo nodo de derivación), resuelto
-  acotando Dagre a rank/orden y ruteando cada arista real (incluidas
-  duplicadas) con clip-al-borde + offset paralelo propio, sin perder
-  ningún Tramo ni fusionar el fan-out. Local = destino agregado por
-  `(uf,local)`; Montante nunca es nodo (sus segmentos siguen siendo
-  aristas reales); UF/Nivel son agrupadores visuales; DN/longitud se
-  muestran tal como están persistidos, sin invocar el motor. Sin cambios
-  de schema/persistencia (confirmado por test dedicado). Ubicado dentro
-  de M2 (`ResultadoHidraulicoDeTramo.tsx`), sin ruta nueva. Medido en
-  proyecto de 20 UF/203 nodos: layout+render ~591 ms. Vitest **1894/1894**
-  (+19). `tsc -b`/`e2e:typecheck`/`build` limpios; ESLint sin errores
-  nuevos. E2E nuevo `vis-topo.spec.ts` (5×desktop/mobile, verde);
-  regresión `montantes`/`multinivel`/`multi-uf`/`persistencia`/
-  `responsive` verde (el único fallo de `multi-uf.spec.ts` "escala ~30
-  UF" se confirmó preexistente, reproducido idéntico en el código previo
-  a este slice). Fuzz proporcional seed `424242` 3×25 **TODO VERDE**.
-  Diferido a VIS-TOPO-02: artefactos individuales, terminal crítico
-  (bloqueado por D-δ.35), click-to-highlight, tooltips ricos, ELK si
-  hiciera falta, integración REPORT. Detalle en `docs/VIS-TOPO-01.md`.
-  - **Estado:** `VIS-TOPO-01: CERRADO — pendiente validación manual`.
-
-- **D-δ.124 — VIS-TOPO-01B: reubicación del visor + routing ortogonal +
-  AF azul / AC rojo (CERRADO — pendiente validación manual).** La
-  validación manual de VIS-TOPO-01 pidió tres cambios de presentación,
-  sin tocar semántica del grafo (`resolverGrafoVisual.ts` intacto).
-  **Desktop:** el bloque grande inline se retira del cuerpo de M2; pasa a
-  un panel chico y contraído por defecto dentro de `.app-nav`
-  (`NavegacionDeSecciones.tsx`), debajo del índice + resumen del
-  proyecto -- mismo breakpoint YA existente de 900px que separa sidebar
-  de barra horizontal (`navegacionUI.css`), sin inventar uno nuevo.
-  **Mobile:** botón compacto "Visualizar esquema" (visible sólo <= 900px)
-  que abre un overlay de pantalla casi completa vía `<dialog>` nativo +
-  `showModal()` (mismo mecanismo que `DialogoDeConfirmacion.tsx` -- foco/
-  Escape/backdrop de fábrica, sin Fullscreen API ni segunda librería de
-  modal); auto-`Ajustar` en cada apertura, foco devuelto al disparador al
-  cerrar. **Routing ortogonal** (`layoutGrafoVisual.ts`): Dagre sigue
-  resolviendo sólo rank/posición de nodo; el trazado de arista ahora sale
-  por el borde inferior del origen y entra por el superior del destino,
-  vertical pura si están alineados o codo vertical-horizontal-vertical si
-  no -- nunca diagonal (invariante verificado por test). Un fan-out real
-  comparte `branchY` automáticamente (misma fórmula, mismos extremos);
-  aristas paralelas llevan offset determinista por índice (±8px).
-  **Colores:** AF/AC pasan a azul/rojo SÓLO dentro del visor (tokens
-  propios `--vis-topo-af`/`--vis-topo-ac` en `esquemaHidraulico.css`) --
-  `--color-ac` (salmón) sigue siendo el color compartido de `BadgeDeRed`
-  en el resto de M2, sin rediseño global. De paso se corrigió un bug real
-  de VIS-TOPO-01: los arrowheads compartían un único `<marker>` con
-  `currentColor` que un selector descendiente nunca podía alcanzar (un
-  `<marker>` vive en `<defs>`, fuera del árbol de la arista) -- de ahí las
-  "flechas negras" reportadas; ahora cada red tiene su propio `<marker>`
-  coloreado directamente. Vitest **1901/1901** (+7 de ortogonalidad).
-  `tsc -b`/`e2e:typecheck`/`build` limpios; ESLint sin errores nuevos.
-  E2E `vis-topo.spec.ts` reescrito para la nueva ubicación (9×desktop/
-  mobile, 18/18 verde); regresión `montantes`/`multinivel`/`persistencia`/
-  `responsive`/`smoke` 30/30 verde. Fuzz proporcional seed `424242`
-  verde. Detalle en `docs/VIS-TOPO-01B-SIDEBAR-ORTHO.md`.
-  - **Estado:** `VIS-TOPO-01B-SIDEBAR-ORTHO: CERRADO — pendiente
-    validación manual`.
-
 - **D-δ.125 — FIX-PERSIST-01-PROJECT-ACTIONS-DESKTOP-ROW-01: una sola
   fila para las 4 acciones globales del proyecto en desktop (CERRADO —
   pendiente validación manual).** Microfix Nivel C, exclusivamente
@@ -3023,6 +2951,32 @@ salvo bug inequívoco o decisión roja explícita.
   fuzz.
   - **Estado:** `FIX-PERSIST-01-PROJECT-ACTIONS-DESKTOP-ROW-01: CERRADO
     — pendiente validación manual`.
+
+- **D-δ.126 — REVERT-VIS-TOPO-01: VIS-TOPO descartado como
+  funcionalidad de producto (CERRADO).** Decisión de producto: se
+  abandona la idea de visualizar la instalación mediante un grafo
+  general de la red. Motivo: la representación no interpretaba la
+  instalación de la manera deseada, la escalabilidad visual con muchas
+  UF era problemática, y no se quería seguir agregando complejidad
+  alrededor de esta representación. La investigación (`VIS-TOPO-00`) fue
+  útil para validar la idea, pero el producto no continúa con
+  `VIS-TOPO`. Revertidos por completo `VIS-TOPO-00`/`VIS-TOPO-01`/
+  `VIS-TOPO-01B` (D-δ.122 investigación sin número propio, D-δ.123,
+  D-δ.124): `resolverGrafoVisual.ts`, `layoutGrafoVisual.ts`,
+  `EsquemaHidraulico.tsx`, `esquemaHidraulico.css`, el panel de sidebar
+  desktop, el botón/overlay mobile, la dependencia `@dagrejs/dagre`,
+  `tests/e2e/vis-topo.spec.ts` y `docs/VIS-TOPO-*.md`, mediante
+  `git revert` (historia conservada, no reescrita). **No se toca
+  `M2-TOPO`:** la topología hidráulica interna de M2 (`RedHidraulica`,
+  `Nodo`, `Tramo`, validación de ciclos/fan-in/tees/montantes,
+  `resolverClasificacionDeTee`, `proyectarMontante`,
+  `derivacionesDeMontante`, `reconstruirCadena`, etc.) sigue vigente y
+  es parte del motor/modelo -- nunca fue creada para VIS-TOPO. Tampoco
+  se toca M1/M2 hidráulico/M3/M4, PERSIST ni REPORT. **No queda
+  pendiente:** no hay `VIS-TOPO-02`, no hay integración de grafo a
+  REPORT, no se vuelve a proponer esta representación como tarea futura.
+  - **Estado:** `REVERT-VIS-TOPO-01: CERRADO — pendiente validación
+    manual`.
 
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto

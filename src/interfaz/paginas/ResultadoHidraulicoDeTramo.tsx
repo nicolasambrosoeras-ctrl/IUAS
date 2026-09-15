@@ -50,7 +50,6 @@ import { AccesoriosDeTramoEditor } from './AccesoriosDeTramoEditor'
 import { LocalYRedCard } from './LocalYRedCard'
 import { EncabezadoDeEtapa } from './EncabezadoDeEtapa'
 import { ConstructorDeMontantes } from './ConstructorDeMontantes'
-import { BotonVisualizarEsquema } from './EsquemaHidraulico'
 import { elegirElementoActivoTrasCambio } from './estadoDeElementoActivo'
 
 // Duplicado intencional de la etiqueta homónima en MotorDemandaPantalla.tsx
@@ -779,16 +778,6 @@ function ResultadoHidraulicoDeTramoBase({
         />
       ) : (
         <>
-          {/* VIS-TOPO-01B §9: en viewport donde la sidebar de navegación
-              desaparece (<= 900px), el Esquema hidráulico no vive inline
-              acá -- sólo esta acción compacta, cerca del encabezado del
-              módulo, que abre el visor superpuesto. En desktop este botón
-              queda oculto por CSS: el panel equivalente ya vive en la
-              barra lateral (NavegacionDeSecciones.tsx). Mismo gate de
-              cobertura física que el resto del cuerpo de M2 -- no tiene
-              sentido ofrecer el esquema antes de que la red esté resuelta. */}
-          <BotonVisualizarEsquema proyecto={proyecto} />
-
           <DistribucionGeneral
             proyecto={proyecto}
             catalogoArtefactos={catalogoArtefactos}

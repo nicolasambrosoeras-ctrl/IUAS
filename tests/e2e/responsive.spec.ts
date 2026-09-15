@@ -245,9 +245,10 @@ test.describe('FIX-PERSIST-01-PROJECT-ACTIONS-SPACING-01 · separación entre ac
 // (≤560px, ver navegacionUI.css) sigue con la grilla 2×2 intacta.
 test.describe('FIX-PERSIST-01-PROJECT-ACTIONS-DESKTOP-ROW-01 · una sola fila en desktop ancho', () => {
   const NOMBRES = ['Nuevo proyecto', 'Cargar proyecto de ejemplo', 'Importar proyecto', 'Exportar proyecto'] as const
+  type NombreAccion = (typeof NOMBRES)[number]
 
-  async function cajas(page: Page) {
-    const resultado: Record<string, DOMRect> = {}
+  async function cajas(page: Page): Promise<Record<NombreAccion, DOMRect>> {
+    const resultado = {} as Record<NombreAccion, DOMRect>
     for (const nombre of NOMBRES) {
       resultado[nombre] = await page
         .getByRole('button', { name: nombre, exact: true })
@@ -269,22 +270,30 @@ test.describe('FIX-PERSIST-01-PROJECT-ACTIONS-DESKTOP-ROW-01 · una sola fila en
 
       // Las 4 están visibles y en la misma fila (mismo `top`).
       const tops = NOMBRES.map((n) => c[n].top)
+      const topReferencia = tops[0]
+      if (topReferencia === undefined) throw new Error('sin acciones medidas')
       for (const t of tops) {
-        expect(Math.abs(t - tops[0]), `las 4 acciones no comparten fila @ ${vp.nombre}`).toBeLessThanOrEqual(2)
+        expect(Math.abs(t - topReferencia), `las 4 acciones no comparten fila @ ${vp.nombre}`).toBeLessThanOrEqual(2)
       }
 
       // Orden X correcto: Nuevo < Cargar < Importar < Exportar.
       for (let i = 0; i < NOMBRES.length - 1; i++) {
+        const actual = NOMBRES[i]
+        const siguiente = NOMBRES[i + 1]
+        if (actual === undefined || siguiente === undefined) throw new Error('índice fuera de rango')
         expect(
-          c[NOMBRES[i]].left,
-          `orden incorrecto entre "${NOMBRES[i]}" y "${NOMBRES[i + 1]}" @ ${vp.nombre}`,
-        ).toBeLessThan(c[NOMBRES[i + 1]].left)
+          c[actual].left,
+          `orden incorrecto entre "${actual}" y "${siguiente}" @ ${vp.nombre}`,
+        ).toBeLessThan(c[siguiente].left)
       }
 
       // Gap horizontal >= 12px entre cada par adyacente, sin overlap.
       for (let i = 0; i < NOMBRES.length - 1; i++) {
-        const gap = c[NOMBRES[i + 1]].left - c[NOMBRES[i]].right
-        expect(gap, `gap entre "${NOMBRES[i]}" y "${NOMBRES[i + 1]}" @ ${vp.nombre}`).toBeGreaterThanOrEqual(11)
+        const actual = NOMBRES[i]
+        const siguiente = NOMBRES[i + 1]
+        if (actual === undefined || siguiente === undefined) throw new Error('índice fuera de rango')
+        const gap = c[siguiente].left - c[actual].right
+        expect(gap, `gap entre "${actual}" y "${siguiente}" @ ${vp.nombre}`).toBeGreaterThanOrEqual(11)
       }
 
       // Anchos naturales: no cuatro columnas iguales ocupando todo el
@@ -338,13 +347,16 @@ test.describe('FIX-PERSIST-01-PROJECT-ACTIONS-DESKTOP-ROW-01 · una sola fila en
       // Ninguna caja se superpone con otra (overlap real en X e Y a la vez).
       for (let i = 0; i < NOMBRES.length; i++) {
         for (let j = i + 1; j < NOMBRES.length; j++) {
-          const a = c[NOMBRES[i]]
-          const b = c[NOMBRES[j]]
+          const nombreA = NOMBRES[i]
+          const nombreB = NOMBRES[j]
+          if (nombreA === undefined || nombreB === undefined) throw new Error('índice fuera de rango')
+          const a = c[nombreA]
+          const b = c[nombreB]
           const seSuperponeX = a.left < b.right && b.left < a.right
           const seSuperponeY = a.top < b.bottom && b.top < a.bottom
           expect(
             seSuperponeX && seSuperponeY,
-            `"${NOMBRES[i]}" y "${NOMBRES[j]}" se superponen @ ${vp.nombre}`,
+            `"${nombreA}" y "${nombreB}" se superponen @ ${vp.nombre}`,
           ).toBe(false)
         }
       }
