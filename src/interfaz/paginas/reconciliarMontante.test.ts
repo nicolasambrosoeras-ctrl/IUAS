@@ -177,9 +177,9 @@ describe('agregarLocalAMontante — construcción incremental', () => {
     expect(segmentos).toHaveLength(1)
     expect(segmentos[0]!.nodoOrigenId).toBe('n-0')
     expect(segmentos[0]!.red).toBe('AF')
-    // Sin cota canónica de origen: la longitud no se precarga, nunca 0.
-    expect(segmentos[0]!.longitud_m).toBeUndefined()
-    expect(segmentos[0]!.longitudEsSugerida).toBeUndefined()
+    // Sin cota canónica de origen: |Δz| indeterminado, queda sólo la base de 5 m.
+    expect(segmentos[0]!.longitud_m).toBe(5)
+    expect(segmentos[0]!.longitudEsSugerida).toBe(true)
 
     // El feed del Local ahora cuelga del nodo de derivación, no de n-0.
     const feedA = r.proyecto.redHidraulica!.tramos.find((t) => t.id === 't-af-a')!
@@ -196,8 +196,9 @@ describe('agregarLocalAMontante — construcción incremental', () => {
 
     const cadena = cadenaOrdenada(r.proyecto, 'm-af-1')
     expect(cadena).toHaveLength(2)
-    // Segmento nuevo entre la cota de local-a (6) y la de local-c (18).
-    expect(cadena[1]!.longitud_m).toBe(12)
+    // Segmento nuevo entre la cota de local-a (6) y la de local-c (18):
+    // 5 m base + |6-18| = 17.
+    expect(cadena[1]!.longitud_m).toBe(17)
     expect(cadena[1]!.longitudEsSugerida).toBe(true)
     expect(localesServidosClaves(r)).toEqual(['uf-1/local-a', 'uf-1/local-c'])
     expect(validarRedHidraulica(r.proyecto)).toEqual([])
@@ -216,9 +217,10 @@ describe('agregarLocalAMontante — construcción incremental', () => {
 
     const cadena = cadenaOrdenada(r.proyecto, 'm-af-1')
     expect(cadena).toHaveLength(3)
+    // Segmento origen->local-a: sin cota de origen, sólo la base (5).
     // Ambas mitades reprecargadas por las nuevas diferencias de cota
-    // (6->12 y 12->18), ambas sugeridas.
-    expect(cadena.map((t) => t.longitud_m)).toEqual([undefined, 6, 6])
+    // (6->12 y 12->18): 5 m base + |Δz| = 11 cada una.
+    expect(cadena.map((t) => t.longitud_m)).toEqual([5, 11, 11])
     expect(cadena[1]!.longitudEsSugerida).toBe(true)
     expect(cadena[2]!.longitudEsSugerida).toBe(true)
     // El id del segmento partido sobrevive como la mitad aguas arriba.
@@ -277,15 +279,16 @@ describe('agregarLocalAMontante — construcción incremental', () => {
     expect(manual.longitudEsSugerida).toBeUndefined()
   })
 
-  it('Local sin cota resoluble: se engancha en la punta con segmento sin longitud (nunca 0) y se reporta en localesSinCota', () => {
+  it('Local sin cota resoluble: se engancha en la punta con longitud base 5 m (sin |Δz| inventado) y se reporta en localesSinCota', () => {
     let proyecto = proyectoBase({ montantes: [MONTANTE_AF] })
     proyecto = esperarReconciliado(agregarLocalAMontante(proyecto, 'm-af-1', 'uf-1', 'local-a')).proyecto
     const r = esperarReconciliado(agregarLocalAMontante(proyecto, 'm-af-1', 'uf-1', 'local-e'))
 
     expect(r.localesSinCota.map((s) => s.localId)).toEqual(['local-e'])
     const cadena = cadenaOrdenada(r.proyecto, 'm-af-1')
-    expect(cadena[cadena.length - 1]!.longitud_m).toBeUndefined()
-    expect(cadena[cadena.length - 1]!.longitudEsSugerida).toBeUndefined()
+    // |Δz| indeterminado: la sugerencia queda en los 5 m base, no se inventa una diferencia vertical.
+    expect(cadena[cadena.length - 1]!.longitud_m).toBe(5)
+    expect(cadena[cadena.length - 1]!.longitudEsSugerida).toBe(true)
     expect(localesServidosClaves(r)).toContain('uf-1/local-e')
     expect(validarRedHidraulica(r.proyecto)).toEqual([])
   })
@@ -298,6 +301,42 @@ describe('agregarLocalAMontante — construcción incremental', () => {
     if (r.tipo === 'reconciliado') {
       expect(r.proyecto).toBe(proyecto)
     }
+  })
+
+  it('M2-MONTANTE-DEFAULT-LENGTH-01: segmento nace en 5 m base (sin cota de origen); editarlo a 3,5 y reconciliar el montante conserva 3,5, no vuelve a 5', () => {
+    let proyecto = proyectoBase({ montantes: [MONTANTE_AF] })
+    proyecto = esperarReconciliado(agregarLocalAMontante(proyecto, 'm-af-1', 'uf-1', 'local-a')).proyecto
+
+    const segmentoOrigen = segmentosDe(proyecto, 'm-af-1')[0]!
+    expect(segmentoOrigen.longitud_m).toBe(5)
+    expect(segmentoOrigen.longitudEsSugerida).toBe(true)
+
+    // El usuario edita el valor sugerido: pasa a ser dato manual (RD-2).
+    proyecto = {
+      ...proyecto,
+      redHidraulica: {
+        ...proyecto.redHidraulica!,
+        tramos: proyecto.redHidraulica!.tramos.map((t) =>
+          t.id === segmentoOrigen.id
+            ? {
+                id: t.id,
+                nodoOrigenId: t.nodoOrigenId,
+                nodoDestinoId: t.nodoDestinoId,
+                red: t.red,
+                montanteId: t.montanteId!,
+                longitud_m: 3.5,
+              }
+            : t,
+        ),
+      },
+    }
+
+    // Reconciliar el montante agregando otro Local (local-d comparte cota
+    // con local-a: reusa el nodo de derivación, no toca el segmento editado).
+    const r = esperarReconciliado(agregarLocalAMontante(proyecto, 'm-af-1', 'uf-1', 'local-d'))
+    const segmentoLuego = segmentosDe(r.proyecto, 'm-af-1').find((t) => t.id === segmentoOrigen.id)!
+    expect(segmentoLuego.longitud_m).toBe(3.5)
+    expect(segmentoLuego.longitudEsSugerida).toBeUndefined()
   })
 })
 
@@ -390,8 +429,8 @@ describe('agregarLocalAMontante — sentido físico por cota de origen', () => {
       return l.cotaPiso_m
     })
     expect(cotasEnOrden).toEqual([18, 12, 6])
-    // Primer segmento: |29,5 - 18| = 11,5.
-    expect(cadena[0]!.longitud_m).toBeCloseTo(11.5)
+    // Primer segmento: 5 m base + |29,5 - 18| = 16,5.
+    expect(cadena[0]!.longitud_m).toBeCloseTo(16.5)
     expect(validarRedHidraulica(r.proyecto)).toEqual([])
   })
 
