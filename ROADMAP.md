@@ -3056,6 +3056,74 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `HYD-ACS-DISCLOSURE-01: CERRADO — pendiente validación
     manual`.
 
+- **D-δ.129 — HYD-ACS-MANUAL-LOSS-01: adopción manual de la pérdida de
+  carga del equipo ACS (CERRADO — pendiente validación manual).** Paso
+  siguiente de HYD-ACS-DISCLOSURE-01 (D-δ.128): el proyectista puede
+  ahora informar manualmente, a partir del dato del fabricante,
+  `hfEquipoACS_mca` -- sigue sin adoptarse ninguna fórmula automática
+  (D-δ.15). Campo nuevo, opcional y backward-compatible en
+  `Proyecto.hfEquipoACS_mca?: number` (sin bump de `SCHEMA_VERSION_ACTUAL`,
+  mismo criterio que `configuracionMedidores`/`montantes`): ausente =
+  "no informado" (nunca 0); `0` explícito es un valor adoptado válido y
+  se distingue de la ausencia en persistencia, UI, motor y REPORT.
+  **UI**: input compacto junto a la fila "Alimentación ACS" de
+  Distribución general (`ResultadoHidraulicoDeTramo.tsx`), visible en
+  Rápido y Profesional, sólo cuando el proyecto ya tiene una producción
+  ACS topológica; rechaza negativos/NaN sin llegar al modelo
+  (`actualizarHfEquipoACS.ts`: `conHfEquipoACS`/`resolverCambioDeHfEquipoACS`,
+  mismo patrón que `conLongitudDeTramo`/`resolverCambioDeLongitud`).
+  **Motor**: `resolverPresionResidualDeCamino.ts` resuelve `redDelTerminal`
+  (red del último Tramo del camino) y aplica `proyecto.hfEquipoACS_mca`
+  UNA vez únicamente cuando `redDelTerminal==='AC'` -- RedHidraulica
+  modela una única producción ACS (`asegurarRaizAC`), así que "camino
+  AC" ya identifica sin ambigüedad que atraviesa esa producción; AF
+  nunca lo recibe. `resolverBalanceDePresion.ts` agrega
+  `hfEquipoACS_mca?: number` a `TerminosDePerdidaDeBalance` -- a
+  diferencia de `hfLocalizada`/`hfMedidor`, su ausencia NUNCA vuelve el
+  balance `'incompleto'` (sigue opcional). **Disclosure condicional**:
+  el warning de exclusión de HYD-ACS-DISCLOSURE-01 (panel general y "Ver
+  cálculo del crítico") ahora se muestra sólo cuando el término aplica
+  (red AC) y no fue informado; cuando está informado, se reemplaza por
+  el valor incluido en el desglose -- nunca para caminos AF. **REPORT**:
+  mismo criterio condicional en `generarDocumentoPdf.ts`/
+  `resolverDatosDeInforme.ts` (`DesarrolloTerminalCritico.hfEquipoACS_mca`
+  pasa de placeholder `undefined` fijo a leer
+  `resultado.hfEquipoACSAplicado_mca` real). **Hallazgo real durante el
+  E2E** (no specífico de este campo): `sonPropsDeDimensionamientoEquivalentes.ts`
+  (comparador de `React.memo` de todo el árbol de Tuberías, PERF-SCALE-01D)
+  no incluía `hfEquipoACS_mca` en su whitelist de campos comparados -- el
+  input nunca reflejaba lo tecleado porque el memo bailaba el re-render.
+  Corregido agregando la comparación por valor; el mismo patrón de
+  closure-obsoleto ya afectaba (y sigue afectando, sin fix en este
+  slice) a cualquier edición de Tuberías hecha inmediatamente después de
+  tocar Módulo 3/4/Verificación en el mismo render-cycle -- preexistente,
+  fuera de alcance de HYD-ACS-MANUAL-LOSS-01, documentado acá para
+  seguimiento futuro (ver "Deuda técnica conocida"). Tests: unit nuevos
+  en `resolverBalanceDePresion.test.ts` (ausente/informado/cero
+  explícito/negativo→throw), `resolverPresionResidualDeCamino.test.ts`
+  (AF nunca aplica, AC aplica una vez, cero explícito, varios terminales
+  AC sin acumulación cruzada), `actualizarHfEquipoACS.test.ts` (updater +
+  parser de input), `resolverDatosDeInforme.test.ts` y
+  `generarDocumentoPdf.test.ts` (propagación al desarrollo del crítico y
+  a la memoria PDF), `PanelDePresionDeModulo2.test.ts` y
+  `PanelDePresionCriticoUI.test.ts` (disclosure condicional, AF vs AC),
+  `ResultadoHidraulicoDeTramo.test.ts` (input visible/vacío/con
+  valor/con 0, ausente sin Alimentación ACS, Rápido y Profesional),
+  `roundTrip.test.ts` (ausente/cero/informado sobreviven export→import;
+  archivo `.iuas` anterior al slice importa con el campo ausente). E2E
+  nuevo (`tests/e2e/hydAcsManualLoss.spec.ts`, 9 casos: ausente,
+  informar 2.5 con verificación de que AC pierde exactamente 2,5 m.c.a.
+  de margen y AF queda intacto, borrar vuelve el disclosure, 0 explícito
+  persiste como informado, persistencia de un valor positivo, rechazo de
+  negativos, responsive 360/390/1280 sin overflow) contra el proyecto de
+  ejemplo real. `tsc -b`/`e2e:typecheck`/`build` limpios. Vitest
+  **1919/1919** (baseline 1880 + 39 tests nuevos; el timeout preexistente
+  de performance no se reprodujo en esta corrida). ESLint: mismos 11
+  errores preexistentes en archivos ajenos a este diff (no tocados por
+  este slice), 0 errores nuevos en los archivos modificados.
+  - **Estado:** `HYD-ACS-MANUAL-LOSS-01: CERRADO — pendiente validación
+    manual`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
@@ -3134,6 +3202,35 @@ de bombas, presurizadores, `hfEquipoACS`, reporting PDF de M4.
 
 ## Deuda técnica conocida (no bloqueante, registrada explícitamente)
 
+- **Closure obsoleto en el árbol memoizado de Tuberías (hallado en
+  HYD-ACS-MANUAL-LOSS-01, D-δ.129, no corregido en ese slice porque es
+  preexistente y ajeno a `hfEquipoACS` específicamente).**
+  `ResultadoHidraulicoDeTramo` está envuelto en `React.memo` con
+  `sonPropsDeDimensionamientoEquivalentes` (PERF-SCALE-01D): cuando ese
+  comparador considera las props equivalentes, React NO vuelve a
+  ejecutar el componente, así que sus `onChange` (Longitud, DN,
+  accesorios, tee, y ahora `hfEquipoACS`) siguen cerrados sobre el
+  `proyecto` de su ÚLTIMO render real. Si el usuario edita algo en
+  Módulo 3/4/Verificación (paneles sin memoizar, siempre frescos) y
+  LUEGO edita un campo de Tuberías sin que Tuberías se haya vuelto a
+  renderizar de verdad en el medio, esa edición se computa sobre el
+  `proyecto` viejo y **revierte silenciosamente** los cambios de M3/M4/
+  Verificación hechos mientras tanto. Reproducido en el E2E de D-δ.129
+  (configurar Abastecimiento → informar `hfEquipoACS` sin recargar →
+  Verificación volvía a "Configurá el esquema de abastecimiento").
+  Mitigado en ese E2E intercalando un `reload()` (mismo criterio que
+  cualquier flujo real: recargar sincroniza el snapshot memoizado), pero
+  el riesgo de fondo sigue abierto para cualquier input de Tuberías, no
+  sólo `hfEquipoACS_mca`. Arreglo correcto pendiente: cambiar
+  `onCambiar` de `(proyecto: Proyecto) => void` a soportar forma
+  funcional (`(actualizar: (previo: Proyecto) => Proyecto) => void`,
+  análogo al updater funcional de `useState`) en los updaters de
+  Tuberías, para que cada `onChange` calcule sobre el `proyecto` más
+  reciente en el momento del commit, no sobre el capturado en su último
+  render. Requiere tocar la firma de todos los updaters de
+  `actualizarRedHidraulica.ts`/`actualizarConfiguracionHidraulica.ts`/
+  `actualizarHfEquipoACS.ts` y sus call sites -- cambio transversal,
+  evaluar en un slice dedicado, no incidental a otro.
 - `docs/adr/` tiene su primer documento real: `ADR-0001` (topología
   hidráulica explícita y semántica de montantes, M2-TOPO-E / D-δ.96).
   `docs/arquitectura/` sigue vacía.

@@ -675,6 +675,17 @@ genuinamente diferida -- no se resolvió en este registro ni en
 HYD-ACS-DISCLOSURE-01, sigue requiriendo investigación bibliográfica
 externa.
 
+**Adopción manual (HYD-ACS-MANUAL-LOSS-01, D-δ.129):** paso adicional
+sobre D-δ.128 -- el proyectista ya puede INFORMAR manualmente
+`hfEquipoACS_mca` (dato del fabricante para el caudal de cálculo,
+persistido en `Proyecto.hfEquipoACS_mca?: number`), y ese valor SÍ
+participa del balance de presión (una vez por camino AC, nunca en AF)
+cuando está presente. Esto NO resuelve ninguno de los puntos todavía
+abiertos de esta lista -- sigue sin existir una fórmula AUTOMÁTICA por
+tipo de equipo/calefón/termotanque, sin catálogo de equipos ACS, sin
+composición normativa de `Pmin` del calentador con `Pmin` del terminal.
+Detalle en `docs/HYD-ACS-MANUAL-LOSS-01.md`.
+
 ### D-δ.16 — Universo de CRIT-A8 sobre subconjuntos de Módulo 2 (CERRADO)
 
 **Decisión adoptada**: para el cálculo de un Tramo, CRIT-A8 opera
