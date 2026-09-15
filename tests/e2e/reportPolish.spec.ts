@@ -72,7 +72,19 @@ test.describe('REPORT-POLISH-01 · botón "Generar memoria técnica"', () => {
     await estabilizar(page)
     await page.getByRole('button', { name: '+ Agregar unidad funcional' }).first().click()
     await estabilizar(page)
+    // La UF recién agregada nace colapsada (UX-01) -- hay que expandirla
+    // para llegar a "+ Agregar local".
+    const expandir = page.getByRole('button', { name: /^Expandir / }).first()
+    if (await expandir.isVisible().catch(() => false)) {
+      await expandir.click()
+      await estabilizar(page)
+    }
     await page.getByRole('button', { name: '+ Agregar local' }).first().click()
+    await estabilizar(page)
+    // Al menos un artefacto: un Local vacío deja indeterminado el cálculo
+    // de Demanda (n=0), un caso borde ajeno a este slice -- acá se cubre
+    // el caso real de "M2/M3/M4 sin configurar todavía" con M1 válido.
+    await page.getByRole('button', { name: '+ Agregar artefacto' }).first().click()
     await estabilizar(page)
 
     const download = await generarMemoria(page)

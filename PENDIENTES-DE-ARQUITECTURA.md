@@ -3,6 +3,49 @@
 Registro de decisiones de diseño postergadas a propósito, con la razón de
 la postergación y la condición que debe cumplirse antes de resolverlas.
 
+## "Generar memoria técnica" falla en silencio con un Local sin artefactos (hallazgo de REPORT-POLISH-01)
+
+Al escribir el E2E nuevo del botón "Generar memoria técnica"
+(`tests/e2e/reportPolish.spec.ts`, REPORT-POLISH-01), un escenario
+realista -- proyecto nuevo, una UF, un Local recién agregado (tipo
+"Baño") sin ningún artefacto todavía -- reveló que
+`resolverDatosDeInforme` (y por lo tanto `generarDocumentoPdf`) lanza una
+excepción no capturada: `"n debe ser un entero mayor o igual a 1; se
+recibio 0"`, propagada desde `calcularSimultaneidad`/un validador interno
+de M1 que rechaza `n=0`. El botón "Generar memoria técnica" está
+visible/clickeable en ese estado (no hay ninguna guarda que lo oculte o
+lo deshabilite), así que un usuario real que agrega un Local y hace click
+en el botón ANTES de agregarle un artefacto ve la aplicación "no hacer
+nada" -- ni se descarga el PDF ni aparece ningún mensaje de error.
+
+**Confirmado que es un comportamiento preexistente**, no introducido por
+REPORT-POLISH-01 (ese slice no tocó la condición de visibilidad del
+botón, `renderizarResumenResultados`, ni el validador de `n` de M1). Se
+reprodujo de forma aislada con un test directo llamando a
+`resolverDatosDeInforme` con un proyecto `{ 1 UF, 1 Local, 0 artefactos
+}`, confirmando la excepción exacta antes de decidir cómo tratarlo en el
+E2E (el test terminó cubriendo el caso realista "M2/M3/M4 sin configurar
+con M1 ya válido" -- agrega un artefacto antes de generar la memoria --
+en vez de este caso borde).
+
+**Por qué se posterga**: arreglarlo (deshabilitar el botón cuando
+`demandaValida` es falso por `n=0`, o envolver `generarDocumentoPdf` en
+un try/catch con un mensaje humano) es un cambio de comportamiento de la
+UI interactiva, no de la Memoria en sí -- excede el alcance de
+REPORT-POLISH-01 (rediseño editorial del PDF) y de BETA-UI-POLISH-01 (ya
+cerrado). No es exclusivo del botón de memoria: vale la pena revisar en
+el mismo arreglo si `ResultadoDemandaModulo1`/`demandaValida` ya debería
+ocultar el botón en cualquier estado de M1 no resoluble, no sólo agregar
+un catch puntual.
+
+**Condición para resolverlo**: antes de la beta pública, decidir y
+resolver esto como un incremento funcional acotado (no documental): o
+bien ocultar/deshabilitar "Generar memoria técnica" mientras
+`demandaValida` sea falso, o bien capturar el error y mostrar un mensaje
+humano ("Agregá al menos un artefacto antes de generar la memoria",
+o equivalente). Cubrir con un test que reproduzca exactamente el `n=0`
+que motivó este hallazgo.
+
 ## `vite preview` local no respeta el `base: '/IUAS/'` del build (BETA-UI-POLISH-01)
 
 `vite.config.ts` fija `base: command === 'build' ? '/IUAS/' : '/'`. Ese
