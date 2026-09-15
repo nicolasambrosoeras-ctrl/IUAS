@@ -26,7 +26,7 @@ import { generarProyectoDeEscala, NIVEL_DE_ESCALA } from '../../pruebas/escala/g
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
 import { resolverDatosDeInforme } from './resolverDatosDeInforme'
-import { construirDocDefinition } from './generarDocumentoPdf'
+import { construirDocDefinition, resolverNombreDeArchivo } from './generarDocumentoPdf'
 
 function canonico() {
   let p = backfillLongitudesDePredimensionamiento(proyectoInicial)
@@ -56,11 +56,12 @@ function textosDe(contenido: Content | readonly Content[]): string[] {
   const nodo = contenido as unknown as Record<string, unknown>
   const propios = typeof nodo['text'] === 'string' ? [nodo['text'] as string] : []
   const deStack = Array.isArray(nodo['stack']) ? textosDe(nodo['stack'] as Content[]) : []
+  const deColumnas = Array.isArray(nodo['columns']) ? textosDe(nodo['columns'] as Content[]) : []
   const deTabla =
     nodo['table'] !== undefined && Array.isArray((nodo['table'] as { body?: unknown }).body)
       ? (nodo['table'] as { body: unknown[][] }).body.flat().flatMap((celda) => textosDe(celda as Content))
       : []
-  return [...propios, ...deStack, ...deTabla]
+  return [...propios, ...deStack, ...deColumnas, ...deTabla]
 }
 
 describe('construirDocDefinition (REPORT-01A)', () => {
@@ -69,8 +70,8 @@ describe('construirDocDefinition (REPORT-01A)', () => {
     const doc = construirDocDefinition(datos)
     const textos = textosDe(doc.content as Content[])
     expect(textos).toContain('Unidades funcionales')
-    expect(textos).toContain('Tuberías')
-    expect(textos).toContain('Verificación hidráulica')
+    expect(textos).toContain('2. Tuberías')
+    expect(textos).toContain('5. Verificación hidráulica')
     expect(textos.some((t) => t.includes('Terminal crítico'))).toBe(true)
     // M1 no se pierde: el Local con artefactos sigue apareciendo.
     expect(textos.some((t) => t.startsWith('Local:'))).toBe(true)
@@ -230,10 +231,10 @@ describe('construirDocDefinition (REPORT-01C: Medidores + Alimentación y reserv
     const doc = construirDocDefinition(datos)
     const textos = textosDe(doc.content as Content[])
     expect(textos).toContain('Unidades funcionales') // M1
-    expect(textos).toContain('Tuberías') // M2
-    expect(textos).toContain('Verificación hidráulica') // Verificación
-    expect(textos).toContain('Medidores') // M3
-    expect(textos).toContain('Alimentación y reserva') // M4
+    expect(textos).toContain('2. Tuberías') // M2
+    expect(textos).toContain('5. Verificación hidráulica') // Verificación
+    expect(textos).toContain('3. Medidores') // M3
+    expect(textos).toContain('4. Abastecimiento y reserva') // M4
     expect(textos.some((t) => /\buf-\d|local-|artefacto-/.test(t))).toBe(false)
   })
 
@@ -342,11 +343,193 @@ describe('construirDocDefinition (FIX-REPORT-01C-VISUAL-01)', () => {
     const datos = resolverDatosDeInforme(conMontante, catalogoArtefactos, coeficientesMayoracion)
     const doc = construirDocDefinition(datos)
     const textos = textosDe(doc.content as Content[])
-    const iGeneral = textos.indexOf('Distribución general / secundaria')
-    const iMontantes = textos.indexOf('Montantes')
-    const iLocales = textos.indexOf('Unidades funcionales — Locales')
+    const iGeneral = textos.indexOf('2.1 Distribución general / secundaria')
+    const iMontantes = textos.indexOf('2.2 Montantes')
+    const iLocales = textos.indexOf('2.3 Unidades funcionales — Locales')
     expect(iGeneral).toBeGreaterThanOrEqual(0)
     expect(iMontantes).toBeGreaterThan(iGeneral)
     expect(iLocales).toBeGreaterThan(iMontantes)
+  })
+})
+
+// Busca, recursivamente, todo nodo con `unbreakable: true` en el árbol
+// (mismo recorrido stack/table que `textosDe`, pero devolviendo los nodos
+// en vez del texto).
+function nodosUnbreakable(contenido: Content | readonly Content[]): Record<string, unknown>[] {
+  if (typeof contenido === 'string' || contenido == null) {
+    return []
+  }
+  if (Array.isArray(contenido)) {
+    return contenido.flatMap((c) => nodosUnbreakable(c))
+  }
+  const nodo = contenido as unknown as Record<string, unknown>
+  const propio = nodo['unbreakable'] === true ? [nodo] : []
+  const deStack = Array.isArray(nodo['stack']) ? nodosUnbreakable(nodo['stack'] as Content[]) : []
+  return [...propio, ...deStack]
+}
+
+describe('construirDocDefinition (REPORT-POLISH-01: portada, resumen, header/footer, paginación)', () => {
+  const datosCompleto = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+  const fechaFija = new Date('2026-09-15T12:00:00-03:00')
+
+  it('portada: wordmark, título, subtítulo, nombre del proyecto y fecha, ANTES de cualquier sección numerada', () => {
+    const doc = construirDocDefinition(datosCompleto, fechaFija)
+    const textos = textosDe(doc.content as Content[])
+    const iWordmark = textos.indexOf('IUAS')
+    const iTitulo = textos.indexOf('Memoria de cálculo')
+    const iSubtitulo = textos.indexOf('Instalaciones internas de agua')
+    const iNombreProyecto = textos.indexOf(datosCompleto.proyecto.metadatos.nombre)
+    const iFecha = textos.findIndex((t) => t.includes('Generado el'))
+    const iSeccion1 = textos.indexOf('1. Demanda')
+    for (const indice of [iWordmark, iTitulo, iSubtitulo, iNombreProyecto, iFecha]) {
+      expect(indice).toBeGreaterThanOrEqual(0)
+    }
+    expect(iWordmark).toBeLessThan(iTitulo)
+    expect(iFecha).toBeLessThan(iSeccion1)
+    // brief §50: fecha legible es-AR, no ISO ni timestamp crudo.
+    expect(textos.some((t) => t.includes('15 de septiembre de 2026'))).toBe(true)
+  })
+
+  it('resumen del cálculo: aparece después de la portada y antes de "1. Demanda", con los KPIs esperados', () => {
+    const doc = construirDocDefinition(datosCompleto, fechaFija)
+    const textos = textosDe(doc.content as Content[])
+    const iResumen = textos.indexOf('Resumen del cálculo')
+    const iSeccion1 = textos.indexOf('1. Demanda')
+    expect(iResumen).toBeGreaterThanOrEqual(0)
+    expect(iResumen).toBeLessThan(iSeccion1)
+    expect(textos).toContain('Caudal de cálculo (Qc)')
+    expect(textos).toContain('Unidades funcionales')
+    expect(textos).toContain('Esquema de abastecimiento')
+    expect(textos).toContain('Estado general')
+    // El resumen refleja el mismo estado que ya resolvió Verificación
+    // (sin recalcular) -- CUMPLE o NO CUMPLE según el crítico real.
+    expect(textos.some((t) => t === 'CUMPLE' || t === 'NO CUMPLE')).toBe(true)
+  })
+
+  it('un proyecto sin M3/M4/Verificación configurados muestra "No evaluado" en el resumen, nunca 0/—/NaN', () => {
+    const vacio = backfillLongitudesDePredimensionamiento(proyectoInicial)
+    const datos = resolverDatosDeInforme(vacio, catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos, fechaFija)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => t === 'No evaluado')).toBe(true)
+    expect(textos.some((t) => /\bNaN\b/.test(t))).toBe(false)
+  })
+
+  it('secciones numeradas en orden: 1 Demanda -> 2 Tuberías -> 3 Medidores -> 4 Abastecimiento -> 5 Verificación -> 6 Metodología', () => {
+    const doc = construirDocDefinition(datosCompleto, fechaFija)
+    const textos = textosDe(doc.content as Content[])
+    const indices = [
+      textos.indexOf('1. Demanda'),
+      textos.indexOf('2. Tuberías'),
+      textos.indexOf('3. Medidores'),
+      textos.indexOf('4. Abastecimiento y reserva'),
+      textos.indexOf('5. Verificación hidráulica'),
+      textos.indexOf('6. Metodología y fuentes'),
+    ]
+    for (const indice of indices) {
+      expect(indice).toBeGreaterThanOrEqual(0)
+    }
+    for (let i = 1; i < indices.length; i += 1) {
+      expect(indices[i]).toBeGreaterThan(indices[i - 1]!)
+    }
+  })
+
+  it('header/footer: ausentes en la portada (página 1), presentes desde la página 2 con numeración', () => {
+    const doc = construirDocDefinition(datosCompleto, fechaFija)
+    expect(typeof doc.header).toBe('function')
+    expect(typeof doc.footer).toBe('function')
+    const header = doc.header as (p: number, c: number) => Content | undefined
+    const footer = doc.footer as (p: number, c: number) => Content | undefined
+    expect(header(1, 10)).toBeUndefined()
+    expect(footer(1, 10)).toBeUndefined()
+    const headerP2 = header(2, 10)
+    const footerP2 = footer(2, 10)
+    expect(headerP2).toBeDefined()
+    expect(footerP2).toBeDefined()
+    expect(textosDe(headerP2 as Content).some((t) => t.includes('IUAS — Memoria de cálculo'))).toBe(true)
+    expect(textosDe(footerP2 as Content).some((t) => t.includes('Página 2 de 10'))).toBe(true)
+  })
+
+  it('metadata PDF (info): title/subject/author configurados, sin datos privados', () => {
+    const doc = construirDocDefinition(datosCompleto, fechaFija)
+    expect(doc.info?.title).toBe('IUAS — Memoria de cálculo')
+    expect(doc.info?.subject).toBe('Instalaciones internas de agua')
+    expect(doc.info?.author).toBe('IUAS')
+  })
+
+  it('estilos: la paleta de marca y los banners CUMPLE/NO CUMPLE están definidos', () => {
+    const doc = construirDocDefinition(datosCompleto, fechaFija)
+    expect(doc.styles?.['bannerConforme']).toBeDefined()
+    expect(doc.styles?.['bannerNoConforme']).toBeDefined()
+    expect(doc.styles?.['portadaTitulo']).toBeDefined()
+    expect(doc.styles?.['subseccionUf']).toBeDefined()
+  })
+
+  it('la sección del terminal crítico (banner + tabla + desarrollo) sigue siendo un bloque unbreakable', () => {
+    const doc = construirDocDefinition(datosCompleto, fechaFija)
+    const bloques = nodosUnbreakable(doc.content as Content[])
+    const bloqueCritico = bloques.find((b) => textosDe(b as unknown as Content).includes('Desarrollo de cálculo del terminal crítico'))
+    expect(bloqueCritico).toBeDefined()
+  })
+
+  it('las tablas técnicas (Tuberías/Medidores/Verificación), que pueden crecer con el proyecto, repiten header en cada página', () => {
+    const doc = construirDocDefinition(datosCompleto, fechaFija)
+    function tablasDe(contenido: Content | readonly Content[]): { headerRows?: number; body?: unknown[][] }[] {
+      if (typeof contenido === 'string' || contenido == null) return []
+      if (Array.isArray(contenido)) return contenido.flatMap((c) => tablasDe(c))
+      const nodo = contenido as unknown as Record<string, unknown>
+      const propia = nodo['table'] !== undefined ? [nodo['table'] as { headerRows?: number; body?: unknown[][] }] : []
+      const deStack = Array.isArray(nodo['stack']) ? tablasDe(nodo['stack'] as Content[]) : []
+      return [...propia, ...deStack]
+    }
+    const tablas = tablasDe(doc.content as Content[])
+    // Sólo las tablas técnicas de filas repetibles (Tramo/Local, Medidor,
+    // Local/Artefacto de Verificación) -- las tablas chicas clave-valor del
+    // resumen/desarrollo nunca tuvieron ni necesitan headerRows.
+    const tecnicas = tablas.filter((t) => {
+      const primeraFila = t.body?.[0]
+      const primeraCelda = Array.isArray(primeraFila) ? primeraFila[0] : undefined
+      const texto = typeof primeraCelda === 'string' ? primeraCelda : (primeraCelda as { text?: string })?.text
+      return texto === 'Tramo / Local' || texto === 'Medidor' || texto === 'Local / Artefacto' || texto === 'Artefacto'
+    })
+    expect(tecnicas.length).toBeGreaterThan(0)
+    for (const tabla of tecnicas) {
+      expect(tabla.headerRows, JSON.stringify(tabla.body?.[0])).toBe(1)
+    }
+  })
+
+  it('nunca aparece "undefined"/"NaN"/"[object Object]" en el texto del documento (proyecto completo)', () => {
+    const doc = construirDocDefinition(datosCompleto, fechaFija)
+    const textos = textosDe(doc.content as Content[])
+    for (const t of textos) {
+      expect(t).not.toMatch(/\bundefined\b/)
+      expect(t).not.toMatch(/\bNaN\b/)
+      expect(t).not.toContain('[object Object]')
+    }
+  })
+
+  it('el header de M2 (una UF con varios Locales) repite el nombre de la UF UNA sola vez, no por Local', () => {
+    const doc = construirDocDefinition(datosCompleto, fechaFija)
+    const textos = textosDe(doc.content as Content[])
+    const nombreUf = datosCompleto.proyecto.unidadesFuncionales[0]!.nombre
+    const ocurrencias = textos.filter((t) => t === nombreUf).length
+    expect(ocurrencias).toBe(1)
+  })
+})
+
+describe('resolverNombreDeArchivo (brief §51)', () => {
+  it('arma "IUAS_Memoria_de_calculo_<proyecto>.pdf" sanitizado, sin espacios ni acentos', () => {
+    const p = backfillLongitudesDePredimensionamiento(proyectoInicial)
+    const nombre = resolverNombreDeArchivo({
+      ...p,
+      metadatos: { ...p.metadatos, nombre: 'Casa Pérez López' },
+    })
+    expect(nombre).toBe('IUAS_Memoria_de_calculo_Casa_Perez_Lopez.pdf')
+  })
+
+  it('nombre de proyecto vacío no rompe el archivo (fallback "proyecto")', () => {
+    const p = backfillLongitudesDePredimensionamiento(proyectoInicial)
+    const nombre = resolverNombreDeArchivo({ ...p, metadatos: { ...p.metadatos, nombre: '' } })
+    expect(nombre).toBe('IUAS_Memoria_de_calculo_proyecto.pdf')
   })
 })
