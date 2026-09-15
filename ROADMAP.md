@@ -3174,6 +3174,68 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `M2-MONTANTE-DEFAULT-LENGTH-01: CERRADO — pendiente
     validación manual`.
 
+- **D-δ.131 — UX-HIERARCHY-POLISH-01: jerarquía compacta UF → Nivel →
+  Local → Artefactos + nombre humano de Local (CERRADO — pendiente
+  validación manual).** Nivel y Local ganan el mismo patrón de
+  disclosure que ya tenía UF desde UX-01/D-δ.76 (botón con
+  `aria-expanded`/`aria-controls`, chevron, contenido oculto con
+  `hidden`). Estados default: con un único Nivel, sin chrome de colapso
+  (se ve igual que antes); con 2+ Niveles, el nivel base abre y el resto
+  arranca colapsado; con 2+ Locales en un Nivel, el primero abre y el
+  resto arranca colapsado; un Local/Nivel agregado o duplicado después
+  del montaje siempre nace abierto. Todo el estado de colapso es
+  presentación pura (`useState` con inicializador perezoso en
+  `estadoDeExpansionDeJerarquia.ts`), nunca persistido. Se eliminó la
+  repetición de la ayuda larga de "Cota del piso terminado…" por Nivel:
+  ahora se muestra una única vez por UF. `Local` gana un campo opcional
+  retrocompatible `nombre?: string` (mismo precedente sin migración que
+  `Local.cotaPiso_m` / `Montante.nombre` — `SCHEMA_VERSION_ACTUAL` no
+  cambió). Un helper consolidado
+  (`src/modelo/proyecto/nombreVisibleDeLocal.ts`) decide el nombre
+  visible: personalizado (recortado, nunca vacío) gana sobre la
+  etiqueta automática que cada consumidor ya calculaba — la lógica de
+  numeración automática en sí NO se unificó entre M1/M2/PDF, sigue tan
+  duplicada como antes. Actualizados para usar el nombre visible:
+  título del Local en M1, tabla de dimensionamiento y auditoría S2 de
+  M2 (`ResultadoHidraulicoDeTramo.tsx`), Montantes y tablas derivadas
+  (`montantesDelProyecto.ts`), terminal crítico
+  (`resolverFilaDeTerminalParaTabla.ts`) y el exportador PDF
+  (`generarDocumentoPdf.ts`). Cambiar el Tipo de un Local nunca pisa un
+  nombre personalizado (el cambio de Tipo sólo toca `local.tipo`, ajeno
+  al campo `nombre`). Duplicar un Local sin nombre personalizado
+  conserva el comportamiento previo (numeración automática); duplicar
+  uno CON nombre personalizado sugiere `"{nombre} copia"` en vez de
+  heredar el mismo nombre literal (`duplicarLocal` en
+  `duplicarUnidadFuncional.ts`). Montantes de M2
+  (`ConstructorDeMontantes.tsx`, UI-M2-MONTANTE-COMPACT-01) ya cumplían
+  el objetivo de densidad de este slice y no requirieron cambios.
+  Corregido durante la implementación: un bug propio de este mismo
+  slice donde el select de "Nivel" y el input de "Cota de piso del
+  nivel" quedaban fuera del render con un único Nivel (`esUnico`) tras
+  separar la cabecera colapsable del resto de los campos — detectado
+  por el E2E existente `multinivel.spec.ts` ("copy: la cota se atribuye
+  al Nivel") antes de llegar a producción. Tests: 3 archivos nuevos de
+  unidades puras (`estadoDeExpansionDeJerarquia.test.ts`,
+  `nombreVisibleDeLocal.test.ts`, casos nuevos en
+  `nivelUnidadFuncional.test.ts` para `resumenDeNivel`) + 2 casos nuevos
+  en `duplicarLocalEnNivel.test.ts` (nombre no ambiguo al duplicar) + 1
+  archivo de integración con `renderToStaticMarkup`
+  (`MotorDemandaPantalla.jerarquiaColapsable.test.ts`: estados default
+  sobre el proyecto de ejemplo, unmount real del contenido colapsado, y
+  que renombrar un Local no altera ningún resultado de
+  `calcularSimultaneidad`). E2E existentes actualizados:
+  `duplicar-local.spec.ts` (el `<h4>` de cabecera pasó a contener
+  chevron + meta además del nombre; se ajustó el selector a
+  `.m1-local__nombre`). `tsc -b`/`e2e:typecheck`/`build` limpios.
+  Vitest **1947/1947** (baseline 1920 + 27 tests nuevos; el timeout
+  preexistente de performance en `resolucionesDeDimensionamientoPorEdicion.regresion.test.ts`
+  no se reprodujo en corrida aislada). ESLint: mismos 11 errores
+  preexistentes en archivos ajenos a este diff, 0 errores nuevos. E2E
+  dirigidos verdes: `multinivel.spec.ts` (9), `duplicar-local.spec.ts`
+  (2).
+  - **Estado:** `UX-HIERARCHY-POLISH-01: CERRADO — pendiente validación
+    manual`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
