@@ -19,6 +19,12 @@ import {
 } from '../../presentacion/desarrolloDelCalculoDemanda'
 import { ETIQUETA_SERVICIO_MEDIDO } from '../../interfaz/paginas/humanizarModulo3'
 import { ETIQUETA_ESQUEMA_ABASTECIMIENTO, etiquetaDesnivelConexion } from '../../interfaz/paginas/humanizarModulo4'
+// resolverModoDeTrabajo/ETIQUETA_MODO_DE_TRABAJO son puramente
+// presentacionales (leen `Proyecto.modoTrabajo`/`configuracionHidraulica`,
+// no recalculan nada) -- mismo criterio que ETIQUETA_SERVICIO_MEDIDO/
+// ETIQUETA_ESQUEMA_ABASTECIMIENTO, ya importados de `interfaz/paginas` acá.
+import { resolverModoDeTrabajo, ETIQUETA_MODO_DE_TRABAJO } from '../../interfaz/paginas/modoDeTrabajo'
+import { nombreDeTipoDeProyecto } from '../../interfaz/paginas/nombreDeTipoDeProyecto'
 import { formatearNumero } from './formatearNumero'
 import {
   resolverDatosDeInforme,
@@ -34,6 +40,37 @@ import {
 } from './resolverDatosDeInforme'
 
 pdfMake.addVirtualFileSystem(pdfFonts)
+
+// REPORT-POLISH-01: identidad visual sobria de IUAS, mismos valores que
+// `sistema-visual.css` (la web) -- un único acento de marca, no una
+// paleta multicolor. Cumple/estado nunca dependen sólo de estos colores
+// (siempre hay texto: "Cumple"/"No cumple"/"OK"/etc.), así que la memoria
+// sigue siendo legible en blanco y negro o fotocopiada (brief §7).
+const COLOR_MARCA = '#1a6b53'
+const COLOR_MARCA_FUERTE = '#124c3c'
+const COLOR_TEXTO_2 = '#555555'
+const COLOR_BORDE_TABLA = '#c9cfcb'
+const COLOR_HEADER_TABLA = '#eef1ef'
+const COLOR_CONFORME = '#1a7a1a'
+const COLOR_CONFORME_SUAVE = '#e9f5e9'
+const COLOR_NO_CONFORME = '#b00020'
+const COLOR_NO_CONFORME_SUAVE = '#fdecea'
+
+// Layout compartido para TODAS las tablas de la memoria (brief §26): header
+// con fondo suave, líneas horizontales finas y grises, sin grilla negra
+// pesada. Un único objeto reutilizado -- no hay que repetir la definición
+// en cada tabla.
+const layoutTablaIuas = {
+  fillColor: (rowIndex: number) => (rowIndex === 0 ? COLOR_HEADER_TABLA : null),
+  hLineColor: () => COLOR_BORDE_TABLA,
+  vLineColor: () => COLOR_BORDE_TABLA,
+  hLineWidth: () => 0.5,
+  vLineWidth: () => 0.5,
+  paddingTop: () => 3,
+  paddingBottom: () => 3,
+  paddingLeft: () => 4,
+  paddingRight: () => 4,
+}
 
 // Copiados literalmente de MotorDemandaPantalla.tsx (A2): son mapas de
 // presentación chicos, no infraestructura. Quedaron fuera del Incremento B
@@ -124,7 +161,7 @@ function renderizarResumenResultados(resultado: ResultadoDeCalculo): Content[] {
   }
 
   return [
-    { text: 'Resultados', style: 'seccion' },
+    { text: 'Resultados', style: 'subseccion' },
     { text: 'Caudal de cálculo (Qc)', style: 'subseccion' },
     { text: textoValorCalculado(qc), style: 'qcDestacado' },
     {
@@ -135,6 +172,7 @@ function renderizarResumenResultados(resultado: ResultadoDeCalculo): Content[] {
           ['Qmax', textoValorCalculado(qmax)],
         ],
       },
+      layout: layoutTablaIuas,
       margin: [0, 4, 0, 4],
     },
     {
@@ -145,6 +183,7 @@ function renderizarResumenResultados(resultado: ResultadoDeCalculo): Content[] {
           ['K', textoValorCalculado(k)],
         ],
       },
+      layout: layoutTablaIuas,
       margin: [0, 0, 0, 8],
     },
   ]
@@ -166,6 +205,9 @@ function renderizarLocal(local: Local): Content {
   })
 
   return {
+    // brief §44/§46: el nombre del Local no debe quedar huérfano al final
+    // de una página con su tabla de artefactos recién en la siguiente.
+    unbreakable: true,
     stack: [
       {
         text: `Local: ${nombreVisibleDeLocal(local, ETIQUETA_TIPO_DE_LOCAL[local.tipo])} — Régimen: ${etiquetaRegimen(local.regimen)}`,
@@ -176,6 +218,7 @@ function renderizarLocal(local: Local): Content {
           widths: ['*', 'auto', 'auto'],
           body: [['Artefacto', 'Cantidad', 'qu'], ...filasArtefactos],
         },
+        layout: layoutTablaIuas,
         margin: [0, 2, 0, 6],
       },
     ],
@@ -198,7 +241,7 @@ function renderizarUnidadFuncionalM1(uf: UnidadFuncionalDeInforme): Content {
 }
 
 function renderizarUnidadesFuncionalesM1(unidadesFuncionales: readonly UnidadFuncionalDeInforme[]): Content[] {
-  return [{ text: 'Unidades funcionales', style: 'seccion' }, ...unidadesFuncionales.map(renderizarUnidadFuncionalM1)]
+  return [{ text: 'Unidades funcionales', style: 'subseccion' }, ...unidadesFuncionales.map(renderizarUnidadFuncionalM1)]
 }
 
 function renderizarPaso(paso: Paso): Content {
@@ -224,6 +267,7 @@ function renderizarPaso(paso: Paso): Content {
           widths: ['auto', 'auto', 'auto', '*'],
           body: [['Símbolo', 'Valor', 'Unidad', 'Procedencia'], ...filasEntradas],
         },
+        layout: layoutTablaIuas,
         margin: [0, 4, 0, 4],
       },
       { text: `Ref.: ${paso.referencias.join(', ')}`, style: 'referencia' },
@@ -282,8 +326,16 @@ function tablaDeTuberia(filas: readonly FilaDeTuberiaDeInforme[]): Content {
     table: {
       headerRows: 1,
       widths: ANCHOS_TABLA_TUBERIA,
-      body: [ENCABEZADO_TABLA_TUBERIA, ...filas.map(filaDeTablaTuberia)],
+      // REPORT-POLISH-01: fila nueva (spread) en cada llamada -- esta
+      // función se invoca muchas veces por documento (una por Local, una
+      // por segmento de Montante, distribución general...) y pdfMake muta
+      // los nodos de una tabla durante el layout; reutilizar el MISMO
+      // array `ENCABEZADO_TABLA_TUBERIA` como header de varias tablas
+      // dejaba el header en blanco a partir de la segunda ocurrencia (bug
+      // preexistente, invisible sin el fondo de header nuevo).
+      body: [[...ENCABEZADO_TABLA_TUBERIA], ...filas.map(filaDeTablaTuberia)],
     },
+    layout: layoutTablaIuas,
     fontSize: 8,
     margin: [0, 2, 0, 8],
   }
@@ -310,9 +362,12 @@ function renderizarCasoVelocidadYPerdidaDistribuida(caso: CasoVelocidadYPerdidaD
   const di_m = caso.diametroInteriorEfectivo_mm / 1000
   const a_m2 = (Math.PI * di_m ** 2) / 4
   const a_m2Texto = formatearNotacionCientifica(a_m2, 4)
-  const sustitucionV =
-    `A = π·Di²/4 = π·(${formatearNumero(caso.diametroInteriorEfectivo_mm, 'mm')}mm)²/4 = ${a_m2Texto} m²` +
-    `  →  V = Q/A = ${formatearNumero(caso.qc_lps, 'l/s')} l/s / ${a_m2Texto} m² = ${formatearNumero(caso.velocidad_mps, 'm/s')} m/s`
+  // REPORT-POLISH-01: la flecha Unicode (→) que unía ambas fórmulas en una
+  // sola línea no la renderiza la fuente vfs de pdfMake (glyph roto, ver
+  // qa visual de este slice) -- se separan en dos líneas, lo que además
+  // mejora la composición fórmula/sustitución (brief §24).
+  const sustitucionArea = `A = π·Di²/4 = π·(${formatearNumero(caso.diametroInteriorEfectivo_mm, 'mm')}mm)²/4 = ${a_m2Texto} m²`
+  const sustitucionV = `V = Q/A = ${formatearNumero(caso.qc_lps, 'l/s')} l/s / ${a_m2Texto} m² = ${formatearNumero(caso.velocidad_mps, 'm/s')} m/s`
 
   const detalleTexto: string[] =
     caso.detalle.metodo === 'hazenWilliams'
@@ -329,6 +384,7 @@ function renderizarCasoVelocidadYPerdidaDistribuida(caso: CasoVelocidadYPerdidaD
   return [
     { text: `Caso representativo: ${caso.etiqueta}`, style: 'subseccionNivel' },
     { text: `Q = ${formatearNumero(caso.qc_lps, 'l/s')} l/s · Di = ${formatearNumero(caso.diametroInteriorEfectivo_mm, 'mm')} mm · L = ${formatearNumero(caso.longitud_m, 'm')} m`, style: 'metadatos' },
+    { text: sustitucionArea, style: 'formula' },
     { text: sustitucionV, style: 'formula' },
     ...detalleTexto.map((t): Content => ({ text: t, style: 'formula' })),
   ]
@@ -360,7 +416,7 @@ function renderizarDesarrolloM2(desarrollo: DatosDeInforme['m2']['desarrollo']):
   if (desarrollo === undefined) {
     return []
   }
-  const contenido: Content[] = [{ text: 'Desarrollo de cálculo', style: 'subseccion' }]
+  const contenido: Content[] = [{ text: '2.4 Desarrollo de cálculo', style: 'subseccion' }]
 
   contenido.push({ text: 'Velocidad y pérdida distribuida', style: 'subseccionNivel' })
   contenido.push(...FORMULA_VELOCIDAD.map((f): Content => ({ text: f, style: 'formula' })))
@@ -401,13 +457,13 @@ function renderizarDesarrolloM2(desarrollo: DatosDeInforme['m2']['desarrollo']):
 function renderizarSeccionM2(m2: DatosDeInforme['m2']): Content[] {
   if (!m2.hayRedHidraulica) {
     return [
-      { text: 'Tuberías', style: 'seccion' },
+      { text: '2. Tuberías', style: 'seccion' },
       { text: 'El proyecto todavía no tiene una red hidráulica modelada (Módulo 2).', style: 'advertencia' },
     ]
   }
 
   const contenido: Content[] = [
-    { text: 'Tuberías', style: 'seccion' },
+    { text: '2. Tuberías', style: 'seccion' },
     {
       text: `Método de pérdida localizada: ${m2.metodoPerdidaLocalizada === 'estimado' ? 'Estimadas' : 'Detalladas'}`,
       style: 'metadatos',
@@ -421,7 +477,7 @@ function renderizarSeccionM2(m2: DatosDeInforme['m2']): Content[] {
   ]
 
   if (m2.distribucionGeneral.length > 0) {
-    contenido.push({ text: 'Distribución general / secundaria', style: 'subseccion' })
+    contenido.push({ text: '2.1 Distribución general / secundaria', style: 'subseccion' })
     contenido.push(tablaDeTuberia(m2.distribucionGeneral))
   }
   if (m2.distribucionSecundaria.length > 0) {
@@ -434,30 +490,49 @@ function renderizarSeccionM2(m2: DatosDeInforme['m2']): Content[] {
   // que no reflejaba la lectura real de la instalación. Sólo reordena
   // bloques del renderer; ningún dato, cálculo ni resolver cambia.
   if (m2.montantes.length > 0) {
-    contenido.push({ text: 'Montantes', style: 'subseccion' })
+    contenido.push({ text: '2.2 Montantes', style: 'subseccion' })
     for (const montante of m2.montantes) {
+      // brief §44/§46: nombre + nota + tabla de segmentos viajan juntos
+      // (misma razón que Locales, arriba) -- un Montante suele ser chico.
       contenido.push({
-        text: `${montante.nombre} (${montante.red === 'AF' ? 'Agua fría' : 'Agua caliente'})`,
-        style: 'subseccionNivel',
+        unbreakable: true,
+        stack: [
+          {
+            text: `${montante.nombre} (${montante.red === 'AF' ? 'Agua fría' : 'Agua caliente'})`,
+            style: 'subseccionNivel',
+          },
+          {
+            text:
+              montante.localesServidos.length > 0
+                ? `Locales alimentados: ${montante.localesServidos.join(', ')}`
+                : 'Sin locales alimentados todavía.',
+            style: 'metadatos',
+          },
+          ...(montante.segmentos.length > 0 ? [tablaDeTuberia(montante.segmentos)] : []),
+        ],
       })
-      contenido.push({
-        text:
-          montante.localesServidos.length > 0
-            ? `Locales alimentados: ${montante.localesServidos.join(', ')}`
-            : 'Sin locales alimentados todavía.',
-        style: 'metadatos',
-      })
-      if (montante.segmentos.length > 0) {
-        contenido.push(tablaDeTuberia(montante.segmentos))
-      }
     }
   }
 
   if (m2.locales.length > 0) {
-    contenido.push({ text: 'Unidades funcionales — Locales', style: 'subseccion' })
+    contenido.push({ text: '2.3 Unidades funcionales — Locales', style: 'subseccion' })
+    // REPORT-POLISH-01 §34: el nombre de la UF se imprime UNA vez por
+    // grupo de Locales consecutivos (los grupos ya vienen en el orden en
+    // que `identificarFilasPrincipalesDeLocales` recorre el proyecto:
+    // UF -> Nivel -> Local), en vez de repetirse en cada Local.
+    let ufAnterior: string | undefined
     for (const grupo of m2.locales) {
-      contenido.push({ text: grupo.nombre, style: 'subseccionNivel' })
-      contenido.push(tablaDeTuberia(grupo.filas))
+      if (grupo.unidadFuncionalNombre !== ufAnterior) {
+        contenido.push({ text: grupo.unidadFuncionalNombre, style: 'subseccionUf' })
+        ufAnterior = grupo.unidadFuncionalNombre
+      }
+      // brief §44/§46: heading + su tabla (chica, 1-2 filas) viajan juntos
+      // -- sin esto, "Baño 2" podía quedar solo como última línea de una
+      // página con su tabla recién en la siguiente.
+      contenido.push({
+        unbreakable: true,
+        stack: [{ text: grupo.nombre, style: 'subseccionNivel' }, tablaDeTuberia(grupo.filas)],
+      })
     }
   }
 
@@ -603,6 +678,7 @@ function renderizarDesarrolloCritico(d: DesarrolloTerminalCritico): Content {
             ...(hfEquipoACSAplicable ? [['hfEquipoACS (dato manual del fabricante)', `${formatearNumero(d.hfEquipoACS_mca!, 'm')} m.c.a.`]] : []),
           ],
         },
+        layout: layoutTablaIuas,
         margin: [0, 2, 0, 4],
       },
       ...(d.red === 'AC' && !hfEquipoACSAplicable ? [{ text: NOTA_HF_EQUIPO_ACS_AUSENTE, style: 'metadatos' } as Content] : []),
@@ -616,7 +692,7 @@ function renderizarDesarrolloCritico(d: DesarrolloTerminalCritico): Content {
 function renderizarSeccionVerificacion(datos: DatosDeInforme): Content[] {
   const { verificacion, origenM4Texto } = datos
   const contenido: Content[] = [
-    { text: 'Verificación hidráulica', style: 'seccion', pageOrientation: 'landscape' },
+    { text: '5. Verificación hidráulica', style: 'seccion', pageOrientation: 'landscape' },
     // P4 (FIX-REPORT-01B-VISUAL-01): origenM4Texto ya es una descripción
     // completa ("Alimentación directa (sin tanque de reserva)", "Tanque
     // elevado", "Cisterna + bombeo + tanque elevado") -- envolverla junto
@@ -651,18 +727,23 @@ function renderizarSeccionVerificacion(datos: DatosDeInforme): Content[] {
   if (verificacion.terminalCriticoNodoId !== undefined) {
     const critico = verificacion.filas.find((f) => f.nodoId === verificacion.terminalCriticoNodoId)
     if (critico !== undefined) {
+      // brief §40: primero CUMPLE/NO CUMPLE bien visible, recién después el
+      // margen/terminal/desglose -- no empezar por la tabla.
+      contenido.push({
+        text: critico.cumple ? 'CUMPLE' : 'NO CUMPLE',
+        style: critico.cumple ? 'bannerConforme' : 'bannerNoConforme',
+      })
       contenido.push({
         table: {
           widths: ['auto', '*'],
           body: [
+            ['Margen', critico.margenTexto],
             ['Terminal crítico', `${critico.localEtiqueta} — ${critico.artefactoNombre}`],
             ['Presión residual', critico.presionResidualTexto],
             ['Presión mínima', critico.presionMinimaTexto],
-            ['Margen', critico.margenTexto],
-            ['Estado', critico.cumple ? 'Cumple' : 'No cumple'],
           ],
         },
-        style: 'filaCritica',
+        layout: layoutTablaIuas,
         margin: [0, 4, 0, 8],
       })
     }
@@ -694,6 +775,7 @@ function renderizarSeccionVerificacion(datos: DatosDeInforme): Content[] {
         widths: ANCHOS_TABLA_VERIFICACION,
         body: [ENCABEZADO_TABLA_VERIFICACION, ...verificacion.filas.map(filaDeTablaVerificacion)],
       },
+      layout: layoutTablaIuas,
       fontSize: 7,
       margin: [0, 4, 0, 4],
     })
@@ -743,7 +825,13 @@ function filaDeTablaMedidorIndividual(proyecto: Proyecto, medidor: MedidorIndivi
 
 function renderizarSeccionM3(datos: DatosDeInforme): Content[] {
   const { m3, proyecto } = datos
-  const contenido: Content[] = [{ text: 'Medidores', style: 'seccion', pageBreak: 'before' }]
+  // REPORT-POLISH-01: un módulo "todavía no fue iniciado" es una sola
+  // línea -- forzar un salto de página para eso dejaba una página casi
+  // vacía (brief §44/§65). El salto limpio sigue reservado para cuando SÍ
+  // hay contenido real que se beneficia de empezar al tope de una página.
+  const contenido: Content[] = [
+    { text: '3. Medidores', style: 'seccion', ...(m3.estado !== 'noIniciado' ? { pageBreak: 'before' } : {}) },
+  ]
 
   if (m3.estado === 'noIniciado') {
     contenido.push({ text: 'Módulo 3 todavía no fue iniciado.', style: 'advertencia' })
@@ -776,6 +864,7 @@ function renderizarSeccionM3(datos: DatosDeInforme): Content[] {
     ]
     contenido.push({
       table: { headerRows: 1, widths: ANCHOS_TABLA_MEDIDORES, body: [ENCABEZADO_TABLA_MEDIDORES, ...filas] },
+      layout: layoutTablaIuas,
       fontSize: 8,
       margin: [0, 2, 0, 8],
     })
@@ -860,7 +949,9 @@ const FORMULA_RESERVA = ['Dc = máx(0, Qc − Qconn)', 'VReserva = Dc[m³/h] · 
 
 function renderizarSeccionM4(datos: DatosDeInforme): Content[] {
   const { m4 } = datos
-  const contenido: Content[] = [{ text: 'Alimentación y reserva', style: 'seccion', pageBreak: 'before' }]
+  const contenido: Content[] = [
+    { text: '4. Abastecimiento y reserva', style: 'seccion', ...(m4.estado !== 'noIniciado' ? { pageBreak: 'before' } : {}) },
+  ]
 
   if (m4.estado === 'noIniciado') {
     contenido.push({ text: 'Módulo 4 todavía no fue iniciado.', style: 'advertencia' })
@@ -913,6 +1004,7 @@ function renderizarSeccionM4(datos: DatosDeInforme): Content[] {
         ['Caudal de conexión (Qconn, Tabla N°1)', `${formatearNumero(conexion.qConexion_lps, 'l/s')} l/s`],
       ],
     },
+    layout: layoutTablaIuas,
     margin: [0, 2, 0, 4],
   })
 
@@ -948,6 +1040,7 @@ function renderizarSeccionM4(datos: DatosDeInforme): Content[] {
         ['Volumen de reserva calculado', `${formatearNumero(reserva.volumenReservaDiseno_m3, 'adimensional')} m³`],
       ],
     },
+    layout: layoutTablaIuas,
     margin: [0, 2, 0, 4],
   })
 
@@ -1026,6 +1119,145 @@ function renderizarAdopcionDeReserva(adopcion: ResultadoAdopcionDeReservaDeInfor
 }
 
 // ---------------------------------------------------------------------
+// Portada, resumen ejecutivo y metodología (REPORT-POLISH-01)
+// ---------------------------------------------------------------------
+
+// Fecha de GENERACIÓN del documento (momento en que se arma el PDF) --
+// distinta de `proyecto.metadatos.fecha` (dato editable del proyecto, no
+// del informe). No es un dato del dominio: no pasa por
+// `resolverDatosDeInforme.ts` (brief §50).
+function formatearFechaDeGeneracion(fecha: Date): string {
+  return new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }).format(fecha)
+}
+
+// Sanitiza el nombre del proyecto para usarlo en un nombre de archivo
+// (brief §51): sólo letras/números/espacios -> guión bajo, sin acentos
+// raros de sistema de archivos, sin fecha/hora ilegible.
+function sanitizarParaNombreDeArchivo(texto: string): string {
+  const sinAcentos = texto.normalize('NFD').replace(/[̀-ͯ]/g, '')
+  const limpio = sinAcentos.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+  return limpio.length > 0 ? limpio : 'proyecto'
+}
+
+// Exportada sólo para test unitario directo (brief §59-§62): sigue sin ser
+// parte del pipeline de datos, es presentación pura.
+export function resolverNombreDeArchivo(proyecto: Proyecto): string {
+  return `IUAS_Memoria_de_calculo_${sanitizarParaNombreDeArchivo(proyecto.metadatos.nombre)}.pdf`
+}
+
+// Portada (brief §8/§9/§10): wordmark textual (sin inventar isotipo),
+// título, datos del proyecto YA disponibles, fecha de generación, y el
+// modo de trabajo si está disponible. Mucho espacio en blanco es
+// aceptable -- no se llena la página.
+function renderizarPortada(datos: DatosDeInforme, fechaGeneracion: Date): Content[] {
+  const { proyecto } = datos
+  const modo = resolverModoDeTrabajo(proyecto)
+  return [
+    { text: 'IUAS', style: 'portadaWordmark' },
+    { text: 'Memoria de cálculo', style: 'portadaTitulo' },
+    { text: 'Instalaciones internas de agua', style: 'portadaSubtitulo' },
+    {
+      stack: [
+        { text: proyecto.metadatos.nombre, style: 'portadaProyecto' },
+        { text: nombreDeTipoDeProyecto(proyecto.parametros.tipoDeProyecto), style: 'portadaDato' },
+        { text: `Modo de trabajo: ${ETIQUETA_MODO_DE_TRABAJO[modo]}`, style: 'portadaDato' },
+      ],
+      margin: [0, 60, 0, 0],
+    },
+    {
+      stack: [
+        { text: `Generado el ${formatearFechaDeGeneracion(fechaGeneracion)}`, style: 'portadaFecha' },
+        {
+          text: 'Documento técnico generado por la aplicación IUAS a partir de los datos cargados por el proyectista.',
+          style: 'portadaNota',
+        },
+      ],
+      absolutePosition: { x: 40, y: 740 },
+    },
+    { text: '', pageBreak: 'after' },
+  ]
+}
+
+// Nombre humano del estado global de Verificación para el resumen (brief
+// §14): nunca 0/—/NaN para un dato no calculado -- siempre un wording
+// humano ya usado en el resto del documento.
+function resolverEstadoGeneralTexto(verificacion: DatosDeInforme['verificacion']): { texto: string; estilo: string } {
+  if (verificacion.estadoGlobal === 'completo' && verificacion.terminalCriticoNodoId !== undefined) {
+    const critico = verificacion.filas.find((f) => f.nodoId === verificacion.terminalCriticoNodoId)
+    if (critico !== undefined) {
+      return critico.cumple ? { texto: 'CUMPLE', estilo: 'conforme' } : { texto: 'NO CUMPLE', estilo: 'noConforme' }
+    }
+  }
+  if (verificacion.estadoGlobal === 'noIniciado') {
+    return { texto: 'No evaluado', estilo: 'metadatos' }
+  }
+  return { texto: 'Verificación incompleta', estilo: 'advertencia' }
+}
+
+// Resumen ejecutivo (brief §11/§12/§13): 4-6 KPIs de datos YA resueltos en
+// `datos` -- ningún cálculo nuevo. Un KPI sin dato disponible muestra un
+// wording humano ("No evaluado"), nunca 0/—/NaN.
+function renderizarResumenEjecutivo(datos: DatosDeInforme): Content[] {
+  const { resultadoM1, m4, verificacion } = datos
+  const qc = resultadoM1.resultados.qc
+  const qcTexto = qc ? textoValorCalculado(qc) : 'No evaluado'
+  const cantidadUf = datos.proyecto.unidadesFuncionales.length
+  const esquemaTexto =
+    m4.estado === 'evaluado' && m4.esquema !== undefined ? ETIQUETA_ESQUEMA_ABASTECIMIENTO[m4.esquema] : 'No evaluado'
+  const estadoGeneral = resolverEstadoGeneralTexto(verificacion)
+
+  const critico =
+    verificacion.terminalCriticoNodoId !== undefined
+      ? verificacion.filas.find((f) => f.nodoId === verificacion.terminalCriticoNodoId)
+      : undefined
+
+  const filas: { etiqueta: string; valor: string; estilo?: string }[] = [
+    { etiqueta: 'Caudal de cálculo (Qc)', valor: qcTexto },
+    { etiqueta: 'Unidades funcionales', valor: String(cantidadUf) },
+    { etiqueta: 'Esquema de abastecimiento', valor: esquemaTexto },
+    { etiqueta: 'Estado general', valor: estadoGeneral.texto, estilo: estadoGeneral.estilo },
+  ]
+  if (critico !== undefined) {
+    filas.push({ etiqueta: 'Margen del terminal crítico', valor: critico.margenTexto })
+    filas.push({ etiqueta: 'Terminal crítico', valor: `${critico.localEtiqueta} — ${critico.artefactoNombre}` })
+  }
+
+  return [
+    { text: 'Resumen del cálculo', style: 'seccion' },
+    {
+      table: {
+        widths: ['*', '*'],
+        body: filas.map((fila) => [{ text: fila.etiqueta, bold: true }, { text: fila.valor, style: fila.estilo }]),
+      },
+      layout: layoutTablaIuas,
+      margin: [0, 4, 0, 8],
+    },
+    { text: '', pageBreak: 'after' },
+  ]
+}
+
+// Cierre sobrio del documento (brief §48): referencias YA usadas en el
+// resto del informe (normativa + criterios internos citados como "Ref.:"/
+// "CRIT-*"/"D-δ.*" en cada paso), sin inventar bibliografía nueva.
+function renderizarMetodologiaYFuentes(resultadoM1: ResultadoDeCalculo): Content[] {
+  return [
+    { text: '6. Metodología y fuentes', style: 'seccion' },
+    {
+      text:
+        `Esta memoria se calcula íntegramente con la normativa ${resultadoM1.metadatos.versionNormativa} y los ` +
+        'criterios internos IUAS citados junto a cada resultado (referencias "Ref." y códigos de criterio a lo ' +
+        'largo del documento). Los valores mostrados son los que resuelve la aplicación a partir de los datos ' +
+        'cargados por el proyectista -- ningún valor se recalcula ni se reinterpreta al generar este documento.',
+      style: 'metadatos',
+    },
+    {
+      text: `Versión de la aplicación: ${resultadoM1.metadatos.versionApp}.`,
+      style: 'metadatos',
+    },
+  ]
+}
+
+// ---------------------------------------------------------------------
 // Documento
 // ---------------------------------------------------------------------
 
@@ -1033,55 +1265,109 @@ function renderizarAdopcionDeReserva(adopcion: ResultadoAdopcionDeReservaDeInfor
 // llamada al motor. Separado de generarDocumentoPdf para poder testear la
 // ESTRUCTURA del informe (secciones, paginación, contenido de tablas) sin
 // depender de la apertura real del PDF en el navegador (brief §26/§33).
-export function construirDocDefinition(datos: DatosDeInforme): TDocumentDefinitions {
+// `fechaGeneracion` es un parámetro EXPLÍCITO (no `new Date()` adentro):
+// mantiene la función determinística/testeable (brief §26/§33) -- el
+// llamador real (`generarDocumentoPdf`) pasa el momento real; los tests
+// pasan una fecha fija.
+export function construirDocDefinition(datos: DatosDeInforme, fechaGeneracion: Date = new Date()): TDocumentDefinitions {
   const { proyecto, resultadoM1 } = datos
+  // Nombre corto para header/footer (brief §17/§18): el nombre completo del
+  // proyecto puede ser largo -- se recorta sin cortar a mitad de palabra.
+  const nombreProyectoCorto =
+    proyecto.metadatos.nombre.length > 40 ? `${proyecto.metadatos.nombre.slice(0, 40).trimEnd()}…` : proyecto.metadatos.nombre
+
   return {
+    pageMargins: [40, 50, 40, 50],
     content: [
-      { text: 'IUAS — Memoria de cálculo', style: 'encabezado' },
-      {
-        text: `App v${resultadoM1.metadatos.versionApp} · Normativa ${resultadoM1.metadatos.versionNormativa}`,
-        style: 'metadatos',
-      },
+      ...renderizarPortada(datos, fechaGeneracion),
+      ...renderizarResumenEjecutivo(datos),
+      { text: '1. Demanda', style: 'seccion' },
       renderizarDatosDelProyecto(proyecto),
       ...renderizarUnidadesFuncionalesM1(datos.unidadesFuncionalesM1),
       ...renderizarResumenResultados(resultadoM1),
       ...(resultadoM1.advertencias.length > 0
         ? [
-            { text: 'Advertencias', style: 'seccion' } as Content,
+            { text: 'Advertencias', style: 'subseccion' } as Content,
             ...resultadoM1.advertencias.map((a): Content => ({ text: `- ${a.mensaje}`, style: 'advertencia' })),
           ]
         : []),
-      { text: 'Desarrollo del cálculo (Demanda)', style: 'seccion' },
+      { text: 'Desarrollo del cálculo (Demanda)', style: 'subseccion' },
       ...resultadoM1.pasos.map(renderizarPaso),
       ...(resultadoM1.verificaciones.length > 0
         ? [
-            { text: 'Verificaciones normativas (Demanda)', style: 'seccion' } as Content,
+            { text: 'Verificaciones normativas (Demanda)', style: 'subseccion' } as Content,
             ...resultadoM1.verificaciones.map(renderizarVerificacionM1),
           ]
         : []),
       { text: '', pageBreak: 'before' },
       ...renderizarSeccionM2(datos.m2),
-      ...renderizarSeccionVerificacion(datos),
+      // REPORT-POLISH-01 §16/§40: Medidores y Abastecimiento antes que la
+      // Verificación -- la Verificación es la síntesis final que integra
+      // M1-M4, tiene más sentido narrativo cerrar con ella (antes iba
+      // justo después de M2). Reordena sólo el ARRAY de renderizado; cada
+      // sección sigue leyendo exactamente los mismos datos ya resueltos.
       ...renderizarSeccionM3(datos),
       ...renderizarSeccionM4(datos),
+      ...renderizarSeccionVerificacion(datos),
+      { text: '', pageBreak: 'before' },
+      ...renderizarMetodologiaYFuentes(resultadoM1),
     ],
+    header: (currentPage) =>
+      currentPage === 1
+        ? undefined
+        : {
+            columns: [
+              { text: 'IUAS — Memoria de cálculo', style: 'headerPie' },
+              { text: nombreProyectoCorto, style: 'headerPie', alignment: 'right' },
+            ],
+            margin: [40, 20, 40, 0],
+          },
+    footer: (currentPage, pageCount) =>
+      currentPage === 1
+        ? undefined
+        : {
+            columns: [
+              { text: `${nombreProyectoCorto} · ${formatearFechaDeGeneracion(fechaGeneracion)}`, style: 'headerPie' },
+              { text: `Página ${currentPage} de ${pageCount}`, style: 'headerPie', alignment: 'right' },
+            ],
+            margin: [40, 0, 40, 20],
+          },
+    info: {
+      title: 'IUAS — Memoria de cálculo',
+      subject: 'Instalaciones internas de agua',
+      author: 'IUAS',
+    },
     styles: {
       encabezado: { fontSize: 16, bold: true, margin: [0, 0, 0, 4] },
-      metadatos: { fontSize: 8, color: '#555555', margin: [0, 0, 0, 12] },
-      seccion: { fontSize: 12, bold: true, margin: [0, 8, 0, 4] },
+      metadatos: { fontSize: 8, color: COLOR_TEXTO_2, margin: [0, 0, 0, 12] },
+      seccion: { fontSize: 13, bold: true, color: COLOR_MARCA_FUERTE, margin: [0, 10, 0, 4] },
       subseccion: { fontSize: 10, bold: true, margin: [0, 6, 0, 2] },
+      subseccionUf: { fontSize: 10, bold: true, color: COLOR_MARCA_FUERTE, margin: [0, 6, 0, 1] },
       subseccionNivel: { fontSize: 9, bold: true, italics: true, margin: [0, 4, 0, 2] },
       qcDestacado: { fontSize: 13, bold: true, margin: [0, 0, 0, 4] },
       tituloPaso: { fontSize: 10, bold: true },
       formula: { fontSize: 10, italics: true, margin: [0, 2, 0, 2] },
       resultadoPaso: { fontSize: 10, bold: true, margin: [0, 2, 0, 0] },
-      referencia: { fontSize: 8, color: '#555555' },
+      referencia: { fontSize: 8, color: COLOR_TEXTO_2 },
       advertencia: { fontSize: 9, color: '#8a6d00' },
-      conforme: { fontSize: 9, color: '#1a7a1a' },
-      noConforme: { fontSize: 9, bold: true, color: '#b00020', fillColor: '#fdecea' },
+      conforme: { fontSize: 9, color: COLOR_CONFORME },
+      noConforme: { fontSize: 9, bold: true, color: COLOR_NO_CONFORME, fillColor: COLOR_NO_CONFORME_SUAVE },
       filaNormal: { fontSize: 7 },
-      filaNoConforme: { fontSize: 7, color: '#b00020' },
-      filaCritica: { fontSize: 8, bold: true, color: '#b00020' },
+      filaNoConforme: { fontSize: 7, color: COLOR_NO_CONFORME },
+      filaCritica: { fontSize: 8, bold: true, color: COLOR_NO_CONFORME },
+      // Banner CUMPLE/NO CUMPLE de la Verificación (brief §14/§40): grande
+      // y con fondo tenue -- nunca depende sólo del color, el TEXTO ya dice
+      // "CUMPLE"/"NO CUMPLE" (blanco y negro seguro, brief §7).
+      bannerConforme: { fontSize: 16, bold: true, color: COLOR_CONFORME, fillColor: COLOR_CONFORME_SUAVE, margin: [4, 6, 4, 6] },
+      bannerNoConforme: { fontSize: 16, bold: true, color: COLOR_NO_CONFORME, fillColor: COLOR_NO_CONFORME_SUAVE, margin: [4, 6, 4, 6] },
+      headerPie: { fontSize: 8, color: COLOR_TEXTO_2 },
+      portadaWordmark: { fontSize: 14, bold: true, color: COLOR_MARCA, characterSpacing: 2, margin: [0, 100, 0, 8] },
+      portadaTitulo: { fontSize: 26, bold: true, color: COLOR_MARCA_FUERTE, margin: [0, 0, 0, 2] },
+      portadaSubtitulo: { fontSize: 12, color: COLOR_TEXTO_2, margin: [0, 0, 0, 0] },
+      portadaProyecto: { fontSize: 14, bold: true, margin: [0, 0, 0, 4] },
+      portadaDato: { fontSize: 10, color: COLOR_TEXTO_2, margin: [0, 1, 0, 0] },
+      portadaFecha: { fontSize: 9, color: COLOR_TEXTO_2 },
+      portadaNota: { fontSize: 8, color: COLOR_TEXTO_2, italics: true, margin: [0, 2, 0, 0] },
     },
     defaultStyle: { fontSize: 10 },
   }
@@ -1089,5 +1375,5 @@ export function construirDocDefinition(datos: DatosDeInforme): TDocumentDefiniti
 
 export function generarDocumentoPdf(entrada: EntradaGeneracionPdf): void {
   const datos = resolverDatosDeInforme(entrada.proyecto, catalogoArtefactos, coeficientesMayoracion)
-  pdfMake.createPdf(construirDocDefinition(datos)).open()
+  pdfMake.createPdf(construirDocDefinition(datos)).download(resolverNombreDeArchivo(entrada.proyecto))
 }

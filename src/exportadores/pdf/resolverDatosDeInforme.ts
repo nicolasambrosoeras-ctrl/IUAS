@@ -112,7 +112,13 @@ export type FilaDeTuberiaDeInforme = {
 }
 
 export type GrupoDeLocalDeInforme = {
+  // Nombre del Local SOLO (p.ej. "Baño 1"), sin el sufijo de UF -- distinto
+  // de `etiquetaHumanaDeLocal`, que sigue usándose tal cual en Verificación/
+  // Montantes/PDF (donde cada fila necesita el contexto completo). Acá el
+  // contexto de UF se muestra UNA vez por grupo (REPORT-POLISH-01 §34), no
+  // repetido en cada Local.
   readonly nombre: string
+  readonly unidadFuncionalNombre: string
   readonly filas: readonly FilaDeTuberiaDeInforme[]
 }
 
@@ -328,6 +334,11 @@ function resolverSeccionM2(
   )
 
   const filasPrincipales = identificarFilasPrincipalesDeLocales(proyecto)
+  // REPORT-POLISH-01 §34: agrupar por (UF, Local) -- clave por IDs, nunca
+  // por texto (dos Locales con el mismo nombre visible en UF distintas no
+  // deben mezclarse). El nombre del grupo queda SIN el sufijo "· UF": el
+  // renderer del PDF muestra el nombre de la UF una única vez por grupo de
+  // Locales consecutivos, en vez de repetirlo en cada Local.
   const gruposPorLocal = new Map<string, GrupoDeLocalDeInforme>()
   for (const f of filasPrincipales) {
     const uf = proyecto.unidadesFuncionales.find((candidata) => candidata.id === f.unidadFuncionalId)
@@ -335,7 +346,10 @@ function resolverSeccionM2(
     if (uf === undefined || local === undefined) {
       continue
     }
-    const nombreGrupo = etiquetaHumanaDeLocal(uf, local)
+    const nombreCompleto = etiquetaHumanaDeLocal(uf, local)
+    const sufijoUf = ` · ${uf.nombre}`
+    const nombreLocal = nombreCompleto.endsWith(sufijoUf) ? nombreCompleto.slice(0, -sufijoUf.length) : nombreCompleto
+    const claveGrupo = `${f.unidadFuncionalId}::${f.localId}`
     const fila = resolverFilaDeTuberiaDeInforme(
       proyecto,
       `local-${f.tramoId}`,
@@ -346,11 +360,11 @@ function resolverSeccionM2(
       { unidadFuncionalId: f.unidadFuncionalId, localId: f.localId, red: f.red },
       contexto,
     )
-    const existente = gruposPorLocal.get(nombreGrupo)
+    const existente = gruposPorLocal.get(claveGrupo)
     if (existente === undefined) {
-      gruposPorLocal.set(nombreGrupo, { nombre: nombreGrupo, filas: [fila] })
+      gruposPorLocal.set(claveGrupo, { nombre: nombreLocal, unidadFuncionalNombre: uf.nombre, filas: [fila] })
     } else {
-      gruposPorLocal.set(nombreGrupo, { nombre: nombreGrupo, filas: [...existente.filas, fila] })
+      gruposPorLocal.set(claveGrupo, { ...existente, filas: [...existente.filas, fila] })
     }
   }
 
