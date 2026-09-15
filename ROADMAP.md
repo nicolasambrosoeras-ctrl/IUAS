@@ -3236,6 +3236,74 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `UX-HIERARCHY-POLISH-01: CERRADO — pendiente validación
     manual`.
 
+- **D-δ.132 — BETA-UI-POLISH-01: micro-polish final de interfaz antes de
+  REPORT-POLISH (CERRADO — pendiente validación manual).** Seis
+  asperezas visuales/de copy, sin tocar hidráulica ni la jerarquía ya
+  cerrada. (1) Header colapsable de Local: nuevo helper puramente
+  presentacional (`resumenDeCabeceraDeLocal.ts`, deliberadamente
+  separado del resolver de dominio `nombreVisibleDeLocal.ts`) omite el
+  tipo de la meta secundaria cuando es idéntico (recortado) al nombre
+  visible -- "Baño · 4 artefactos" en vez de "Baño · Baño · 4
+  artefactos"; con nombre numerado o personalizado, el tipo se conserva.
+  (2) Copy de longitudes de M2 (`ResultadoHidraulicoDeTramo.tsx`,
+  cabecera de modo Rápido + nota de "Distribución general")
+  reescrito para reflejar con precisión la convención vigente de
+  Montantes (`5 m base + |Δz|`, D-δ.130) sin sugerir doble conteo
+  vertical con el +3 m/piso de los Tramos regulares -- cambio puramente
+  de texto, sin tocar `reconciliarMontante.ts`,
+  `LONGITUD_BASE_SEGMENTO_MONTANTE_M` ni `resolverIncrementoVerticalPorNivel`.
+  (3) La pérdida manual del equipo ACS se reubicó inmediatamente después
+  de la tabla de dimensionamiento (antes de la nota de longitud) con un
+  estilo de subfila liviana (`.m2-acs-subfila`, sin card ni callout,
+  solapada con el borde inferior de la tabla) para asociarla
+  visualmente a la fila "Alimentación ACS" que la origina; copy
+  acortado; mismo `aria-label`, mismo input, misma persistencia/
+  validación/balance -- el E2E `hydAcsManualLoss.spec.ts` sigue
+  localizándolo igual. (4) Montantes colapsadas más compactas: padding
+  vertical del toggle de `var(--esp-sm)` a `0.35rem`, `min-height` de
+  `2.5rem` a `2.15rem`, gap entre Montantes de la lista de `var(--esp-md)`
+  a `var(--esp-xs)` -- el cuerpo expandido no se tocó. (5) Botón
+  "Generar informe técnico PDF" → "Generar memoria técnica" (nomenclatura
+  de producto, sin mencionar el formato en el copy); mismo `onClick`,
+  mismo `generarDocumentoPdf`, ningún selector E2E ni unitario dependía
+  del texto anterior. (6) Subtítulo del header general: la condición
+  anterior (`unidadesFuncionales.length === 0` ⇒ "Proyecto vacío", si no
+  ⇒ "Proyecto de ejemplo — vivienda unifamiliar") podía afirmar
+  "Proyecto de ejemplo" sobre un "Nuevo proyecto" con UFs agregadas o
+  cualquier proyecto importado -- una afirmación falsa. Se descartaron
+  las tres soluciones que el brief prohibía explícitamente (booleano
+  `esDemo` persistido, comparación por referencia contra
+  `proyectoInicial`, heurística por cantidad de UF) y se reutilizó
+  `proyecto.parametros.tipoDeProyecto` -- campo YA existente, siempre
+  presente, editable por el usuario (misma tabla normativa
+  `coeficientesMayoracion` del selector "Tipología de proyecto") -- vía
+  nuevo helper `nombreDeTipoDeProyecto.ts`. El subtítulo pasa a ser, p.
+  ej., `Vivienda individual · Todos los datos pueden modificarse.`:
+  siempre verdadero para cualquier proyecto (demo, nuevo o importado),
+  sin nueva metadata ni migración. Ningún archivo de `src/motor/`
+  tocado. Hallazgo de infraestructura local (no relacionado con este
+  slice, no corregido acá): `vite.config.ts` condiciona `base:
+  '/IUAS/'` sólo a `command === 'build'`, así que `vite preview` local
+  sirve todo en `/` mientras el HTML compilado referencia `/IUAS/...` --
+  el preview local devuelve el fallback SPA (index.html) para los
+  assets en vez de 404 real, rompiendo cualquier E2E corrido contra
+  `IUAS_PREVIEW=1`/`localhost:4173` en este entorno; producción
+  (GitHub Pages) no se ve afectada porque ahí se sirve estático bajo
+  `/IUAS/` directamente. Validación E2E de este slice se hizo
+  exclusivamente contra producción tras el deploy. Tests: 2 archivos
+  nuevos de unidades puras (`resumenDeCabeceraDeLocal.test.ts`,
+  `nombreDeTipoDeProyecto.test.ts`) + casos nuevos en
+  `MotorDemandaPantalla.jerarquiaColapsable.test.ts` (header sin
+  redundancia sobre Baño/Cocina del demo, botón "Generar memoria
+  técnica", subtítulo sin "Proyecto de ejemplo") + nuevo describe en
+  `montantes.spec.ts` (E2E, medición de bounding box de varias
+  Montantes colapsadas: alturas < 40px, sin overlap, expandida
+  usable). `tsc -b`/`e2e:typecheck`/`build` limpios. Vitest
+  **1961/1961** (baseline 1947 + 14 tests nuevos). ESLint: mismos 11
+  errores preexistentes, 0 nuevos.
+  - **Estado:** `BETA-UI-POLISH-01: CERRADO — pendiente validación
+    manual`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /

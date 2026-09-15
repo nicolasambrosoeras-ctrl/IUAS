@@ -3,6 +3,43 @@
 Registro de decisiones de diseño postergadas a propósito, con la razón de
 la postergación y la condición que debe cumplirse antes de resolverlas.
 
+## `vite preview` local no respeta el `base: '/IUAS/'` del build (BETA-UI-POLISH-01)
+
+`vite.config.ts` fija `base: command === 'build' ? '/IUAS/' : '/'`. Ese
+condicional sólo cubre `vite build`: `vite preview` (que sirve el `dist/`
+ya compilado) no entra en la rama `'build'`, así que el servidor de
+preview local enruta todo bajo `/` mientras el `index.html` generado por
+el build ya tiene horneado `/assets/...` bajo `/IUAS/`. Consecuencia
+observada: al abrir `http://localhost:4173/IUAS/` con
+`IUAS_PREVIEW=1`/`IUAS_BASE_URL=http://localhost:4173/IUAS/`, el pedido
+del bundle JS bajo `/IUAS/assets/*.js` no matchea ninguna ruta estática
+del preview y cae en su fallback SPA, que devuelve `index.html` (200,
+`Content-Type: text/html`) en vez de 404 real o del JS -- el navegador
+rechaza el `<script type="module">` resultante y la app nunca monta
+(`#root` vacío), rompiendo cualquier E2E corrido contra ese preview local
+en este entorno.
+
+**No bloquea nada real**: producción (GitHub Pages) sirve el `dist/`
+como archivos estáticos bajo `/IUAS/` directamente (sin servidor Vite de
+por medio), así que el mismatch no existe ahí -- confirmado corriendo la
+suite E2E completa contra producción sin este problema. Es exclusivamente
+una limitación del flujo de verificación LOCAL con `vite preview`.
+
+**Por qué se posterga**: es infraestructura de testing, no del producto;
+arreglarlo (por ejemplo, agregando `preview: { base: '/IUAS/' }` o
+usando `--base` en el script de preview) es un cambio de una línea de
+bajo riesgo, pero excede el alcance de BETA-UI-POLISH-01 (slice de
+copy/layout puro) y no bloqueaba su cierre porque la validación E2E se
+hizo directamente contra producción tras el deploy, como en slices
+anteriores.
+
+**Condición para resolverlo**: la próxima vez que se necesite iterar E2E
+contra un build local repetidamente (en vez de esperar cada deploy a
+producción), ajustar `vite.config.ts`/el script `preview` para que el
+`base` de preview coincida con el de build, y confirmar con un E2E
+cualquiera corriendo `IUAS_PREVIEW=1 npm run e2e` sin el error de `#root`
+vacío.
+
 ## D-δ.112 — HYD-EST-01 — EN IMPLEMENTACIÓN, checkpoint local
 
 **Decisiones explícitas del usuario:** (1) camino que atraviesa una
