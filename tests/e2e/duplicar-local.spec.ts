@@ -19,7 +19,7 @@ test.describe('UI-M1-DUPLICAR-LOCAL-01 · duplicar un Local dentro del mismo Niv
     await expect(locales).toHaveCount(5) // demo: Baño, Cocina, Lavadero, Toilette, Jardín
 
     const bano = locales.first()
-    await expect(bano.locator('h4')).toHaveText('Baño')
+    await expect(bano.locator('.m1-local__nombre')).toHaveText('Baño')
     const artefactosBano = bano.locator('.m1-artefacto')
     await expect(artefactosBano).toHaveCount(4)
 
@@ -34,8 +34,8 @@ test.describe('UI-M1-DUPLICAR-LOCAL-01 · duplicar un Local dentro del mismo Niv
     await expect(locales).toHaveCount(6)
     const banoOriginal = locales.first()
     const banoCopia = locales.nth(1)
-    await expect(banoOriginal.locator('h4')).toHaveText('Baño 1')
-    await expect(banoCopia.locator('h4')).toHaveText('Baño 2')
+    await expect(banoOriginal.locator('.m1-local__nombre')).toHaveText('Baño 1')
+    await expect(banoCopia.locator('.m1-local__nombre')).toHaveText('Baño 2')
     await expect(banoCopia.locator('.m1-artefacto')).toHaveCount(4)
 
     // Editar la cantidad del primer artefacto de la COPIA no debe afectar al original.

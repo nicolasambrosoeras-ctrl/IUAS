@@ -389,3 +389,29 @@ describe('duplicarLocalEnNivelDeUnidadFuncionalEnProyecto -- recálculo de deman
     expect(typeof kcDespues.valor).toBe('number')
   })
 })
+
+describe('duplicarLocalEnNivelDeUnidadFuncionalEnProyecto -- nombre humano (UX-HIERARCHY-POLISH-01)', () => {
+  function localesDelNivel(proyecto: Proyecto): readonly Local[] {
+    return proyecto.unidadesFuncionales[0]?.niveles[0]?.locales ?? []
+  }
+
+  it('sin nombre personalizado en el original -> el duplicado tampoco tiene `nombre` (label automático sigue derivándose solo)', () => {
+    const original = local({ id: 'local-bano' })
+    const proyecto = proyectoCon([uf({ niveles: [nivel({ locales: [original] })] })])
+
+    const resultado = duplicarLocalEnNivelDeUnidadFuncionalEnProyecto(proyecto, 'uf-1', 'nivel-1', 'local-bano')
+    const copia = localesDelNivel(resultado).find((l) => l.id !== 'local-bano')
+
+    expect(copia?.nombre).toBeUndefined()
+  })
+
+  it('con nombre personalizado en el original -> el duplicado sugiere "{nombre} copia", no el mismo nombre literal', () => {
+    const original = local({ id: 'local-bano', nombre: 'Baño principal' })
+    const proyecto = proyectoCon([uf({ niveles: [nivel({ locales: [original] })] })])
+
+    const resultado = duplicarLocalEnNivelDeUnidadFuncionalEnProyecto(proyecto, 'uf-1', 'nivel-1', 'local-bano')
+    const copia = localesDelNivel(resultado).find((l) => l.id !== 'local-bano')
+
+    expect(copia?.nombre).toBe('Baño principal copia')
+  })
+})
