@@ -3371,6 +3371,64 @@ salvo bug inequívoco o decisión roja explícita.
   rígido).
   - **Estado:** `REPORT-POLISH-01: CERRADO — pendiente validación
     manual`.
+- **D-δ.134 — REPORT-POLISH-02-EDITORIAL-CLOSE: cierre editorial final
+  de la Memoria de cálculo (CERRADO — pendiente validación manual).**
+  Corrige seis hallazgos puntuales detectados al inspeccionar el PDF
+  **real** generado después de REPORT-POLISH-01 (D-δ.133) -- no repite
+  ese rediseño, no toca `src/motor/`. **(1) Nombre de Local
+  inconsistente en M1:** `renderizarLocal` pasaba
+  `ETIQUETA_TIPO_DE_LOCAL[local.tipo]` (sin ordinal) como etiqueta
+  automática, mostrando `Local: Baño` para más de un Local del mismo
+  tipo mientras el resto del documento ya numeraba `Baño 2`/`Baño 3`
+  vía `derivarOrdinalesDeLocal`. Corregido reutilizando ese mismo
+  helper (calculado una vez por UF, mismo orden que
+  `localesDeUnidadFuncional`) -- un nombre personalizado sigue ganando
+  siempre. **(2) Página huérfana en pérdidas localizadas:** el bloque
+  de pérdida distribuida y el de pérdida localizada fluían como nodos
+  sueltos; agrupados en dos `stack` `unbreakable` independientes.
+  **(3) M4 forzaba página nueva incondicional:** `pageBreak: 'before'`
+  siempre que M4 tuviera contenido, sin importar el espacio disponible
+  tras M3; retirado, título + primera línea de contexto ahora viajan
+  `unbreakable` juntos, sin forzar salto. **(4) Tabla de terminales
+  separada de su título:** el título "Detalle de verificación por
+  terminal" tenía su propio `pageBreak: 'before'`; integrado como
+  primera fila de la propia tabla (`colSpan`) con `headerRows: 2` --
+  pdfMake nunca separa las `headerRows` del resto de una tabla, así que
+  título + encabezado + primeras filas viajan siempre juntos.
+  **(5) Exceso de rojo en la tabla:** coloreaba la fila completa si no
+  cumplía o si era crítica; ahora el rojo (`valorNoConforme`) sólo cae
+  en la celda de margen/estado que realmente incumple, un terminal "no
+  evaluado" nunca es rojo, y la fila crítica se distingue por peso +
+  fondo suave (mismo tono que los banners CUMPLE/NO CUMPLE), no por
+  saturación de color. **(6) Identificadores internos visibles:**
+  `CRIT-Axx`/`D-δ.xxx`/`quTotal_lps`/`qu(artefactoId)` aparecían en el
+  copy público. Copy propio reescrito a "criterio IUAS" preservando las
+  referencias normativas externas (`ERAS-2023 §...`); copy que viene
+  del motor (`paso.nota`, `criterioId`, `procedencia`, `simbolo`) se
+  humaniza en la capa de presentación sin tocar `src/motor/`
+  (`humanizarCopyPublico`, `humanizarSimboloDeEntrada` resuelto contra
+  `catalogoArtefactos`) -- Metodología cierra con una nota compacta
+  única sobre trazabilidad interna, en vez de listar códigos. Hallazgo
+  adicional del PDF real: `versionNormativa` ('eras-2023', dato
+  persistido, intocable) se humaniza sólo al mostrarse
+  (`.toUpperCase()` → "ERAS-2023"). Header/footer: el footer ya no
+  repite el nombre del proyecto (que ya está en el header), sólo fecha
+  + paginación. Portada/resumen/jerarquía 1-6 sin cambios (ya aprobados
+  en D-δ.133). Tests: 47 en `generarDocumentoPdf.test.ts` (34
+  preexistentes + 13 nuevos: nombres UF-wide, bloques unbreakable
+  independientes, ausencia de M4 pageBreak, ausencia total de IDs
+  internos, símbolo humano en tabla de pasos M1, `headerRows: 2` de la
+  tabla de terminales, rojo sólo en celda no conforme, fila crítica con
+  estilo+fondo, casing ERAS-2023 sin alterar el dato). QA visual manual:
+  PDF del proyecto de ejemplo (descarga real vía Playwright contra build
+  local) inspeccionado página por página, más un segundo PDF con un
+  Local personalizado + Locales repetidos multinivel confirmando el fix
+  del hallazgo (1). `tsc -b`/`eslint`/`e2e:typecheck`/`build` limpios;
+  Vitest completo verde salvo el mismo test de performance preexistente
+  y ajeno a este slice. Detalle completo en
+  `docs/REPORT-POLISH-02-EDITORIAL-CLOSE.md`.
+  - **Estado:** `REPORT-POLISH-02-EDITORIAL-CLOSE: CERRADO — pendiente
+    validación manual`.
 
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
