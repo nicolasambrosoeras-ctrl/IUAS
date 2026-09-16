@@ -7,6 +7,8 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import type { Content } from 'pdfmake/interfaces'
+import type { Proyecto } from '../../modelo/proyecto'
+import { crearProyectoVacio } from '../../interfaz/paginas/crearProyectoVacio'
 import { backfillLongitudesDePredimensionamiento } from '../../interfaz/paginas/backfillLongitudesDePredimensionamiento'
 import { proyectoInicial } from '../../interfaz/paginas/proyectoDeEjemplo'
 import { conCotaDeNodo, conDnComercialAdoptadoDeTramo } from '../../interfaz/paginas/actualizarRedHidraulica'
@@ -117,7 +119,7 @@ describe('construirDocDefinition (REPORT-01B: memoria de cálculo)', () => {
     const doc = construirDocDefinition(datos)
     const textos = textosDe(doc.content as Content[])
     expect(textos.some((t) => t.includes('Presidual = Pdisponible − Δz − hfDistribuida − hfLocalizada − hfMedidor'))).toBe(true)
-    expect(textos.some((t) => t.includes('hfEquipoACS no participa'))).toBe(true)
+    expect(textos.some((t) => t.includes('pérdida del equipo de agua caliente sanitaria (ACS) no participa'))).toBe(true)
     expect(textos.some((t) => t.includes('menor margen respecto de Pmin'))).toBe(true)
     expect(textos.some((t) => t.includes('Desarrollo de cálculo del terminal crítico'))).toBe(true)
     expect(textos.some((t) => t.startsWith('Conclusión:'))).toBe(true)
@@ -146,7 +148,7 @@ describe('construirDocDefinition (REPORT-01B: memoria de cálculo)', () => {
     expect(textos.some((t) => t.includes('2,400 m.c.a.'))).toBe(true)
     expect(textos.some((t) => t.includes('Pérdida del equipo ACS adoptada manualmente'))).toBe(true)
     // El warning de "no informado" no debe aparecer más en el desarrollo del crítico.
-    expect(textos.some((t) => t.includes('hfEquipoACS no participa de este balance: todavía no fue informado'))).toBe(false)
+    expect(textos.some((t) => t.includes('pérdida del equipo de agua caliente sanitaria (ACS) no participa de este balance'))).toBe(false)
   })
 
   it('hfEquipoACS_mca ausente: sigue mostrando la fórmula base y el warning de "no informado"', () => {
@@ -154,7 +156,7 @@ describe('construirDocDefinition (REPORT-01B: memoria de cálculo)', () => {
     const doc = construirDocDefinition(datos)
     const textos = textosDe(doc.content as Content[])
 
-    expect(textos.some((t) => t.includes('hfEquipoACS no participa de este balance: todavía no fue informado'))).toBe(true)
+    expect(textos.some((t) => t.includes('pérdida del equipo de agua caliente sanitaria (ACS) no participa de este balance'))).toBe(true)
     expect(textos.some((t) => t.includes('Presidual = Pdisponible − Δz − hfDistribuida − hfLocalizada − hfMedidor − hfEquipoACS'))).toBe(false)
   })
 })
@@ -207,13 +209,19 @@ describe('construirDocDefinition (FIX-REPORT-01B-VISUAL-01)', () => {
     }
   })
 
-  it('P5: la tabla de detalle de verificación por terminal arranca con un pageBreak explícito', () => {
+  it('REPORT-POLISH-02: el título de la tabla de detalle viaja con el encabezado (headerRows:2), sin pageBreak forzado', () => {
     const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
     const doc = construirDocDefinition(datos)
     const contenido = doc.content as unknown as Record<string, unknown>[]
-    const indiceEncabezado = contenido.findIndex((c) => c['text'] === 'Detalle de verificación por terminal')
-    expect(indiceEncabezado).toBeGreaterThanOrEqual(0)
-    expect(contenido[indiceEncabezado]!['pageBreak']).toBe('before')
+    const nodoTabla = contenido.find((c) => (c['table'] as { headerRows?: number } | undefined)?.headerRows === 2) as
+      | { table: { body: { text?: string }[][] } }
+      | undefined
+    expect(nodoTabla).toBeDefined()
+    expect(nodoTabla!.table.body[0]![0]!.text).toBe('Detalle de verificación por terminal')
+    // Ya no existe un nodo suelto con pageBreak:'before' para este título --
+    // el título es ahora parte de la propia tabla, así que nunca queda
+    // huérfano (pdfMake nunca separa las headerRows del resto de la tabla).
+    expect(contenido.find((c) => c['text'] === 'Detalle de verificación por terminal')).toBeUndefined()
   })
 
   it('P6: las sustituciones usan notación científica legible, no "1.6286e-4"', () => {
@@ -290,7 +298,9 @@ describe('construirDocDefinition (FIX-REPORT-01C-VISUAL-01)', () => {
     const indiceCritico = contenido.findIndex(
       (c) => c['unbreakable'] === true && textosDe(c as unknown as Content).some((t) => t.startsWith('Conclusión:')),
     )
-    const indiceDetalle = contenido.findIndex((c) => c['text'] === 'Detalle de verificación por terminal')
+    const indiceDetalle = contenido.findIndex(
+      (c) => (c['table'] as { headerRows?: number } | undefined)?.headerRows === 2,
+    )
 
     expect(indiceCritico).toBeGreaterThanOrEqual(0)
     expect(indiceDetalle).toBeGreaterThan(indiceCritico)
@@ -301,13 +311,13 @@ describe('construirDocDefinition (FIX-REPORT-01C-VISUAL-01)', () => {
     expect(textosDelBloqueCritico.some((t) => t.startsWith('Margen ='))).toBe(true)
   })
 
-  it('P1.B: el detalle de verificación por terminal conserva su pageBreak:"before"', () => {
+  it('REPORT-POLISH-02: el detalle de verificación por terminal ya no fuerza un pageBreak incondicional', () => {
     const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
     const doc = construirDocDefinition(datos)
     const contenido = doc.content as unknown as Record<string, unknown>[]
-    const indiceDetalle = contenido.findIndex((c) => c['text'] === 'Detalle de verificación por terminal')
-    expect(indiceDetalle).toBeGreaterThanOrEqual(0)
-    expect(contenido[indiceDetalle]!['pageBreak']).toBe('before')
+    const nodoTabla = contenido.find((c) => (c['table'] as { headerRows?: number } | undefined)?.headerRows === 2)
+    expect(nodoTabla).toBeDefined()
+    expect(nodoTabla!['pageBreak']).toBeUndefined()
   })
 
   it('P2.C: tanque elevado sin propiedad horizontal -- M3 sigue mostrando el medidor general, memoria aclara que no participa, Verificación mantiene hfMedidor=0 (sin cambios de cálculo)', () => {
@@ -484,18 +494,28 @@ describe('construirDocDefinition (REPORT-POLISH-01: portada, resumen, header/foo
     }
     const tablas = tablasDe(doc.content as Content[])
     // Sólo las tablas técnicas de filas repetibles (Tramo/Local, Medidor,
-    // Local/Artefacto de Verificación) -- las tablas chicas clave-valor del
-    // resumen/desarrollo nunca tuvieron ni necesitan headerRows.
+    // Artefacto) -- las tablas chicas clave-valor del resumen/desarrollo
+    // nunca tuvieron ni necesitan headerRows.
     const tecnicas = tablas.filter((t) => {
       const primeraFila = t.body?.[0]
       const primeraCelda = Array.isArray(primeraFila) ? primeraFila[0] : undefined
       const texto = typeof primeraCelda === 'string' ? primeraCelda : (primeraCelda as { text?: string })?.text
-      return texto === 'Tramo / Local' || texto === 'Medidor' || texto === 'Local / Artefacto' || texto === 'Artefacto'
+      return texto === 'Tramo / Local' || texto === 'Medidor' || texto === 'Artefacto'
     })
     expect(tecnicas.length).toBeGreaterThan(0)
     for (const tabla of tecnicas) {
       expect(tabla.headerRows, JSON.stringify(tabla.body?.[0])).toBe(1)
     }
+
+    // REPORT-POLISH-02: la tabla de detalle por terminal integra su título
+    // como primera fila (colSpan) -- headerRows:2 para que título +
+    // encabezado de columnas viajen siempre juntos.
+    const tablaVerificacion = tablas.find((t) => {
+      const primeraCelda = (t.body?.[0] as { text?: string }[] | undefined)?.[0]
+      return primeraCelda?.text === 'Detalle de verificación por terminal'
+    })
+    expect(tablaVerificacion).toBeDefined()
+    expect(tablaVerificacion!.headerRows).toBe(2)
   })
 
   it('nunca aparece "undefined"/"NaN"/"[object Object]" en el texto del documento (proyecto completo)', () => {
@@ -514,6 +534,145 @@ describe('construirDocDefinition (REPORT-POLISH-01: portada, resumen, header/foo
     const nombreUf = datosCompleto.proyecto.unidadesFuncionales[0]!.nombre
     const ocurrencias = textos.filter((t) => t === nombreUf).length
     expect(ocurrencias).toBe(1)
+  })
+})
+
+function artefactoLavatorio(id: string) {
+  return { id, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' as const }
+}
+
+// Dos Locales del mismo tipo en niveles distintos de la misma UF -- caso
+// real reportado (REPORT-POLISH-02 §4): M1 mostraba "Local: Baño" para
+// ambos, mientras el resto del documento ya numeraba "Baño 2"/"Baño 3".
+function proyectoConLocalesRepetidos(nombrePersonalizado?: string): Proyecto {
+  const base = crearProyectoVacio()
+  return {
+    ...base,
+    unidadesFuncionales: [
+      {
+        id: 'uf-1',
+        nombre: 'UF 1',
+        niveles: [
+          {
+            id: 'nivel-pb',
+            nombre: 'PB',
+            locales: [{ id: 'local-pb-bano', tipo: 'bano', artefactos: [artefactoLavatorio('a-pb')] }],
+          },
+          {
+            id: 'nivel-p1',
+            nombre: 'Piso 1',
+            locales: [
+              {
+                id: 'local-p1-bano-1',
+                tipo: 'bano',
+                ...(nombrePersonalizado !== undefined ? { nombre: nombrePersonalizado } : {}),
+                artefactos: [artefactoLavatorio('a-p1-1')],
+              },
+              { id: 'local-p1-bano-2', tipo: 'bano', artefactos: [artefactoLavatorio('a-p1-2')] },
+            ],
+          },
+        ],
+      },
+    ],
+  }
+}
+
+describe('construirDocDefinition (REPORT-POLISH-02: cierre editorial)', () => {
+  const datosCompleto = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+  const fechaFija = new Date('2026-09-15T12:00:00-03:00')
+
+  it('M1 numera Locales del mismo tipo dentro de la UF, igual que el resto del documento ("Baño 1"/"Baño 2"/"Baño 3")', () => {
+    const datos = resolverDatosDeInforme(proyectoConLocalesRepetidos(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => t.startsWith('Local: Baño 1 —'))).toBe(true)
+    expect(textos.some((t) => t.startsWith('Local: Baño 2 —'))).toBe(true)
+    expect(textos.some((t) => t.startsWith('Local: Baño 3 —'))).toBe(true)
+    // Nunca "Local: Baño —" a secas cuando hay más de un Local de ese tipo.
+    expect(textos.some((t) => t === 'Local: Baño — Régimen: Domiciliario')).toBe(false)
+  })
+
+  it('M1 conserva el nombre personalizado de un Local en vez de reemplazarlo por el tipo', () => {
+    const datos = resolverDatosDeInforme(proyectoConLocalesRepetidos('Baño principal'), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => t.startsWith('Local: Baño principal —'))).toBe(true)
+    // El local con nombre personalizado nunca debe aparecer como "Baño 2".
+    expect(textos.some((t) => t.startsWith('Local: Baño 2 —'))).toBe(false)
+  })
+
+  it('el bloque de pérdida distribuida y el de pérdida localizada son unidades unbreakable independientes', () => {
+    const doc = construirDocDefinition(datosCompleto, fechaFija)
+    const bloques = nodosUnbreakable(doc.content as Content[])
+    const bloqueVelocidad = bloques.find((b) => textosDe(b as unknown as Content).includes('Velocidad y pérdida distribuida'))
+    const bloqueLocalizada = bloques.find((b) => textosDe(b as unknown as Content).includes('Pérdida localizada'))
+    expect(bloqueVelocidad).toBeDefined()
+    expect(bloqueLocalizada).toBeDefined()
+    expect(bloqueVelocidad).not.toBe(bloqueLocalizada)
+  })
+
+  it('M4 ya no fuerza un pageBreak incondicional antes de su título', () => {
+    const doc = construirDocDefinition(datosCompleto, fechaFija)
+    const contenido = doc.content as unknown as Record<string, unknown>[]
+    const nodoM4 = contenido.find((c) => textosDe(c as unknown as Content).includes('4. Abastecimiento y reserva'))
+    expect(nodoM4).toBeDefined()
+    expect(nodoM4!['pageBreak']).toBeUndefined()
+  })
+
+  it('nunca deja identificadores internos de desarrollo (CRIT-A*, D-δ.*, quTotal_lps) en el texto visible', () => {
+    const doc = construirDocDefinition(datosCompleto, fechaFija)
+    const textos = textosDe(doc.content as Content[])
+    for (const t of textos) {
+      expect(t).not.toMatch(/CRIT-A\d/)
+      expect(t).not.toMatch(/D-δ\.\d/)
+      expect(t).not.toContain('quTotal_lps')
+    }
+  })
+
+  it('la Metodología muestra la normativa con el casing correcto (ERAS-2023), sin tocar el dato persistido', () => {
+    const doc = construirDocDefinition(datosCompleto, fechaFija)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => t.includes('ERAS-2023'))).toBe(true)
+    expect(textos.some((t) => t.includes('eras-2023'))).toBe(false)
+    // El dato persistido (Proyecto.metadatos.versionNormativa) no se reescribe.
+    expect(datosCompleto.proyecto.metadatos.versionNormativa).toBe('eras-2023')
+  })
+
+  it('la tabla de pasos de M1 muestra el nombre humano del artefacto, no la clave interna del catálogo (qu(artefactoId))', () => {
+    const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos.some((t) => /^qu\([a-z][a-zA-Z]*\)$/.test(t))).toBe(false)
+    expect(textos.some((t) => t.startsWith('qu(') && /[A-ZÁÉÍÓÚ]/.test(t))).toBe(true)
+  })
+
+  it('la tabla de detalle por terminal: rojo sólo en la celda que no cumple, nunca en "no evaluado"', () => {
+    const doc = construirDocDefinition(datosCompleto, fechaFija)
+    const contenido = doc.content as unknown as Record<string, unknown>[]
+    const nodoTabla = contenido.find((c) => (c['table'] as { headerRows?: number } | undefined)?.headerRows === 2) as
+      | { table: { body: Record<string, unknown>[][] } }
+      | undefined
+    expect(nodoTabla).toBeDefined()
+    const filasRenderizadas = nodoTabla!.table.body.slice(2)
+    expect(filasRenderizadas.length).toBe(datosCompleto.verificacion.filas.length)
+
+    for (const [indice, filaDatos] of datosCompleto.verificacion.filas.entries()) {
+      const celdaEstado = filasRenderizadas[indice]![8]!
+      const estilos = ([] as string[]).concat((celdaEstado['style'] as string | string[]) ?? [])
+      const noCumple = filaDatos.estado === 'completo' && filaDatos.cumple === false
+      expect(estilos.includes('valorNoConforme'), JSON.stringify({ indice, estado: filaDatos.estado, cumple: filaDatos.cumple })).toBe(
+        noCumple,
+      )
+    }
+
+    // Al menos una fila crítica existe en este proyecto y viaja con estilo
+    // 'filaCritica' (bold) + fondo suave, identificable incluso sin color.
+    const indiceCritico = datosCompleto.verificacion.filas.findIndex((f) => f.esCritico)
+    expect(indiceCritico).toBeGreaterThanOrEqual(0)
+    const celdaCritica = filasRenderizadas[indiceCritico]![0]!
+    const estilosCritico = ([] as string[]).concat((celdaCritica['style'] as string | string[]) ?? [])
+    expect(estilosCritico.includes('filaCritica')).toBe(true)
+    expect(celdaCritica['fillColor']).toBeDefined()
   })
 })
 

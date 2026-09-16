@@ -6,9 +6,10 @@
 // reserva (M4), cerrando conceptualmente REPORT-01.
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
-import type { Content, TDocumentDefinitions } from 'pdfmake/interfaces'
+import type { Content, TableCell, TDocumentDefinitions } from 'pdfmake/interfaces'
 import type { Local, Proyecto, RegimenLocal, TipoDeLocal } from '../../modelo/proyecto'
 import { nombreVisibleDeLocal } from '../../modelo/proyecto/nombreVisibleDeLocal'
+import { derivarOrdinalesDeLocal } from '../../interfaz/paginas/identificarFilasDeModulo2'
 import type { Paso, ResultadoDeCalculo, Verificacion } from '../../modelo/resultado'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
@@ -189,7 +190,8 @@ function renderizarResumenResultados(resultado: ResultadoDeCalculo): Content[] {
   ]
 }
 
-function renderizarLocal(local: Local): Content {
+function renderizarLocal(local: Local, ordinal: number): Content {
+  const etiquetaAutomatica = `${ETIQUETA_TIPO_DE_LOCAL[local.tipo]} ${ordinal}`
   const filasArtefactos = local.artefactos.map((artefacto) => {
     const catalogoItem = catalogoArtefactos.find((c) => c.id === artefacto.artefactoId)
     if (!catalogoItem) {
@@ -210,7 +212,7 @@ function renderizarLocal(local: Local): Content {
     unbreakable: true,
     stack: [
       {
-        text: `Local: ${nombreVisibleDeLocal(local, ETIQUETA_TIPO_DE_LOCAL[local.tipo])} — Régimen: ${etiquetaRegimen(local.regimen)}`,
+        text: `Local: ${nombreVisibleDeLocal(local, etiquetaAutomatica)} — Régimen: ${etiquetaRegimen(local.regimen)}`,
       },
       {
         table: {
@@ -227,12 +229,16 @@ function renderizarLocal(local: Local): Content {
 }
 
 function renderizarUnidadFuncionalM1(uf: UnidadFuncionalDeInforme): Content {
+  // Ordinal UF-wide (mismo criterio que M2/Verificación, derivarOrdinalesDeLocal):
+  // así "Baño 2"/"Baño 3" es consistente en todo el documento, incluida M1.
+  const ordinales = derivarOrdinalesDeLocal(uf.niveles.flatMap((nivel) => nivel.locales))
+  const renderizarLocalDeUf = (local: Local) => renderizarLocal(local, ordinales.get(local.id) ?? 1)
   const cuerpo: Content[] = uf.mostrarNiveles
     ? uf.niveles.flatMap((nivel): Content[] => [
         { text: `Nivel: ${nivel.nombre}`, style: 'subseccionNivel' },
-        ...nivel.locales.map(renderizarLocal),
+        ...nivel.locales.map(renderizarLocalDeUf),
       ])
-    : uf.niveles.flatMap((nivel) => nivel.locales.map(renderizarLocal))
+    : uf.niveles.flatMap((nivel) => nivel.locales.map(renderizarLocalDeUf))
 
   return {
     stack: [{ text: `Unidad funcional: ${uf.nombre}`, style: 'subseccion' }, ...cuerpo],
@@ -244,12 +250,35 @@ function renderizarUnidadesFuncionalesM1(unidadesFuncionales: readonly UnidadFun
   return [{ text: 'Unidades funcionales', style: 'subseccion' }, ...unidadesFuncionales.map(renderizarUnidadFuncionalM1)]
 }
 
+// REPORT-POLISH-02: el motor conserva sus identificadores internos de
+// desarrollo (CRIT-Axx, D-δ.xxx) para trazabilidad -- el documento público
+// los reemplaza por wording genérico sin tocar el motor ni la trazabilidad
+// normativa externa (ERAS-2023, Tabla N°...) que los acompaña.
+function humanizarCopyPublico(texto: string): string {
+  return texto
+    .replace(/CRIT-A\d+/g, 'criterio IUAS')
+    .replace(/D-δ\.\d+(?:\/D-δ\.\d+)*/g, 'criterio IUAS')
+    .replace(/quTotal_lps/g, 'caudal unitario del catálogo')
+}
+
+// El motor identifica cada artefacto participante como `qu(<artefactoId>)`
+// (clave camelCase del catálogo) -- el documento público muestra el nombre
+// humano del artefacto en su lugar.
+function humanizarSimboloDeEntrada(simbolo: string): string {
+  const coincidencia = /^qu\(([a-zA-Z0-9]+)\)$/.exec(simbolo)
+  if (coincidencia === null) {
+    return simbolo
+  }
+  const catalogoItem = catalogoArtefactos.find((c) => c.id === coincidencia[1])
+  return catalogoItem === undefined ? simbolo : `qu(${catalogoItem.nombre})`
+}
+
 function renderizarPaso(paso: Paso): Content {
   const filasEntradas = paso.entradas.map((e) => [
-    e.simbolo,
+    humanizarSimboloDeEntrada(e.simbolo),
     formatearNumero(e.valor, e.unidad),
     e.unidad,
-    e.procedencia,
+    humanizarCopyPublico(e.procedencia),
   ])
   const sustitucion = sustitucionNumerica(paso)
   const textoSalida = `${paso.salida.simbolo} = ${textoValorCalculado(paso.salida.resultado)}`
@@ -258,7 +287,7 @@ function renderizarPaso(paso: Paso): Content {
     stack: [
       { text: paso.titulo, style: 'tituloPaso' },
       { text: `Fórmula: ${formulaSimbolica(paso)}`, style: 'formula' },
-      ...(paso.criterioId ? [{ text: `Criterio: ${paso.criterioId}` } as Content] : []),
+      ...(paso.criterioId ? [{ text: 'Particularidad: criterio IUAS' } as Content] : []),
       ...(sustitucion ? [{ text: `Sustitución: ${sustitucion}` } as Content] : []),
       { text: textoSalida, style: 'resultadoPaso' },
       {
@@ -271,7 +300,7 @@ function renderizarPaso(paso: Paso): Content {
         margin: [0, 4, 0, 4],
       },
       { text: `Ref.: ${paso.referencias.join(', ')}`, style: 'referencia' },
-      ...(paso.nota ? [{ text: `Nota: ${paso.nota}` } as Content] : []),
+      ...(paso.nota ? [{ text: `Nota: ${humanizarCopyPublico(paso.nota)}` } as Content] : []),
     ],
     margin: [0, 0, 0, 12],
   }
@@ -350,8 +379,8 @@ const FORMULA_VELOCIDAD = ['A = π · Di² / 4', 'V = Q / A']
 // mismos exponentes que ya usa correctamente la sustitución numérica de
 // abajo (CRIT-A17), sólo se corrige el texto de la fórmula general.
 const FORMULA_PERDIDA_DISTRIBUIDA: Readonly<Record<'hazenWilliams' | 'darcyWeisbach', readonly string[]>> = {
-  hazenWilliams: ['J = 10,67 · Q^1,852 / (C^1,852 · Di^4,87)  [Q en m³/s, Di en m -- CRIT-A17]', 'hf = J · L'],
-  darcyWeisbach: ['hf = f · (L / Di) · (V² / (2·g))  [g = 9,81 m/s² -- CRIT-A18]'],
+  hazenWilliams: ['J = 10,67 · Q^1,852 / (C^1,852 · Di^4,87)  [Q en m³/s, Di en m]', 'hf = J · L'],
+  darcyWeisbach: ['hf = f · (L / Di) · (V² / (2·g))  [g = 9,81 m/s²]'],
 }
 
 // Sustitución numérica del caso representativo de velocidad + pérdida
@@ -416,42 +445,52 @@ function renderizarDesarrolloM2(desarrollo: DatosDeInforme['m2']['desarrollo']):
   if (desarrollo === undefined) {
     return []
   }
-  const contenido: Content[] = [{ text: '2.4 Desarrollo de cálculo', style: 'subseccion' }]
 
-  contenido.push({ text: 'Velocidad y pérdida distribuida', style: 'subseccionNivel' })
-  contenido.push(...FORMULA_VELOCIDAD.map((f): Content => ({ text: f, style: 'formula' })))
-  contenido.push(...FORMULA_PERDIDA_DISTRIBUIDA[desarrollo.metodoPerdidaDistribuida].map((f): Content => ({ text: f, style: 'formula' })))
-  if (desarrollo.casoVelocidadYPerdidaDistribuida !== undefined) {
-    contenido.push(...renderizarCasoVelocidadYPerdidaDistribuida(desarrollo.casoVelocidadYPerdidaDistribuida))
-  } else {
-    contenido.push({ text: 'Todavía no hay ningún Tramo con pérdida distribuida resoluble para mostrar un caso.', style: 'advertencia' })
-  }
+  // REPORT-POLISH-02 (§7/§8): dos bloques lógicos pequeños en vez de una
+  // única sección 2.4 unbreakable -- cada bloque intenta mantenerse unido
+  // (título + criterio + caso + resultado); si un bloque completo no entra
+  // en lo que queda de página, pdfMake lo mueve entero a la siguiente en
+  // vez de partirlo dejando 1-2 líneas huérfanas.
+  const bloqueVelocidadYPerdidaDistribuida: Content[] = [
+    { text: 'Velocidad y pérdida distribuida', style: 'subseccionNivel' },
+    ...FORMULA_VELOCIDAD.map((f): Content => ({ text: f, style: 'formula' })),
+    ...FORMULA_PERDIDA_DISTRIBUIDA[desarrollo.metodoPerdidaDistribuida].map((f): Content => ({ text: f, style: 'formula' })),
+    ...(desarrollo.casoVelocidadYPerdidaDistribuida !== undefined
+      ? renderizarCasoVelocidadYPerdidaDistribuida(desarrollo.casoVelocidadYPerdidaDistribuida)
+      : [{ text: 'Todavía no hay ningún Tramo con pérdida distribuida resoluble para mostrar un caso.', style: 'advertencia' } as Content]),
+  ]
 
-  contenido.push({ text: 'Pérdida localizada', style: 'subseccionNivel' })
-  if (desarrollo.metodoPerdidaLocalizada === 'estimado') {
-    contenido.push({
-      text:
-        'Criterio vigente por (Local, Red): tees estimadas = máx(0, n−1) con Ks=3,00; una singularidad terminal ' +
-        'Ks=1,35; una llave de paso Ks=9,18 (Tabla N°7 ERAS-2023, D-δ.40/D-δ.45). Vref = velocidad del Tramo ' +
-        'representativo de ese Local+Red.',
-      style: 'metadatos',
-    })
-    if (desarrollo.casoPerdidaLocalizadaEstimada !== undefined) {
-      contenido.push(...renderizarCasoPerdidaLocalizadaEstimada(desarrollo.casoPerdidaLocalizadaEstimada))
-    } else {
-      contenido.push({ text: 'Todavía no hay ningún Local+Red con pérdida localizada estimable para mostrar un caso.', style: 'advertencia' })
-    }
-  } else {
-    contenido.push({
-      text:
-        'Modo Detalladas: la pérdida localizada se acumula por Tramo según los accesorios y tees configurados en la ' +
-        'topología (Ks de Tabla N°7 ERAS-2023, Js = Ks·V²/2g por accesorio). El detalle por accesorio individual se ' +
-        'edita en Módulo 2; este informe refleja el resultado acumulado por camino en la Verificación hidráulica.',
-      style: 'metadatos',
-    })
-  }
+  const bloquePerdidaLocalizada: Content[] = [
+    { text: 'Pérdida localizada', style: 'subseccionNivel' },
+    ...(desarrollo.metodoPerdidaLocalizada === 'estimado'
+      ? [
+          {
+            text:
+              'Criterio vigente por (Local, Red): tees estimadas = máx(0, n−1) con Ks=3,00; una singularidad terminal ' +
+              'Ks=1,35; una llave de paso Ks=9,18 (Tabla N°7 ERAS-2023; criterio IUAS de pérdidas localizadas estimadas). ' +
+              'Vref = velocidad del Tramo representativo de ese Local+Red.',
+            style: 'metadatos',
+          } as Content,
+          ...(desarrollo.casoPerdidaLocalizadaEstimada !== undefined
+            ? renderizarCasoPerdidaLocalizadaEstimada(desarrollo.casoPerdidaLocalizadaEstimada)
+            : [{ text: 'Todavía no hay ningún Local+Red con pérdida localizada estimable para mostrar un caso.', style: 'advertencia' } as Content]),
+        ]
+      : [
+          {
+            text:
+              'Modo Detalladas: la pérdida localizada se acumula por Tramo según los accesorios y tees configurados en la ' +
+              'topología (Ks de Tabla N°7 ERAS-2023, Js = Ks·V²/2g por accesorio). El detalle por accesorio individual se ' +
+              'edita en Módulo 2; este informe refleja el resultado acumulado por camino en la Verificación hidráulica.',
+            style: 'metadatos',
+          } as Content,
+        ]),
+  ]
 
-  return contenido
+  return [
+    { text: '2.4 Desarrollo de cálculo', style: 'subseccion' },
+    { unbreakable: true, stack: bloqueVelocidadYPerdidaDistribuida, margin: [0, 0, 0, 6] },
+    { unbreakable: true, stack: bloquePerdidaLocalizada },
+  ]
 }
 
 function renderizarSeccionM2(m2: DatosDeInforme['m2']): Content[] {
@@ -571,21 +610,14 @@ const FORMULA_BALANCE_DE_PRESION = 'Presidual = Pdisponible − Δz − hfDistri
 const FORMULA_BALANCE_DE_PRESION_CON_ACS =
   'Presidual = Pdisponible − Δz − hfDistribuida − hfLocalizada − hfMedidor − hfEquipoACS'
 const NOTA_HF_EQUIPO_ACS_AUSENTE =
-  'hfEquipoACS no participa de este balance: todavía no fue informado (dato manual del fabricante, D-δ.129).'
+  'La pérdida del equipo de agua caliente sanitaria (ACS) no participa de este balance: todavía no fue informada (dato manual del fabricante).'
 const NOTA_CRITERIO_CRITICO = 'Selección del terminal crítico: menor margen respecto de Pmin (nunca menor Presidual bruto).'
-
-function estiloDeFilaVerificacion(fila: FilaDeVerificacionDeInforme): string {
-  if (fila.esCritico) {
-    return 'filaCritica'
-  }
-  if (fila.estado === 'completo' && fila.cumple === false) {
-    return 'filaNoConforme'
-  }
-  return 'filaNormal'
-}
 
 function filaDeTablaVerificacion(fila: FilaDeVerificacionDeInforme): Content[] {
   const etiqueta = `${fila.localEtiqueta} — ${fila.artefactoNombre}${fila.esCritico ? ' (crítico)' : ''}`
+  // "No evaluado" (Pmin no definida, fuera de alcance, incompleto) es
+  // neutral -- nunca se trata como un incumplimiento (brief §16).
+  const noCumple = fila.estado === 'completo' && fila.cumple === false
   const estadoTexto =
     fila.estado === 'completo'
       ? fila.cumple
@@ -594,8 +626,13 @@ function filaDeTablaVerificacion(fila: FilaDeVerificacionDeInforme): Content[] {
       : fila.estado === 'fueraDeAlcance'
         ? (fila.notaTexto ?? 'Fuera de alcance')
         : (fila.notaTexto ?? 'Incompleto')
-  const estilo = estiloDeFilaVerificacion(fila)
-  const celda = (texto: string): Content => ({ text: texto, style: estilo })
+  const estiloBase = fila.esCritico ? 'filaCritica' : 'filaNormal'
+  const fondoCritico = fila.esCritico ? COLOR_NO_CONFORME_SUAVE : undefined
+  const celda = (texto: string, resaltarComoNoConforme = false): Content => ({
+    text: texto,
+    style: resaltarComoNoConforme ? [estiloBase, 'valorNoConforme'] : estiloBase,
+    ...(fondoCritico !== undefined ? { fillColor: fondoCritico } : {}),
+  })
   return [
     celda(etiqueta),
     celda(fila.red ?? '—'),
@@ -605,7 +642,7 @@ function filaDeTablaVerificacion(fila: FilaDeVerificacionDeInforme): Content[] {
     celda(soloValor(fila.hfMedidorTexto)),
     celda(soloValor(fila.presionResidualTexto)),
     celda(soloValor(fila.presionMinimaTexto)),
-    celda(fila.estado === 'completo' ? soloValor(fila.margenTexto) : estadoTexto),
+    celda(fila.estado === 'completo' ? soloValor(fila.margenTexto) : estadoTexto, noCumple),
   ]
 }
 
@@ -760,20 +797,23 @@ function renderizarSeccionVerificacion(datos: DatosDeInforme): Content[] {
   }
 
   if (verificacion.filas.length > 0) {
-    // P5 (FIX-REPORT-01B-VISUAL-01): sin este salto, la tabla arrancaba
-    // apretada contra el desarrollo del crítico y terminaba desbordando a
-    // una página final casi vacía con sólo las últimas filas -- pdfMake
-    // no mide alturas por nosotros (no se calculan posiciones en JS), sólo
-    // se le da un punto de corte explícito para que la tabla empiece
-    // limpia al tope de una página nueva y fluya de forma natural desde
-    // ahí (headerRows:1 ya repite el encabezado en cada página que la
-    // tabla ocupe, sin configuración adicional).
-    contenido.push({ text: 'Detalle de verificación por terminal', style: 'subseccion', pageBreak: 'before' })
+    // REPORT-POLISH-02 (§11/§13): el pageBreak incondicional forzaba la
+    // tabla a una página nueva aunque sobrara espacio bajo el desarrollo
+    // del crítico. Se retira: el título ahora es una fila más de la propia
+    // tabla (colSpan, sin bordes) e integra headerRows:2 junto con el
+    // encabezado de columnas -- pdfMake nunca separa las headerRows del
+    // resto de la tabla, así que título + encabezado + primeras filas
+    // viajan siempre juntos, ya sea en la página actual (si entran) o en
+    // la siguiente como unidad (si no entran), sin dejar el título huérfano.
+    const filaTitulo: TableCell[] = [
+      { text: 'Detalle de verificación por terminal', style: 'subseccion', colSpan: ANCHOS_TABLA_VERIFICACION.length, border: [false, false, false, false] },
+      ...Array.from({ length: ANCHOS_TABLA_VERIFICACION.length - 1 }, (): TableCell => ({ text: '', border: [false, false, false, false] })),
+    ]
     contenido.push({
       table: {
-        headerRows: 1,
+        headerRows: 2,
         widths: ANCHOS_TABLA_VERIFICACION,
-        body: [ENCABEZADO_TABLA_VERIFICACION, ...verificacion.filas.map(filaDeTablaVerificacion)],
+        body: [filaTitulo, ENCABEZADO_TABLA_VERIFICACION, ...verificacion.filas.map(filaDeTablaVerificacion)],
       },
       layout: layoutTablaIuas,
       fontSize: 7,
@@ -847,7 +887,7 @@ function renderizarSeccionM3(datos: DatosDeInforme): Content[] {
   // el criterio vigente (CRIT-A34) directamente no exige medidor individual.
   if (m3.esPropiedadHorizontal === false) {
     contenido.push({
-      text: 'El proyecto no es de propiedad horizontal: no corresponde medidor individual (CRIT-A34).',
+      text: 'El proyecto no es de propiedad horizontal: no corresponde medidor individual (criterio IUAS).',
       style: 'metadatos',
     })
   }
@@ -927,7 +967,7 @@ function renderizarSeccionM3(datos: DatosDeInforme): Content[] {
     contenido.push({ text: `Caso representativo: ${casoDesarrollo.etiqueta}`, style: 'subseccionNivel' })
     contenido.push({ text: sustitucion, style: 'formula' })
     contenido.push({
-      text: `Capacidad adoptada según Tabla N°6 (CRIT-A32) -- DN ${casoDesarrollo.adoptado.dnMedidor_mm} mm, C ${formatearNumero(casoDesarrollo.adoptado.capacidadMaxima_m3h, 'adimensional')} m³/h.`,
+      text: `Capacidad adoptada según Tabla N°6 (criterio IUAS) -- DN ${casoDesarrollo.adoptado.dnMedidor_mm} mm, C ${formatearNumero(casoDesarrollo.adoptado.capacidadMaxima_m3h, 'adimensional')} m³/h.`,
       style: 'metadatos',
     })
   } else {
@@ -949,24 +989,37 @@ const FORMULA_RESERVA = ['Dc = máx(0, Qc − Qconn)', 'VReserva = Dc[m³/h] · 
 
 function renderizarSeccionM4(datos: DatosDeInforme): Content[] {
   const { m4 } = datos
-  const contenido: Content[] = [
-    { text: '4. Abastecimiento y reserva', style: 'seccion', ...(m4.estado !== 'noIniciado' ? { pageBreak: 'before' } : {}) },
-  ]
 
   if (m4.estado === 'noIniciado') {
-    contenido.push({ text: 'Módulo 4 todavía no fue iniciado.', style: 'advertencia' })
-    return contenido
+    return [
+      { text: '4. Abastecimiento y reserva', style: 'seccion' },
+      { text: 'Módulo 4 todavía no fue iniciado.', style: 'advertencia' },
+    ]
   }
   if (m4.estado === 'error') {
-    contenido.push({ text: 'El proyecto tiene errores estructurales que impiden resolver la alimentación y reserva.', style: 'advertencia' })
-    contenido.push(...m4.motivosDeIncompletitud.map((t): Content => ({ text: `- ${t}`, style: 'advertencia' })))
-    return contenido
+    return [
+      { text: '4. Abastecimiento y reserva', style: 'seccion' },
+      { text: 'El proyecto tiene errores estructurales que impiden resolver la alimentación y reserva.', style: 'advertencia' },
+      ...m4.motivosDeIncompletitud.map((t): Content => ({ text: `- ${t}`, style: 'advertencia' })),
+    ]
   }
 
-  contenido.push({
-    text: `Esquema de abastecimiento: ${m4.esquema !== undefined ? ETIQUETA_ESQUEMA_ABASTECIMIENTO[m4.esquema] : 'No determinado'}`,
-    style: 'metadatos',
-  })
+  // REPORT-POLISH-02 (§9/§10): sin pageBreak incondicional -- el título
+  // viaja unbreakable junto con la primera línea de contexto para no
+  // quedar huérfano al final de página, pero sin forzar una página nueva
+  // cuando M4 entra a continuación de M3 en la misma página.
+  const contenido: Content[] = [
+    {
+      unbreakable: true,
+      stack: [
+        { text: '4. Abastecimiento y reserva', style: 'seccion' },
+        {
+          text: `Esquema de abastecimiento: ${m4.esquema !== undefined ? ETIQUETA_ESQUEMA_ABASTECIMIENTO[m4.esquema] : 'No determinado'}`,
+          style: 'metadatos',
+        },
+      ],
+    },
+  ]
 
   if (m4.estado === 'incompleto') {
     contenido.push({ text: 'Alimentación y reserva incompleta', style: 'subseccion' })
@@ -1023,7 +1076,7 @@ function renderizarSeccionM4(datos: DatosDeInforme): Content[] {
 
   if (m4.peloDeAguaMinimoEfectivo.tipo === 'derivadoRapido') {
     contenido.push({
-      text: `Cota mínima de agua considerada (modo Rápido, CRIT-A39): ${formatearNumero(m4.peloDeAguaMinimoEfectivo.cota_m, 'm')} m.`,
+      text: `Cota mínima de agua considerada (modo Rápido, criterio IUAS): ${formatearNumero(m4.peloDeAguaMinimoEfectivo.cota_m, 'm')} m.`,
       style: 'metadatos',
     })
   }
@@ -1237,21 +1290,36 @@ function renderizarResumenEjecutivo(datos: DatosDeInforme): Content[] {
 }
 
 // Cierre sobrio del documento (brief §48): referencias YA usadas en el
-// resto del informe (normativa + criterios internos citados como "Ref.:"/
-// "CRIT-*"/"D-δ.*" en cada paso), sin inventar bibliografía nueva.
+// resto del informe (normativa + criterios técnicos IUAS citados como
+// "Ref." en cada paso), sin inventar bibliografía nueva. REPORT-POLISH-02
+// (§21): los códigos internos de criterio/decisión (CRIT-*/D-δ.*) ya no se
+// reparten por el documento público -- esta sección los menciona una única
+// vez, en una nota compacta, en vez de prometer verlos "a lo largo del
+// documento".
+// `versionNormativa` es un identificador de datos persistido ('eras-2023',
+// D-δ.15) -- nunca se reescribe el dato (brief: identidad/datos intocables),
+// sólo se humaniza el casing al mostrarlo en el documento público.
+function humanizarVersionNormativa(versionNormativa: string): string {
+  return versionNormativa.toUpperCase()
+}
+
 function renderizarMetodologiaYFuentes(resultadoM1: ResultadoDeCalculo): Content[] {
   return [
     { text: '6. Metodología y fuentes', style: 'seccion' },
     {
       text:
-        `Esta memoria se calcula íntegramente con la normativa ${resultadoM1.metadatos.versionNormativa} y los ` +
-        'criterios internos IUAS citados junto a cada resultado (referencias "Ref." y códigos de criterio a lo ' +
-        'largo del documento). Los valores mostrados son los que resuelve la aplicación a partir de los datos ' +
+        `Esta memoria se calcula íntegramente con la normativa ${humanizarVersionNormativa(resultadoM1.metadatos.versionNormativa)} y los ` +
+        'criterios técnicos IUAS aplicados a lo largo del documento (referencias "Ref." a la normativa citada ' +
+        'junto a cada resultado). Los valores mostrados son los que resuelve la aplicación a partir de los datos ' +
         'cargados por el proyectista -- ningún valor se recalcula ni se reinterpreta al generar este documento.',
       style: 'metadatos',
     },
     {
       text: `Versión de la aplicación: ${resultadoM1.metadatos.versionApp}.`,
+      style: 'metadatos',
+    },
+    {
+      text: 'Los identificadores internos de criterios y decisiones se conservan en la documentación técnica de IUAS.',
       style: 'metadatos',
     },
   ]
@@ -1322,12 +1390,14 @@ export function construirDocDefinition(datos: DatosDeInforme, fechaGeneracion: D
             ],
             margin: [40, 20, 40, 0],
           },
+    // REPORT-POLISH-02 (§26): el nombre del proyecto ya aparece en el
+    // header -- el footer no lo repite, sólo fecha + paginación.
     footer: (currentPage, pageCount) =>
       currentPage === 1
         ? undefined
         : {
             columns: [
-              { text: `${nombreProyectoCorto} · ${formatearFechaDeGeneracion(fechaGeneracion)}`, style: 'headerPie' },
+              { text: formatearFechaDeGeneracion(fechaGeneracion), style: 'headerPie' },
               { text: `Página ${currentPage} de ${pageCount}`, style: 'headerPie', alignment: 'right' },
             ],
             margin: [40, 0, 40, 20],
@@ -1352,9 +1422,15 @@ export function construirDocDefinition(datos: DatosDeInforme, fechaGeneracion: D
       advertencia: { fontSize: 9, color: '#8a6d00' },
       conforme: { fontSize: 9, color: COLOR_CONFORME },
       noConforme: { fontSize: 9, bold: true, color: COLOR_NO_CONFORME, fillColor: COLOR_NO_CONFORME_SUAVE },
+      // REPORT-POLISH-02 (§14/§15): el color rojo queda reservado para el
+      // valor que realmente incumple (margen/estado), nunca para toda la
+      // fila -- con un proyecto donde todos los terminales incumplen, teñir
+      // cada celda destruía la jerarquía visual. La fila crítica se destaca
+      // por peso/borde/fondo suave (identificable también en blanco y
+      // negro), no por saturación de rojo.
       filaNormal: { fontSize: 7 },
-      filaNoConforme: { fontSize: 7, color: COLOR_NO_CONFORME },
-      filaCritica: { fontSize: 8, bold: true, color: COLOR_NO_CONFORME },
+      filaCritica: { fontSize: 7, bold: true },
+      valorNoConforme: { color: COLOR_NO_CONFORME },
       // Banner CUMPLE/NO CUMPLE de la Verificación (brief §14/§40): grande
       // y con fondo tenue -- nunca depende sólo del color, el TEXTO ya dice
       // "CUMPLE"/"NO CUMPLE" (blanco y negro seguro, brief §7).
