@@ -3,4 +3,4 @@
 // (metadatos de cálculo y el envelope .iuas) importan de acá. Distinta de
 // `SCHEMA_VERSION_ACTUAL` (modelo/proyecto): esto versiona la APLICACIÓN,
 // no la forma del dato.
-export const VERSION_APP = '0.1.0';
+export const VERSION_APP = '0.4.0-beta.6';

@@ -29,6 +29,7 @@ import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefacto
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
 import { resolverDatosDeInforme } from './resolverDatosDeInforme'
 import { construirDocDefinition, resolverNombreDeArchivo } from './generarDocumentoPdf'
+import { VERSION_APP } from '../../version'
 
 function canonico() {
   let p = backfillLongitudesDePredimensionamiento(proyectoInicial)
@@ -92,6 +93,15 @@ describe('construirDocDefinition (REPORT-01A)', () => {
     const datos = resolverDatosDeInforme(grande, catalogoArtefactos, coeficientesMayoracion)
     expect(() => construirDocDefinition(datos)).not.toThrow()
     expect(datos.m2.locales.length).toBeGreaterThan(1)
+  })
+
+  // BETA-WEB-METADATA-01: la memoria muestra la versión de la app sincronizada
+  // con `package.json`/`src/version.ts`, no un valor desactualizado ni fijo.
+  it('informa la versión de la aplicación sincronizada (VERSION_APP)', () => {
+    const datos = resolverDatosDeInforme(canonico(), catalogoArtefactos, coeficientesMayoracion)
+    const doc = construirDocDefinition(datos)
+    const textos = textosDe(doc.content as Content[])
+    expect(textos).toContain(`Versión de la aplicación: ${VERSION_APP}.`)
   })
 })
 

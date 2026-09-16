@@ -2065,7 +2065,7 @@ export function MotorDemandaPantalla() {
             navegador (localStorage) -- ya no se pierde al recargar. Sigue
             sin salir de esta computadora/navegador (§42). */}
         <p className="app-aviso-piloto ui-callout ui-callout--info" role="note">
-          Versión piloto · El proyecto se guarda automáticamente en este navegador. Para llevarlo a otra computadora o
+          Versión beta · El proyecto se guarda automáticamente en este navegador. Para llevarlo a otra computadora o
           guardarlo aparte, usá "Exportar proyecto".
         </p>
         {avisoAutosaveCorrupto !== null ? (
