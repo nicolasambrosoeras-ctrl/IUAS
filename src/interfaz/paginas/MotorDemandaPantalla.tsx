@@ -295,7 +295,7 @@ function EditorDeAlturaHidraulica({
         <span className="m1-cota__estado" title={AYUDA_ALTURA_HIDRAULICA_IUAS}>
           Altura sobre piso:{' '}
           <strong>{alturaSugeridaIuas_m === undefined ? '—' : `${formatearMetros2(alturaSugeridaIuas_m)} m`}</strong>
-          {alturaSugeridaIuas_m === undefined ? '' : ' · sugerida IUAS'}
+          {alturaSugeridaIuas_m === undefined ? '' : ' · sugerida'}
         </span>
         {alturaSugeridaIuas_m !== undefined ? (
           <button type="button" className="ui-btn--fantasma" onClick={() => onCambiar(alturaSugeridaIuas_m)}>
@@ -1506,7 +1506,7 @@ function CuerpoDeUnidadFuncional({
       <p className="m1-uf__ayuda">
         <small>
           Cota del piso terminado. La cota hidráulica de cada punto de consumo se deriva sumando la altura del
-          artefacto sobre el piso (valor de referencia IUAS por tipo, editable). Cada Local puede personalizar su
+          artefacto sobre el piso (valor de referencia por tipo, editable). Cada Local puede personalizar su
           propia cota de piso.
         </small>
       </p>
@@ -2150,7 +2150,17 @@ export function MotorDemandaPantalla() {
     <div className="app-shell">
       <header className="app-header">
         <div className="app-header__titulo">
-          <h1>IUAS — Instalaciones internas</h1>
+          {/* REBRAND-DREZA-01: producto "Caudal", marca/autor "DREZA".
+              Composición de marca con jerarquía tipográfica propia
+              (Caudal domina, "by DREZA" actúa como firma) en vez de un
+              h1 homogéneo -- ver docs/REBRAND-DREZA-01.md. */}
+          <h1 className="marca-caudal">
+            <span className="marca-caudal__producto">Caudal</span>{' '}
+            <span className="marca-caudal__firma">
+              <span className="marca-caudal__firma-by">by</span> DREZA
+            </span>
+          </h1>
+          <p className="marca-caudal__subtitulo">Instalaciones internas de agua</p>
           <p>
             {proyecto.unidadesFuncionales.length === 0
               ? 'Proyecto vacío · Empezá agregando una unidad funcional.'
@@ -2220,7 +2230,7 @@ export function MotorDemandaPantalla() {
       {confirmandoCargaDeEjemplo ? (
         <DialogoDeConfirmacion
           titulo="Cargar proyecto de ejemplo"
-          descripcion="Se reemplazará el proyecto actual por el proyecto de ejemplo de IUAS. Si querés conservar el actual, exportalo antes. ¿Continuar?"
+          descripcion="Se reemplazará el proyecto actual por el proyecto de ejemplo. Si querés conservar el actual, exportalo antes. ¿Continuar?"
           etiquetaConfirmar="Cargar ejemplo"
           onConfirmar={cargarProyectoDeEjemplo}
           onCancelar={cerrarConfirmacionDeCargaDeEjemplo}

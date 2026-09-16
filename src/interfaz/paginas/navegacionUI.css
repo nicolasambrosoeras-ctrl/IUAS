@@ -38,6 +38,42 @@
   font-size: var(--fs-ayuda);
 }
 
+/* REBRAND-DREZA-01: marca "Caudal by DREZA". Composición editorial, no un
+   logo -- "Caudal" domina (protagonista tipográfico), "by DREZA" actúa
+   como firma discreta. Ambos comparten la línea de base en desktop y
+   envuelven sin overflow en mobile. */
+.marca-caudal {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.5rem;
+  margin: 0;
+}
+
+.marca-caudal__producto {
+  font-size: 2rem;
+  font-weight: var(--peso-semibold);
+  letter-spacing: -0.01em;
+  color: var(--color-texto);
+}
+
+.marca-caudal__firma {
+  font-size: var(--fs-ayuda);
+  font-weight: var(--peso-semibold);
+  color: var(--color-primario-fuerte);
+  letter-spacing: 0.02em;
+}
+
+.marca-caudal__firma-by {
+  font-weight: var(--peso-regular);
+}
+
+.marca-caudal__subtitulo {
+  margin: var(--esp-xs) 0 0;
+  color: var(--color-texto-2);
+  font-size: var(--fs-ayuda);
+}
+
 /* UX-02 / UI-01E: control global "Modo de trabajo". Desktop: a la derecha
    del título (no crece). Móvil: la cabecera envuelve y queda debajo,
    alineado a la izquierda. */

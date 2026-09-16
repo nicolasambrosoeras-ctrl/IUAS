@@ -42,13 +42,13 @@ import {
 
 pdfMake.addVirtualFileSystem(pdfFonts)
 
-// REPORT-POLISH-01: identidad visual sobria de IUAS, mismos valores que
-// `sistema-visual.css` (la web) -- un único acento de marca, no una
-// paleta multicolor. Cumple/estado nunca dependen sólo de estos colores
+// REPORT-POLISH-01: identidad visual sobria de Caudal by DREZA, mismos
+// valores que `sistema-visual.css` (la web) -- un único acento de marca, no
+// una paleta multicolor. Cumple/estado nunca dependen sólo de estos colores
 // (siempre hay texto: "Cumple"/"No cumple"/"OK"/etc.), así que la memoria
 // sigue siendo legible en blanco y negro o fotocopiada (brief §7).
 // MATERIALS-01 (§52): estas primitivas visuales se exportan para que el
-// Listado de materiales reutilice la misma identidad IUAS sin importar el
+// Listado de materiales reutilice la misma identidad visual sin importar el
 // docDefinition de la Memoria (documentos independientes, misma paleta).
 export const COLOR_MARCA = '#1a6b53'
 export const COLOR_MARCA_FUERTE = '#124c3c'
@@ -259,8 +259,8 @@ function renderizarUnidadesFuncionalesM1(unidadesFuncionales: readonly UnidadFun
 // normativa externa (ERAS-2023, Tabla N°...) que los acompaña.
 function humanizarCopyPublico(texto: string): string {
   return texto
-    .replace(/CRIT-A\d+/g, 'criterio IUAS')
-    .replace(/D-δ\.\d+(?:\/D-δ\.\d+)*/g, 'criterio IUAS')
+    .replace(/CRIT-A\d+/g, 'criterio DREZA')
+    .replace(/D-δ\.\d+(?:\/D-δ\.\d+)*/g, 'criterio DREZA')
     .replace(/quTotal_lps/g, 'caudal unitario del catálogo')
 }
 
@@ -290,7 +290,7 @@ function renderizarPaso(paso: Paso): Content {
     stack: [
       { text: paso.titulo, style: 'tituloPaso' },
       { text: `Fórmula: ${formulaSimbolica(paso)}`, style: 'formula' },
-      ...(paso.criterioId ? [{ text: 'Particularidad: criterio IUAS' } as Content] : []),
+      ...(paso.criterioId ? [{ text: 'Particularidad: criterio DREZA' } as Content] : []),
       ...(sustitucion ? [{ text: `Sustitución: ${sustitucion}` } as Content] : []),
       { text: textoSalida, style: 'resultadoPaso' },
       {
@@ -470,7 +470,7 @@ function renderizarDesarrolloM2(desarrollo: DatosDeInforme['m2']['desarrollo']):
           {
             text:
               'Criterio vigente por (Local, Red): tees estimadas = máx(0, n−1) con Ks=3,00; una singularidad terminal ' +
-              'Ks=1,35; una llave de paso Ks=9,18 (Tabla N°7 ERAS-2023; criterio IUAS de pérdidas localizadas estimadas). ' +
+              'Ks=1,35; una llave de paso Ks=9,18 (Tabla N°7 ERAS-2023; criterio DREZA de pérdidas localizadas estimadas). ' +
               'Vref = velocidad del Tramo representativo de ese Local+Red.',
             style: 'metadatos',
           } as Content,
@@ -890,7 +890,7 @@ function renderizarSeccionM3(datos: DatosDeInforme): Content[] {
   // el criterio vigente (CRIT-A34) directamente no exige medidor individual.
   if (m3.esPropiedadHorizontal === false) {
     contenido.push({
-      text: 'El proyecto no es de propiedad horizontal: no corresponde medidor individual (criterio IUAS).',
+      text: 'El proyecto no es de propiedad horizontal: no corresponde medidor individual (criterio DREZA).',
       style: 'metadatos',
     })
   }
@@ -970,7 +970,7 @@ function renderizarSeccionM3(datos: DatosDeInforme): Content[] {
     contenido.push({ text: `Caso representativo: ${casoDesarrollo.etiqueta}`, style: 'subseccionNivel' })
     contenido.push({ text: sustitucion, style: 'formula' })
     contenido.push({
-      text: `Capacidad adoptada según Tabla N°6 (criterio IUAS) -- DN ${casoDesarrollo.adoptado.dnMedidor_mm} mm, C ${formatearNumero(casoDesarrollo.adoptado.capacidadMaxima_m3h, 'adimensional')} m³/h.`,
+      text: `Capacidad adoptada según Tabla N°6 (criterio DREZA) -- DN ${casoDesarrollo.adoptado.dnMedidor_mm} mm, C ${formatearNumero(casoDesarrollo.adoptado.capacidadMaxima_m3h, 'adimensional')} m³/h.`,
       style: 'metadatos',
     })
   } else {
@@ -1079,7 +1079,7 @@ function renderizarSeccionM4(datos: DatosDeInforme): Content[] {
 
   if (m4.peloDeAguaMinimoEfectivo.tipo === 'derivadoRapido') {
     contenido.push({
-      text: `Cota mínima de agua considerada (modo Rápido, criterio IUAS): ${formatearNumero(m4.peloDeAguaMinimoEfectivo.cota_m, 'm')} m.`,
+      text: `Cota mínima de agua considerada (modo Rápido, criterio DREZA): ${formatearNumero(m4.peloDeAguaMinimoEfectivo.cota_m, 'm')} m.`,
       style: 'metadatos',
     })
   }
@@ -1198,7 +1198,7 @@ export function sanitizarParaNombreDeArchivo(texto: string): string {
 // Exportada sólo para test unitario directo (brief §59-§62): sigue sin ser
 // parte del pipeline de datos, es presentación pura.
 export function resolverNombreDeArchivo(proyecto: Proyecto): string {
-  return `IUAS_Memoria_de_calculo_${sanitizarParaNombreDeArchivo(proyecto.metadatos.nombre)}.pdf`
+  return `Caudal_Memoria_de_calculo_${sanitizarParaNombreDeArchivo(proyecto.metadatos.nombre)}.pdf`
 }
 
 // Portada (brief §8/§9/§10): wordmark textual (sin inventar isotipo),
@@ -1209,7 +1209,12 @@ function renderizarPortada(datos: DatosDeInforme, fechaGeneracion: Date): Conten
   const { proyecto } = datos
   const modo = resolverModoDeTrabajo(proyecto)
   return [
-    { text: 'IUAS', style: 'portadaWordmark' },
+    {
+      stack: [
+        { text: 'Caudal', style: 'portadaWordmark' },
+        { text: 'by DREZA', style: 'portadaFirma' },
+      ],
+    },
     { text: 'Memoria de cálculo', style: 'portadaTitulo' },
     { text: 'Instalaciones internas de agua', style: 'portadaSubtitulo' },
     {
@@ -1224,7 +1229,7 @@ function renderizarPortada(datos: DatosDeInforme, fechaGeneracion: Date): Conten
       stack: [
         { text: `Generado el ${formatearFechaDeGeneracion(fechaGeneracion)}`, style: 'portadaFecha' },
         {
-          text: 'Documento técnico generado por la aplicación IUAS a partir de los datos cargados por el proyectista.',
+          text: 'Documento técnico generado por Caudal by DREZA a partir de los datos cargados por el proyectista.',
           style: 'portadaNota',
         },
       ],
@@ -1293,7 +1298,7 @@ function renderizarResumenEjecutivo(datos: DatosDeInforme): Content[] {
 }
 
 // Cierre sobrio del documento (brief §48): referencias YA usadas en el
-// resto del informe (normativa + criterios técnicos IUAS citados como
+// resto del informe (normativa + criterios técnicos DREZA citados como
 // "Ref." en cada paso), sin inventar bibliografía nueva. REPORT-POLISH-02
 // (§21): los códigos internos de criterio/decisión (CRIT-*/D-δ.*) ya no se
 // reparten por el documento público -- esta sección los menciona una única
@@ -1312,7 +1317,7 @@ function renderizarMetodologiaYFuentes(resultadoM1: ResultadoDeCalculo): Content
     {
       text:
         `Esta memoria se calcula íntegramente con la normativa ${humanizarVersionNormativa(resultadoM1.metadatos.versionNormativa)} y los ` +
-        'criterios técnicos IUAS aplicados a lo largo del documento (referencias "Ref." a la normativa citada ' +
+        'criterios técnicos DREZA aplicados a lo largo del documento (referencias "Ref." a la normativa citada ' +
         'junto a cada resultado). Los valores mostrados son los que resuelve la aplicación a partir de los datos ' +
         'cargados por el proyectista -- ningún valor se recalcula ni se reinterpreta al generar este documento.',
       style: 'metadatos',
@@ -1322,7 +1327,7 @@ function renderizarMetodologiaYFuentes(resultadoM1: ResultadoDeCalculo): Content
       style: 'metadatos',
     },
     {
-      text: 'Los identificadores internos de criterios y decisiones se conservan en la documentación técnica de IUAS.',
+      text: 'Los identificadores internos de criterios y decisiones se conservan en la documentación técnica de DREZA.',
       style: 'metadatos',
     },
   ]
@@ -1388,7 +1393,7 @@ export function construirDocDefinition(datos: DatosDeInforme, fechaGeneracion: D
         ? undefined
         : {
             columns: [
-              { text: 'IUAS — Memoria de cálculo', style: 'headerPie' },
+              { text: 'Caudal by DREZA — Memoria de cálculo', style: 'headerPie' },
               { text: nombreProyectoCorto, style: 'headerPie', alignment: 'right' },
             ],
             margin: [40, 20, 40, 0],
@@ -1406,9 +1411,9 @@ export function construirDocDefinition(datos: DatosDeInforme, fechaGeneracion: D
             margin: [40, 0, 40, 20],
           },
     info: {
-      title: 'IUAS — Memoria de cálculo',
+      title: 'Caudal by DREZA — Memoria de cálculo',
       subject: 'Instalaciones internas de agua',
-      author: 'IUAS',
+      author: 'DREZA',
     },
     styles: {
       encabezado: { fontSize: 16, bold: true, margin: [0, 0, 0, 4] },
@@ -1440,7 +1445,8 @@ export function construirDocDefinition(datos: DatosDeInforme, fechaGeneracion: D
       bannerConforme: { fontSize: 16, bold: true, color: COLOR_CONFORME, fillColor: COLOR_CONFORME_SUAVE, margin: [4, 6, 4, 6] },
       bannerNoConforme: { fontSize: 16, bold: true, color: COLOR_NO_CONFORME, fillColor: COLOR_NO_CONFORME_SUAVE, margin: [4, 6, 4, 6] },
       headerPie: { fontSize: 8, color: COLOR_TEXTO_2 },
-      portadaWordmark: { fontSize: 14, bold: true, color: COLOR_MARCA, characterSpacing: 2, margin: [0, 100, 0, 8] },
+      portadaWordmark: { fontSize: 20, bold: true, color: COLOR_MARCA, margin: [0, 100, 0, 0] },
+      portadaFirma: { fontSize: 10, color: COLOR_TEXTO_2, characterSpacing: 1, margin: [0, 2, 0, 8] },
       portadaTitulo: { fontSize: 26, bold: true, color: COLOR_MARCA_FUERTE, margin: [0, 0, 0, 2] },
       portadaSubtitulo: { fontSize: 12, color: COLOR_TEXTO_2, margin: [0, 0, 0, 0] },
       portadaProyecto: { fontSize: 14, bold: true, margin: [0, 0, 0, 4] },

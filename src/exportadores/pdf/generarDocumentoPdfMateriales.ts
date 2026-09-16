@@ -4,7 +4,7 @@
 // el documento -- nunca recalcula (mismo criterio ADR-012 que
 // generarDocumentoPdf.ts). Documento INDEPENDIENTE de la Memoria técnica:
 // no importa su docDefinition, sólo reutiliza primitivas visuales exportadas
-// (paleta IUAS, layout de tabla, sanitizador de nombre de archivo).
+// (paleta de marca, layout de tabla, sanitizador de nombre de archivo).
 import pdfMake from 'pdfmake/build/pdfmake'
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import type { Content, TDocumentDefinitions } from 'pdfmake/interfaces'
@@ -39,14 +39,19 @@ function formatearPorcentaje(valor: number): string {
 }
 
 export function resolverNombreDeArchivoMateriales(proyecto: Proyecto): string {
-  return `IUAS_Listado_de_materiales_${sanitizarParaNombreDeArchivo(proyecto.metadatos.nombre)}.pdf`
+  return `Caudal_Listado_de_materiales_${sanitizarParaNombreDeArchivo(proyecto.metadatos.nombre)}.pdf`
 }
 
 function renderizarEncabezado(proyecto: Proyecto, porcentaje: number, fechaGeneracion: Date): Content[] {
   return [
     {
       columns: [
-        { text: 'IUAS', style: 'wordmark' },
+        {
+          stack: [
+            { text: 'Caudal', style: 'wordmark' },
+            { text: 'by DREZA', style: 'wordmarkFirma' },
+          ],
+        },
         { text: `Generado el ${formatearFechaDeGeneracion(fechaGeneracion)}`, style: 'fechaGeneracion', alignment: 'right' },
       ],
     },
@@ -294,7 +299,7 @@ export function construirDocDefinitionListadoMateriales(
         ? undefined
         : {
             columns: [
-              { text: 'IUAS — Listado de materiales', style: 'headerPie' },
+              { text: 'Caudal by DREZA — Listado de materiales', style: 'headerPie' },
               { text: nombreProyectoCorto, style: 'headerPie', alignment: 'right' },
             ],
             margin: [40, 20, 40, 0],
@@ -307,12 +312,13 @@ export function construirDocDefinitionListadoMateriales(
       margin: [40, 0, 40, 20],
     }),
     info: {
-      title: 'IUAS — Listado de materiales',
+      title: 'Caudal by DREZA — Listado de materiales',
       subject: 'Instalaciones internas de agua',
-      author: 'IUAS',
+      author: 'DREZA',
     },
     styles: {
-      wordmark: { fontSize: 12, bold: true, color: COLOR_MARCA, characterSpacing: 1 },
+      wordmark: { fontSize: 12, bold: true, color: COLOR_MARCA },
+      wordmarkFirma: { fontSize: 8, color: COLOR_TEXTO_2, characterSpacing: 0.5, margin: [0, 1, 0, 0] },
       fechaGeneracion: { fontSize: 8, color: COLOR_TEXTO_2 },
       tituloDocumento: { fontSize: 18, bold: true, color: COLOR_MARCA_FUERTE, margin: [0, 4, 0, 0] },
       subtituloDocumento: { fontSize: 11, color: COLOR_TEXTO_2, margin: [0, 0, 0, 6] },
