@@ -1,7 +1,7 @@
-// Tabla de alturas hidráulicas de referencia IUAS v1 (GEOM-UX-01, D-δ.86).
+// Tabla de alturas hidráulicas de referencia v1 (GEOM-UX-01, D-δ.86).
 //
-// Criterio IUAS -- NO ERAS. Estos valores son alturas hidráulicas
-// iniciales de referencia adoptadas por IUAS a partir de geometrías
+// Criterio DREZA -- NO ERAS. Estos valores son alturas hidráulicas
+// iniciales de referencia adoptadas por DREZA a partir de geometrías
 // usuales, documentación de fabricantes y práctica de proyecto. NO
 // constituyen prescripciones ERAS-2023 y son siempre editables por el
 // proyectista. La Guía normativa publica los `qu` de demanda de cada
@@ -59,4 +59,4 @@ export function obtenerAlturaHidraulicaIuas(artefactoIdCatalogo: string): number
 // Texto de ayuda reutilizable por la UI -- deja explícito que el valor es
 // editable y no normativo (§12: nunca "Según ERAS").
 export const AYUDA_ALTURA_HIDRAULICA_IUAS =
-  'Valor de referencia IUAS, editable por el proyectista. No es una prescripción de ERAS-2023.';
+  'Valor de referencia, editable por el proyectista. No es una prescripción de ERAS-2023.';

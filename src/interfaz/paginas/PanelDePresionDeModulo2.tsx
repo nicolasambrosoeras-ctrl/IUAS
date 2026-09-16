@@ -305,7 +305,7 @@ export function PanelDePresionDeModulo2({
                   Pelo de agua mínimo estimado:{' '}
                   <strong>{formatearNumero(peloDeAguaMinimoEfectivo.cota_m, 'm')} m</strong>
                   <br />
-                  Hipótesis IUAS del modo Rápido: 0,50 m por debajo del punto de alimentación del tanque
+                  Criterio del modo Rápido: 0,50 m por debajo del punto de alimentación del tanque
                   ({formatearNumero(peloDeAguaMinimoEfectivo.desnivelAlimentacionTanque_m, 'm')} m), editable en
                   Abastecimiento y reserva. No es un valor medido.
                 </small>

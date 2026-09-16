@@ -1,4 +1,4 @@
-// Proyecto de ejemplo canónico de IUAS -- la instalación doméstica típica
+// Proyecto de ejemplo canónico -- la instalación doméstica típica
 // que se carga al abrir la app (estado inicial de `MotorDemandaPantalla`) y
 // que la baseline funcional transversal M1–M4 (D-δ.70) usa como fixture.
 // Datos puros: 1 UF, 5 Locales, 11 artefactos, red AF+AC con producción de
@@ -14,7 +14,7 @@ export const proyectoInicial: Proyecto = {
   metadatos: {
     nombre: 'Vivienda unifamiliar de ejemplo',
     obra: 'Proyecto de ejemplo',
-    comitente: 'IUAS',
+    comitente: 'Cliente de ejemplo',
     fecha: '2026-08-07',
     schemaVersion: '1.0.0',
     versionNormativa: 'eras-2023',

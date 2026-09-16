@@ -341,10 +341,10 @@ intervención adicional de CRIT-A8), el Tramo no tiene demanda hidráulica
 en esa condición; `Qc=0` es un estado válido del dominio, no un error.
 Este documento no define todavía la representación/API de ese estado.
 
-**Naturaleza:** inferencia/adopción IUAS fuertemente sustentada, no una
+**Naturaleza:** inferencia/adopción DREZA fuertemente sustentada, no una
 disposición textual de ERAS — mismo estatus epistémico que CRIT-A11. La
 extensión a condición hidráulica es, en sí misma, adopción interpretativa
-IUAS (no texto literal de ERAS), con la misma naturaleza epistémica que el
+DREZA (no texto literal de ERAS), con la misma naturaleza epistémica que el
 criterio original.
 
 **Alcance — qué NO resuelve este criterio:**
@@ -396,7 +396,7 @@ Proyecto multifamiliar. Ante esa ambigüedad, se adopta la transición
 dos categorías residenciales publicadas, hidráulicamente coherente,
 determinística y auditable.
 
-**Naturaleza:** adopción interpretativa IUAS frente a una ambigüedad no
+**Naturaleza:** adopción interpretativa DREZA frente a una ambigüedad no
 resuelta expresamente por ERAS — no es texto literal de la Guía.
 
 **No generaliza por valor numérico:** la excepción corresponde
@@ -509,7 +509,7 @@ nunca cuántas veces participa.
 - No resuelve la identidad de "Local simple" (D-δ.17) ni la
   presentación de Módulo 2 (D-δ.20, D-δ.21).
 
-**Naturaleza:** inferencia/adopción IUAS fuertemente sustentada por el
+**Naturaleza:** inferencia/adopción DREZA fuertemente sustentada por el
 principio físico de conservación de masa (mismo estatus epistémico que
 CRIT-A11/CRIT-A13), no una disposición textual de ERAS.
 
@@ -1053,7 +1053,7 @@ Implementado en `resolverPropiedadesAguaParaRed`
 
 ## CRIT-A22 — Piso físico de caudal individual en el Qc de Tramo (Módulo 2)
 
-**Naturaleza — criterio técnico de consistencia física adoptado por IUAS,
+**Naturaleza — criterio técnico de consistencia física adoptado por DREZA,
 no interpretación textual de ERAS:** ERAS-2023 provee la fórmula de
 simultaneidad (§2.9.2.2/§2.9.2.3) y la regla de participación para
 inodoros con válvula automática (§2.10.2, CRIT-A8), pero no resuelve
@@ -1223,7 +1223,7 @@ diámetro (CRIT-A19), pero no especifica qué debe hacer el proyectista
 cuando, para un `Qc` real, incluso el menor diámetro comercial
 disponible produce una velocidad inferior al mínimo publicado. Ese
 vacío normativo es exactamente el que resuelve este criterio — decisión
-IUAS, no texto de ERAS.
+DREZA, no texto de ERAS.
 
 **Problema resuelto:** bajo CRIT-A23 (sin este criterio), cuando el
 menor diámetro comercial normativamente evaluable de un Tramo ya
@@ -1404,7 +1404,7 @@ ent.central/salidas laterales `3,00`; llave de paso `9,18`; uniones
 `1,00`.
 
 **Naturaleza:** transcripción directa de fórmula y tabla publicadas por
-ERAS-2023 — no hay interpretación IUAS en la fórmula ni en los
+ERAS-2023 — no hay interpretación DREZA en la fórmula ni en los
 coeficientes en sí. `g=9,81 m/s²`, misma constante y criterio ya
 adoptado en `calcularPerdidaCargaDarcyWeisbach` (CRIT-A18).
 
@@ -1438,7 +1438,7 @@ m.c.a. La Tabla N°7 vive como datos puros en
 restricción topológica** sobre la red de alimentación. Este criterio no
 se atribuye a ERAS.
 
-**Naturaleza:** criterio operativo / de alcance de IUAS, derivado de la
+**Naturaleza:** criterio operativo / de alcance de DREZA, derivado de la
 coherencia interna del modelo de cálculo ya adoptado (CRIT-A11 en
 particular). No es transcripción normativa ni interpretación de texto
 ERAS.
@@ -1513,7 +1513,7 @@ caudal por tramo ya dependía implícitamente desde CRIT-A11.
 - No decide el origen hidráulico persistido (tanque elevado / red /
   bombeo), que sigue como D-δ.36.
 
-**Estado:** Firme como criterio operativo / de alcance IUAS.
+**Estado:** Firme como criterio operativo / de alcance DREZA.
 Implementado en dos capas complementarias: (1) precondición de
 `obtenerCaminoHaciaOrigen`
 (`motor/tuberias/topologia/obtenerCaminoHaciaOrigen.ts`), que representa
@@ -1553,9 +1553,9 @@ en `PENDIENTES-DE-ARQUITECTURA.md`.
 fórmula (`Js = Ks·V²/2g`) y la Tabla N°7 completa (12 accesorios); este
 criterio no reabre ninguna de las dos. ERAS-2023 §2.12.1 no enuncia dónde
 ni cómo debe representarse cada accesorio en un modelo de datos — eso es
-alcance IUAS, igual que CRIT-A27.
+alcance DREZA, igual que CRIT-A27.
 
-**Naturaleza:** criterio operativo / de alcance IUAS, derivado de una
+**Naturaleza:** criterio operativo / de alcance DREZA, derivado de una
 limitación real y verificable del modelo actual: `RedHidraulica` no tiene
 geometría espacial (orientación, ángulos, disposición 3D) — solo
 conectividad (`Nodo → Tramo → Nodo`). No es transcripción normativa ni
@@ -1602,7 +1602,7 @@ subconjunto — pérdida localizada real = 0.
 - No investiga la interacción grifería/`presionMinima_kgcm2` — queda
   como sub-pregunta explícita de D-δ.33.
 
-**Estado:** Firme como criterio operativo / de alcance IUAS. Implementado
+**Estado:** Firme como criterio operativo / de alcance DREZA. Implementado
 en `resolverPerdidaLocalizadaDeTramo`
 (`motor/tuberias/perdidaCarga/resolverPerdidaLocalizadaDeTramo.ts`,
 composición de accesorios + velocidad → `Ks_total` → `Js`) y
@@ -1628,7 +1628,7 @@ Tabla N°7 ("Griferías" incluida, `Ks=9,18`) para "las pérdidas de carga
 singulares o localizadas" — sin ninguna excepción textual verificada
 para el caso puntual de la grifería del artefacto evaluado.
 
-**Naturaleza:** criterio operativo / interpretativo IUAS explícito de
+**Naturaleza:** criterio operativo / interpretativo DREZA explícito de
 producto, **no transcripción normativa verificada**. Distinto de CRIT-A26
 (que transcribe firme la fórmula `Js=Ks·V²/2g` y la Tabla N°7 completa,
 sin cambios): CRIT-A29 decide dónde termina conceptualmente el balance de
@@ -1681,7 +1681,7 @@ artefacto. En consecuencia:
   modela el artefacto con más detalle interno (equipos, mezcladoras,
   etc.).
 
-**Estado:** Firme como criterio IUAS explícito de producto — no
+**Estado:** Firme como criterio DREZA explícito de producto — no
 transcripción normativa verificada. Sin consumidor de código a modificar
 (ya es el comportamiento vigente de `resolverPresionResidualDeCamino`:
 nunca sumó grifería). Cierra D-δ.33 respecto de grifería. No reabrir
@@ -1809,7 +1809,7 @@ accesorios de este subconjunto" — sin excepción para reducciones.
   (ningún accesorio de este subconjunto se re-deriva ni se verifica
   contra otra propiedad estructural del Tramo).
 
-**Estado:** Firme como criterio operativo IUAS (interpretación de
+**Estado:** Firme como criterio operativo DREZA (interpretación de
 convención de velocidad, no transcripción normativa — ERAS no la
 especifica). Implementado agregando `'reducciones'` a
 `IdAccesorioDeTramo`/`idsAccesorioDeTramo`
@@ -1963,7 +1963,7 @@ para Qc (M2-TOPO-A) pero queda fuera del alcance de `ConfiguracionDeTee`
 (1→2). Modelar su pérdida localizada requeriría elegir entre geometrías
 físicas no equivalentes (orden de las ramas, cuál es recta, piezas
 reales, longitudes de nodos intermedios ficticios) que el modelo actual
-no tiene datos para fijar, y IUAS no las inventa. El modo **Estimadas no
+no tiene datos para fijar, y DREZA no las inventa. El modo **Estimadas no
 cambia**: `resolverPerdidaLocalizadaEstimadaDeLocal` no lee `Nodo.tee` ni
 la topología 1→N.
 
@@ -2119,7 +2119,7 @@ de simultaneidad `K = 1`), mientras §2.12.1.e remite a §2.9 y siguientes
 (pipeline estadístico `Qmax → Kc → K → Qc`, con `K < 1` para `n ≥ 2`).
 Ambas indicaciones producen números distintos.
 
-**Decisión IUAS adoptada:** para el dimensionamiento del **medidor
+**Decisión DREZA adoptada:** para el dimensionamiento del **medidor
 individual** prevalece **§2.6** por ser la regla dedicada y explícita a
 ese objeto (frente a la remisión genérica de §2.12.1.e). El caudal de
 diseño del medidor individual es:
@@ -2136,10 +2136,10 @@ pérdida): no hay evidencia oficial que respalde dos caudales distintos en
 el medidor individual. Si una fuente oficial futura la demuestra, se
 revisa.
 
-**Naturaleza:** interpretación/adopción IUAS que resuelve una contradicción
+**Naturaleza:** interpretación/adopción DREZA que resuelve una contradicción
 interna de ERAS aplicando su regla más específica — mismo estatus
 epistémico que CRIT-A14. `K = 1` como tal es texto de §2.6 ("simultaneidad
-total"); lo adoptado por IUAS es *darle prioridad sobre §2.12.1.e* para
+total"); lo adoptado por DREZA es *darle prioridad sobre §2.12.1.e* para
 este objeto concreto.
 
 **Semántica AF/AC — sin doble conteo (no reabre nada):** `qu efectivo` de
@@ -2174,7 +2174,7 @@ El resultado es "todos esos consumos a la vez", que es lo que pide §2.6.
 - No introduce ninguna entidad de medidor en `RedHidraulica` (decisión
   roja 1 / D-δ.35: M3 separado de la topología).
 
-**Estado:** Firme como decisión IUAS trazable. Implementado en
+**Estado:** Firme como decisión DREZA trazable. Implementado en
 `motor/medidores/seleccionarMedidorIndividual.ts` (motor puro de alcance
 declarado: recibe la lista de consumos con su `qu` efectivo ya resuelto
 para el servicio medido, suma con `K = 1`, entra a Tabla N°6 y a la
@@ -2209,7 +2209,7 @@ reconstruidas desde fuentes oficiales / AySA — ver D-δ.54 en
   No alteran el cálculo del medidor individual ni permiten inferir el tipo
   de ACS.
 
-**Criterio físico adoptado (interpretación IUAS):**
+**Criterio físico adoptado (interpretación DREZA):**
 
 - **Caso `individual`** (producción de ACS dentro de la UF): desde
   instalaciones comunes entra sólo el suministro de AF, medido. El medidor
@@ -2281,7 +2281,7 @@ incorporación queda como refinamiento futuro.
 - No cubre >1 ramal medido del mismo servicio por UF (decisión roja si
   aparece).
 
-**Estado:** Firme como interpretación IUAS trazable, con base en figuras
+**Estado:** Firme como interpretación DREZA trazable, con base en figuras
 normativas reconstruidas (D-δ.54). Implementado en
 `motor/medidores/resolverAlcancesDeMedidoresIndividuales.ts`. Ver D-δ.54
 en `PENDIENTES-DE-ARQUITECTURA.md`.
@@ -2618,14 +2618,14 @@ iguales los tanques ≥ 4.000 L.
 
 ## CRIT-A39 — Pelo de agua mínimo estimado en modo Rápido (tanque elevado simple)
 
-**Naturaleza:** hipótesis de producto / cálculo simplificado de IUAS,
+**Naturaleza:** hipótesis de producto / cálculo simplificado de DREZA,
 **no** una regla ERAS ni una verdad física universal. Decisión explícita
 del usuario (D-δ.79).
 
 **Criterio adoptado.** Para el balance de presión de Módulo 2, cuando el
 esquema de abastecimiento es **`tanqueElevado`** (tanque alimentado
 directamente de la red, **sin** cisterna + bombeo) y el modo de trabajo es
-**Rápido** (`granularidadHidraulica = 'simplificada'`), IUAS **estima** la
+**Rápido** (`granularidadHidraulica = 'simplificada'`), DREZA **estima** la
 cota del pelo de agua mínimo del tanque como:
 
 ```
@@ -2693,7 +2693,7 @@ M3 / M4 / Tabla N°1 intactos. Ver `BASELINE-FUNCIONAL-M1-M4.md`.
 
 ## CAT-CONN-01 — Conectividad física inicial por política de catálogo (no por precedentes ni por `qu`)
 
-**Artículo:** ninguno. Es un **criterio de producto IUAS**, no una
+**Artículo:** ninguno. Es un **criterio de producto DREZA**, no una
 prescripción de ERAS-2023. La Guía publica `qu Total`, `qu (A. Fría)` y
 `qu (A. Cal.)` como datos hidráulicos de demanda (§2.9.1.2/§2.9.1.3); no
 establece cuántas alimentaciones físicas (AF / AC) tiene cada artefacto
@@ -2746,7 +2746,7 @@ de cocina industrial pasa a AF+AC automática y respeta exactamente el
 comportamiento conservador de CRIT-A15 (cada rama transporta `quTotal`, el
 tramo común aguas arriba lo cuenta una sola vez).
 
-**Naturaleza:** decisión de producto IUAS (investigación normativa /
+**Naturaleza:** decisión de producto DREZA (investigación normativa /
 fabricantes realizada fuera del repo). Mismo estatus epistémico que la
 ampliación de CRIT-A15 de D-δ.79, no una disposición textual de ERAS.
 
@@ -2779,7 +2779,7 @@ donde:
   "altura de conexión típica" de D-δ.46 se traspasó a la altura por tipo.
 - **altura hidráulica efectiva del artefacto** = `Artefacto.alturaHidraulicaSobrePiso_m`
   si está presente (override explícito), si no la **altura de referencia
-  IUAS del tipo** (`normativa/eras-2023/catalogo-artefactos/alturasHidraulicasIuas.ts`).
+  DREZA del tipo** (`normativa/eras-2023/catalogo-artefactos/alturasHidraulicasIuas.ts`).
 
 Vale para **ambas** granularidades (`simplificada` y `profesional`):
 GEOM-UX-01 sustituyó la hipótesis geométrica uniforme de 1,00 m del modo
@@ -2791,9 +2791,9 @@ conserva su `Nodo.cota_m`.
 **Sólo se persisten overrides explícitos** (`Local.cotaPiso_m`,
 `Artefacto.alturaHidraulicaSobrePiso_m`, ambos opcionales, sin migración
 de schema): los defaults nunca se materializan. "Restablecer" borra el
-override y vuelve a heredar / a la Tabla IUAS. Al **cambiar el tipo de
+override y vuelve a heredar / a la Tabla DREZA. Al **cambiar el tipo de
 catálogo** de un artefacto, su override de altura se **limpia** (adopta
-el default IUAS del tipo nuevo) — mismo criterio que la limpieza de
+el default DREZA del tipo nuevo) — mismo criterio que la limpieza de
 `conectividadElegida` de CAT-CONN-01. **Duplicar una UF** conserva los
 overrides explícitos y mantiene heredado lo heredado.
 
@@ -2804,9 +2804,9 @@ artefacto. No cambia CRIT-A20: la compatibilidad geométrica
 toca ninguna fórmula (Hazen-Williams, Darcy-Weisbach, pérdidas
 localizadas, Pmin, `Q`, DN, medidores, reserva).
 
-**Tabla de alturas de referencia IUAS v1 — criterio IUAS, NO ERAS.** Los
+**Tabla de alturas de referencia DREZA v1 — criterio DREZA, NO ERAS.** Los
 16 valores (uno por tipo del catálogo, con test de completitud) son
-alturas hidráulicas iniciales de referencia adoptadas por IUAS a partir
+alturas hidráulicas iniciales de referencia adoptadas por DREZA a partir
 de geometrías usuales, documentación de fabricantes y práctica de
 proyecto. ERAS-2023 publica los `qu` de demanda de cada artefacto pero
 **no fija a qué altura sobre el piso está su punto de conexión**. Son
@@ -2823,7 +2823,7 @@ efectiva de 1,00 m a `0 + 2,00 = 2,00 m` → margen del crítico
 **−16,664 → −17,664 m.c.a.** (seguía NO CUMPLE por CRIT-A39). El detalle
 golden-por-golden está en `PENDIENTES-DE-ARQUITECTURA.md` D-δ.86.
 
-**Naturaleza:** decisión de producto IUAS (geometrías de proyecto,
+**Naturaleza:** decisión de producto DREZA (geometrías de proyecto,
 documentación de fabricantes). No es una disposición textual de ERAS.
 
 **Estado:** Firme e implementado (D-δ.86). Funciones puras en

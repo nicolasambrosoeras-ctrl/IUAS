@@ -308,7 +308,7 @@ export type InterpretacionDeResultado = {
 }
 
 const AVISO_ORIGEN_INTERMEDIO =
-  'Por ahora IUAS no puede ubicar automáticamente este Local en el montante: el origen del ' +
+  'Por ahora la aplicación no puede ubicar automáticamente este Local en el montante: el origen del ' +
   'montante queda entre las cotas de los Locales ya conectados y la forma del recorrido no es ' +
   'única. Cargá o ajustá las cotas de piso de los Locales, o conectá este Local por fuera del ' +
   'montante.'

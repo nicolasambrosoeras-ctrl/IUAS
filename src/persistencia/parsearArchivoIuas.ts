@@ -103,13 +103,13 @@ export function mensajeHumanoDeErrorIuas(error: ErrorParseoIuas): string {
     case 'jsonInvalido':
     case 'formatoNoIuas':
     case 'estructuraInvalida':
-      return 'El archivo seleccionado no es un proyecto IUAS válido.';
+      return 'El archivo seleccionado no es un archivo de proyecto válido.';
     case 'schemaArchivoAusente':
       return 'El archivo no indica una versión de formato reconocible.';
     case 'schemaArchivoFuturo':
-      return 'Este archivo fue creado con una versión más nueva de IUAS y no puede abrirse con esta versión.';
+      return 'Este archivo fue creado con una versión más nueva de la aplicación y no puede abrirse con esta versión.';
     case 'schemaArchivoNoReconocido':
-      return 'Este archivo usa una versión de formato que esta versión de IUAS no reconoce.';
+      return 'Este archivo usa una versión de formato que esta versión de la aplicación no reconoce.';
     case 'proyectoInvalido':
       return mensajeHumanoDeErrorDeProyecto(error.error);
   }
@@ -118,12 +118,12 @@ export function mensajeHumanoDeErrorIuas(error: ErrorParseoIuas): string {
 function mensajeHumanoDeErrorDeProyecto(error: ErrorLecturaProyecto): string {
   switch (error.codigo) {
     case 'formatoInvalido':
-      return 'El archivo seleccionado no es un proyecto IUAS válido.';
+      return 'El archivo seleccionado no es un archivo de proyecto válido.';
     case 'schemaVersionAusente':
       return 'El archivo no indica la versión del proyecto.';
     case 'schemaVersionNoReconocida':
-      return 'Este archivo usa una versión de proyecto que esta versión de IUAS no puede migrar.';
+      return 'Este archivo usa una versión de proyecto que esta versión de la aplicación no puede migrar.';
     case 'schemaVersionPosterior':
-      return 'Este archivo fue creado con una versión más nueva de IUAS y no puede abrirse con esta versión.';
+      return 'Este archivo fue creado con una versión más nueva de la aplicación y no puede abrirse con esta versión.';
   }
 }

@@ -140,7 +140,7 @@ function CabeceraDeModulo2({
       {modo === 'rapido' ? (
         <p>
           <small>
-            IUAS calcula primero con hipótesis típicas: PPR · cálculo habitual (Hazen-Williams) · pérdidas
+            El modo Rápido calcula primero con hipótesis típicas: PPR · cálculo habitual (Hazen-Williams) · pérdidas
             localizadas estimadas. Valores iniciales — 5&nbsp;m por Local · 10&nbsp;m de alimentación. En un
             segmento nuevo de montante, la longitud sugerida es 5&nbsp;m de base + |Δz| entre cotas.{' '}
             <strong>Todos editables.</strong>
@@ -456,7 +456,7 @@ function DistribucionGeneral({
       {mostrarNotaVertical ? (
         <p style={{ margin: '0.35rem 0 0.5rem' }}>
           <small>
-            La longitud indicada es la <strong>base</strong> del tramo. En modo Rápido, IUAS incorpora la
+            La longitud indicada es la <strong>base</strong> del tramo. En modo Rápido, se incorpora la
             corrección vertical por Nivel cuando corresponde; los segmentos de montante ya incluyen el desnivel
             |Δz| en su longitud sugerida.
           </small>

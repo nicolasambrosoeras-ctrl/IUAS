@@ -363,7 +363,7 @@ function ResumenEstimadoDeLocal({
       </p>
       <details>
         <summary>Ver cálculo</summary>
-        <p>Configuración típica IUAS (D-δ.45)</p>
+        <p>Configuración típica DREZA (D-δ.45)</p>
         <p>Tees estimadas: {formatearNumero(resultado.nTeesEstimadas, 'conteo')} · Ks por tee: {formatearNumero(KS_ESTIMADO_TEE, 'adimensional')}</p>
         <p>
           Singularidad terminal: {formatearNumero(resultado.nSingularidadTerminal, 'conteo')} · Ks: {formatearNumero(KS_ESTIMADO_SINGULARIDAD_TERMINAL, 'adimensional')}
