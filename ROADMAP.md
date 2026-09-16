@@ -3475,6 +3475,49 @@ salvo bug inequívoco o decisión roja explícita.
   línea en `docs/BETA-READY-00-AUDITORIA.md`.
   - **Estado:** `BETA-READY-00: CERRADO`.
 
+- **D-δ.136 — BETA-WEB-METADATA-01: metadata pública + favicon + versión
+  beta coherente (CERRADO — pendiente validación manual).** Cierra P1-1 de
+  `BETA-READY-00` (D-δ.135) completo y la parte de versión/copy de P1-2.
+  `index.html`: `<title>IUAS — Instalaciones internas de agua</title>`,
+  `<meta name="description">` en español (132 caracteres), Open Graph
+  básico (`og:title`/`og:description`/`og:type`/`og:site_name`),
+  `twitter:card=summary`, `theme-color` con el verde `--color-primario`
+  (`#1a6b53`) ya existente. Deliberadamente sin `og:image` (sin asset de
+  marca disponible) y sin `og:url`/`canonical` (dominio `.com.ar` propio
+  pendiente de compra -- se difiere a `BETA-RELEASE`). Favicon: no existía
+  ningún asset de marca en el repo (confirmado 404 en producción por
+  `BETA-READY-00`); se creó `public/favicon.svg` (ícono funcional mínimo,
+  no logotipo institucional: "I" blanca sobre cuadrado verde
+  `--color-primario`), referenciado vía `%BASE_URL%favicon.svg` para
+  respetar el `base: '/IUAS/'` de Vite sin hardcodearlo (confirmado en
+  `dist/index.html` tras build: `/IUAS/favicon.svg`). Versión: única
+  fuente de verdad de la app ya era `VERSION_APP` (`src/version.ts`,
+  PERSIST-01); estaba desincronizada de `package.json` (ambos en `0.1.0`
+  contra tags reales `v0.4.0-beta.1..5`) -- se sincronizaron ambos a
+  `0.4.0-beta.6` (`npm version --no-git-tag-version`, sin crear tag; el
+  tag se crea en `BETA-RELEASE-01`). Copy: el callout de autoguardado pasa
+  de "Versión piloto" a "Versión beta", sin cambiar el resto del mensaje
+  ni el layout. Tests nuevos: `src/version.test.ts` (VERSION_APP ==
+  package.json.version, ya no "0.1.0"), `src/metadataHtml.test.ts`
+  (title/description/OG/favicon/ausencia de og:url-canonical-analytics en
+  `index.html`), `MotorDemandaPantalla.copyBeta.test.ts` ("Versión beta"
+  presente, "Versión piloto" ausente), un test en
+  `generarDocumentoPdf.test.ts` (la memoria informa `VERSION_APP`
+  dinámicamente) y `tests/e2e/metadataBeta.spec.ts` (title/description/OG
+  reales en el navegador, favicon HTTP 200 resuelto contra `base`, copy
+  "Versión beta" visible en la UI real). QA: `tsc -b` limpio, `build`
+  limpio (`dist/index.html` inspeccionado a mano), `e2e:typecheck` limpio,
+  Vitest 1993/1994 (único fallo: el mismo timeout preexistente de
+  `PERF-SCALE-01C`, ya documentado en D-δ.135, confirmado igual en la base
+  sin este slice), ESLint 11/0 idéntico a la base (mismas variables no
+  usadas preexistentes, ninguna introducida por este slice). E2E dirigido
+  verde (smoke, responsive, reportPolish, modo-de-trabajo, metadata) contra
+  build local. No se tocó `LICENSE`, README de usuario, manejo de errores,
+  analytics, hidráulica/motor, PERSIST ni el layout de REPORT. Detalle
+  completo en `docs/BETA-WEB-METADATA-01.md`.
+  - **Estado:** `BETA-WEB-METADATA-01: CERRADO — pendiente validación
+    manual`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
