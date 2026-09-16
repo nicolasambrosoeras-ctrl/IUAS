@@ -27,6 +27,7 @@ import { coeficientesMayoracion, type TipoDeProyecto } from '../../normativa/era
 import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia'
 import { formatearNumero } from '../../exportadores/pdf/formatearNumero'
 import { generarDocumentoPdf } from '../../exportadores/pdf/generarDocumentoPdf'
+import { generarDocumentoPdfMateriales } from '../../exportadores/pdf/generarDocumentoPdfMateriales'
 import {
   formulaSimbolica,
   sustitucionNumerica,
@@ -1885,6 +1886,103 @@ function Pasos({ pasos }: { pasos: readonly Paso[] }) {
   )
 }
 
+// MATERIALS-01: presets del margen adicional de compra + control de
+// selección. Es un parámetro de GENERACIÓN del documento, nunca del
+// Proyecto (brief §4): no se persiste, no toca `Proyecto`, y por eso vive
+// enteramente como estado local de este control, descartado al cerrarlo.
+const PRESETS_MARGEN_DE_COMPRA = [0, 5, 10, 15, 20] as const
+
+function resolverPorcentajeValido(texto: string): number | null {
+  const normalizado = texto.trim().replace(',', '.')
+  if (normalizado === '') {
+    return null
+  }
+  const valor = Number(normalizado)
+  if (!Number.isFinite(valor) || valor < 0 || valor > 100) {
+    return null
+  }
+  return valor
+}
+
+function GenerarListadoDeMaterialesControl({ proyecto }: { proyecto: Proyecto }) {
+  const [abierto, setAbierto] = useState(false)
+  const [seleccion, setSeleccion] = useState<number | 'personalizado'>(0)
+  const [valorPersonalizado, setValorPersonalizado] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  if (!abierto) {
+    return (
+      <button type="button" onClick={() => setAbierto(true)}>
+        Generar listado de materiales
+      </button>
+    )
+  }
+
+  const porcentajeElegido = seleccion === 'personalizado' ? resolverPorcentajeValido(valorPersonalizado) : seleccion
+
+  function generar() {
+    if (porcentajeElegido === null) {
+      setError('Ingresá un porcentaje válido entre 0 y 100.')
+      return
+    }
+    generarDocumentoPdfMateriales({ proyecto, porcentajeExtraCompra: porcentajeElegido })
+  }
+
+  return (
+    <div role="group" aria-label="Generar listado de materiales" style={{ border: '1px solid #c9cfcb', padding: '0.5rem', margin: '0.5rem 0' }}>
+      <p style={{ margin: '0 0 0.25rem' }}>
+        <strong>Margen adicional de compra</strong>
+        <br />
+        <small>Se aplica a tuberías y accesorios computados. No modifica el cálculo hidráulico.</small>
+      </p>
+      <label>
+        {' '}
+        <select
+          value={seleccion === 'personalizado' ? 'personalizado' : String(seleccion)}
+          onChange={(evento) => {
+            const valor = evento.target.value
+            setError(null)
+            setSeleccion(valor === 'personalizado' ? 'personalizado' : Number(valor))
+          }}
+        >
+          {PRESETS_MARGEN_DE_COMPRA.map((preset) => (
+            <option key={preset} value={preset}>
+              {preset} %
+            </option>
+          ))}
+          <option value="personalizado">Personalizado</option>
+        </select>
+      </label>
+      {seleccion === 'personalizado' ? (
+        <label>
+          {' '}
+          Porcentaje personalizado:{' '}
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step="0.1"
+            value={valorPersonalizado}
+            onChange={(evento) => {
+              setValorPersonalizado(evento.target.value)
+              setError(null)
+            }}
+          />
+        </label>
+      ) : null}
+      {error !== null ? <p role="alert">{error}</p> : null}
+      <div>
+        <button type="button" onClick={generar}>
+          Generar PDF
+        </button>{' '}
+        <button type="button" onClick={() => setAbierto(false)}>
+          Cancelar
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // Salida de Módulo 1 (Demanda). Es la mitad "resultado" de la etapa 1: la
 // mitad "entrada" (ProyectoFormulario) vive en la misma sección #demanda,
 // justo arriba.
@@ -1905,7 +2003,8 @@ function ResultadoDemandaModulo1({
       <Resultados resultado={resultado} />
       <button type="button" onClick={() => generarDocumentoPdf({ proyecto })}>
         Generar memoria técnica
-      </button>
+      </button>{' '}
+      <GenerarListadoDeMaterialesControl proyecto={proyecto} />
       <Pasos pasos={resultado.pasos} />
     </details>
   )

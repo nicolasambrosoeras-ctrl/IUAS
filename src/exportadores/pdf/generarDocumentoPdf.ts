@@ -47,11 +47,14 @@ pdfMake.addVirtualFileSystem(pdfFonts)
 // paleta multicolor. Cumple/estado nunca dependen sólo de estos colores
 // (siempre hay texto: "Cumple"/"No cumple"/"OK"/etc.), así que la memoria
 // sigue siendo legible en blanco y negro o fotocopiada (brief §7).
-const COLOR_MARCA = '#1a6b53'
-const COLOR_MARCA_FUERTE = '#124c3c'
-const COLOR_TEXTO_2 = '#555555'
-const COLOR_BORDE_TABLA = '#c9cfcb'
-const COLOR_HEADER_TABLA = '#eef1ef'
+// MATERIALS-01 (§52): estas primitivas visuales se exportan para que el
+// Listado de materiales reutilice la misma identidad IUAS sin importar el
+// docDefinition de la Memoria (documentos independientes, misma paleta).
+export const COLOR_MARCA = '#1a6b53'
+export const COLOR_MARCA_FUERTE = '#124c3c'
+export const COLOR_TEXTO_2 = '#555555'
+export const COLOR_BORDE_TABLA = '#c9cfcb'
+export const COLOR_HEADER_TABLA = '#eef1ef'
 const COLOR_CONFORME = '#1a7a1a'
 const COLOR_CONFORME_SUAVE = '#e9f5e9'
 const COLOR_NO_CONFORME = '#b00020'
@@ -61,7 +64,7 @@ const COLOR_NO_CONFORME_SUAVE = '#fdecea'
 // con fondo suave, líneas horizontales finas y grises, sin grilla negra
 // pesada. Un único objeto reutilizado -- no hay que repetir la definición
 // en cada tabla.
-const layoutTablaIuas = {
+export const layoutTablaIuas = {
   fillColor: (rowIndex: number) => (rowIndex === 0 ? COLOR_HEADER_TABLA : null),
   hLineColor: () => COLOR_BORDE_TABLA,
   vLineColor: () => COLOR_BORDE_TABLA,
@@ -1179,14 +1182,14 @@ function renderizarAdopcionDeReserva(adopcion: ResultadoAdopcionDeReservaDeInfor
 // distinta de `proyecto.metadatos.fecha` (dato editable del proyecto, no
 // del informe). No es un dato del dominio: no pasa por
 // `resolverDatosDeInforme.ts` (brief §50).
-function formatearFechaDeGeneracion(fecha: Date): string {
+export function formatearFechaDeGeneracion(fecha: Date): string {
   return new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }).format(fecha)
 }
 
 // Sanitiza el nombre del proyecto para usarlo en un nombre de archivo
 // (brief §51): sólo letras/números/espacios -> guión bajo, sin acentos
 // raros de sistema de archivos, sin fecha/hora ilegible.
-function sanitizarParaNombreDeArchivo(texto: string): string {
+export function sanitizarParaNombreDeArchivo(texto: string): string {
   const sinAcentos = texto.normalize('NFD').replace(/[̀-ͯ]/g, '')
   const limpio = sinAcentos.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '')
   return limpio.length > 0 ? limpio : 'proyecto'
