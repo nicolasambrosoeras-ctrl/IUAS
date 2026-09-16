@@ -3518,6 +3518,46 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `BETA-WEB-METADATA-01: CERRADO — pendiente validación
     manual`.
 
+- **D-δ.137 — MATERIALS-01: listado de materiales + margen adicional de
+  compra (CERRADO — pendiente validación manual).** Segunda salida
+  documental del proyecto, independiente de la Memoria técnica: "Generar
+  listado de materiales", junto al botón existente "Generar memoria
+  técnica", con el mismo patrón ADR-012 (resolver puro +
+  renderer pdfMake) que `resolverDatosDeInforme.ts`/`generarDocumentoPdf.ts`,
+  sin importar el `docDefinition` de la Memoria (sólo comparte primitivas
+  visuales, ahora exportadas: `COLOR_MARCA`, `layoutTablaIuas`,
+  `sanitizarParaNombreDeArchivo`, `formatearFechaDeGeneracion`). Cómputo
+  puro nuevo: `resolverDatosDeListadoDeMateriales` (tuberías por
+  Material+Red+DN desde el inventario plano `RedHidraulica.tramos` con
+  `Tramo.longitud_m` real -- nunca longitud efectiva de presión, nunca
+  doble conteo de un segmento de Montante compartido; accesorios
+  explícitos de `Tramo.accesorios` sólo en modo `'detallado'`, HYD-EST
+  jamás convertido en pieza; Tee nodal computable únicamente cuando sus 3
+  DN resuelven sin ambigüedad, CRIT-A30 preservado; medidores vía
+  `resolverEstadoModulo3`; tanque/cisterna desde
+  `configuracionAbastecimiento`, bomba declarada como pendiente porque el
+  modelo no la define; artefactos de M1 sin duplicar AF/AC) +
+  `aplicarMargenDeCompra` (paso puro y separado: `porcentajeExtraCompra`
+  0-100, parámetro de GENERACIÓN nunca persistido -- no toca `schema`,
+  `migraciones`, `autosave` ni `.iuas`; tuberías escalan la longitud,
+  accesorios/Tees redondean hacia arriba con `Math.ceil`, medidores/
+  equipos/artefactos sin margen). UI: selector inline (0/5/10/15/20 % +
+  Personalizado, validado 0-100) sin librería nueva. Tests: 23 casos
+  dirigidos en `resolverDatosDeListadoDeMateriales.test.ts` (agrupación,
+  AF/AC, no doble conteo de Montante, longitud física vs. efectiva, DN
+  pendiente, modo detallado/estimado, CRIT-A30, Tee clasificada/sin
+  configurar/fan-out, medidor general, tanque, artefactos, invariantes de
+  margen, determinismo, no mutación del Proyecto) + `tests/e2e/
+  materiales.spec.ts` (ambos botones conviven, presets, personalizado
+  válido/inválido, mobile 390px, descarga real de PDF verificada en
+  Chromium). QA: `tsc -b` limpio, `build` limpio, `e2e:typecheck` limpio,
+  Vitest 2017/2018 (único fallo: el mismo timeout preexistente de
+  `PERF-SCALE-01C`), ESLint 11/0 idéntico a la base (ninguna variable no
+  usada nueva). No se tocó el motor hidráulico, `schema`/persistencia,
+  versión de la app, ni la Memoria técnica (su output/tests siguen
+  verdes). Detalle completo en `docs/MATERIALS-01.md`.
+  - **Estado:** `MATERIALS-01: CERRADO — pendiente validación manual`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
