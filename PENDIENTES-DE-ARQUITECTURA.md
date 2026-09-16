@@ -46,6 +46,46 @@ humano ("Agregá al menos un artefacto antes de generar la memoria",
 o equivalente). Cubrir con un test que reproduzca exactamente el `n=0`
 que motivó este hallazgo.
 
+**Actualización (BETA-READY-00, D-δ.135) -- el párrafo de arriba está
+desactualizado respecto al código real.** Al re-verificar este hallazgo
+para la auditoría de beta se encontró que el guard `demandaValida`
+**ya bloquea hoy el botón** en el escenario literal `{1 UF, 1 Local, 0
+artefactos}` descripto arriba: el commit `3b05633 fix: bloquear cálculo
+sin artefactos computables` (anterior a REPORT-POLISH-01) agregó el
+problema de validación `proyectoSinArtefactosComputables` (severidad
+`error`, alcance `demanda`) cuando el total de artefactos computables
+del proyecto es 0, lo cual pone `demandaValida=false` y oculta
+`ResultadoDemandaModulo1` (donde vive el botón). Confirmado con un test
+dirigido: en ese estado exacto, `demandaValida` da `false` y el único
+error es `proyectoSinArtefactosComputables` -- el botón no es
+alcanzable. El párrafo original (líneas 15-19) parece haberse verificado
+"de forma aislada" (llamando directo a `resolverDatosDeInforme`, sin
+pasar por el árbol de render real), no contra la condición de
+visibilidad del botón, y no se actualizó cuando `3b05633` agregó el
+guard.
+
+También se probó el escenario más realista y más cercano a un uso real
+-- agregar un Local **nuevo** sin artefactos a un proyecto que **ya
+tiene** otros artefactos en otros Locales (a diferencia del caso
+literal de arriba, que es el proyecto entero vacío) -- y **tampoco
+crashea**: `calcularSimultaneidad` suma `n` sobre **todo el proyecto**,
+no por Local, así que un Local vacío aislado sólo dispara un problema
+de severidad `advertencia` (`proyectoLocalSinArtefactos`, no bloqueante)
+sin llevar el `n` global a 0.
+
+**Esto no cierra el pendiente, lo redefine.** El riesgo real hoy no es
+un crash reproducible en el flujo normal de UI (no lo es, verificado),
+sino que `resolverDatosDeInforme`/`generarDocumentoPdf` siguen sin
+ningún guard ni `try/catch` **propio** -- dependen enteramente de que su
+único llamador actual (el botón) ya haya filtrado por `demandaValida` --
+y la aplicación no tiene **ningún** `ErrorBoundary` en ningún punto, así
+que cualquier excepción futura (no sólo ésta) queda como excepción no
+manejada visible sólo en consola. Clasificado **P1** en
+`docs/BETA-READY-00-AUDITORIA.md` §13/§27 (no P0, porque no es
+reproducible hoy). Sigue vigente la misma condición de resolución de
+arriba (guard propio o try/catch con mensaje humano), evaluar en un
+slice dedicado (`BETA-ERROR-HANDLING-01`).
+
 ## `vite preview` local no respeta el `base: '/IUAS/'` del build (BETA-UI-POLISH-01)
 
 `vite.config.ts` fija `base: command === 'build' ? '/IUAS/' : '/'`. Ese

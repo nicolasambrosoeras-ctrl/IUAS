@@ -3430,6 +3430,51 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `REPORT-POLISH-02-EDITORIAL-CLOSE: CERRADO — pendiente
     validación manual`.
 
+- **D-δ.135 — BETA-READY-00: auditoría final pre-beta pública (CERRADO
+  — veredicto: LISTO PARA BETA CON 5 AJUSTES).** Auditoría de cierre
+  (inspección, pruebas dirigidas, clasificación -- sin tocar
+  `src/motor/`, sin nuevos criterios hidráulicos). Base auditada:
+  `HEAD=9091abd`. **0 P0.** 5 P1, todos de alcance documental/copy/
+  config: **(1)** sin favicon real/meta description/Open Graph en
+  `index.html` (confirmado también en producción, favicon → 404).
+  **(2)** versión desincronizada -- `package.json`/`src/version.ts`
+  siguen en `0.1.0` mientras existen tags `v0.4.0-beta.1..5`; copy
+  "Versión piloto" candidato a "Versión beta" en el release. **(3)**
+  repo público sin archivo `LICENSE` (`package.json` dice
+  `"license": "UNLICENSED"` + `"private": true`, inconsistente con la
+  exposición real vía GitHub Pages) -- decisión pendiente del
+  propietario, no técnica. **(4)** README sin sección orientada a
+  usuario final (qué guarda `localStorage`, cómo exportar `.iuas`,
+  alcance). **(5)** `resolverDatosDeInforme`/`generarDocumentoPdf` (el
+  generador de memoria) no tienen guard propio contra `n=0`
+  (`calcularCoeficienteDeSimultaneidad` lo trata explícitamente como
+  "defecto de programación") y la app no tiene ningún `ErrorBoundary`
+  en ningún punto -- **verificado que NO es reproducible hoy** en el
+  flujo real de UI: un proyecto enteramente vacío ya bloquea el botón
+  (`demandaValida=false`, guard `proyectoSinArtefactosComputables` de
+  `3b05633`, previo a este slice) y agregar un Local vacío a un
+  proyecto con otros artefactos tampoco crashea (`n` se calcula sobre
+  el proyecto entero, no por Local -- confirmado con test dirigido).
+  Contradice la premisa exacta de la deuda ya documentada más abajo en
+  este archivo (ver nota bajo Módulo 4), que se había verificado
+  llamando a `resolverDatosDeInforme` de forma aislada, no contra la UI
+  real; queda igual como P1 por la ausencia total de manejo de errores
+  transversal en la app. **P2 relevante:** el test
+  `PERF-SCALE-01C` (`resolucionesDeDimensionamientoPorEdicion.
+  regresion.test.ts`) investigado a fondo -- no es flaky (aislado corre
+  en 2.7-3.6s, consistente), es margen insuficiente del `testTimeout`
+  de 5s bajo contención de CPU de la suite completa; no señal de
+  lentitud real de la app. QA de cierre: `tsc -b` limpio, `build`
+  limpio (bundle 2.3MB/951kB gzip, ya documentado, no bloqueante),
+  Vitest 1981/1982 (el único fallo es el timeout de arriba), ESLint
+  11/0 (variables no usadas, cosmético), producción verificada HTTP 200
+  en vivo. Roadmap mínimo resultante (máx. 4-5 slices):
+  `BETA-WEB-METADATA-01`, `BETA-LICENSE-01`, `BETA-DOCS-USUARIO-01`,
+  `BETA-ERROR-HANDLING-01` (opcional/diferible), `BETA-RELEASE-01`.
+  Detalle completo, matrices de flujos/hallazgos y evidencia línea por
+  línea en `docs/BETA-READY-00-AUDITORIA.md`.
+  - **Estado:** `BETA-READY-00: CERRADO`.
+
 **INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
