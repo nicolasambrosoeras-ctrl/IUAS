@@ -172,7 +172,7 @@ test.describe('PERSIST-01 · exportar / importar', () => {
     })
     await estabilizar(page)
 
-    await expect(page.getByText('El archivo seleccionado no es un proyecto IUAS válido.')).toBeVisible()
+    await expect(page.getByText('El archivo seleccionado no es un archivo de proyecto válido.')).toBeVisible()
     // No se abrió diálogo de confirmación: el archivo nunca fue válido.
     await expect(page.getByRole('dialog')).toHaveCount(0)
     // El proyecto actual sigue exactamente igual.

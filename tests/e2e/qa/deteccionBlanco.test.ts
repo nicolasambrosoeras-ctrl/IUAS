@@ -31,7 +31,7 @@ describe('evaluarPantalla', () => {
     expect(evaluarPantalla({ ...sana, textoUtilEnRoot: 12 }).blanca).toBe(true)
   })
 
-  it('desaparece el marcador IUAS => WHITE_SCREEN', () => {
+  it('desaparece el marcador Caudal => WHITE_SCREEN', () => {
     expect(evaluarPantalla({ ...sana, marcadorIuas: false }).blanca).toBe(true)
   })
 
@@ -45,6 +45,6 @@ describe('evaluarPantalla', () => {
 
   it('el motivo describe la causa concreta', () => {
     const v = evaluarPantalla({ ...sana, marcadorIuas: false })
-    if (v.blanca) expect(v.motivo).toMatch(/IUAS/)
+    if (v.blanca) expect(v.motivo).toMatch(/Caudal/)
   })
 })

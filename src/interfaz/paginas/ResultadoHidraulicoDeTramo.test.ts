@@ -455,7 +455,7 @@ describe('CabeceraDeModulo2 -- toggle de modo de trabajo (D-δ.51)', () => {
     )
     expect(html).not.toContain('Modo de trabajo:')
     expect(html).not.toMatch(/<button[^>]*aria-pressed[^>]*>(Rápido|Profesional)<\/button>/)
-    expect(html).toContain('IUAS calcula primero con hipótesis típicas')
+    expect(html).toContain('El modo Rápido calcula primero con hipótesis típicas')
     expect(html).toContain('Configuración avanzada')
     // <details> de config avanzada SIN atributo open en Rápido
     expect(html).toMatch(/<details><summary>Configuración avanzada<\/summary>/)
@@ -471,7 +471,7 @@ describe('CabeceraDeModulo2 -- toggle de modo de trabajo (D-δ.51)', () => {
     )
     expect(html).not.toMatch(/<button[^>]*aria-pressed[^>]*>(Rápido|Profesional)<\/button>/)
     expect(html).toContain('Tenés disponibles los controles avanzados de cálculo')
-    expect(html).not.toContain('IUAS calcula primero con hipótesis típicas')
+    expect(html).not.toContain('El modo Rápido calcula primero con hipótesis típicas')
     expect(html).toMatch(/<details open=""><summary>Configuración avanzada/)
   })
 

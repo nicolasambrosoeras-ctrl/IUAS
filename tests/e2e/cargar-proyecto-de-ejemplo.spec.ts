@@ -42,7 +42,7 @@ test.describe('FIX-PERSIST-01-PROJECT-ACTIONS-01 · Cargar proyecto de ejemplo',
     const dialogo = page.getByRole('dialog')
     await expect(dialogo).toBeVisible()
     await expect(dialogo.getByRole('heading', { name: 'Cargar proyecto de ejemplo' })).toBeVisible()
-    await expect(dialogo.getByText(/proyecto de ejemplo de IUAS/)).toBeVisible()
+    await expect(dialogo.getByText(/Se reemplazará el proyecto actual por el proyecto de ejemplo/)).toBeVisible()
     await dialogo.getByRole('button', { name: 'Cargar ejemplo', exact: true }).click()
     await estabilizar(page)
 

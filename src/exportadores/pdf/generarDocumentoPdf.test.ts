@@ -395,7 +395,7 @@ describe('construirDocDefinition (REPORT-POLISH-01: portada, resumen, header/foo
   it('portada: wordmark, título, subtítulo, nombre del proyecto y fecha, ANTES de cualquier sección numerada', () => {
     const doc = construirDocDefinition(datosCompleto, fechaFija)
     const textos = textosDe(doc.content as Content[])
-    const iWordmark = textos.indexOf('IUAS')
+    const iWordmark = textos.indexOf('Caudal')
     const iTitulo = textos.indexOf('Memoria de cálculo')
     const iSubtitulo = textos.indexOf('Instalaciones internas de agua')
     const iNombreProyecto = textos.indexOf(datosCompleto.proyecto.metadatos.nombre)
@@ -466,15 +466,15 @@ describe('construirDocDefinition (REPORT-POLISH-01: portada, resumen, header/foo
     const footerP2 = footer(2, 10)
     expect(headerP2).toBeDefined()
     expect(footerP2).toBeDefined()
-    expect(textosDe(headerP2 as Content).some((t) => t.includes('IUAS — Memoria de cálculo'))).toBe(true)
+    expect(textosDe(headerP2 as Content).some((t) => t.includes('Caudal by DREZA — Memoria de cálculo'))).toBe(true)
     expect(textosDe(footerP2 as Content).some((t) => t.includes('Página 2 de 10'))).toBe(true)
   })
 
   it('metadata PDF (info): title/subject/author configurados, sin datos privados', () => {
     const doc = construirDocDefinition(datosCompleto, fechaFija)
-    expect(doc.info?.title).toBe('IUAS — Memoria de cálculo')
+    expect(doc.info?.title).toBe('Caudal by DREZA — Memoria de cálculo')
     expect(doc.info?.subject).toBe('Instalaciones internas de agua')
-    expect(doc.info?.author).toBe('IUAS')
+    expect(doc.info?.author).toBe('DREZA')
   })
 
   it('estilos: la paleta de marca y los banners CUMPLE/NO CUMPLE están definidos', () => {
@@ -687,18 +687,18 @@ describe('construirDocDefinition (REPORT-POLISH-02: cierre editorial)', () => {
 })
 
 describe('resolverNombreDeArchivo (brief §51)', () => {
-  it('arma "IUAS_Memoria_de_calculo_<proyecto>.pdf" sanitizado, sin espacios ni acentos', () => {
+  it('arma "Caudal_Memoria_de_calculo_<proyecto>.pdf" sanitizado, sin espacios ni acentos', () => {
     const p = backfillLongitudesDePredimensionamiento(proyectoInicial)
     const nombre = resolverNombreDeArchivo({
       ...p,
       metadatos: { ...p.metadatos, nombre: 'Casa Pérez López' },
     })
-    expect(nombre).toBe('IUAS_Memoria_de_calculo_Casa_Perez_Lopez.pdf')
+    expect(nombre).toBe('Caudal_Memoria_de_calculo_Casa_Perez_Lopez.pdf')
   })
 
   it('nombre de proyecto vacío no rompe el archivo (fallback "proyecto")', () => {
     const p = backfillLongitudesDePredimensionamiento(proyectoInicial)
     const nombre = resolverNombreDeArchivo({ ...p, metadatos: { ...p.metadatos, nombre: '' } })
-    expect(nombre).toBe('IUAS_Memoria_de_calculo_proyecto.pdf')
+    expect(nombre).toBe('Caudal_Memoria_de_calculo_proyecto.pdf')
   })
 })

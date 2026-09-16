@@ -315,7 +315,7 @@ describe('PanelDePresionDeModulo2 (UI)', () => {
     )
     expect(html).toContain('Pelo de agua mínimo estimado')
     expect(html).toContain('9,500 m')
-    expect(html).toContain('Hipótesis IUAS del modo Rápido')
+    expect(html).toContain('Criterio del modo Rápido')
     // no hay input manual editable en Rápido
     expect(html).not.toContain('Pelo de agua mínimo (cota respecto de la acera)')
   })

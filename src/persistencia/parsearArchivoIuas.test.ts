@@ -49,7 +49,7 @@ describe('parsearArchivoIuas', () => {
     if (!resultado.exito) {
       expect(resultado.error.codigo).toBe('schemaArchivoFuturo');
       expect(mensajeHumanoDeErrorIuas(resultado.error)).toBe(
-        'Este archivo fue creado con una versión más nueva de IUAS y no puede abrirse con esta versión.',
+        'Este archivo fue creado con una versión más nueva de la aplicación y no puede abrirse con esta versión.',
       );
     }
   });

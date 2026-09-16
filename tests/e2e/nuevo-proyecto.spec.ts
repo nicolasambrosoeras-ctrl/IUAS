@@ -77,7 +77,7 @@ test.describe('GEOM-UX-01 · Nuevo proyecto', () => {
     await expect(page.locator('#abastecimiento')).toHaveCount(0)
 
     // App viva, etapa Demanda presente, CTA claro.
-    await expect(page.getByRole('heading', { name: /IUAS/ }).first()).toBeVisible()
+    await expect(page.getByRole('heading', { name: /Caudal/ }).first()).toBeVisible()
     await expect(page.locator('#demanda')).toBeVisible()
     await expect(page.getByRole('button', { name: '+ Agregar unidad funcional' }).first()).toBeVisible()
 

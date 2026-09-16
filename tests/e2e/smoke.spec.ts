@@ -11,7 +11,7 @@ test.describe('QA-FUZZ-01 · smoke determinista', () => {
     await cargarAppLimpia(page, baseURLEfectiva)
 
     // Identidad + shell.
-    await expect(page.getByRole('heading', { name: /IUAS/ }).first()).toBeVisible()
+    await expect(page.getByRole('heading', { name: /Caudal/ }).first()).toBeVisible()
 
     // Las 5 etapas del flujo tienen anchor.
     for (const id of ['demanda', 'tuberias', 'medidores', 'abastecimiento', 'verificacion-hidraulica']) {

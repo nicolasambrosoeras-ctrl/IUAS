@@ -23,7 +23,7 @@ async function generarMemoria(page: Page) {
 }
 
 test.describe('REPORT-POLISH-01 · botón "Generar memoria técnica"', () => {
-  test('proyecto de ejemplo: descarga un PDF con nombre IUAS_Memoria_de_calculo_*, sin pageerror', async ({
+  test('proyecto de ejemplo: descarga un PDF con nombre Caudal_Memoria_de_calculo_*, sin pageerror', async ({
     page,
     errores,
     baseURLEfectiva,
@@ -32,7 +32,7 @@ test.describe('REPORT-POLISH-01 · botón "Generar memoria técnica"', () => {
     await irADemanda(page)
 
     const download = await generarMemoria(page)
-    expect(download.suggestedFilename()).toMatch(/^IUAS_Memoria_de_calculo_.*\.pdf$/)
+    expect(download.suggestedFilename()).toMatch(/^Caudal_Memoria_de_calculo_.*\.pdf$/)
 
     const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })
     expect(primerFallo(violaciones), JSON.stringify(primerFallo(violaciones))).toBeNull()

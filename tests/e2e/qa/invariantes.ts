@@ -22,7 +22,7 @@ export type MuestraDom = MuestraDePantalla & {
 }
 
 // Se ejecuta DENTRO del navegador. Sin dependencias del bundle de la app:
-// solo DOM. El marcador "IUAS" se busca en el texto del root; la
+// solo DOM. El marcador "Caudal" se busca en el texto del root; la
 // navegacion reconocible = existe <nav> o headings de etapa.
 export async function tomarMuestraDom(page: Page): Promise<MuestraDom> {
   return page.evaluate(() => {
@@ -42,7 +42,7 @@ export async function tomarMuestraDom(page: Page): Promise<MuestraDom> {
       rootPresente: root !== null,
       nodosEnRoot: nodos,
       textoUtilEnRoot: textoUtil.length,
-      marcadorIuas: /IUAS/.test(textoUtil),
+      marcadorIuas: /Caudal/.test(textoUtil),
       navegacionReconocible: nav !== null || headingsEtapa.length > 0,
       altoContenidoPx: rect ? Math.round(rect.height) : 0,
       textoRoot: textoUtil.slice(0, 20000),

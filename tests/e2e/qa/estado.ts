@@ -20,12 +20,12 @@ export async function cargarAppLimpia(page: Page, baseURL: string): Promise<void
   await esperarAppLista(page)
 }
 
-// "Lista" = el root tiene contenido y el marcador de identidad IUAS esta
+// "Lista" = el root tiene contenido y el marcador de identidad Caudal esta
 // presente, ademas de al menos una seccion de trabajo. No se apoya en
 // networkidle (GitHub Pages sirve assets con caché agresiva).
 export async function esperarAppLista(page: Page): Promise<void> {
   await expect(page.locator('#root')).not.toBeEmpty({ timeout: 15000 })
-  await expect(page.getByRole('heading', { name: /IUAS/ }).first()).toBeVisible({ timeout: 15000 })
+  await expect(page.getByRole('heading', { name: /Caudal/ }).first()).toBeVisible({ timeout: 15000 })
   await expect(page.locator('#demanda')).toBeVisible({ timeout: 15000 })
 }
 

@@ -20,7 +20,7 @@ describe('index.html — metadata pública (BETA-WEB-METADATA-01)', () => {
   });
 
   it('tiene un title público descriptivo (no el placeholder de Vite)', () => {
-    expect(html).toContain('<title>IUAS — Instalaciones internas de agua</title>');
+    expect(html).toContain('<title>Caudal by DREZA — Instalaciones internas de agua</title>');
     expect(html).not.toMatch(/<title>\s*Vite/i);
   });
 
@@ -33,9 +33,9 @@ describe('index.html — metadata pública (BETA-WEB-METADATA-01)', () => {
   });
 
   it('tiene Open Graph básico (title, description, type, site_name)', () => {
-    expect(html).toContain('property="og:title" content="IUAS — Instalaciones internas de agua"');
+    expect(html).toContain('property="og:title" content="Caudal by DREZA — Instalaciones internas de agua"');
     expect(html).toContain('property="og:type" content="website"');
-    expect(html).toContain('property="og:site_name" content="IUAS"');
+    expect(html).toContain('property="og:site_name" content="Caudal by DREZA"');
     expect(html).toMatch(/property="og:description"\s+content="[^"]+"/);
   });
 

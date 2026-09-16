@@ -9,14 +9,14 @@ test.describe('BETA-WEB-METADATA-01 · metadata pública', () => {
   test('title, meta description y Open Graph están presentes', async ({ page, baseURLEfectiva }) => {
     await cargarAppLimpia(page, baseURLEfectiva)
 
-    await expect(page).toHaveTitle('IUAS — Instalaciones internas de agua')
+    await expect(page).toHaveTitle('Caudal by DREZA — Instalaciones internas de agua')
 
     const description = await page.locator('meta[name="description"]').getAttribute('content')
     expect(description).toBeTruthy()
     expect(description).toContain('instalaciones internas de agua')
 
     const ogTitle = await page.locator('meta[property="og:title"]').getAttribute('content')
-    expect(ogTitle).toBe('IUAS — Instalaciones internas de agua')
+    expect(ogTitle).toBe('Caudal by DREZA — Instalaciones internas de agua')
     const ogType = await page.locator('meta[property="og:type"]').getAttribute('content')
     expect(ogType).toBe('website')
   })

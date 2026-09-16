@@ -28,13 +28,13 @@ test.describe('MATERIALS-01 · Listado de materiales', () => {
     const descargaEsperada = page.waitForEvent('download')
     await control.getByRole('button', { name: 'Generar PDF' }).click()
     const descarga = await descargaEsperada
-    expect(descarga.suggestedFilename()).toMatch(/^IUAS_Listado_de_materiales_.*\.pdf$/)
+    expect(descarga.suggestedFilename()).toMatch(/^Caudal_Listado_de_materiales_.*\.pdf$/)
 
     // La Memoria técnica sigue funcionando de forma independiente.
     const descargaMemoria = page.waitForEvent('download')
     await page.getByRole('button', { name: 'Generar memoria técnica' }).click()
     const memoria = await descargaMemoria
-    expect(memoria.suggestedFilename()).toMatch(/^IUAS_Memoria_de_calculo_.*\.pdf$/)
+    expect(memoria.suggestedFilename()).toMatch(/^Caudal_Memoria_de_calculo_.*\.pdf$/)
   })
 
   test('porcentaje personalizado válido genera el PDF', async ({ page, baseURLEfectiva }) => {

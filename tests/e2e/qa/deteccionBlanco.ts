@@ -20,7 +20,7 @@ export type MuestraDePantalla = {
   readonly nodosEnRoot: number
   /** Largo del texto visible dentro del root, ya recortado. */
   readonly textoUtilEnRoot: number
-  /** ¿Aparece el marcador estable de identidad "IUAS" dentro del root? */
+  /** ¿Aparece el marcador estable de identidad "Caudal" dentro del root? */
   readonly marcadorIuas: boolean
   /** ¿Hay al menos una sección/landmark de navegación reconocible? */
   readonly navegacionReconocible: boolean
@@ -62,7 +62,7 @@ export function evaluarPantalla(muestra: MuestraDePantalla): VeredictoDePantalla
     return {
       blanca: true,
       codigo: 'WHITE_SCREEN',
-      motivo: 'Desapareció el marcador de identidad "IUAS" del contenido de la app.',
+      motivo: 'Desapareció el marcador de identidad "Caudal" del contenido de la app.',
     }
   }
   if (!muestra.navegacionReconocible) {
