@@ -2,7 +2,7 @@
 
 > D-δ.80. Infraestructura **persistente** para detectar de forma sistemática
 > crashes, pantallas blancas, estados stale, excepciones y combinaciones
-> inválidas de UI en IUAS. **No corrige bugs de dominio**: los captura,
+> inválidas de UI en Caudal by DREZA. **No corrige bugs de dominio**: los captura,
 > reproduce y documenta.
 
 ---
@@ -207,7 +207,7 @@ que la media.
 
 | Nombre | Qué comprueba |
 | ------ | ------------- |
-| `pantalla-no-blanca` | root presente + ≥3 nodos + ≥40 car. útiles + marcador `IUAS` + navegación reconocible + alto de contenido ≥80 px (caso móvil). |
+| `pantalla-no-blanca` | root presente + ≥3 nodos + ≥40 car. útiles + marcador `Caudal` + navegación reconocible + alto de contenido ≥80 px (caso móvil). |
 | `sin-pageerror` | ninguna excepción no atrapada nueva. |
 | `sin-console-error` | ningún `console.error` nuevo (se filtra ruido: favicon, React DevTools). |
 | `sin-request-esencial-fallido` | ningún 4xx/5xx ni `requestfailed` en documento/script/stylesheet o `/assets/*.js|css`. **NETWORK**. |
@@ -220,7 +220,7 @@ que la media.
 ### Detector de pantalla blanca (`qa/deteccionBlanco.ts`)
 
 Función **pura** `evaluarPantalla(muestra)`: la capa Playwright arma la
-muestra con `page.evaluate` (root, nodos, texto útil, marcador IUAS,
+muestra con `page.evaluate` (root, nodos, texto útil, marcador Caudal,
 navegación, alto pintado) y la decisión se prueba en Vitest con "DOM
 simulado" = objeto plano (sin jsdom, sin botón secreto en producción —
 brief §53).

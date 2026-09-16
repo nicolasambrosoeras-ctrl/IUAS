@@ -1,6 +1,6 @@
 # Sistema visual (UI-01B D-δ.73 · UI-01C D-δ.74)
 
-Referencia del sistema visual transversal de IUAS. Es **presentación**:
+Referencia del sistema visual transversal de Caudal by DREZA. Es **presentación**:
 no cambia cálculo, dominio, `Proyecto`, motores ni semántica. Se construye
 sobre la arquitectura de navegación de UI-01A (`navegacionUI.css`,
 `NavegacionDeSecciones`). UI-01C cerró la interfaz web: perímetro de la
@@ -37,7 +37,7 @@ Aplicación técnica moderna, no "dashboard comercial":
 - Bordes suaves, radius moderado, sombras discretas.
 - Alta densidad informativa; números técnicos fáciles de escanear.
 - Separación visual clara entre **configuración** (lo que controla el
-  proyectista) y **resultado derivado** (lo que calcula IUAS) —
+  proyectista) y **resultado derivado** (lo que calcula la aplicación) —
   **UI-CRIT-02**.
 
 Cuando la referencia estética contradice la densidad necesaria, las
@@ -105,7 +105,7 @@ explicación, nunca reemplazar el término.
 | Variante | Uso |
 | --- | --- |
 | `.ui-card--config` | Configuración / decisión del proyectista (superficie secundaria, sin sombra). |
-| `.ui-card--resultado` | Resultado derivado por IUAS (borde verde). |
+| `.ui-card--resultado` | Resultado derivado por la aplicación (borde verde). |
 | `.ui-card--ok` | Resultado **positivo** (CUMPLE): verde suave + acento izquierdo. |
 | `.ui-card--error` | Resultado **negativo** (NO CUMPLE): rojo suave + acento izquierdo. |
 

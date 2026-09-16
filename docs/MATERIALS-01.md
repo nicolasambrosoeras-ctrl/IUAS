@@ -48,7 +48,7 @@ Archivos nuevos:
 `generarDocumentoPdf.ts` (Memoria técnica) exporta ahora sus primitivas
 visuales (`COLOR_MARCA`, `COLOR_MARCA_FUERTE`, `COLOR_TEXTO_2`,
 `layoutTablaIuas`, `sanitizarParaNombreDeArchivo`,
-`formatearFechaDeGeneracion`) para que Materials reutilice la identidad IUAS
+`formatearFechaDeGeneracion`) para que Materials reutilice la identidad visual
 sin importar su `docDefinition` -- comparten estilo, no acoplamiento. Su
 `construirDocDefinition`/`generarDocumentoPdf`/salida no cambiaron.
 
@@ -170,14 +170,14 @@ proyecto hidráulicamente completo. Un Tramo de M2 sin DN adoptable pasa a
 
 ## PDF
 
-Documento operativo, header compacto (sin portada extensa): IUAS / "Listado
-de materiales" / "Instalaciones internas de agua" / Proyecto / Fecha /
+Documento operativo, header compacto (sin portada extensa): Caudal by DREZA /
+"Listado de materiales" / "Instalaciones internas de agua" / Proyecto / Fecha /
 Margen, y la tabla arranca en la misma página. Secciones: Tuberías (detalle +
 consolidado), Accesorios, Medidores, Equipos y almacenamiento, Artefactos
 previstos, Observaciones y alcance (con "Elementos pendientes de
-definición" cuando corresponde). Metadata: title "IUAS — Listado de
-materiales", subject "Instalaciones internas de agua", author "IUAS".
-Filename: `IUAS_Listado_de_materiales_<proyecto>.pdf` (mismo sanitizador que
+definición" cuando corresponde). Metadata: title "Caudal by DREZA — Listado de
+materiales", subject "Instalaciones internas de agua", author "DREZA".
+Filename: `Caudal_Listado_de_materiales_<proyecto>.pdf` (mismo sanitizador que
 la Memoria).
 
 ## Fuera de alcance

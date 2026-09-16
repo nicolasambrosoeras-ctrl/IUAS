@@ -1,4 +1,4 @@
-# Roadmap — IUAS
+# Roadmap — Caudal by DREZA
 
 Visión estructural por hitos/capacidades, no un cronograma temporal. No
 contiene fechas. Organizado por bloques de capacidad, con dependencias
@@ -3558,7 +3558,35 @@ salvo bug inequívoco o decisión roja explícita.
   verdes). Detalle completo en `docs/MATERIALS-01.md`.
   - **Estado:** `MATERIALS-01: CERRADO — pendiente validación manual`.
 
-**INTERFAZ WEB IUAS: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
+- **D-δ.138 — REBRAND-DREZA-01: adopción de marca "Caudal by DREZA"
+  (CERRADO — pendiente validación manual).** Retiro de la marca IUAS de
+  toda superficie pública/vigente del producto (todavía no existe convenio
+  que autorice presentarlo como producto IUAS): interfaz web (header con
+  composición de marca de dos niveles "Caudal" / "by DREZA" +
+  subtítulo "Instalaciones internas de agua"), metadata HTML (`title`,
+  `description`, Open Graph), favicon (`C` en vez de `I`), memoria técnica
+  y listado de materiales en PDF (portada, header/footer de página,
+  metadata `title`/`author`, nombres de archivo `Caudal_Memoria_de_calculo_
+  <proyecto>.pdf` / `Caudal_Listado_de_materiales_<proyecto>.pdf`), copy
+  técnico ("criterio IUAS" -> "criterio DREZA" en `CRITERIOS.md` y en el
+  PDF; "sugerida IUAS" -> "sugerida"; mensajes de error de importación sin
+  atribución institucional) y README/ROADMAP/SISTEMA-VISUAL.md. Deliberadamente
+  SIN tocar: formato de archivo `.iuas` (envelope `format: 'IUAS'`
+  persistido, PERSIST-01), claves de `localStorage` `iuas:*`, repo/URL de
+  GitHub Pages `/IUAS/`, variables de entorno `IUAS_*`, identificadores de
+  código internos (`parsearArchivoIuas`, `alturasHidraulicasIuas.ts`,
+  `layoutTablaIuas`), hidráulica/fórmulas/schema/topología/versión de la
+  app y documentación histórica (ADRs, handoffs, entradas ya cerradas de
+  este mismo ROADMAP). QA: `tsc -b` limpio, `build` limpio,
+  `e2e:typecheck` limpio, Vitest 2015/2017 (únicos 2 fallos: el mismo
+  timeout preexistente de `PERF-SCALE-01C`), ESLint 11/0 idéntico a la
+  base. Pendientes registrados para después: `PERSIST-REBRAND-01`
+  (transición eventual de `.iuas` a `.caudal` con compatibilidad) y
+  `DEPLOY-REBRAND-01` (rename de repo/URL de GitHub Pages y dominio
+  propio). Detalle completo en `docs/REBRAND-DREZA-01.md`.
+  - **Estado:** `REBRAND-DREZA-01: CERRADO — pendiente validación manual`.
+
+**INTERFAZ WEB CAUDAL BY DREZA: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
 CRIT-A39). Ya no existe deuda visual bloqueante antes de reporting.

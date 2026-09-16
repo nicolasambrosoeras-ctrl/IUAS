@@ -1,4 +1,4 @@
-# IUAS
+# Caudal by DREZA
 
 Herramienta de cálculo hidráulico de instalaciones sanitarias internas,
 basada en la Guía de Instalaciones Internas ERAS-2023.

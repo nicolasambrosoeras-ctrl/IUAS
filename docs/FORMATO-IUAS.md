@@ -2,7 +2,7 @@
 
 ## Propósito
 
-IUAS es una aplicación 100% client-side, sin backend, sin cuentas y sin
+Caudal by DREZA es una aplicación 100% client-side, sin backend, sin cuentas y sin
 sincronización en la nube: el proyecto del usuario existe únicamente en
 su navegador. `.iuas` es el formato de archivo que le permite a ese
 proyecto **salir de la aplicación como un archivo portable** — para
