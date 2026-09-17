@@ -780,7 +780,7 @@ describe('resolverDatosDeListadoDeMateriales — estimación constructiva DREZA 
     expect(reducciones).toHaveLength(1)
     expect(reducciones[0]!.sector).toBe('montante')
     expect(reducciones[0]!.cantidadComputada).toBe(1)
-    expect(reducciones[0]!.dnComercial).toBe('32 mm → 25 mm')
+    expect(reducciones[0]!.dnComercial).toBe('32 mm -> 25 mm')
   })
 
   // Caso E (brief §13): sin Montantes, 4 Locales alimentados directamente.

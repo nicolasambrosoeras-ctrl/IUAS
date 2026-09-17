@@ -147,16 +147,16 @@
           }
         },
         {
-          "id": "nodo-montante-4dc5ffec-2162-4afa-b9e5-661dfafbcb0c"
+          "id": "nodo-montante-6dc67303-f923-4d8b-bc87-66914d7428ad"
         },
         {
-          "id": "nodo-montante-711fc161-9547-42fa-b66f-2c210726d769"
+          "id": "nodo-montante-2961909b-4d4e-466a-a7ae-c0b1be98177c"
         },
         {
-          "id": "nodo-montante-633e86ff-19c3-438f-b920-17573af52a0e"
+          "id": "nodo-montante-b2212947-e41f-4e1d-8fd4-10b6b8127248"
         },
         {
-          "id": "nodo-montante-cc39c5e1-eb89-4898-a433-592982ce585e"
+          "id": "nodo-montante-f6cc7a72-3390-450d-ad43-e303958e0231"
         }
       ],
       "tramos": [
@@ -170,7 +170,7 @@
         },
         {
           "id": "t-bano1",
-          "nodoOrigenId": "nodo-montante-4dc5ffec-2162-4afa-b9e5-661dfafbcb0c",
+          "nodoOrigenId": "nodo-montante-6dc67303-f923-4d8b-bc87-66914d7428ad",
           "nodoDestinoId": "n-bano1",
           "red": "AF",
           "accesorios": [],
@@ -186,7 +186,7 @@
         },
         {
           "id": "t-bano2",
-          "nodoOrigenId": "nodo-montante-711fc161-9547-42fa-b66f-2c210726d769",
+          "nodoOrigenId": "nodo-montante-2961909b-4d4e-466a-a7ae-c0b1be98177c",
           "nodoDestinoId": "n-bano2",
           "red": "AF",
           "accesorios": [],
@@ -202,7 +202,7 @@
         },
         {
           "id": "t-bano3",
-          "nodoOrigenId": "nodo-montante-633e86ff-19c3-438f-b920-17573af52a0e",
+          "nodoOrigenId": "nodo-montante-b2212947-e41f-4e1d-8fd4-10b6b8127248",
           "nodoDestinoId": "n-bano3",
           "red": "AF",
           "accesorios": [],
@@ -218,7 +218,7 @@
         },
         {
           "id": "t-bano4",
-          "nodoOrigenId": "nodo-montante-cc39c5e1-eb89-4898-a433-592982ce585e",
+          "nodoOrigenId": "nodo-montante-f6cc7a72-3390-450d-ad43-e303958e0231",
           "nodoDestinoId": "n-bano4",
           "red": "AF",
           "accesorios": [],
@@ -233,39 +233,39 @@
           "longitud_m": 1
         },
         {
-          "id": "tramo-montante-d1313035-e8df-4b94-8cae-7f877fd87566",
+          "id": "tramo-montante-ba329c8a-e18c-4c7f-a464-18b54953d350",
           "nodoOrigenId": "n-af",
-          "nodoDestinoId": "nodo-montante-4dc5ffec-2162-4afa-b9e5-661dfafbcb0c",
+          "nodoDestinoId": "nodo-montante-6dc67303-f923-4d8b-bc87-66914d7428ad",
           "red": "AF",
-          "montanteId": "montante-16a7cbcc-1846-4c37-ae32-0ee31c423183",
+          "montanteId": "montante-9e2b302d-1353-4b6a-8776-f5a68394fa17",
           "longitud_m": 5,
           "longitudEsSugerida": true
         },
         {
-          "id": "tramo-montante-afb50e43-3e5d-4a5f-9e00-2cbf2a5b11b2",
-          "nodoOrigenId": "nodo-montante-4dc5ffec-2162-4afa-b9e5-661dfafbcb0c",
-          "nodoDestinoId": "nodo-montante-711fc161-9547-42fa-b66f-2c210726d769",
+          "id": "tramo-montante-02999365-aeba-4520-8617-99eda1b2ccdc",
+          "nodoOrigenId": "nodo-montante-6dc67303-f923-4d8b-bc87-66914d7428ad",
+          "nodoDestinoId": "nodo-montante-2961909b-4d4e-466a-a7ae-c0b1be98177c",
           "red": "AF",
-          "montanteId": "montante-16a7cbcc-1846-4c37-ae32-0ee31c423183",
+          "montanteId": "montante-9e2b302d-1353-4b6a-8776-f5a68394fa17",
           "longitud_m": 8,
           "longitudEsSugerida": true
         },
         {
-          "id": "tramo-montante-5a810229-3c84-472c-bdc3-2bb49876315a",
+          "id": "tramo-montante-b4f91654-9e55-46f0-afe2-fd3f71002e24",
           "nodoOrigenId": "n-af",
-          "nodoDestinoId": "nodo-montante-633e86ff-19c3-438f-b920-17573af52a0e",
+          "nodoDestinoId": "nodo-montante-b2212947-e41f-4e1d-8fd4-10b6b8127248",
           "red": "AF",
-          "montanteId": "montante-53764f0b-8afd-49a3-8684-321486b0bada",
+          "montanteId": "montante-93dc3967-ce00-4e28-8b77-0209d091e0af",
           "longitud_m": 5,
           "longitudEsSugerida": true,
           "dnComercialAdoptado": "32 mm"
         },
         {
-          "id": "tramo-montante-cac47a89-5583-4112-9de8-a1f3795912d6",
-          "nodoOrigenId": "nodo-montante-633e86ff-19c3-438f-b920-17573af52a0e",
-          "nodoDestinoId": "nodo-montante-cc39c5e1-eb89-4898-a433-592982ce585e",
+          "id": "tramo-montante-21a18464-9608-4a94-a7e7-48b30613defe",
+          "nodoOrigenId": "nodo-montante-b2212947-e41f-4e1d-8fd4-10b6b8127248",
+          "nodoDestinoId": "nodo-montante-f6cc7a72-3390-450d-ad43-e303958e0231",
           "red": "AF",
-          "montanteId": "montante-53764f0b-8afd-49a3-8684-321486b0bada",
+          "montanteId": "montante-93dc3967-ce00-4e28-8b77-0209d091e0af",
           "longitud_m": 8,
           "longitudEsSugerida": true
         }
@@ -273,6 +273,10 @@
     },
     "configuracionAbastecimiento": {
       "esquema": "directa"
+    },
+    "configuracionMedidores": {
+      "esPropiedadHorizontal": false,
+      "tipoProvisionACS": "individual"
     },
     "configuracionHidraulica": {
       "metodoPerdidaDistribuida": "hazenWilliams",
@@ -283,12 +287,12 @@
     },
     "montantes": [
       {
-        "id": "montante-16a7cbcc-1846-4c37-ae32-0ee31c423183",
+        "id": "montante-9e2b302d-1353-4b6a-8776-f5a68394fa17",
         "red": "AF",
         "nombre": "Montante AF Torre 1"
       },
       {
-        "id": "montante-53764f0b-8afd-49a3-8684-321486b0bada",
+        "id": "montante-93dc3967-ce00-4e28-8b77-0209d091e0af",
         "red": "AF",
         "nombre": "Montante AF Torre 2"
       }

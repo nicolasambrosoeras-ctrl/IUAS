@@ -79,7 +79,7 @@ describe('Caso A — Montante simple con cambio de DN (casoA-montante-simple.iua
 
     const reduccion = montante.find((a) => a.etiqueta === 'Reducción')
     expect(reduccion?.cantidadComputada).toBe(1)
-    expect(reduccion?.dnComercial).toBe('20 mm → 25 mm')
+    expect(reduccion?.dnComercial).toBe('20 mm -> 25 mm')
 
     // Ninguna pieza "fantasma": exactamente 1 + 3 + 1 + 5 + 2 + 1 = 13
     // ítems de Montante en total (agrupados por tipo/DN).
@@ -126,7 +126,7 @@ describe('Caso B — Colector con bifurcación y ramas de DN diferentes (casoB-c
     const reducciones = datos.accesorios.filter((a) => a.etiqueta === 'Reducción')
     expect(reducciones).toHaveLength(1)
     expect(reducciones[0]!.cantidadComputada).toBe(1)
-    expect(reducciones[0]!.dnComercial).toBe('20 mm → 32 mm')
+    expect(reducciones[0]!.dnComercial).toBe('20 mm -> 32 mm')
   })
 
   it('fan-out con DN distinto: la rama que cambia (Ala Norte, bano1) ve la reducción; la que no cambia (Ala Sur, bano2) nunca la ve', () => {
@@ -182,7 +182,7 @@ describe('Caso C — Red combinada Montante + Colector: aislamiento de caminos (
     const reducciones = datos.accesorios.filter((a) => a.etiqueta === 'Reducción')
     expect(reducciones).toHaveLength(2)
     expect(reducciones.every((r) => r.sector === 'montante' && r.cantidadComputada === 1)).toBe(true)
-    expect(reducciones.map((r) => r.dnComercial).sort()).toEqual(['20 mm → 32 mm', '32 mm → 20 mm'])
+    expect(reducciones.map((r) => r.dnComercial).sort()).toEqual(['20 mm -> 32 mm', '32 mm -> 20 mm'])
   })
 
   it('aislamiento: los accesorios de Torre 1 (bano1/bano2) NUNCA aparecen en los caminos de Torre 2 (bano3/bano4), y viceversa', () => {

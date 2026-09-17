@@ -93,10 +93,10 @@
           }
         },
         {
-          "id": "nodo-montante-5028414e-19bf-416d-b5ef-e687d7003b43"
+          "id": "nodo-montante-d846c440-f230-4869-9676-f1fcd1de774d"
         },
         {
-          "id": "nodo-montante-85924632-1109-4f27-978a-6f68688d6c38"
+          "id": "nodo-montante-75576b22-1cc0-40af-b0d0-9fa5be6d6c27"
         }
       ],
       "tramos": [
@@ -110,7 +110,7 @@
         },
         {
           "id": "t-bano1",
-          "nodoOrigenId": "nodo-montante-5028414e-19bf-416d-b5ef-e687d7003b43",
+          "nodoOrigenId": "nodo-montante-d846c440-f230-4869-9676-f1fcd1de774d",
           "nodoDestinoId": "n-bano1",
           "red": "AF",
           "accesorios": [],
@@ -126,7 +126,7 @@
         },
         {
           "id": "t-bano2",
-          "nodoOrigenId": "nodo-montante-85924632-1109-4f27-978a-6f68688d6c38",
+          "nodoOrigenId": "nodo-montante-75576b22-1cc0-40af-b0d0-9fa5be6d6c27",
           "nodoDestinoId": "n-bano2",
           "red": "AF",
           "accesorios": [],
@@ -141,21 +141,21 @@
           "longitud_m": 1
         },
         {
-          "id": "tramo-montante-8b624ac1-16ad-4f89-926c-8d1749dec1a7",
+          "id": "tramo-montante-3dfca16a-25f5-4bb2-a5b8-7ccc00c3d527",
           "nodoOrigenId": "n-af",
-          "nodoDestinoId": "nodo-montante-5028414e-19bf-416d-b5ef-e687d7003b43",
+          "nodoDestinoId": "nodo-montante-d846c440-f230-4869-9676-f1fcd1de774d",
           "red": "AF",
-          "montanteId": "montante-19c9311b-ebe5-4aa6-bc50-c1bc75236275",
+          "montanteId": "montante-876cf9e6-2008-419e-a3c0-4db775dcbe71",
           "longitud_m": 5,
           "longitudEsSugerida": true,
           "dnComercialAdoptado": "32 mm"
         },
         {
-          "id": "tramo-montante-a7e5a1b6-9ed2-450f-9357-2ba435822bfb",
+          "id": "tramo-montante-a6115517-19cd-4cdf-a487-becb54cb496d",
           "nodoOrigenId": "n-af",
-          "nodoDestinoId": "nodo-montante-85924632-1109-4f27-978a-6f68688d6c38",
+          "nodoDestinoId": "nodo-montante-75576b22-1cc0-40af-b0d0-9fa5be6d6c27",
           "red": "AF",
-          "montanteId": "montante-2c367d68-5e71-4da4-9977-216a24764576",
+          "montanteId": "montante-b2da83a1-707b-49f5-adf5-0a4da205e31e",
           "longitud_m": 5,
           "longitudEsSugerida": true
         }
@@ -163,6 +163,10 @@
     },
     "configuracionAbastecimiento": {
       "esquema": "directa"
+    },
+    "configuracionMedidores": {
+      "esPropiedadHorizontal": false,
+      "tipoProvisionACS": "individual"
     },
     "configuracionHidraulica": {
       "metodoPerdidaDistribuida": "hazenWilliams",
@@ -173,12 +177,12 @@
     },
     "montantes": [
       {
-        "id": "montante-19c9311b-ebe5-4aa6-bc50-c1bc75236275",
+        "id": "montante-876cf9e6-2008-419e-a3c0-4db775dcbe71",
         "red": "AF",
         "nombre": "Montante AF Ala Norte"
       },
       {
-        "id": "montante-2c367d68-5e71-4da4-9977-216a24764576",
+        "id": "montante-b2da83a1-707b-49f5-adf5-0a4da205e31e",
         "red": "AF",
         "nombre": "Montante AF Ala Sur"
       }

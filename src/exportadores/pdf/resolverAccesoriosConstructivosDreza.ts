@@ -348,7 +348,9 @@ function proyectarAccesoriosFisicosAMateriales(
     // Para materiales, el DN de una Reducción se muestra como el PAR
     // completo (entrada/salida) -- una sola denominación sería ambigua
     // (una reducción nunca es "de un DN", es la transición entre dos).
-    const dnComercialMostrado = accesorio.tipo === 'reduccion' ? `${accesorio.dnAguasArriba} → ${accesorio.dnComercial}` : accesorio.dnComercial
+    // REPORT-POLISH-01 (precedente): la flecha Unicode (→) no la renderiza
+    // la fuente vfs de pdfMake (glyph roto) -- separador ASCII, no símbolo.
+    const dnComercialMostrado = accesorio.tipo === 'reduccion' ? `${accesorio.dnAguasArriba} -> ${accesorio.dnComercial}` : accesorio.dnComercial
     grupos.set(clave, {
       item: {
         clave,

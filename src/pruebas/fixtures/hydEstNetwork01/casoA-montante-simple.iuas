@@ -147,16 +147,16 @@
           }
         },
         {
-          "id": "nodo-montante-35468b85-9482-435d-855f-fe5ca88f6d59"
+          "id": "nodo-montante-be2810e4-f3a2-492e-82fd-97104793dad7"
         },
         {
-          "id": "nodo-montante-6d01a88a-49e0-40cd-af3d-75d0600c3b73"
+          "id": "nodo-montante-6c4ee5f8-641d-4789-93bf-087166a78797"
         },
         {
-          "id": "nodo-montante-33643c25-3c40-4d7a-9b49-fb0417bbb36c"
+          "id": "nodo-montante-55f7f9a6-eddb-45f0-8127-ddecfa774899"
         },
         {
-          "id": "nodo-montante-6af404ac-d40b-4af5-9143-cd5054430c49"
+          "id": "nodo-montante-ac36615b-3aa3-4959-9399-10f59e949414"
         }
       ],
       "tramos": [
@@ -170,7 +170,7 @@
         },
         {
           "id": "t-bano1",
-          "nodoOrigenId": "nodo-montante-35468b85-9482-435d-855f-fe5ca88f6d59",
+          "nodoOrigenId": "nodo-montante-be2810e4-f3a2-492e-82fd-97104793dad7",
           "nodoDestinoId": "n-bano1",
           "red": "AF",
           "accesorios": [],
@@ -186,7 +186,7 @@
         },
         {
           "id": "t-bano2",
-          "nodoOrigenId": "nodo-montante-6d01a88a-49e0-40cd-af3d-75d0600c3b73",
+          "nodoOrigenId": "nodo-montante-6c4ee5f8-641d-4789-93bf-087166a78797",
           "nodoDestinoId": "n-bano2",
           "red": "AF",
           "accesorios": [],
@@ -202,7 +202,7 @@
         },
         {
           "id": "t-bano3",
-          "nodoOrigenId": "nodo-montante-33643c25-3c40-4d7a-9b49-fb0417bbb36c",
+          "nodoOrigenId": "nodo-montante-55f7f9a6-eddb-45f0-8127-ddecfa774899",
           "nodoDestinoId": "n-bano3",
           "red": "AF",
           "accesorios": [],
@@ -218,7 +218,7 @@
         },
         {
           "id": "t-bano4",
-          "nodoOrigenId": "nodo-montante-6af404ac-d40b-4af5-9143-cd5054430c49",
+          "nodoOrigenId": "nodo-montante-ac36615b-3aa3-4959-9399-10f59e949414",
           "nodoDestinoId": "n-bano4",
           "red": "AF",
           "accesorios": [],
@@ -233,35 +233,35 @@
           "longitud_m": 1
         },
         {
-          "id": "tramo-montante-cd921f91-a3da-4676-b62e-2030c6a7ab53",
+          "id": "tramo-montante-ad671a9c-5a9c-48d4-af20-076a78a65811",
           "nodoOrigenId": "n-af",
-          "nodoDestinoId": "nodo-montante-35468b85-9482-435d-855f-fe5ca88f6d59",
+          "nodoDestinoId": "nodo-montante-be2810e4-f3a2-492e-82fd-97104793dad7",
           "red": "AF",
-          "montanteId": "montante-0c8b8535-0fae-4ea8-a5a7-686e98805ca6",
+          "montanteId": "montante-cb977b62-88d3-4a86-93be-c4214973f5d6",
           "longitud_m": 2
         },
         {
-          "id": "tramo-montante-597fc300-4624-4ae2-b8fb-35606126bb9a",
-          "nodoOrigenId": "nodo-montante-35468b85-9482-435d-855f-fe5ca88f6d59",
-          "nodoDestinoId": "nodo-montante-6d01a88a-49e0-40cd-af3d-75d0600c3b73",
+          "id": "tramo-montante-fa2a6641-e798-446b-aa9f-38349e2061cc",
+          "nodoOrigenId": "nodo-montante-be2810e4-f3a2-492e-82fd-97104793dad7",
+          "nodoDestinoId": "nodo-montante-6c4ee5f8-641d-4789-93bf-087166a78797",
           "red": "AF",
-          "montanteId": "montante-0c8b8535-0fae-4ea8-a5a7-686e98805ca6",
+          "montanteId": "montante-cb977b62-88d3-4a86-93be-c4214973f5d6",
           "longitud_m": 3
         },
         {
-          "id": "tramo-montante-ec15276b-9a2e-4ac9-b016-93475919aeae",
-          "nodoOrigenId": "nodo-montante-6d01a88a-49e0-40cd-af3d-75d0600c3b73",
-          "nodoDestinoId": "nodo-montante-33643c25-3c40-4d7a-9b49-fb0417bbb36c",
+          "id": "tramo-montante-42e5cc42-b7a0-475b-b775-a457643f690e",
+          "nodoOrigenId": "nodo-montante-6c4ee5f8-641d-4789-93bf-087166a78797",
+          "nodoDestinoId": "nodo-montante-55f7f9a6-eddb-45f0-8127-ddecfa774899",
           "red": "AF",
-          "montanteId": "montante-0c8b8535-0fae-4ea8-a5a7-686e98805ca6",
+          "montanteId": "montante-cb977b62-88d3-4a86-93be-c4214973f5d6",
           "longitud_m": 3
         },
         {
-          "id": "tramo-montante-5b43128d-4ed5-4312-bd9a-9c84b2c1e63c",
-          "nodoOrigenId": "nodo-montante-33643c25-3c40-4d7a-9b49-fb0417bbb36c",
-          "nodoDestinoId": "nodo-montante-6af404ac-d40b-4af5-9143-cd5054430c49",
+          "id": "tramo-montante-73f070be-757b-4c41-b62f-b1a2fc9ddff7",
+          "nodoOrigenId": "nodo-montante-55f7f9a6-eddb-45f0-8127-ddecfa774899",
+          "nodoDestinoId": "nodo-montante-ac36615b-3aa3-4959-9399-10f59e949414",
           "red": "AF",
-          "montanteId": "montante-0c8b8535-0fae-4ea8-a5a7-686e98805ca6",
+          "montanteId": "montante-cb977b62-88d3-4a86-93be-c4214973f5d6",
           "longitud_m": 3,
           "dnComercialAdoptado": "25 mm"
         }
@@ -269,6 +269,10 @@
     },
     "configuracionAbastecimiento": {
       "esquema": "directa"
+    },
+    "configuracionMedidores": {
+      "esPropiedadHorizontal": false,
+      "tipoProvisionACS": "individual"
     },
     "configuracionHidraulica": {
       "metodoPerdidaDistribuida": "hazenWilliams",
@@ -279,7 +283,7 @@
     },
     "montantes": [
       {
-        "id": "montante-0c8b8535-0fae-4ea8-a5a7-686e98805ca6",
+        "id": "montante-cb977b62-88d3-4a86-93be-c4214973f5d6",
         "red": "AF",
         "nombre": "Montante AF Torre única"
       }
