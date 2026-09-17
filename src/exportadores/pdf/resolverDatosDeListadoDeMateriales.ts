@@ -40,7 +40,7 @@ import {
   identificarFilasDistribucionGeneral,
   identificarFilasPrincipalesDeLocales,
 } from '../../interfaz/paginas/identificarFilasDeModulo2'
-import { etiquetaHumanaDeLocal } from '../../interfaz/paginas/montantesDelProyecto'
+import { etiquetaHumanaDeLocal, etiquetaSoloLocal } from '../../interfaz/paginas/montantesDelProyecto'
 import { nombreDeMontante } from '../../interfaz/paginas/nombreDeMontante'
 import { resolverEstadoModulo3 } from '../../motor/modulo3/resolverEstadoModulo3'
 import { localUnicoDeTramo } from '../../motor/tuberias/topologia/identificarTramoRepresentativoDeLocal'
@@ -50,6 +50,7 @@ import {
   resolverAccesoriosDeColectorDreza,
   resolverUnionesRectasDreza,
   type SectorMaterial,
+  type UbicacionMaterial,
 } from './resolverAccesoriosConstructivosDreza'
 
 export type ItemTuberiaComputado = {
@@ -92,6 +93,15 @@ export type ItemAccesorioComputado = {
   // completan; un Sobrepaso de Local no, porque puede cruzar AF y AC del
   // mismo Local -- brief §6.3).
   readonly red?: RedDeTramo
+  // MATERIALS-PDF-POLISH-02 (brief §5): identidad de ubicación física
+  // completa (Colector / Montante con nombre / Local con UF+nombre) --
+  // a diferencia de `sector` (categoría amplia), esto es lo que el PDF
+  // usa para agrupar el detalle en bloques trazables. Se completa para
+  // TODOS los ítems (definidos y estimados DREZA); `undefined` sólo es
+  // posible si el Tramo de origen no pudo clasificarse (no debería
+  // ocurrir con datos bien formados -- el clasificador siempre resuelve
+  // a un valor, con Colector principal como fallback neutro).
+  readonly ubicacion?: UbicacionMaterial
 }
 
 // Ítems SIN margen de compra (brief §27/§28/§31/§38): medidores, equipos de
@@ -289,6 +299,7 @@ function resolverTuberiasYAccesorios(
     // (brief §18/§19/§20) -- los K estimados de HYD-EST NUNCA se convierten
     // en piezas, y esta rama simplemente no los lee.
     if (modoDetallado && tramo.accesorios !== undefined && tramo.accesorios.length > 0) {
+      const ubicacion = resolverUbicacionDeTramo(proyecto, tramo.id, indiceDeHumanizacion)
       for (const accesorio of tramo.accesorios) {
         const etiqueta = nombreDeAccesorio(accesorio.tipo)
         const claveAccesorio = `${accesorio.tipo}|${dnComercial ?? 'pendiente'}`
@@ -299,6 +310,9 @@ function resolverTuberiasYAccesorios(
           dnComercial,
           cantidadComputada: (existente?.cantidadComputada ?? 0) + accesorio.cantidad,
           origen: 'definido',
+          sector: ubicacion.tipo,
+          ubicacion,
+          red: tramo.red,
         })
       }
     }
@@ -403,39 +417,55 @@ function resolverTees(
     const etiqueta = `Tee DN ${dnEntrada} × ${dnRecta} × ${dnLateral}`
     const clave = `tee|${etiqueta}`
     const existente = acumuladorAccesorios.get(clave)
+    const ubicacion = resolverUbicacionDeTramo(proyecto, entrantes[0]!.id, indiceDeHumanizacion)
     acumuladorAccesorios.set(clave, {
       clave,
       etiqueta,
       dnComercial: undefined,
       cantidadComputada: (existente?.cantidadComputada ?? 0) + 1,
       origen: 'definido',
+      sector: ubicacion.tipo,
+      ubicacion,
+      red: entrantes[0]!.red,
     })
   }
 }
 
-// MATERIALS-ACCESSORIES-01 (D-δ.141): sector físico constructivo de un
-// Tramo, para la regla global de uniones/cuplas rectas cada 4 m (brief
-// §9) -- necesita saber si un metro de cañería es del Colector principal,
-// de un Montante o de la red de un Local para no unir recorridos
-// independientes. Reusa exactamente las mismas señales estructurales que
-// ya usa `etiquetaHumanaDeTramoParaPendiente` (mismo índice de
-// humanización), en vez de reimplementar la clasificación.
-function resolverSectorDeTramo(proyecto: Proyecto, tramoId: string, indice: IndiceDeHumanizacion): SectorMaterial {
+// MATERIALS-ACCESSORIES-01/MATERIALS-PDF-POLISH-02: ubicación física
+// completa de un Tramo (Colector / Montante con nombre / Local con UF +
+// nombre). Reusa exactamente las mismas señales estructurales que ya usa
+// `etiquetaHumanaDeTramoParaPendiente` (mismo índice de humanización), en
+// vez de reimplementar la clasificación. `sector` (SectorMaterial) es
+// simplemente `ubicacion.tipo` -- se deriva de acá para la regla de
+// uniones/cuplas rectas cada 4 m (brief §9) y para no mezclar recorridos
+// independientes (Colector/Montante/Local) en esa agrupación.
+function resolverUbicacionDeTramo(proyecto: Proyecto, tramoId: string, indice: IndiceDeHumanizacion): UbicacionMaterial {
   if (indice.etiquetaDistribucionGeneralPorTramoId.has(tramoId)) {
-    return 'colectorPrincipal'
+    return { tipo: 'colectorPrincipal' }
   }
   const tramo = proyecto.redHidraulica?.tramos.find((candidato) => candidato.id === tramoId)
   if (tramo?.montanteId !== undefined) {
-    return 'montante'
+    return { tipo: 'montante', montanteId: tramo.montanteId, nombre: nombreDeMontante(proyecto, tramo.montanteId) }
   }
-  if (indice.identidadPorTramoId.has(tramoId)) {
-    return 'local'
+  const identidad = indice.identidadPorTramoId.get(tramoId)
+  if (identidad !== undefined) {
+    const uf = proyecto.unidadesFuncionales.find((candidata) => candidata.id === identidad.unidadFuncionalId)
+    const local = uf !== undefined ? localesDeUnidadFuncional(uf).find((candidato) => candidato.id === identidad.localId) : undefined
+    if (uf !== undefined && local !== undefined) {
+      return {
+        tipo: 'local',
+        unidadFuncionalId: uf.id,
+        localId: local.id,
+        unidadFuncionalNombre: uf.nombre,
+        localNombre: etiquetaSoloLocal(uf, local),
+      }
+    }
   }
   // Distribución compartida genérica sin Montante explícito (M2-TOPO-B):
   // por definición del Colector (brief §8, "distribuye hacia Montantes si
   // existen, o hacia Locales directamente si no"), un tramo de reparto que
   // no es feed final de un Local se trata como Colector principal.
-  return 'colectorPrincipal'
+  return { tipo: 'colectorPrincipal' }
 }
 
 function resolverMedidores(
@@ -474,7 +504,7 @@ function resolverMedidores(
   }
 
   if (estado.estado === 'incompleto') {
-    pendientes.push('Medidores — el cálculo de Módulo 3 está incompleto; algunos medidores no pudieron determinarse')
+    pendientes.push('Medidores — el cálculo de medidores está incompleto; algunos medidores no pudieron determinarse')
   }
 
   return medidores
@@ -517,7 +547,7 @@ function resolverAlmacenamiento(proyecto: Proyecto, pendientes: string[]): ItemS
   // define ningún dato de bomba (potencia, caudal, modelo) -- nunca se
   // inventa una especificación comercial concreta.
   if (configuracion.esquema === 'cisternaBombeoElevado') {
-    pendientes.push('Sistema de bombeo requerido — no dimensionado por este módulo')
+    pendientes.push('Sistema de bombeo requerido — no dimensionado automáticamente')
   }
 
   return almacenamiento
@@ -577,13 +607,7 @@ export function resolverDatosDeListadoDeMateriales(
     )) {
       accesorios.set(item.clave, item)
     }
-    for (const item of resolverAccesoriosDeMontantesDreza(
-      proyecto,
-      catalogoArtefactos,
-      contexto,
-      (montanteId) => nombreDeMontante(proyecto, montanteId),
-      pendientes,
-    )) {
+    for (const item of resolverAccesoriosDeMontantesDreza(proyecto, catalogoArtefactos, contexto, pendientes)) {
       accesorios.set(item.clave, item)
     }
     for (const item of resolverAccesoriosDeColectorDreza(proyecto, catalogoArtefactos, contexto, pendientes)) {
@@ -598,7 +622,7 @@ export function resolverDatosDeListadoDeMateriales(
     proyecto,
     catalogoArtefactos,
     contexto,
-    (tramoId) => resolverSectorDeTramo(proyecto, tramoId, indiceDeHumanizacion),
+    (tramoId) => resolverUbicacionDeTramo(proyecto, tramoId, indiceDeHumanizacion),
     (tramoId) => esTramoRamalEnSimplificada(proyecto, tramoId, contexto, indiceDeHumanizacion),
   )) {
     accesorios.set(item.clave, item)

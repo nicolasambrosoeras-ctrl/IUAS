@@ -240,13 +240,24 @@ describe('resolverDatosDeListadoDeMateriales — accesorios', () => {
   // comportamiento de `Tramo.accesorios`/K-estimadas, así que filtran esa
   // unión (cubierta aparte en el describe dedicado a uniones).
   function sinUniones(accesorios: ReturnType<typeof resolverDatosDeListadoDeMateriales>['accesorios']) {
-    return accesorios.filter((a) => a.etiqueta !== 'Unión/cupla recta PPR')
+    return accesorios.filter((a) => a.etiqueta !== 'Cupla recta PPR')
   }
 
   it('modo detallado: computa exactamente los accesorios explícitos del Tramo (brief §20/§63)', () => {
     const proyecto = proyectoConAccesorio([{ tipo: 'codo90', cantidad: 7 }], 'detallado')
     const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
-    expect(sinUniones(datos.accesorios)).toEqual([{ clave: 'codo90|20 mm', etiqueta: 'Codo a 90º', dnComercial: '20 mm', cantidadComputada: 7, origen: 'definido' }])
+    expect(sinUniones(datos.accesorios)).toEqual([
+      {
+        clave: 'codo90|20 mm',
+        etiqueta: 'Codo a 90º',
+        dnComercial: '20 mm',
+        cantidadComputada: 7,
+        origen: 'definido',
+        red: 'AF',
+        sector: 'colectorPrincipal',
+        ubicacion: { tipo: 'colectorPrincipal' },
+      },
+    ])
   })
 
   it('modo estimado: NUNCA convierte las K estimadas (tee/terminal/llave) en piezas de compra (brief §19/§62)', () => {
@@ -293,7 +304,7 @@ describe('resolverDatosDeListadoDeMateriales — Tee nodal', () => {
   // mismo Tramo (floor(5/4)=1); se filtra acá (cubierta aparte en el
   // describe dedicado a uniones).
   function sinUniones(accesorios: ReturnType<typeof resolverDatosDeListadoDeMateriales>['accesorios']) {
-    return accesorios.filter((a) => a.etiqueta !== 'Unión/cupla recta PPR')
+    return accesorios.filter((a) => a.etiqueta !== 'Cupla recta PPR')
   }
 
   it('Tee 1→2 clasificada con DN inequívoco: se computa como pieza única "Tee DN A × B × C" (brief §24)', () => {
@@ -302,7 +313,18 @@ describe('resolverDatosDeListadoDeMateriales — Tee nodal', () => {
 
     const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
 
-    expect(sinUniones(datos.accesorios)).toEqual([{ clave: 'tee|Tee DN 25 mm × 25 mm × 20 mm', etiqueta: 'Tee DN 25 mm × 25 mm × 20 mm', dnComercial: undefined, cantidadComputada: 1, origen: 'definido' }])
+    expect(sinUniones(datos.accesorios)).toEqual([
+      {
+        clave: 'tee|Tee DN 25 mm × 25 mm × 20 mm',
+        etiqueta: 'Tee DN 25 mm × 25 mm × 20 mm',
+        dnComercial: undefined,
+        cantidadComputada: 1,
+        origen: 'definido',
+        red: 'AF',
+        sector: 'colectorPrincipal',
+        ubicacion: { tipo: 'colectorPrincipal' },
+      },
+    ])
     expect(datos.pendientes).toEqual([])
   })
 
@@ -410,13 +432,13 @@ describe('resolverDatosDeListadoDeMateriales — estimación constructiva DREZA 
     const af = items.filter((a) => a.red === 'AF')
     const ac = items.filter((a) => a.red === 'AC')
 
-    expect(af.find((a) => a.etiqueta === 'Tee roscada')?.cantidadComputada).toBe(3)
-    expect(af.find((a) => a.etiqueta === 'Codo terminal roscado')?.cantidadComputada).toBe(1)
+    expect(af.find((a) => a.etiqueta === 'Tee roscada PPR')?.cantidadComputada).toBe(3)
+    expect(af.find((a) => a.etiqueta === 'Codo terminal roscado PPR')?.cantidadComputada).toBe(1)
     expect(af.find((a) => a.etiqueta === 'Codo a 90° (recorrido del local)')?.cantidadComputada).toBe(3)
     expect(af.find((a) => a.etiqueta === 'Llave de paso esférica')?.cantidadComputada).toBe(1)
 
-    expect(ac.find((a) => a.etiqueta === 'Tee roscada')?.cantidadComputada).toBe(2)
-    expect(ac.find((a) => a.etiqueta === 'Codo terminal roscado')?.cantidadComputada).toBe(1)
+    expect(ac.find((a) => a.etiqueta === 'Tee roscada PPR')?.cantidadComputada).toBe(2)
+    expect(ac.find((a) => a.etiqueta === 'Codo terminal roscado PPR')?.cantidadComputada).toBe(1)
     expect(ac.find((a) => a.etiqueta === 'Codo a 90° (recorrido del local)')?.cantidadComputada).toBe(3)
     expect(ac.find((a) => a.etiqueta === 'Llave de paso esférica')?.cantidadComputada).toBe(1)
 
@@ -443,8 +465,8 @@ describe('resolverDatosDeListadoDeMateriales — estimación constructiva DREZA 
     const datos = resolverDatosDeListadoDeMateriales(proyectoSimplificadaEstimado(uf, red), catalogoArtefactos, coeficientesMayoracion)
     const items = itemsDrezaDeLocal(datos)
 
-    expect(items.find((a) => a.etiqueta === 'Tee roscada')?.cantidadComputada).toBe(1)
-    expect(items.find((a) => a.etiqueta === 'Codo terminal roscado')?.cantidadComputada).toBe(1)
+    expect(items.find((a) => a.etiqueta === 'Tee roscada PPR')?.cantidadComputada).toBe(1)
+    expect(items.find((a) => a.etiqueta === 'Codo terminal roscado PPR')?.cantidadComputada).toBe(1)
     expect(items.find((a) => a.etiqueta === 'Codo a 90° (recorrido del local)')?.cantidadComputada).toBe(3)
     expect(items.find((a) => a.etiqueta === 'Llave de paso esférica')?.cantidadComputada).toBe(1)
     expect(items.find((a) => a.etiqueta === 'Sobrepaso')?.cantidadComputada).toBe(2)
@@ -466,14 +488,14 @@ describe('resolverDatosDeListadoDeMateriales — estimación constructiva DREZA 
     // fixture mide 5 m y ES el representativo del Local), pero esa regla
     // corre SIEMPRE, independiente de este gate; no debe confundirse con
     // la estimación por sector que sí está gateada.
-    expect(datos.accesorios.some((a) => a.origen === 'estimadoDreza' && a.sector === 'local' && a.etiqueta !== 'Unión/cupla recta PPR')).toBe(false)
+    expect(datos.accesorios.some((a) => a.origen === 'estimadoDreza' && a.sector === 'local' && a.etiqueta !== 'Cupla recta PPR')).toBe(false)
   })
 
   it('simplificada + detallado: NUNCA genera estimación DREZA (el usuario releva sus propios accesorios)', () => {
     const { uf, red } = construirLocalConArtefactos({ ufId: 'uf1', localId: 'uf1-local', tipo: 'bano', artefactos: [{ id: 'inodoro', redes: ['AF'] }] })
     const proyecto = proyectoBase({ ufs: [uf], red, configuracionHidraulica: { granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'detallado' } })
     const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
-    expect(datos.accesorios.some((a) => a.origen === 'estimadoDreza' && a.sector === 'local' && a.etiqueta !== 'Unión/cupla recta PPR')).toBe(false)
+    expect(datos.accesorios.some((a) => a.origen === 'estimadoDreza' && a.sector === 'local' && a.etiqueta !== 'Cupla recta PPR')).toBe(false)
   })
 
   // Caso I (brief §13): artefacto con cantidad > 1.
@@ -506,8 +528,8 @@ describe('resolverDatosDeListadoDeMateriales — estimación constructiva DREZA 
     // n=3 bocas en cada red (cantidad=3, un solo Artefacto) => 2 tees + 1
     // codo terminal por red -- nunca 6 (no se duplica por participar en
     // AF y AC a la vez).
-    expect(items.find((a) => a.red === 'AF' && a.etiqueta === 'Tee roscada')?.cantidadComputada).toBe(2)
-    expect(items.find((a) => a.red === 'AC' && a.etiqueta === 'Tee roscada')?.cantidadComputada).toBe(2)
+    expect(items.find((a) => a.red === 'AF' && a.etiqueta === 'Tee roscada PPR')?.cantidadComputada).toBe(2)
+    expect(items.find((a) => a.red === 'AC' && a.etiqueta === 'Tee roscada PPR')?.cantidadComputada).toBe(2)
     // 1 sobrepaso por Artefacto conectado (no por boca ni por red): con
     // cantidad=3 son 3 sobrepasos, no 6.
     expect(items.find((a) => a.etiqueta === 'Sobrepaso')?.cantidadComputada).toBe(3)
@@ -554,7 +576,7 @@ describe('resolverDatosDeListadoDeMateriales — estimación constructiva DREZA 
     expect(items.some((a) => a.etiqueta.toLowerCase().includes('reducci'))).toBe(false)
 
     // Uniones cada 4 m sobre los 11 m del Montante: floor(11/4) = 2.
-    const union = datos.accesorios.find((a) => a.sector === 'montante' && a.etiqueta === 'Unión/cupla recta PPR')
+    const union = datos.accesorios.find((a) => a.sector === 'montante' && a.etiqueta === 'Cupla recta PPR')
     expect(union?.cantidadComputada).toBe(2)
   })
 })
@@ -656,7 +678,7 @@ describe('resolverDatosDeListadoDeMateriales — uniones/cuplas rectas cada 4 m 
     [9.0, 2],
   ])('%s m de PPR => %i unión/es recta/s', (longitud, esperado) => {
     const datos = resolverDatosDeListadoDeMateriales(proyectoConLongitud(longitud), catalogoArtefactos, coeficientesMayoracion)
-    const union = datos.accesorios.find((a) => a.etiqueta === 'Unión/cupla recta PPR')
+    const union = datos.accesorios.find((a) => a.etiqueta === 'Cupla recta PPR')
     expect(union?.cantidadComputada ?? 0).toBe(esperado)
   })
 
@@ -664,7 +686,7 @@ describe('resolverDatosDeListadoDeMateriales — uniones/cuplas rectas cada 4 m 
     // proyectoConLongitud usa la configuración por defecto de proyectoBase
     // ('detallado' + 'profesional') -- las uniones deben seguir apareciendo.
     const datos = resolverDatosDeListadoDeMateriales(proyectoConLongitud(8), catalogoArtefactos, coeficientesMayoracion)
-    expect(datos.accesorios.find((a) => a.etiqueta === 'Unión/cupla recta PPR')?.cantidadComputada).toBe(2)
+    expect(datos.accesorios.find((a) => a.etiqueta === 'Cupla recta PPR')?.cantidadComputada).toBe(2)
   })
 
   it('no une AF con AC ni DN20 con DN25 (grupos independientes)', () => {
@@ -681,7 +703,7 @@ describe('resolverDatosDeListadoDeMateriales — uniones/cuplas rectas cada 4 m 
     ]
     const proyecto = proyectoBase({ ufs: [uf], red: { nodos, tramos } })
     const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
-    const uniones = datos.accesorios.filter((a) => a.etiqueta === 'Unión/cupla recta PPR')
+    const uniones = datos.accesorios.filter((a) => a.etiqueta === 'Cupla recta PPR')
 
     expect(uniones).toHaveLength(2)
     expect(uniones.find((u) => u.red === 'AF')?.cantidadComputada).toBe(2)

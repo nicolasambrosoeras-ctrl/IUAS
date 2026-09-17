@@ -52,16 +52,53 @@ import {
   ETIQUETA_COLECTOR_PRINCIPAL,
 } from '../../interfaz/paginas/identificarFilasDeModulo2'
 import { derivarLocalesServidos, reconstruirCadena } from '../../interfaz/paginas/reconciliarMontante'
-import { derivacionesDeMontante } from '../../interfaz/paginas/montantesDelProyecto'
+import { derivacionesDeMontante, etiquetaSoloLocal } from '../../interfaz/paginas/montantesDelProyecto'
+import { nombreDeMontante } from '../../interfaz/paginas/nombreDeMontante'
 import type { ItemAccesorioComputado } from './resolverDatosDeListadoDeMateriales'
 
-// Sector físico constructivo (brief §4): dimensión de agrupación NUEVA de
-// este slice, ortogonal a `origen` (definido/estimadoDreza) y a `red`
-// (AF/AC). Sólo se completa para los ítems que este archivo produce --
-// los accesorios explícitos/Tee real de `resolverDatosDeListadoDeMateriales.ts`
-// no se re-sectorizan retroactivamente (cambio de alcance innecesario,
-// ver docs/MATERIALS-ACCESSORIES-01.md).
-export type SectorMaterial = 'colectorPrincipal' | 'montante' | 'local'
+// Ubicación física de un accesorio (MATERIALS-PDF-POLISH-02, brief §5):
+// a diferencia de `SectorMaterial` (una categoría amplia usada para
+// agrupar uniones y para el margen), esto identifica el bloque de
+// trazabilidad concreto que el PDF muestra -- el Colector es un único
+// bloque; cada Montante lleva su propio nombre humano ya resuelto
+// (`nombreDeMontante`); cada Local lleva la identidad de su UF y su
+// nombre propio (`etiquetaSoloLocal`), sin sufijo de UF -- el llamador
+// decide si antepone la UF (sólo cuando hace falta desambiguar). Se
+// completa para TODOS los ítems (definidos y estimados DREZA) para que
+// ningún accesorio del detalle quede sin bloque de ubicación.
+export type UbicacionMaterial =
+  | { readonly tipo: 'colectorPrincipal' }
+  | { readonly tipo: 'montante'; readonly montanteId: string; readonly nombre: string }
+  | {
+      readonly tipo: 'local'
+      readonly unidadFuncionalId: string
+      readonly localId: string
+      readonly unidadFuncionalNombre: string
+      readonly localNombre: string
+    }
+
+// Sector físico constructivo (brief §4 de MATERIALS-ACCESSORIES-01):
+// dimensión de agrupación ortogonal a `origen` (definido/estimadoDreza) y
+// a `red` (AF/AC), usada por la regla de uniones para no mezclar
+// recorridos independientes. Coincide exactamente con `UbicacionMaterial['tipo']`
+// -- se deriva de ahí para no duplicar el enum.
+export type SectorMaterial = UbicacionMaterial['tipo']
+
+// Clave de agrupación estable de una ubicación (identidad completa, no
+// sólo el sector amplio): usada para no mezclar cuplas de dos Montantes
+// distintos, o de dos Locales distintos, aunque compartan sector/DN/red,
+// y reusada por el constructor del PDF para agrupar el detalle en
+// bloques (brief §5/§6 de MATERIALS-PDF-POLISH-02).
+export function claveDeUbicacion(ubicacion: UbicacionMaterial): string {
+  switch (ubicacion.tipo) {
+    case 'colectorPrincipal':
+      return 'colectorPrincipal'
+    case 'montante':
+      return `montante:${ubicacion.montanteId}`
+    case 'local':
+      return `local:${ubicacion.unidadFuncionalId}:${ubicacion.localId}`
+  }
+}
 
 export function etiquetaSector(sector: SectorMaterial): string {
   switch (sector) {
@@ -168,6 +205,13 @@ export function resolverAccesoriosDeLocalesDreza(
     }
 
     const { bocasPorRed, sobrepasos } = medirTerminalesFisicosDeLocal(redHidraulica, local, unidadFuncionalId, localId)
+    const ubicacion: UbicacionMaterial = {
+      tipo: 'local',
+      unidadFuncionalId,
+      localId,
+      unidadFuncionalNombre: uf.nombre,
+      localNombre: etiquetaSoloLocal(uf, local),
+    }
 
     if (sobrepasos > 0) {
       // Sin DN: un sobrepaso no tiene una red/DN única (puede cruzar AF y
@@ -180,6 +224,7 @@ export function resolverAccesoriosDeLocalesDreza(
         cantidadComputada: sobrepasos,
         origen: 'estimadoDreza',
         sector: 'local',
+        ubicacion,
       })
     }
 
@@ -200,14 +245,14 @@ export function resolverAccesoriosDeLocalesDreza(
       }
 
       const clave = (sufijo: string) => `estimadoDreza|local|${unidadFuncionalId}|${localId}|${red}|${sufijo}`
-      items.push({ clave: clave('llave'), etiqueta: 'Llave de paso esférica', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'local', red })
-      items.push({ clave: clave('codoRecorrido'), etiqueta: 'Codo a 90° (recorrido del local)', dnComercial, cantidadComputada: 3, origen: 'estimadoDreza', sector: 'local', red })
+      items.push({ clave: clave('llave'), etiqueta: 'Llave de paso esférica', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'local', red, ubicacion })
+      items.push({ clave: clave('codoRecorrido'), etiqueta: 'Codo a 90° (recorrido del local)', dnComercial, cantidadComputada: 3, origen: 'estimadoDreza', sector: 'local', red, ubicacion })
 
       const teesRoscadas = Math.max(0, n - 1)
       if (teesRoscadas > 0) {
-        items.push({ clave: clave('teeRoscada'), etiqueta: 'Tee roscada', dnComercial, cantidadComputada: teesRoscadas, origen: 'estimadoDreza', sector: 'local', red })
+        items.push({ clave: clave('teeRoscada'), etiqueta: 'Tee roscada PPR', dnComercial, cantidadComputada: teesRoscadas, origen: 'estimadoDreza', sector: 'local', red, ubicacion })
       }
-      items.push({ clave: clave('codoTerminal'), etiqueta: 'Codo terminal roscado', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'local', red })
+      items.push({ clave: clave('codoTerminal'), etiqueta: 'Codo terminal roscado PPR', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'local', red, ubicacion })
     }
   }
   return items
@@ -223,7 +268,6 @@ export function resolverAccesoriosDeMontantesDreza(
   proyecto: Proyecto,
   catalogoArtefactos: readonly ArtefactoNormativo[],
   contexto: ContextoDeCalculoM2,
-  etiquetaDeMontante: (montanteId: string) => string,
   pendientes: string[],
 ): ItemAccesorioComputado[] {
   const { redHidraulica, montantes } = proyecto
@@ -248,13 +292,15 @@ export function resolverAccesoriosDeMontantesDreza(
       continue
     }
 
+    const nombreMontante = nombreDeMontante(proyecto, montante.id)
     const primerSegmento = segmentos[0]!
     const resultadoDn = resolverDiametroComercialDeTramo(proyecto, primerSegmento.id, catalogoArtefactos, catalogoSistemasDeTuberia, contexto)
     const dnComercial = resultadoDn.tipo === 'conCandidato' ? resultadoDn.candidato.denominacionComercial : undefined
     if (dnComercial === undefined) {
-      pendientes.push(`${etiquetaDeMontante(montante.id)} — accesorios estimados con DN pendiente de definición`)
+      pendientes.push(`${nombreMontante} — accesorios estimados con DN pendiente de definición`)
       continue
     }
+    const ubicacion: UbicacionMaterial = { tipo: 'montante', montanteId: montante.id, nombre: nombreMontante }
 
     const longitudTotal_m = segmentos.reduce((acumulado, tramo) => acumulado + (tramo.longitud_m ?? 0), 0)
 
@@ -269,18 +315,18 @@ export function resolverAccesoriosDeMontantesDreza(
     const codosRecorrido = Math.floor(longitudTotal_m / 2)
 
     const clave = (sufijo: string) => `estimadoDreza|montante|${montante.id}|${sufijo}`
-    items.push({ clave: clave('llave'), etiqueta: 'Llave de paso esférica', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'montante', red: montante.red })
+    items.push({ clave: clave('llave'), etiqueta: 'Llave de paso esférica', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'montante', red: montante.red, ubicacion })
     if (teesMontante > 0) {
-      items.push({ clave: clave('tee'), etiqueta: 'Tee de derivación (Montante)', dnComercial, cantidadComputada: teesMontante, origen: 'estimadoDreza', sector: 'montante', red: montante.red })
+      items.push({ clave: clave('tee'), etiqueta: 'Tee de derivación (Montante)', dnComercial, cantidadComputada: teesMontante, origen: 'estimadoDreza', sector: 'montante', red: montante.red, ubicacion })
     }
     // Codo del último Local: punto físico SIEMPRE presente cuando n>0,
     // distinto de cualquier bifurcación/Tee (brief §7.2 -- "no generar
     // simultáneamente cuatro tees y un codo final" ya se respeta: acá el
     // codo reemplaza sólo a LA ÚLTIMA derivación dentro del conteo de
     // `derivacionesEsperadas`, nunca se suma una Tee de más por esto).
-    items.push({ clave: clave('codoUltimoLocal'), etiqueta: 'Codo de último local (Montante)', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'montante', red: montante.red })
+    items.push({ clave: clave('codoUltimoLocal'), etiqueta: 'Codo de último local (Montante)', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'montante', red: montante.red, ubicacion })
     if (codosRecorrido > 0) {
-      items.push({ clave: clave('codoRecorrido'), etiqueta: 'Codo a 90° (recorrido de Montante)', dnComercial, cantidadComputada: codosRecorrido, origen: 'estimadoDreza', sector: 'montante', red: montante.red })
+      items.push({ clave: clave('codoRecorrido'), etiqueta: 'Codo a 90° (recorrido de Montante)', dnComercial, cantidadComputada: codosRecorrido, origen: 'estimadoDreza', sector: 'montante', red: montante.red, ubicacion })
     }
   }
   return items
@@ -336,31 +382,32 @@ export function resolverAccesoriosDeColectorDreza(
     )
     const nSalidas = montantesDeRed.length + localesDirectos.length
 
+    const ubicacion: UbicacionMaterial = { tipo: 'colectorPrincipal' }
     const clave = (sufijo: string) => `estimadoDreza|colector|${red}|${sufijo}`
-    items.push({ clave: clave('llave'), etiqueta: 'Llave de paso esférica (general)', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'colectorPrincipal', red })
+    items.push({ clave: clave('llave'), etiqueta: 'Llave de paso esférica (general)', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'colectorPrincipal', red, ubicacion })
 
     if (nSalidas > 0) {
       const teesDistribucion = Math.max(0, nSalidas - 1)
       if (teesDistribucion > 0) {
-        items.push({ clave: clave('teeDistribucion'), etiqueta: 'Tee de distribución (Colector)', dnComercial, cantidadComputada: teesDistribucion, origen: 'estimadoDreza', sector: 'colectorPrincipal', red })
+        items.push({ clave: clave('teeDistribucion'), etiqueta: 'Tee de distribución (Colector)', dnComercial, cantidadComputada: teesDistribucion, origen: 'estimadoDreza', sector: 'colectorPrincipal', red, ubicacion })
       }
-      items.push({ clave: clave('codoUltimaSalida'), etiqueta: 'Codo de última salida (Colector)', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'colectorPrincipal', red })
+      items.push({ clave: clave('codoUltimaSalida'), etiqueta: 'Codo de última salida (Colector)', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'colectorPrincipal', red, ubicacion })
     }
 
     // Codos propios del colector (brief §8.6): estimación fija, no la
     // regla de "1 cada 2 m" (exclusiva de Montantes).
-    items.push({ clave: clave('codoRecorrido'), etiqueta: 'Codo a 90° (Colector)', dnComercial, cantidadComputada: 2, origen: 'estimadoDreza', sector: 'colectorPrincipal', red })
+    items.push({ clave: clave('codoRecorrido'), etiqueta: 'Codo a 90° (Colector)', dnComercial, cantidadComputada: 2, origen: 'estimadoDreza', sector: 'colectorPrincipal', red, ubicacion })
 
     // ACS, caño ruptor y unión al tanque son piezas del lado AF del
     // colector (brief §8.3/§8.4/§8.5): la Tee de ACS deriva agua FRÍA
     // hacia la producción de ACS; el ruptor y la unión desmontable cuelgan
     // de la alimentación de entrada al tanque, siempre AF.
     if (red === 'AF' && tieneAlimentacionAcs) {
-      items.push({ clave: clave('teeAcs'), etiqueta: 'Tee de alimentación ACS', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'colectorPrincipal', red })
+      items.push({ clave: clave('teeAcs'), etiqueta: 'Tee de alimentación ACS', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'colectorPrincipal', red, ubicacion })
     }
     if (red === 'AF' && tieneTanqueSuperior) {
-      items.push({ clave: clave('teeRuptor'), etiqueta: 'Tee de conexión de caño ruptor', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'colectorPrincipal', red })
-      items.push({ clave: clave('unionTanque'), etiqueta: 'Unión doble PPR (al tanque)', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'colectorPrincipal', red })
+      items.push({ clave: clave('teeRuptor'), etiqueta: 'Tee de conexión de caño ruptor', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'colectorPrincipal', red, ubicacion })
+      items.push({ clave: clave('unionTanque'), etiqueta: 'Unión doble PPR (al tanque)', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'colectorPrincipal', red, ubicacion })
     }
   }
   return items
@@ -386,7 +433,7 @@ export function resolverUnionesRectasDreza(
   proyecto: Proyecto,
   catalogoArtefactos: readonly ArtefactoNormativo[],
   contexto: ContextoDeCalculoM2,
-  clasificarSectorDeTramo: (tramoId: string) => SectorMaterial,
+  resolverUbicacionDeTramo: (tramoId: string) => UbicacionMaterial,
   tramoExcluido: (tramoId: string) => boolean,
 ): ItemAccesorioComputado[] {
   const { redHidraulica, configuracionHidraulica } = proyecto
@@ -399,7 +446,7 @@ export function resolverUnionesRectasDreza(
   // que el resto del cómputo (nunca asume el catálogo, siempre lo resuelve).
   obtenerMaterialTuberia(configuracionHidraulica.materialTuberiaId, catalogoMaterialesTuberia)
 
-  const acumulador = new Map<string, { red: RedDeTramo; dnComercial: string; sector: SectorMaterial; longitud_m: number }>()
+  const acumulador = new Map<string, { red: RedDeTramo; dnComercial: string; ubicacion: UbicacionMaterial; longitud_m: number }>()
   for (const tramo of redHidraulica.tramos) {
     if (tramoExcluido(tramo.id)) {
       continue
@@ -413,13 +460,27 @@ export function resolverUnionesRectasDreza(
       continue
     }
     const dnComercial = resultadoDn.candidato.denominacionComercial
-    const sector = clasificarSectorDeTramo(tramo.id)
-    const clave = `${tramo.red}|${dnComercial}|${sector}`
+    const ubicacion = resolverUbicacionDeTramo(tramo.id)
+    // Agrupa por el SECTOR amplio (`ubicacion.tipo`) además de red/DN --
+    // EXACTAMENTE el mismo criterio de agrupación ya cerrado en
+    // MATERIALS-ACCESSORIES-01 (D-δ.141: "material + red + DN + sector
+    // físico"), preservado sin cambios a propósito: MATERIALS-PDF-POLISH-02
+    // (brief §2) prohíbe modificar cantidades DREZA ya resueltas, y
+    // agrupar por ubicación individual (un Montante o Local específico en
+    // vez del sector) cambia el resultado de `floor(L/4)` cuando dos
+    // ubicaciones del mismo sector/red/DN tienen longitudes que sólo
+    // superan el umbral de 4 m SUMADAS -- alteraría el total ya validado
+    // (65,00 m / 71,50 m / 88 u / 105 u del proyecto de referencia, brief
+    // §2/§18). Costo aceptado: una cupla que agrega Montantes/Locales
+    // distintos del mismo sector muestra sólo la ubicación del ÚLTIMO
+    // Tramo agrupado (ver `ubicacion` más abajo) -- imprecisión menor y
+    // ya preexistente, no introducida por este slice.
+    const clave = `${tramo.red}|${dnComercial}|${ubicacion.tipo}`
     const existente = acumulador.get(clave)
     acumulador.set(clave, {
       red: tramo.red,
       dnComercial,
-      sector,
+      ubicacion,
       longitud_m: (existente?.longitud_m ?? 0) + (tramo.longitud_m as number),
     })
   }
@@ -432,12 +493,13 @@ export function resolverUnionesRectasDreza(
     }
     items.push({
       clave: `estimadoDreza|union|${clave}`,
-      etiqueta: 'Unión/cupla recta PPR',
+      etiqueta: 'Cupla recta PPR',
       dnComercial: grupo.dnComercial,
       cantidadComputada: cantidad,
       origen: 'estimadoDreza',
-      sector: grupo.sector,
+      sector: grupo.ubicacion.tipo,
       red: grupo.red,
+      ubicacion: grupo.ubicacion,
     })
   }
   return items

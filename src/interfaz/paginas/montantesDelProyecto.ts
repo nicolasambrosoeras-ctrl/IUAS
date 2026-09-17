@@ -48,6 +48,18 @@ function claveLocal(unidadFuncionalId: string, localId: string): string {
   return JSON.stringify([unidadFuncionalId, localId])
 }
 
+// Etiqueta humana de un Local SIN el sufijo de UF ("Baño 1"): sólo el tipo
+// + ordinal, o el nombre personalizado si existe (UX-HIERARCHY-POLISH-01).
+// Extraída de `etiquetaHumanaDeLocal` (MATERIALS-PDF-POLISH-02, brief §5)
+// para consumidores que necesitan mostrar la identidad del Local
+// desacoplada de su UF -- p.ej. Materials agrupa por bloques y sólo
+// antepone la UF cuando el proyecto tiene más de una.
+export function etiquetaSoloLocal(uf: UnidadFuncional, local: Local): string {
+  const ordinal = derivarOrdinalesDeLocal(localesDeUnidadFuncional(uf)).get(local.id)
+  const base = `${ETIQUETA_TIPO_DE_LOCAL[local.tipo]}${ordinal === undefined ? '' : ` ${ordinal}`}`
+  return nombreVisibleDeLocal(local, base)
+}
+
 // Etiqueta humana de un Local dentro de su UF: "Baño 1 · UF 1". Nunca el
 // id técnico. El ordinal numera por tipo dentro de la UF, igual que el
 // resto de Módulo 2 (derivarOrdinalesDeLocal). UX-HIERARCHY-POLISH-01:
@@ -56,9 +68,7 @@ function claveLocal(unidadFuncionalId: string, localId: string): string {
 // no perder el contexto de a qué UF pertenece en tablas/PDF que agrupan
 // varias UF juntas.
 export function etiquetaHumanaDeLocal(uf: UnidadFuncional, local: Local): string {
-  const ordinal = derivarOrdinalesDeLocal(localesDeUnidadFuncional(uf)).get(local.id)
-  const base = `${ETIQUETA_TIPO_DE_LOCAL[local.tipo]}${ordinal === undefined ? '' : ` ${ordinal}`}`
-  return `${nombreVisibleDeLocal(local, base)} · ${uf.nombre}`
+  return `${etiquetaSoloLocal(uf, local)} · ${uf.nombre}`
 }
 
 // ------------------------------------------------------------------
