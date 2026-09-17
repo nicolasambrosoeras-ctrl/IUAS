@@ -3623,6 +3623,41 @@ salvo bug inequívoco o decisión roja explícita.
   `docs/ACCESSORIES-DEFAULTS-01-ARQUEOLOGIA.md`.
   - **Estado:** `ACCESSORIES-DEFAULTS-01: CERRADO — pendiente validación manual`.
 
+- **D-δ.140 — MATERIALS-POLISH-01: cierre funcional/editorial del Listado
+  de materiales (CERRADO — pendiente validación manual).** Hallazgo
+  central de arqueología: comparando Materials contra el proyecto de
+  ejemplo en una misma ejecución (`backfillLongitudesDePredimensionamiento`,
+  igual que la Memoria técnica), un proyecto simplificado perfectamente
+  válido generaba 20 pendientes falsos ("Alimentación general — longitud
+  pendiente", "Tee sin configurar" en cada Local) porque el resolver
+  exigía longitud/DN/Tee propios a los Tramos "ramal" internos de un
+  Local y a cualquier bifurcación sin `montanteId` -- exactamente la deuda
+  topológica que el propio modelo de `'simplificada'`
+  (`seleccionarTramosDeAcumulacion.ts`/D-δ.44) nunca pide, y que
+  ACCESSORIES-DEFAULTS-01 ya aproxima con su composición física estimada.
+  Corregido: Tramos ramal (vía `localUnicoDeTramo`, ahora exportada) y
+  bifurcaciones sin Montante quedan excluidos de tuberías/pendientes/Tee
+  en `'simplificada'`, sin cambiar `'profesional'` ni tocar ningún cálculo
+  (hf/DN/Qc bit-a-bit idénticos, test de invariancia). Nuevo
+  `DatosComputoDeMateriales.estado: 'completo' | 'parcial'` (distinto del
+  estado hidráulico CUMPLE/NO CUMPLE), mostrado en el encabezado.
+  Pendientes humanizados (nunca `Tramo.id`/`Nodo.id`, vía
+  `etiquetaHumanaDeLocal`/`nombreDeMontante`/fallback neutro por red). PDF:
+  "Resumen de compra" antes que "Detalle" en tuberías y accesorios (nuevo
+  para accesorios), columna "Extra [%]" eliminada de las tablas (el margen
+  ya está en el encabezado), "Cantidad para compra" → "Cantidad sugerida
+  de compra", resumen de accesorios consolidado por tipo+DN ignorando
+  origen con el margen aplicado UNA vez sobre el total (nunca sumando
+  `ceil` independientes por origen), Medidores+Almacenamiento vacíos
+  combinados en una sección compacta, numeración dinámica preservada,
+  fecha del proyecto humanizada a es-AR, título de Observaciones
+  `unbreakable` junto a su primera nota, resumen operativo debajo del
+  encabezado. QA: `tsc -b`/`build`/`e2e:typecheck` limpios, Vitest
+  2048/2048, ESLint 11/0 idéntico a la base. E2E dirigido (materiales,
+  report regression, smoke, persistencia, montantes, modo de trabajo):
+  28/28. Detalle completo en `docs/MATERIALS-POLISH-01.md`.
+  - **Estado:** `MATERIALS-POLISH-01: CERRADO — pendiente validación manual`.
+
 **INTERFAZ WEB CAUDAL BY DREZA: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
