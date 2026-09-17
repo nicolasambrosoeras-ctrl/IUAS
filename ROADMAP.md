@@ -3723,6 +3723,47 @@ salvo bug inequívoco o decisión roja explícita.
   `docs/MATERIALS-PDF-POLISH-02.md`.
   - **Estado:** `MATERIALS-PDF-POLISH-02: CERRADO — pendiente validación manual`.
 
+- **D-δ.143 — HYD-OVERPASS-01: integrar el Sobrepaso al modelo hidráulico
+  y al catálogo (CERRADO — pendiente validación manual).** El "Sobrepaso"
+  vivía sólo como fila estimativa del listado de materiales (sin red, sin
+  DN, "DN a definir"), desconectado de la topología y sin incidencia en
+  `hf`. Ahora se genera desde una única fuente de verdad
+  (`contarSobrepasosDeLocalPorRed`, `motor/tuberias/topologia/`) consumida
+  tanto por el balance hidráulico (`resolverPerdidaLocalizadaEstimadaDeLocal.ts`)
+  como por Materials (`resolverAccesoriosConstructivosDreza.ts`): un
+  Artefacto con AF+AC se asigna entero a AC, sólo AF a AF, sólo AC a AC,
+  nunca dos sobrepasos por Artefacto. Decisión roja del usuario (K no
+  publicado por el fabricante para esta pieza): se creó un catálogo de
+  coeficientes de resistencia diferenciado por sistema comercial
+  (`catalogoKAccesoriosAcquaSystem.ts`, transcripción verificada del
+  Manual Técnico Acqua System pág. 34) -- Tabla N°7 (ERAS-2023) sigue
+  intacta para hierro/cobre/PVC genérico y para las piezas que Acqua
+  System no publica (`llaveDePaso`/`valvulaEsclusa`); PPR Acqua System
+  usa el catálogo del fabricante para `uniones`/`codo90`/`curva45`/
+  `curva90`/`reducciones`. `K_sobrepaso = 1,20` (dos codos a 45° del
+  propio catálogo Acqua System, 2×0,60), adoptado explícitamente por el
+  usuario y documentado como valor de proyecto, no publicado por el
+  fabricante para ese producto puntual. Catálogo comercial DN→código
+  (`catalogoSobrepasoAcquaSystem.ts`, sólo 20/25/32 mm, códigos
+  `08-084020000`/`08-084025000`/`08-084032000` verificados contra el
+  manual): un DN fuera de ese rango emite un pendiente trazable, nunca un
+  código inventado ni "DN a definir". Selección de catálogo en el dominio
+  hidráulico (`resolverKsDeAccesorioDeTramo.ts`), nunca en el PDF.
+  Resultado verificado en el proyecto de referencia: PDF sin "DN a
+  definir" ni red "—" para Sobrepaso, 11 sobrepasos base preservados
+  (ahora desglosados por Local+red+DN), totales de accesorios sin cambio
+  (88 u / 104 u); margen del terminal crítico pasa de −19,437 a −20,047
+  m.c.a. (incorporación real de la pérdida localizada del Sobrepaso).
+  Decisiones diferidas (documentadas, no cerradas): coeficiente de
+  reducciones bajo Acqua System (se adoptó "diámetros inmediatos"), Tee
+  bajo Acqua System (sin coeficiente propio transcrito, sigue Tabla N°7).
+  QA: `tsc -b`/`build` limpios, Vitest 2081/2081, ESLint 11/0 idéntico a
+  la base, E2E dirigido (materiales/hydEst/m2-resp-polish/propagación-a)
+  13/13 contra build local, PDF de referencia verificado por extracción
+  de texto real de sus 4 páginas. Detalle completo en
+  `docs/HYD-OVERPASS-01.md`.
+  - **Estado:** `HYD-OVERPASS-01: CERRADO — pendiente validación manual`.
+
 **INTERFAZ WEB CAUDAL BY DREZA: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
