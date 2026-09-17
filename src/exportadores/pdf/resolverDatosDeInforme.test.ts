@@ -174,9 +174,10 @@ describe('resolverDatosDeInforme -- Verificación hidráulica (§31/§16)', () =
     expect(critico).toBeDefined()
     expect(critico!.esCritico).toBe(true)
     expect(critico!.cumple).toBe(false)
-    // Mismo baseline que resolverResumenDeProyecto.test.ts (HYD-OVERPASS-01
-    // suma la incidencia hidráulica del Sobrepaso fusión estimado, Acqua System).
-    expect(critico!.margenTexto).toBe('-20,047 m.c.a.')
+    // Mismo baseline que resolverResumenDeProyecto.test.ts (HYD-ACQUA-K-CATALOG-01:
+    // la tee estimada Acqua System usa 1,80, valor oficial simplificado, en
+    // vez de 3,00 de Tabla N°7 -- ver docs/HYD-ACQUA-K-CATALOG-01.md).
+    expect(critico!.margenTexto).toBe('-19,640 m.c.a.')
   })
 
   it('exactamente un terminal está marcado como crítico', () => {
@@ -212,20 +213,24 @@ describe('resolverDatosDeInforme -- REPORT-01B: desarrollo de cálculo M2 (§8/�
     expect(caso?.etiqueta).toContain(critico.localEtiqueta.split(' · ')[0])
   })
 
-  it('pérdida localizada estimada: K total = tees·3,00 + 1·1,35 + 1·9,18 con los datos del motor', () => {
+  it('pérdida localizada estimada: K total = tees·1,80 (Acqua System) + 1·1,35 + 1·9,18 + sobrepaso con los datos del motor', () => {
     const d = datos(canonico())
     const caso = d.m2.desarrollo?.casoPerdidaLocalizadaEstimada
     expect(caso).toBeDefined()
     expect(caso!.nTerminalesLocal).toBeGreaterThan(0)
     expect(caso!.nTeesEstimadas).toBe(Math.max(0, caso!.nTerminalesLocal - 1))
-    expect(caso!.ksTee).toBeCloseTo(3.0, 2)
+    // HYD-ACQUA-K-CATALOG-01: el proyecto canónico adopta Acqua System --
+    // la tee estimada usa su valor oficial simplificado (1,80, ver
+    // docs/HYD-ACQUA-K-CATALOG-01.md), no el 3,00 de Tabla N°7.
+    expect(caso!.ksTee).toBeCloseTo(1.8, 2)
     expect(caso!.ksSingularidadTerminal).toBeCloseTo(1.35, 2)
     expect(caso!.ksLlaveDePaso).toBeCloseTo(9.18, 2)
     const kEsperado =
       caso!.nTeesEstimadas * caso!.ksTee +
       caso!.nSingularidadTerminal * caso!.ksSingularidadTerminal +
       caso!.nLlaveDePaso * caso!.ksLlaveDePaso +
-      caso!.nSobrepaso * caso!.ksSobrepaso
+      caso!.nSobrepaso * caso!.ksSobrepaso +
+      caso!.nReduccionEstimada * caso!.ksReduccionEstimada
     expect(caso!.kTotal).toBeCloseTo(kEsperado, 6)
     const hfEsperada = (caso!.kTotal * caso!.velocidadReferencia_mps ** 2) / (2 * 9.81)
     expect(caso!.hf_m).toBeCloseTo(hfEsperada, 6)

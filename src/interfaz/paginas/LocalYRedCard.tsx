@@ -47,7 +47,6 @@ import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia
 import { contarTerminalesFisicosDeLocal } from '../../motor/tuberias/topologia/contarTerminalesFisicosDeLocal'
 import {
   resolverPerdidaLocalizadaEstimadaDeLocal,
-  KS_ESTIMADO_TEE,
   KS_ESTIMADO_SINGULARIDAD_TERMINAL,
   KS_ESTIMADO_LLAVE_DE_PASO,
 } from '../../motor/tuberias/presion/resolverPerdidaLocalizadaEstimadaDeLocal'
@@ -364,7 +363,13 @@ function ResumenEstimadoDeLocal({
       <details>
         <summary>Ver cálculo</summary>
         <p>Configuración típica DREZA (D-δ.45)</p>
-        <p>Tees estimadas: {formatearNumero(resultado.nTeesEstimadas, 'conteo')} · Ks por tee: {formatearNumero(KS_ESTIMADO_TEE, 'adimensional')}</p>
+        <p>Tees estimadas: {formatearNumero(resultado.nTeesEstimadas, 'conteo')} · Ks por tee: {formatearNumero(resultado.ksTee, 'adimensional')}</p>
+        {resultado.nSobrepaso > 0 && (
+          <p>Sobrepaso fusión: {formatearNumero(resultado.nSobrepaso, 'conteo')} · Ks: {formatearNumero(resultado.ksSobrepaso, 'adimensional')}</p>
+        )}
+        {resultado.nReduccionEstimada > 0 && (
+          <p>Reducción detectada: {formatearNumero(resultado.nReduccionEstimada, 'conteo')} · Ks: {formatearNumero(resultado.ksReduccionEstimada, 'adimensional')}</p>
+        )}
         <p>
           Singularidad terminal: {formatearNumero(resultado.nSingularidadTerminal, 'conteo')} · Ks: {formatearNumero(KS_ESTIMADO_SINGULARIDAD_TERMINAL, 'adimensional')}
         </p>

@@ -423,17 +423,20 @@ function renderizarCasoVelocidadYPerdidaDistribuida(caso: CasoVelocidadYPerdidaD
 }
 
 function renderizarCasoPerdidaLocalizadaEstimada(caso: CasoPerdidaLocalizadaEstimada): Content[] {
-  // HYD-OVERPASS-01: el término de Sobrepaso sólo se agrega al texto
-  // cuando aplica (sistema Acqua System con >=1 sobrepaso estimado para
-  // este Local+red) -- en cualquier otro caso (nSobrepaso=0) el texto es
-  // idéntico al de antes de este slice.
+  // HYD-OVERPASS-01/HYD-ACQUA-K-CATALOG-01: los términos de Sobrepaso y
+  // Reducción sólo se agregan al texto cuando aplican (sistema Acqua
+  // System con incidencia real para este Local+red) -- en cualquier otro
+  // caso (nSobrepaso=0 y nReduccionEstimada=0) el texto es idéntico al de
+  // antes de HYD-OVERPASS-01.
   const terminalesTexto =
     `Terminales: ${formatearNumero(caso.nTerminalesLocal, 'conteo')} · Tees estimadas: ${formatearNumero(caso.nTeesEstimadas, 'conteo')} ` +
     `· Singularidad terminal: ${formatearNumero(caso.nSingularidadTerminal, 'conteo')} · Llave de paso: ${formatearNumero(caso.nLlaveDePaso, 'conteo')}` +
-    (caso.nSobrepaso > 0 ? ` · Sobrepaso fusión: ${formatearNumero(caso.nSobrepaso, 'conteo')}` : '')
+    (caso.nSobrepaso > 0 ? ` · Sobrepaso fusión: ${formatearNumero(caso.nSobrepaso, 'conteo')}` : '') +
+    (caso.nReduccionEstimada > 0 ? ` · Reducción detectada: ${formatearNumero(caso.nReduccionEstimada, 'conteo')}` : '')
   const kTotalTexto =
     `K total = ${caso.nTeesEstimadas}×${formatearNumero(caso.ksTee, 'adimensional')} + ${caso.nSingularidadTerminal}×${formatearNumero(caso.ksSingularidadTerminal, 'adimensional')} + ${caso.nLlaveDePaso}×${formatearNumero(caso.ksLlaveDePaso, 'adimensional')}` +
     (caso.nSobrepaso > 0 ? ` + ${caso.nSobrepaso}×${formatearNumero(caso.ksSobrepaso, 'adimensional')}` : '') +
+    (caso.nReduccionEstimada > 0 ? ` + ${caso.nReduccionEstimada}×${formatearNumero(caso.ksReduccionEstimada, 'adimensional')}` : '') +
     ` = ${formatearNumero(caso.kTotal, 'adimensional')}`
 
   return [
@@ -471,10 +474,20 @@ function renderizarDesarrolloM2(desarrollo: DatosDeInforme['m2']['desarrollo']):
     { text: 'Pérdida localizada', style: 'subseccionNivel' },
     ...(desarrollo.metodoPerdidaLocalizada === 'estimado'
       ? [
+          // HYD-ACQUA-K-CATALOG-01: el Ks de la tee estimada depende del
+          // sistema comercial adoptado (Tabla N°7 ERAS-2023, o el valor
+          // oficial simplificado de Acqua System) -- este texto ya NO
+          // hardcodea "Ks=3,00": usa el valor real del caso mostrado
+          // (`caso.ksTee`) cuando hay uno, o queda genérico si todavía no
+          // hay ningún Local+Red estimable.
           {
             text:
-              'Criterio vigente por (Local, Red): tees estimadas = máx(0, n−1) con Ks=3,00; una singularidad terminal ' +
-              'Ks=1,35; una llave de paso Ks=9,18 (Tabla N°7 ERAS-2023; criterio DREZA de pérdidas localizadas estimadas). ' +
+              `Criterio vigente por (Local, Red): tees estimadas = máx(0, n−1) con el Ks de tee del sistema adoptado` +
+              (desarrollo.casoPerdidaLocalizadaEstimada !== undefined
+                ? ` (${formatearNumero(desarrollo.casoPerdidaLocalizadaEstimada.ksTee, 'adimensional')} en este caso)`
+                : '') +
+              '; una singularidad terminal Ks=1,35; una llave de paso Ks=9,18 (criterio DREZA de pérdidas localizadas ' +
+              'estimadas -- Sobrepaso y Reducción, cuando aplican, se suman por separado, ver más abajo). ' +
               'Vref = velocidad del Tramo representativo de ese Local+Red.',
             style: 'metadatos',
           } as Content,
