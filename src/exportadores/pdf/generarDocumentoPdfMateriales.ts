@@ -11,10 +11,12 @@ import type { Content, TDocumentDefinitions } from 'pdfmake/interfaces'
 import type { Proyecto } from '../../modelo/proyecto'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
+import { localesDeUnidadFuncional } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import {
   COLOR_MARCA,
   COLOR_MARCA_FUERTE,
   COLOR_TEXTO_2,
+  COLOR_HEADER_TABLA,
   layoutTablaIuas,
   sanitizarParaNombreDeArchivo,
   formatearFechaDeGeneracion,
@@ -24,8 +26,9 @@ import {
   aplicarMargenDeCompra,
   type DatosListadoDeMateriales,
   type ItemTuberiaConMargen,
+  type ItemAccesorioConMargen,
 } from './resolverDatosDeListadoDeMateriales'
-import { etiquetaSector } from './resolverAccesoriosConstructivosDreza'
+import { claveDeUbicacion, type UbicacionMaterial } from './resolverAccesoriosConstructivosDreza'
 
 pdfMake.addVirtualFileSystem(pdfFonts)
 
@@ -65,9 +68,13 @@ export function resolverNombreDeArchivoMateriales(proyecto: Proyecto): string {
 // MATERIALS-POLISH-01 (brief §7/§9): "Estado del listado" -- discreto,
 // nunca el lenguaje hidráulico CUMPLE/NO CUMPLE (son conceptos distintos:
 // éste responde "¿Materials pudo computar todo de forma inequívoca?", no
-// "¿la instalación verifica presión?").
+// "¿la instalación verifica presión?"). MATERIALS-PDF-POLISH-02 (brief §8):
+// "Con elementos pendientes" en vez de "Listado parcial" -- coherente con
+// el título "Elementos todavía no definidos" que puede aparecer más abajo
+// (misma idea, mismo lenguaje). La condición sigue siendo exactamente
+// `datos.pendientes.length > 0` (`estado`), sin cambios de lógica.
 function etiquetaEstadoDeListado(estado: 'completo' | 'parcial'): string {
-  return estado === 'completo' ? 'Listado completo' : 'Listado parcial'
+  return estado === 'completo' ? 'Listado completo' : 'Con elementos pendientes'
 }
 
 function renderizarEncabezado(datos: DatosListadoDeMateriales, fechaGeneracion: Date): Content[] {
@@ -75,12 +82,7 @@ function renderizarEncabezado(datos: DatosListadoDeMateriales, fechaGeneracion: 
   return [
     {
       columns: [
-        {
-          stack: [
-            { text: 'Caudal', style: 'wordmark' },
-            { text: 'by DREZA', style: 'wordmarkFirma' },
-          ],
-        },
+        { text: 'Caudal · DREZA', style: 'wordmark' },
         { text: `Generado el ${formatearFechaDeGeneracion(fechaGeneracion)}`, style: 'fechaGeneracion', alignment: 'right' },
       ],
     },
@@ -140,7 +142,7 @@ function renderizarResumenOperativo(datos: DatosListadoDeMateriales): Content[] 
     filas.push(['Tuberías con margen', formatearMetros(totalTuberiasCompra_m)])
   }
   if (datos.accesorios.length > 0) {
-    filas.push(['Accesorios computados', `${totalAccesoriosComputada} u`])
+    filas.push(['Accesorios considerados', `${totalAccesoriosComputada} u`])
     filas.push(['Accesorios sugeridos de compra', `${totalAccesoriosCompra} u`])
   }
 
@@ -262,9 +264,31 @@ function renderizarSeccionTuberias(datos: DatosListadoDeMateriales, numero: numb
 
 // MATERIALS-ACCESSORIES-01 (D-δ.141): "Origen" distingue accesorios/Tees
 // explícitamente modelados por el usuario ('definido') de la estimación
-// constructiva DREZA por sector ('estimadoDreza').
-function etiquetaOrigen(origen: 'definido' | 'estimadoDreza'): string {
-  return origen === 'estimadoDreza' ? 'Estimado DREZA' : 'Definido'
+// constructiva DREZA por sector ('estimadoDreza'). MATERIALS-PDF-POLISH-02
+// (brief §14): en el detalle se usa la forma CORTA "DREZA" -- repetir
+// "Estimado DREZA" en decenas de filas es visualmente pesado; la
+// aclaración de la sección explica el código una sola vez. El resumen no
+// muestra Origen en absoluto (brief §13).
+function etiquetaOrigenCorta(origen: 'definido' | 'estimadoDreza'): string {
+  return origen === 'estimadoDreza' ? 'DREZA' : 'Definido'
+}
+
+// MATERIALS-PDF-POLISH-02 (brief §11): ninguna fila debe insinuar una
+// medida de rosca o un DN que el modelo no puede determinar.
+//   - Tee/Codo roscados: el DN de tubería SÍ se conoce, pero la rosca del
+//     terminal no -- "20 mm — rosca a definir" en vez de una
+//     configuración falsamente completa.
+//   - Sobrepaso: no tiene un DN unívoco (puede cruzar AF y AC de distinto
+//     diámetro) -- "DN a definir" en vez de un guion sin explicación.
+//   - Cualquier otro ítem sin DN (p.ej. una Tee nodal, cuyo DN ya está
+//     descripto en la propia etiqueta "Tee DN A × B × C"): "—", sin
+//     inventar una aclaración que no aporta nada nuevo.
+const ETIQUETAS_ROSCADAS = new Set(['Tee roscada PPR', 'Codo terminal roscado PPR'])
+function descripcionDeConfiguracion(etiqueta: string, dnComercial: string | undefined): string {
+  if (dnComercial !== undefined) {
+    return ETIQUETAS_ROSCADAS.has(etiqueta) ? `${dnComercial} — rosca a definir` : dnComercial
+  }
+  return etiqueta === 'Sobrepaso' ? 'DN a definir' : '—'
 }
 
 // MATERIALS-POLISH-01 (brief §15/§16/§17): resumen de compra de accesorios
@@ -300,6 +324,135 @@ export function resolverConsolidadoDeAccesorios(datos: DatosListadoDeMateriales)
     })
 }
 
+// MATERIALS-PDF-POLISH-02 (brief §5/§6): bloque de trazabilidad del
+// detalle -- Colector principal (único), un bloque por Montante, y un
+// bloque por (UF, Local). El título antepone la UF sólo cuando el
+// proyecto tiene más de una (única condición objetiva de "ambigüedad":
+// con una sola UF, el prefijo no agrega información).
+type BloqueDeUbicacion = { readonly titulo: string; readonly items: ItemAccesorioConMargen[] }
+
+function tituloDeBloque(ubicacion: UbicacionMaterial | undefined, mostrarUf: boolean): string {
+  if (ubicacion === undefined || ubicacion.tipo === 'colectorPrincipal') {
+    return 'Colector principal'
+  }
+  if (ubicacion.tipo === 'montante') {
+    return ubicacion.nombre
+  }
+  return mostrarUf ? `${ubicacion.unidadFuncionalNombre} — ${ubicacion.localNombre}` : ubicacion.localNombre
+}
+
+function claveDeBloque(ubicacion: UbicacionMaterial | undefined): string {
+  return ubicacion === undefined ? 'colectorPrincipal' : claveDeUbicacion(ubicacion)
+}
+
+// Orden constructivo determinista (brief §6): 1) Colector principal, 2)
+// Montantes en el orden declarado en `Proyecto.montantes`, 3) Unidades
+// funcionales en su orden, 4) Locales dentro de cada UF en su orden. Una
+// misma entrada produce siempre la misma salida -- necesario para que los
+// PDF sean comparables y los tests no sean frágiles (brief §6, último
+// párrafo). Cualquier clave que el recorrido determinista no cubra (no
+// debería ocurrir con datos bien formados) se agrega al final, ordenada
+// alfabéticamente por clave, nunca se descarta silenciosamente.
+function agruparAccesoriosPorUbicacion(datos: DatosListadoDeMateriales): BloqueDeUbicacion[] {
+  const mostrarUf = datos.proyecto.unidadesFuncionales.length > 1
+  const grupos = new Map<string, BloqueDeUbicacion>()
+  for (const item of datos.accesorios) {
+    const clave = claveDeBloque(item.ubicacion)
+    const existente = grupos.get(clave)
+    if (existente !== undefined) {
+      existente.items.push(item)
+    } else {
+      grupos.set(clave, { titulo: tituloDeBloque(item.ubicacion, mostrarUf), items: [item] })
+    }
+  }
+
+  const ordenDeClaves = ['colectorPrincipal']
+  for (const montante of datos.proyecto.montantes ?? []) {
+    ordenDeClaves.push(`montante:${montante.id}`)
+  }
+  for (const uf of datos.proyecto.unidadesFuncionales) {
+    for (const local of localesDeUnidadFuncional(uf)) {
+      ordenDeClaves.push(`local:${uf.id}:${local.id}`)
+    }
+  }
+
+  const resultado: BloqueDeUbicacion[] = []
+  const usadas = new Set<string>()
+  for (const clave of ordenDeClaves) {
+    const grupo = grupos.get(clave)
+    if (grupo !== undefined) {
+      resultado.push(grupo)
+      usadas.add(clave)
+    }
+  }
+  for (const [clave, grupo] of [...grupos.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    if (!usadas.has(clave)) {
+      resultado.push(grupo)
+    }
+  }
+  return resultado
+}
+
+// AF antes que AC dentro de cada bloque (brief §6.5); a igualdad de red,
+// orden estable por etiqueta -- nunca depende del orden de inserción del
+// Map de arriba (ordenarAccesorios ya ordena por etiqueta/DN, pero se
+// reafirma acá para que el orden del bloque sea determinista incluso si
+// esa función cambiara de criterio en el futuro).
+function ordenarItemsDeBloque(items: readonly ItemAccesorioConMargen[]): ItemAccesorioConMargen[] {
+  return [...items].sort((a, b) => {
+    const redA = a.red === 'AC' ? 1 : 0
+    const redB = b.red === 'AC' ? 1 : 0
+    if (redA !== redB) return redA - redB
+    return a.etiqueta.localeCompare(b.etiqueta, 'es')
+  })
+}
+
+// Layout local (NO el compartido `layoutTablaIuas`, brief §2: no tocar
+// branding/presentación de otros documentos): sombrea también la fila de
+// encabezados de columna (fila 1), además de la fila de título de bloque
+// (fila 0, ya sombreada por `layoutTablaIuas`).
+const layoutBloqueDeUbicacion = {
+  ...layoutTablaIuas,
+  fillColor: (rowIndex: number) => (rowIndex <= 1 ? COLOR_HEADER_TABLA : null),
+}
+
+// MATERIALS-PDF-POLISH-02 (brief §7): el título del bloque es la PRIMERA
+// fila de la MISMA tabla que su encabezado de columnas y sus filas (no un
+// `text` separado antes de la tabla) -- con `headerRows: 2` pdfMake repite
+// AMBAS filas si la tabla debe partirse entre páginas, así que el título
+// nunca queda solo, siempre viaja con el encabezado de columna y con al
+// menos las filas que sigan en esa página. `dontBreakRows: true` impide
+// que una fila de datos se parta a la mitad (brief §7, primer requisito).
+function renderizarBloqueDeUbicacion(bloque: BloqueDeUbicacion): Content {
+  const items = ordenarItemsDeBloque(bloque.items)
+  return {
+    table: {
+      headerRows: 2,
+      dontBreakRows: true,
+      widths: ['*', 'auto', 'auto', 'auto', 'auto'],
+      body: [
+        [{ text: bloque.titulo, style: 'ubicacionTitulo', colSpan: 5 }, {}, {}, {}, {}],
+        [
+          { text: 'Accesorio', bold: true },
+          { text: 'Red', bold: true },
+          { text: 'DN / configuración', bold: true },
+          { text: 'Cantidad base [u]', bold: true },
+          { text: 'Origen', bold: true },
+        ],
+        ...items.map((item) => [
+          { text: item.etiqueta },
+          { text: item.red ?? '—' },
+          { text: descripcionDeConfiguracion(item.etiqueta, item.dnComercial) },
+          { text: String(item.cantidadComputada), alignment: 'right' as const },
+          { text: etiquetaOrigenCorta(item.origen) },
+        ]),
+      ],
+    },
+    layout: layoutBloqueDeUbicacion,
+    margin: [0, 4, 0, 8],
+  }
+}
+
 function renderizarSeccionAccesorios(datos: DatosListadoDeMateriales, numero: number): Content[] {
   if (datos.accesorios.length === 0) {
     return [
@@ -315,9 +468,15 @@ function renderizarSeccionAccesorios(datos: DatosListadoDeMateriales, numero: nu
   }
 
   const consolidado = resolverConsolidadoDeAccesorios(datos)
+  const bloques = agruparAccesoriosPorUbicacion(datos)
 
   return [
     { text: `${numero}. Accesorios`, style: 'seccion' },
+    // MATERIALS-PDF-POLISH-02 (brief §3): el resumen agrupado es la ÚNICA
+    // fuente de verdad para la cantidad de compra -- por eso el margen NO
+    // vuelve a aparecer en el detalle (brief §14), y ninguna fila
+    // individual del detalle intenta prorratear o redondear el margen por
+    // su cuenta.
     { text: 'Resumen de compra de accesorios', style: 'subseccion' },
     {
       table: {
@@ -327,12 +486,12 @@ function renderizarSeccionAccesorios(datos: DatosListadoDeMateriales, numero: nu
           [
             { text: 'Accesorio', bold: true },
             { text: 'DN / configuración', bold: true },
-            { text: 'Cantidad computada [u]', bold: true },
+            { text: 'Cantidad base [u]', bold: true },
             { text: 'Cantidad sugerida de compra [u]', bold: true },
           ],
           ...consolidado.map((fila) => [
             { text: fila.etiqueta },
-            { text: fila.dnComercial ?? '—' },
+            { text: descripcionDeConfiguracion(fila.etiqueta, fila.dnComercial) },
             { text: String(fila.computada), alignment: 'right' as const },
             { text: String(fila.compra), alignment: 'right' as const },
           ]),
@@ -341,45 +500,15 @@ function renderizarSeccionAccesorios(datos: DatosListadoDeMateriales, numero: nu
       layout: layoutTablaIuas,
       margin: [0, 4, 0, 8],
     },
-    { text: 'Detalle de accesorios', style: 'subseccion' },
+    { text: 'Detalle de accesorios por ubicación', style: 'subseccion' },
     {
-      table: {
-        headerRows: 1,
-        widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
-        body: [
-          [
-            { text: 'Accesorio', bold: true },
-            { text: 'Sector', bold: true },
-            { text: 'Red', bold: true },
-            { text: 'DN / configuración', bold: true },
-            { text: 'Cantidad computada [u]', bold: true },
-            { text: 'Origen', bold: true },
-            { text: 'Cantidad sugerida de compra [u]', bold: true },
-          ],
-          // Nota (brief §17): esta columna de compra es INFORMATIVA por
-          // fila (redondeo independiente de ESA fila) -- el resumen de
-          // arriba NUNCA se deriva sumando estos valores, sino de la
-          // cantidad computada consolidada (ver resolverConsolidadoDeAccesorios).
-          // MATERIALS-ACCESSORIES-01 (D-δ.141): "Sector" distingue Colector
-          // principal / Montante / Red del local, y "Red" distingue AF/AC --
-          // sólo los completan los ítems de la estimación constructiva
-          // DREZA; los accesorios/Tee 'definido' de
-          // MATERIALS-01/ACCESSORIES-DEFAULTS-01 no los tienen asignados
-          // todavía y muestran "—".
-          ...datos.accesorios.map((item) => [
-            { text: item.etiqueta },
-            { text: item.sector !== undefined ? etiquetaSector(item.sector) : '—' },
-            { text: item.red ?? '—' },
-            { text: item.dnComercial ?? '—' },
-            { text: String(item.cantidadComputada), alignment: 'right' as const },
-            { text: etiquetaOrigen(item.origen) },
-            { text: String(item.cantidadCompra), alignment: 'right' as const },
-          ]),
-        ],
-      },
-      layout: layoutTablaIuas,
-      margin: [0, 4, 0, 8],
+      text:
+        'Origen: "Definido" = accesorio explícitamente modelado por el proyectista; "DREZA" = estimación ' +
+        'constructiva DREZA. Las cantidades de este detalle son de BASE, sin margen -- la compra sugerida ' +
+        'sólo figura en el resumen de arriba, ya agrupada por accesorio.',
+      style: 'aclaracion',
     },
+    ...bloques.map((bloque) => renderizarBloqueDeUbicacion(bloque)),
   ]
 }
 
@@ -393,7 +522,7 @@ function renderizarMedidoresYAlmacenamientoVacios(numero: number): Content[] {
   return [
     { text: `${numero}. Elementos todavía no definidos`, style: 'seccion' },
     {
-      ul: ['Medición (Módulo 3 no está evaluado todavía).', 'Equipos y almacenamiento (no hay componentes adoptados todavía).'],
+      ul: ['Medición: todavía no se seleccionó un medidor.', 'Equipos y almacenamiento: todavía no se adoptaron componentes.'],
       style: 'notaVacio',
       margin: [0, 2, 0, 8],
     },
@@ -409,6 +538,13 @@ function renderizarSeccionSinMargen(
   // "Artefactos previstos" -- nunca se les aplica margen ni se los llama
   // "materiales para compra").
   notaFinal?: string,
+  // MATERIALS-PDF-POLISH-02 (brief §15): "Artefactos previstos" no tiene
+  // ningún dato de especificación en el modelo actual (siempre ''); una
+  // columna íntegra de guiones no aporta nada -- se omite en vez de
+  // inventar un valor o mostrar "No especificada" en cada fila. Medidores
+  // y Equipos SÍ tienen especificación real (DN, volumen adoptado) y
+  // conservan la columna.
+  mostrarEspecificacion = true,
 ): Content[] {
   if (items.length === 0) {
     return [
@@ -416,24 +552,28 @@ function renderizarSeccionSinMargen(
       { text: notaVacio, style: 'notaVacio' },
     ]
   }
+  const encabezado = mostrarEspecificacion
+    ? [
+        { text: 'Elemento', bold: true },
+        { text: 'Especificación', bold: true },
+        { text: 'Cantidad', bold: true },
+      ]
+    : [
+        { text: 'Elemento', bold: true },
+        { text: 'Cantidad', bold: true },
+      ]
+  const filas = items.map((item) =>
+    mostrarEspecificacion
+      ? [{ text: item.nombre }, { text: item.especificacion || '—' }, { text: String(item.cantidad), alignment: 'right' as const }]
+      : [{ text: item.nombre }, { text: String(item.cantidad), alignment: 'right' as const }],
+  )
   return [
     { text: `${numero}. ${titulo}`, style: 'seccion' },
     {
       table: {
         headerRows: 1,
-        widths: ['*', '*', 'auto'],
-        body: [
-          [
-            { text: 'Elemento', bold: true },
-            { text: 'Especificación', bold: true },
-            { text: 'Cantidad', bold: true },
-          ],
-          ...items.map((item) => [
-            { text: item.nombre },
-            { text: item.especificacion || '—' },
-            { text: String(item.cantidad), alignment: 'right' as const },
-          ]),
-        ],
+        widths: mostrarEspecificacion ? ['*', '*', 'auto'] : ['*', 'auto'],
+        body: [encabezado, ...filas],
       },
       layout: layoutTablaIuas,
       margin: [0, 4, 0, notaFinal !== undefined ? 2 : 8],
@@ -473,21 +613,38 @@ function renderizarObservaciones(datos: DatosListadoDeMateriales, numero: number
     contenido.push({ text: `${numero}. Observaciones y alcance`, style: 'seccion' })
   }
 
+  // MATERIALS-PDF-POLISH-02 (brief §12): reescrito para eliminar la
+  // contradicción de la versión anterior (afirmaba "únicamente elementos
+  // explícitamente respaldados" y en la misma sección incluía
+  // estimaciones DREZA). Conserva las mismas 4 ideas del brief: qué
+  // incluye el listado, cómo se aplica el margen (brief §3: nunca
+  // prorrateado por Local/red), qué es y qué no es DREZA, y qué significa
+  // "Colector principal".
   contenido.push({
     text:
-      'Este listado incluye únicamente elementos y longitudes explícitamente respaldados por el modelo del ' +
-      'proyecto. En el modo simplificado, Caudal utiliza una estimación constructiva DREZA de accesorios PPR ' +
-      'para el cómputo de materiales (columna "Origen": Estimado DREZA); en el modo profesional, el listado ' +
-      'utiliza únicamente los accesorios y derivaciones explícitamente modelados (Origen: Definido). Las ' +
-      'cantidades sugeridas de compra incorporan el margen adicional indicado por el usuario.',
+      'Este listado reúne las tuberías y los elementos definidos en el proyecto, junto con los accesorios ' +
+      'estimados mediante el criterio constructivo DREZA cuando se utiliza el modo simplificado. La columna ' +
+      '«Origen» permite distinguir los elementos definidos de los estimados.',
     style: 'aclaracion',
   })
   contenido.push({
     text:
-      'La estimación constructiva DREZA es una aproximación razonablemente conservadora para armar una lista de ' +
-      'compra -- no reemplaza el cómputo y replanteo de obra ni constituye una exigencia reglamentaria. ' +
-      '"Colector principal" es la distribución general desde el tanque o alimentación hacia los Montantes o, si ' +
-      'no existen, directamente hacia los Locales.',
+      'Las cantidades sugeridas de compra incorporan el margen adicional seleccionado por el usuario y se ' +
+      'calculan sobre las cantidades agrupadas de cada accesorio. El margen no se distribuye individualmente ' +
+      'entre locales o redes.',
+    style: 'aclaracion',
+  })
+  contenido.push({
+    text:
+      'La estimación constructiva DREZA permite preparar una lista de compra razonablemente conservadora. No ' +
+      'reemplaza el cómputo, el replanteo ni la verificación en obra, y no constituye una exigencia ' +
+      'reglamentaria.',
+    style: 'aclaracion',
+  })
+  contenido.push({
+    text:
+      '«Colector principal» denomina la distribución general desde el tanque o la alimentación hacia los ' +
+      'montantes o, cuando éstos no existen, directamente hacia los locales.',
     style: 'aclaracion',
   })
 
@@ -524,12 +681,12 @@ export function construirDocDefinitionListadoMateriales(
         ...(medidoresYAlmacenamientoVacios
           ? renderizarMedidoresYAlmacenamientoVacios(siguienteNumero())
           : [
-              ...renderizarSeccionSinMargen(siguienteNumero(), 'Medidores', datos.medidores, 'Módulo 3 (Medidores) no está evaluado todavía.'),
+              ...renderizarSeccionSinMargen(siguienteNumero(), 'Medidores', datos.medidores, 'Medición: todavía no se seleccionó un medidor.'),
               ...renderizarSeccionSinMargen(
                 siguienteNumero(),
                 'Equipos y almacenamiento',
                 datos.almacenamiento,
-                'No hay componentes de almacenamiento/abastecimiento adoptados todavía.',
+                'Equipos y almacenamiento: todavía no se adoptaron componentes.',
               ),
             ]),
         ...renderizarSeccionSinMargen(
@@ -538,6 +695,7 @@ export function construirDocDefinitionListadoMateriales(
           datos.artefactos,
           'No hay artefactos sanitarios declarados todavía.',
           datos.artefactos.length > 0 ? 'Cantidad prevista en el proyecto; sin margen adicional.' : undefined,
+          false,
         ),
         ...renderizarObservaciones(datos, siguienteNumero()),
       ]
@@ -547,7 +705,7 @@ export function construirDocDefinitionListadoMateriales(
         ? undefined
         : {
             columns: [
-              { text: 'Caudal by DREZA — Listado de materiales', style: 'headerPie' },
+              { text: 'Caudal · DREZA — Listado de materiales', style: 'headerPie' },
               { text: nombreProyectoCorto, style: 'headerPie', alignment: 'right' },
             ],
             margin: [40, 20, 40, 0],
@@ -560,18 +718,18 @@ export function construirDocDefinitionListadoMateriales(
       margin: [40, 0, 40, 20],
     }),
     info: {
-      title: 'Caudal by DREZA — Listado de materiales',
+      title: 'Caudal · DREZA — Listado de materiales',
       subject: 'Instalaciones internas de agua',
       author: 'DREZA',
     },
     styles: {
       wordmark: { fontSize: 12, bold: true, color: COLOR_MARCA },
-      wordmarkFirma: { fontSize: 8, color: COLOR_TEXTO_2, characterSpacing: 0.5, margin: [0, 1, 0, 0] },
       fechaGeneracion: { fontSize: 8, color: COLOR_TEXTO_2 },
       tituloDocumento: { fontSize: 18, bold: true, color: COLOR_MARCA_FUERTE, margin: [0, 4, 0, 0] },
       subtituloDocumento: { fontSize: 11, color: COLOR_TEXTO_2, margin: [0, 0, 0, 6] },
       seccion: { fontSize: 12, bold: true, color: COLOR_MARCA_FUERTE, margin: [0, 10, 0, 4] },
       subseccion: { fontSize: 10, bold: true, margin: [0, 4, 0, 2] },
+      ubicacionTitulo: { fontSize: 9, bold: true, color: COLOR_MARCA_FUERTE },
       aclaracion: { fontSize: 8, color: COLOR_TEXTO_2, italics: true, margin: [0, 4, 0, 4] },
       notaVacio: { fontSize: 9, color: COLOR_TEXTO_2, italics: true, margin: [0, 2, 0, 8] },
       pendiente: { fontSize: 9, color: '#8a6d00' },
