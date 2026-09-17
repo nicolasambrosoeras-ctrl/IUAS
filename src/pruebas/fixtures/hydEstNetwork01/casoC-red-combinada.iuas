@@ -1,0 +1,297 @@
+{
+  "format": "IUAS",
+  "schemaVersion": 1,
+  "appVersion": "0.4.0-beta.6",
+  "exportedAt": "2026-09-17T15:00:00.000Z",
+  "proyecto": {
+    "metadatos": {
+      "nombre": "Caso C — Red combinada Montante + Colector",
+      "obra": "Obra de aceptación HYD-EST-NETWORK-01",
+      "comitente": "IUAS",
+      "fecha": "2026-01-01",
+      "schemaVersion": "1.0.0",
+      "versionNormativa": "eras-2023"
+    },
+    "parametros": {
+      "tipoDeProyecto": "viviendaMultifamiliar",
+      "presionSobreAcera_m": 20,
+      "alturaArtefactoMasDesfavorable_m": 0
+    },
+    "unidadesFuncionales": [
+      {
+        "id": "uf-1",
+        "nombre": "UF 1",
+        "niveles": [
+          {
+            "id": "uf-1-nivel-1",
+            "nombre": "Nivel 1",
+            "nivel": 0,
+            "cotaHidraulicaReferencia_m": 0,
+            "locales": [
+              {
+                "id": "bano1",
+                "tipo": "bano",
+                "regimen": "domiciliario",
+                "cotaPiso_m": 0,
+                "artefactos": [
+                  {
+                    "id": "bano1-lav",
+                    "artefactoId": "lavatorio",
+                    "cantidad": 1,
+                    "origen": "normativo"
+                  }
+                ]
+              },
+              {
+                "id": "bano2",
+                "tipo": "bano",
+                "regimen": "domiciliario",
+                "cotaPiso_m": 3,
+                "artefactos": [
+                  {
+                    "id": "bano2-lav",
+                    "artefactoId": "lavatorio",
+                    "cantidad": 1,
+                    "origen": "normativo"
+                  }
+                ]
+              },
+              {
+                "id": "bano3",
+                "tipo": "bano",
+                "regimen": "domiciliario",
+                "cotaPiso_m": 0,
+                "artefactos": [
+                  {
+                    "id": "bano3-lav",
+                    "artefactoId": "lavatorio",
+                    "cantidad": 1,
+                    "origen": "normativo"
+                  }
+                ]
+              },
+              {
+                "id": "bano4",
+                "tipo": "bano",
+                "regimen": "domiciliario",
+                "cotaPiso_m": 3,
+                "artefactos": [
+                  {
+                    "id": "bano4-lav",
+                    "artefactoId": "lavatorio",
+                    "cantidad": 1,
+                    "origen": "normativo"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "redHidraulica": {
+      "nodos": [
+        {
+          "id": "n-gen",
+          "cota_m": 0
+        },
+        {
+          "id": "n-af"
+        },
+        {
+          "id": "n-bano1"
+        },
+        {
+          "id": "n-bano1-t",
+          "referencia": {
+            "tipo": "artefacto",
+            "unidadFuncionalId": "uf-1",
+            "localId": "bano1",
+            "artefactoId": "bano1-lav"
+          }
+        },
+        {
+          "id": "n-bano2"
+        },
+        {
+          "id": "n-bano2-t",
+          "referencia": {
+            "tipo": "artefacto",
+            "unidadFuncionalId": "uf-1",
+            "localId": "bano2",
+            "artefactoId": "bano2-lav"
+          }
+        },
+        {
+          "id": "n-bano3"
+        },
+        {
+          "id": "n-bano3-t",
+          "referencia": {
+            "tipo": "artefacto",
+            "unidadFuncionalId": "uf-1",
+            "localId": "bano3",
+            "artefactoId": "bano3-lav"
+          }
+        },
+        {
+          "id": "n-bano4"
+        },
+        {
+          "id": "n-bano4-t",
+          "referencia": {
+            "tipo": "artefacto",
+            "unidadFuncionalId": "uf-1",
+            "localId": "bano4",
+            "artefactoId": "bano4-lav"
+          }
+        },
+        {
+          "id": "nodo-montante-4dc5ffec-2162-4afa-b9e5-661dfafbcb0c"
+        },
+        {
+          "id": "nodo-montante-711fc161-9547-42fa-b66f-2c210726d769"
+        },
+        {
+          "id": "nodo-montante-633e86ff-19c3-438f-b920-17573af52a0e"
+        },
+        {
+          "id": "nodo-montante-cc39c5e1-eb89-4898-a433-592982ce585e"
+        }
+      ],
+      "tramos": [
+        {
+          "id": "t-gen",
+          "nodoOrigenId": "n-gen",
+          "nodoDestinoId": "n-af",
+          "red": "AF",
+          "accesorios": [],
+          "longitud_m": 6
+        },
+        {
+          "id": "t-bano1",
+          "nodoOrigenId": "nodo-montante-4dc5ffec-2162-4afa-b9e5-661dfafbcb0c",
+          "nodoDestinoId": "n-bano1",
+          "red": "AF",
+          "accesorios": [],
+          "longitud_m": 2
+        },
+        {
+          "id": "t-bano1-t",
+          "nodoOrigenId": "n-bano1",
+          "nodoDestinoId": "n-bano1-t",
+          "red": "AF",
+          "accesorios": [],
+          "longitud_m": 1
+        },
+        {
+          "id": "t-bano2",
+          "nodoOrigenId": "nodo-montante-711fc161-9547-42fa-b66f-2c210726d769",
+          "nodoDestinoId": "n-bano2",
+          "red": "AF",
+          "accesorios": [],
+          "longitud_m": 2
+        },
+        {
+          "id": "t-bano2-t",
+          "nodoOrigenId": "n-bano2",
+          "nodoDestinoId": "n-bano2-t",
+          "red": "AF",
+          "accesorios": [],
+          "longitud_m": 1
+        },
+        {
+          "id": "t-bano3",
+          "nodoOrigenId": "nodo-montante-633e86ff-19c3-438f-b920-17573af52a0e",
+          "nodoDestinoId": "n-bano3",
+          "red": "AF",
+          "accesorios": [],
+          "longitud_m": 2
+        },
+        {
+          "id": "t-bano3-t",
+          "nodoOrigenId": "n-bano3",
+          "nodoDestinoId": "n-bano3-t",
+          "red": "AF",
+          "accesorios": [],
+          "longitud_m": 1
+        },
+        {
+          "id": "t-bano4",
+          "nodoOrigenId": "nodo-montante-cc39c5e1-eb89-4898-a433-592982ce585e",
+          "nodoDestinoId": "n-bano4",
+          "red": "AF",
+          "accesorios": [],
+          "longitud_m": 2
+        },
+        {
+          "id": "t-bano4-t",
+          "nodoOrigenId": "n-bano4",
+          "nodoDestinoId": "n-bano4-t",
+          "red": "AF",
+          "accesorios": [],
+          "longitud_m": 1
+        },
+        {
+          "id": "tramo-montante-d1313035-e8df-4b94-8cae-7f877fd87566",
+          "nodoOrigenId": "n-af",
+          "nodoDestinoId": "nodo-montante-4dc5ffec-2162-4afa-b9e5-661dfafbcb0c",
+          "red": "AF",
+          "montanteId": "montante-16a7cbcc-1846-4c37-ae32-0ee31c423183",
+          "longitud_m": 5,
+          "longitudEsSugerida": true
+        },
+        {
+          "id": "tramo-montante-afb50e43-3e5d-4a5f-9e00-2cbf2a5b11b2",
+          "nodoOrigenId": "nodo-montante-4dc5ffec-2162-4afa-b9e5-661dfafbcb0c",
+          "nodoDestinoId": "nodo-montante-711fc161-9547-42fa-b66f-2c210726d769",
+          "red": "AF",
+          "montanteId": "montante-16a7cbcc-1846-4c37-ae32-0ee31c423183",
+          "longitud_m": 8,
+          "longitudEsSugerida": true
+        },
+        {
+          "id": "tramo-montante-5a810229-3c84-472c-bdc3-2bb49876315a",
+          "nodoOrigenId": "n-af",
+          "nodoDestinoId": "nodo-montante-633e86ff-19c3-438f-b920-17573af52a0e",
+          "red": "AF",
+          "montanteId": "montante-53764f0b-8afd-49a3-8684-321486b0bada",
+          "longitud_m": 5,
+          "longitudEsSugerida": true,
+          "dnComercialAdoptado": "32 mm"
+        },
+        {
+          "id": "tramo-montante-cac47a89-5583-4112-9de8-a1f3795912d6",
+          "nodoOrigenId": "nodo-montante-633e86ff-19c3-438f-b920-17573af52a0e",
+          "nodoDestinoId": "nodo-montante-cc39c5e1-eb89-4898-a433-592982ce585e",
+          "red": "AF",
+          "montanteId": "montante-53764f0b-8afd-49a3-8684-321486b0bada",
+          "longitud_m": 8,
+          "longitudEsSugerida": true
+        }
+      ]
+    },
+    "configuracionAbastecimiento": {
+      "esquema": "directa"
+    },
+    "configuracionHidraulica": {
+      "metodoPerdidaDistribuida": "hazenWilliams",
+      "metodoPerdidaLocalizada": "estimado",
+      "granularidadHidraulica": "simplificada",
+      "materialTuberiaId": "ppr",
+      "sistemaDeTuberiaId": "acquaSystemMagnumPn20"
+    },
+    "montantes": [
+      {
+        "id": "montante-16a7cbcc-1846-4c37-ae32-0ee31c423183",
+        "red": "AF",
+        "nombre": "Montante AF Torre 1"
+      },
+      {
+        "id": "montante-53764f0b-8afd-49a3-8684-321486b0bada",
+        "red": "AF",
+        "nombre": "Montante AF Torre 2"
+      }
+    ]
+  }
+}

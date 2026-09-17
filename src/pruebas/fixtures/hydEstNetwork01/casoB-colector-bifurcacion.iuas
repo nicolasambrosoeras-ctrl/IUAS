@@ -1,0 +1,187 @@
+{
+  "format": "IUAS",
+  "schemaVersion": 1,
+  "appVersion": "0.4.0-beta.6",
+  "exportedAt": "2026-09-17T15:00:00.000Z",
+  "proyecto": {
+    "metadatos": {
+      "nombre": "Caso B — Colector con ramas de DN diferentes",
+      "obra": "Obra de aceptación HYD-EST-NETWORK-01",
+      "comitente": "IUAS",
+      "fecha": "2026-01-01",
+      "schemaVersion": "1.0.0",
+      "versionNormativa": "eras-2023"
+    },
+    "parametros": {
+      "tipoDeProyecto": "viviendaMultifamiliar",
+      "presionSobreAcera_m": 20,
+      "alturaArtefactoMasDesfavorable_m": 0
+    },
+    "unidadesFuncionales": [
+      {
+        "id": "uf-1",
+        "nombre": "UF 1",
+        "niveles": [
+          {
+            "id": "uf-1-nivel-1",
+            "nombre": "Nivel 1",
+            "nivel": 0,
+            "cotaHidraulicaReferencia_m": 0,
+            "locales": [
+              {
+                "id": "bano1",
+                "tipo": "bano",
+                "regimen": "domiciliario",
+                "artefactos": [
+                  {
+                    "id": "bano1-lav",
+                    "artefactoId": "lavatorio",
+                    "cantidad": 1,
+                    "origen": "normativo"
+                  }
+                ]
+              },
+              {
+                "id": "bano2",
+                "tipo": "bano",
+                "regimen": "domiciliario",
+                "artefactos": [
+                  {
+                    "id": "bano2-lav",
+                    "artefactoId": "lavatorio",
+                    "cantidad": 1,
+                    "origen": "normativo"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "redHidraulica": {
+      "nodos": [
+        {
+          "id": "n-gen",
+          "cota_m": 0
+        },
+        {
+          "id": "n-af"
+        },
+        {
+          "id": "n-bano1"
+        },
+        {
+          "id": "n-bano1-t",
+          "referencia": {
+            "tipo": "artefacto",
+            "unidadFuncionalId": "uf-1",
+            "localId": "bano1",
+            "artefactoId": "bano1-lav"
+          }
+        },
+        {
+          "id": "n-bano2"
+        },
+        {
+          "id": "n-bano2-t",
+          "referencia": {
+            "tipo": "artefacto",
+            "unidadFuncionalId": "uf-1",
+            "localId": "bano2",
+            "artefactoId": "bano2-lav"
+          }
+        },
+        {
+          "id": "nodo-montante-5028414e-19bf-416d-b5ef-e687d7003b43"
+        },
+        {
+          "id": "nodo-montante-85924632-1109-4f27-978a-6f68688d6c38"
+        }
+      ],
+      "tramos": [
+        {
+          "id": "t-gen",
+          "nodoOrigenId": "n-gen",
+          "nodoDestinoId": "n-af",
+          "red": "AF",
+          "accesorios": [],
+          "longitud_m": 6
+        },
+        {
+          "id": "t-bano1",
+          "nodoOrigenId": "nodo-montante-5028414e-19bf-416d-b5ef-e687d7003b43",
+          "nodoDestinoId": "n-bano1",
+          "red": "AF",
+          "accesorios": [],
+          "longitud_m": 2
+        },
+        {
+          "id": "t-bano1-t",
+          "nodoOrigenId": "n-bano1",
+          "nodoDestinoId": "n-bano1-t",
+          "red": "AF",
+          "accesorios": [],
+          "longitud_m": 1
+        },
+        {
+          "id": "t-bano2",
+          "nodoOrigenId": "nodo-montante-85924632-1109-4f27-978a-6f68688d6c38",
+          "nodoDestinoId": "n-bano2",
+          "red": "AF",
+          "accesorios": [],
+          "longitud_m": 2
+        },
+        {
+          "id": "t-bano2-t",
+          "nodoOrigenId": "n-bano2",
+          "nodoDestinoId": "n-bano2-t",
+          "red": "AF",
+          "accesorios": [],
+          "longitud_m": 1
+        },
+        {
+          "id": "tramo-montante-8b624ac1-16ad-4f89-926c-8d1749dec1a7",
+          "nodoOrigenId": "n-af",
+          "nodoDestinoId": "nodo-montante-5028414e-19bf-416d-b5ef-e687d7003b43",
+          "red": "AF",
+          "montanteId": "montante-19c9311b-ebe5-4aa6-bc50-c1bc75236275",
+          "longitud_m": 5,
+          "longitudEsSugerida": true,
+          "dnComercialAdoptado": "32 mm"
+        },
+        {
+          "id": "tramo-montante-a7e5a1b6-9ed2-450f-9357-2ba435822bfb",
+          "nodoOrigenId": "n-af",
+          "nodoDestinoId": "nodo-montante-85924632-1109-4f27-978a-6f68688d6c38",
+          "red": "AF",
+          "montanteId": "montante-2c367d68-5e71-4da4-9977-216a24764576",
+          "longitud_m": 5,
+          "longitudEsSugerida": true
+        }
+      ]
+    },
+    "configuracionAbastecimiento": {
+      "esquema": "directa"
+    },
+    "configuracionHidraulica": {
+      "metodoPerdidaDistribuida": "hazenWilliams",
+      "metodoPerdidaLocalizada": "estimado",
+      "granularidadHidraulica": "simplificada",
+      "materialTuberiaId": "ppr",
+      "sistemaDeTuberiaId": "acquaSystemMagnumPn20"
+    },
+    "montantes": [
+      {
+        "id": "montante-19c9311b-ebe5-4aa6-bc50-c1bc75236275",
+        "red": "AF",
+        "nombre": "Montante AF Ala Norte"
+      },
+      {
+        "id": "montante-2c367d68-5e71-4da4-9977-216a24764576",
+        "red": "AF",
+        "nombre": "Montante AF Ala Sur"
+      }
+    ]
+  }
+}
