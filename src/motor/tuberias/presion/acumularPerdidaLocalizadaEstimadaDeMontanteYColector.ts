@@ -109,18 +109,30 @@ export function acumularPerdidaLocalizadaEstimadaDeMontanteYColector(
   const tramosPorId = new Map((proyecto.redHidraulica?.tramos ?? []).map((t) => [t.id, t]))
 
   // Nodos que YA tienen una Tee de derivación (nodo-based, afecta a
-  // cualquier camino que atraviese el nodo -- ver más abajo). Cuando la
-  // "última salida" (codo, tipo tramo) arranca justo desde ESE MISMO nodo
-  // -- un fan-out simultáneo de varias salidas desde un único punto, no una
-  // cadena secuencial -- el nodo físico sólo tiene UNA pieza real instalada
-  // (nunca se suman Tee y codo por la MISMA derivación, brief "nunca se
-  // asignan ambas"); sin este chequeo, el camino de esa última salida vería
-  // DOS piezas (la Tee, porque su camino atraviesa el nodo igual que
-  // cualquier otro; y su propio codo) mientras las demás salidas del mismo
-  // nodo sólo ven la Tee -- una asimetría espuria entre salidas físicamente
-  // equivalentes (detectado por verificacionLongitudVerticalPorNivel.test.ts,
-  // T12/T33: dos UF simétricas colgadas del mismo nodo no deberían diferir
-  // hidráulicamente más que por geometría/fricción).
+  // cualquier camino que atraviese el nodo -- ver más abajo). Sólo importa
+  // para `codoUltimaSalida` del COLECTOR (nunca para `codoUltimoLocal` del
+  // Montante, ver por qué abajo): cuando la última salida de un fan-out
+  // SIMULTÁNEO (varias salidas terminales desde un único nodo, SIN ningún
+  // tronco que continúe -- `resolverDerivacionesDelColector`, rama
+  // "continuaTronco === undefined") arranca justo desde ESE MISMO nodo que
+  // ya tiene la Tee de sus hermanas, el nodo físico sólo tiene UNA pieza
+  // real instalada (nunca se suman Tee y codo por la MISMA derivación,
+  // brief "nunca se asignan ambas") -- y la elección de CUÁL salida es "la
+  // última" es arbitraria (orden de recorrido, no un atributo físico real),
+  // así que cargarle a esa salida en particular una pieza extra sería
+  // fabricar una asimetría sin fuente (detectado por
+  // verificacionLongitudVerticalPorNivel.test.ts, T12/T33: dos UF
+  // simétricas colgadas del mismo nodo no deberían diferir hidráulicamente
+  // más que por geometría/fricción).
+  //
+  // `codoUltimoLocal` (Montante) NUNCA comparte nodo con una Tee de esta
+  // forma ambigua: por construcción de la cadena
+  // (`resolverAccesoriosFisicosDeMontante`), el último segmento SIEMPRE es
+  // la continuación real del tronco después de la última derivación -- una
+  // pieza física genuinamente distinta y aguas abajo de la Tee, nunca una
+  // alternativa simultánea sin tronco. Aplicar la misma supresión ahí
+  // eliminaría por error una pieza real en CUALQUIER Montante con más de 1
+  // Local (caso normal, no el caso ambiguo).
   const nodosConTeeDeDerivacion = new Set(
     accesoriosFisicos.filter((a) => a.tipo === 'teeDerivacion' && a.ubicacion.tipo === 'nodo').map((a) => (a.ubicacion as { nodoId: string }).nodoId),
   )
@@ -135,10 +147,7 @@ export function acumularPerdidaLocalizadaEstimadaDeMontanteYColector(
       if (!tramosDelCamino.has(accesorio.ubicacion.tramoId)) {
         continue
       }
-      if (
-        (accesorio.tipo === 'codoUltimaSalida' || accesorio.tipo === 'codoUltimoLocal') &&
-        nodosConTeeDeDerivacion.has(tramosPorId.get(accesorio.ubicacion.tramoId)?.nodoOrigenId ?? '')
-      ) {
+      if (accesorio.tipo === 'codoUltimaSalida' && nodosConTeeDeDerivacion.has(tramosPorId.get(accesorio.ubicacion.tramoId)?.nodoOrigenId ?? '')) {
         continue
       }
       tramoIdParaVelocidad = accesorio.ubicacion.tramoId
