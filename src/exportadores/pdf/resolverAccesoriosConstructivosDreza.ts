@@ -309,6 +309,8 @@ function etiquetaDeAccesorioFisico(tipo: IdAccesorioFisicoEstimado, sector: Sect
       return 'Tee de conexión de caño ruptor'
     case 'unionTanque':
       return 'Unión doble PPR (al tanque)'
+    case 'reduccion':
+      return 'Reducción'
   }
 }
 
@@ -332,17 +334,26 @@ function proyectarAccesoriosFisicosAMateriales(
         ? { tipo: 'montante', montanteId: accesorio.montanteId!, nombre: nombreDeMontante(proyecto, accesorio.montanteId!) }
         : { tipo: 'colectorPrincipal' }
     const identidadUbicacion = accesorio.sector === 'montante' ? accesorio.montanteId! : accesorio.red
-    const clave = `estimadoDreza|${accesorio.sector}|${identidadUbicacion}|${accesorio.tipo}`
+    // Una Reducción se identifica también por su PAR de DN (entrada/
+    // salida) -- dos transiciones distintas dentro del mismo Montante/
+    // Colector (ej. 32→25 y 25→20) son piezas comerciales DIFERENTES y
+    // nunca deben fusionarse en una sola fila.
+    const sufijoReduccion = accesorio.tipo === 'reduccion' ? `|${accesorio.dnAguasArriba}` : ''
+    const clave = `estimadoDreza|${accesorio.sector}|${identidadUbicacion}|${accesorio.tipo}|${accesorio.dnComercial}${sufijoReduccion}`
     const existente = grupos.get(clave)
     if (existente !== undefined) {
       existente.cantidad += 1
       continue
     }
+    // Para materiales, el DN de una Reducción se muestra como el PAR
+    // completo (entrada/salida) -- una sola denominación sería ambigua
+    // (una reducción nunca es "de un DN", es la transición entre dos).
+    const dnComercialMostrado = accesorio.tipo === 'reduccion' ? `${accesorio.dnAguasArriba} → ${accesorio.dnComercial}` : accesorio.dnComercial
     grupos.set(clave, {
       item: {
         clave,
         etiqueta: etiquetaDeAccesorioFisico(accesorio.tipo, accesorio.sector),
-        dnComercial: accesorio.dnComercial,
+        dnComercial: dnComercialMostrado,
         origen: 'estimadoDreza',
         sector: accesorio.sector,
         red: accesorio.red,

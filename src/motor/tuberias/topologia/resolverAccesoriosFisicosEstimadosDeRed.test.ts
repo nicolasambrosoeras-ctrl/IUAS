@@ -10,6 +10,7 @@ import { catalogoArtefactos } from '../../../normativa/eras-2023/catalogo-artefa
 import { validarRedHidraulica } from '../../../validacion/redHidraulica'
 import { agregarLocalAMontante, reconstruirCadena } from '../../../interfaz/paginas/reconciliarMontante'
 import { conMontanteNuevo, derivacionesDeMontante } from '../../../interfaz/paginas/montantesDelProyecto'
+import { conDnComercialAdoptadoDeTramo } from '../../../interfaz/paginas/actualizarRedHidraulica'
 import { obtenerCaminoHaciaOrigen } from './obtenerCaminoHaciaOrigen'
 import { distribuirAccesorioPeriodico, resolverAccesoriosFisicosEstimadosDeRed } from './resolverAccesoriosFisicosEstimadosDeRed'
 
@@ -176,5 +177,122 @@ describe('resolverAccesoriosFisicosEstimadosDeRed · Montante', () => {
     const { items, pendientes } = resolverAccesoriosFisicosEstimadosDeRed(creado.proyecto, catalogoArtefactos)
     expect(items.filter((i) => i.montanteId === creado.montanteId)).toEqual([])
     expect(pendientes.some((p) => p.includes('Montante'))).toBe(false)
+  })
+})
+
+describe('resolverAccesoriosFisicosEstimadosDeRed · Reducciones (HYD-EST-NETWORK-01)', () => {
+  it('cambio real de DN entre dos segmentos consecutivos: 1 reducción anclada en el segmento aguas abajo, con ambos DN identificables', () => {
+    const { proyecto: base, montanteId } = montanteAfConLocales([0, 3, 7, 11])
+    const cadena = reconstruirCadena(base.redHidraulica!, montanteId)!
+    // Todos los segmentos resuelven 20 mm por defecto (demanda mínima) --
+    // se fuerza el ÚLTIMO segmento a 32 mm (salto "mediata" en la serie
+    // nominal: 20 -> 25 -> 32, 2 escalones) para ejercitar una transición
+    // real, sin tocar ningún otro segmento.
+    const ultimoSegmentoId = cadena.segmentos[cadena.segmentos.length - 1]!.id
+    const proyecto = conDnComercialAdoptadoDeTramo(base, ultimoSegmentoId, '32 mm')
+
+    const { items, pendientes } = resolverAccesoriosFisicosEstimadosDeRed(proyecto, catalogoArtefactos)
+    expect(pendientes).toEqual([])
+    const reducciones = items.filter((i) => i.montanteId === montanteId && i.tipo === 'reduccion')
+    expect(reducciones).toHaveLength(1)
+    const reduccion = reducciones[0]!
+    expect(reduccion.ubicacion).toEqual({ tipo: 'tramo', tramoId: ultimoSegmentoId })
+    expect(reduccion.dnComercial).toBe('32 mm')
+    expect(reduccion.dnAguasArriba).toBe('20 mm')
+  })
+
+  it('mismo DN en toda la cadena: ninguna reducción', () => {
+    const { proyecto, montanteId } = montanteAfConLocales([0, 3, 7, 11])
+    const { items } = resolverAccesoriosFisicosEstimadosDeRed(proyecto, catalogoArtefactos)
+    expect(items.filter((i) => i.montanteId === montanteId && i.tipo === 'reduccion')).toEqual([])
+  })
+
+  it('la reducción sólo pertenece a los caminos que atraviesan FÍSICAMENTE su Tramo -- un Local servido antes de la transición no la ve', () => {
+    const { proyecto: base, montanteId } = montanteAfConLocales([0, 3, 7, 11])
+    const cadena = reconstruirCadena(base.redHidraulica!, montanteId)!
+    const ultimoSegmentoId = cadena.segmentos[cadena.segmentos.length - 1]!.id
+    const proyecto = conDnComercialAdoptadoDeTramo(base, ultimoSegmentoId, '32 mm')
+    const { items } = resolverAccesoriosFisicosEstimadosDeRed(proyecto, catalogoArtefactos)
+    const reduccion = items.find((i) => i.montanteId === montanteId && i.tipo === 'reduccion')!
+
+    // l-1 (el más bajo): su camino nunca llega al último segmento -> no ve
+    // la reducción. l-4 (el más alto, servido por el último segmento): sí.
+    const caminoL1 = obtenerCaminoHaciaOrigen(proyecto.redHidraulica!, 'n-l-1-t')
+    const caminoL4 = obtenerCaminoHaciaOrigen(proyecto.redHidraulica!, 'n-l-4-t')
+    expect(caminoL1.tipo).toBe('camino')
+    expect(caminoL4.tipo).toBe('camino')
+    if (caminoL1.tipo !== 'camino' || caminoL4.tipo !== 'camino') return
+    expect(caminoL1.tramos.some((t) => t.id === ultimoSegmentoId)).toBe(false)
+    expect(caminoL4.tramos.some((t) => t.id === ultimoSegmentoId)).toBe(true)
+    expect(reduccion.ubicacion).toEqual({ tipo: 'tramo', tramoId: ultimoSegmentoId })
+  })
+
+  it('fan-out con ramas de DN distinto (dos Montantes desde el mismo nodo del Colector): cada rama que cambia genera SU PROPIA reducción, la que no cambia no genera ninguna', () => {
+    // Dos Montantes (m1, m2) derivados del mismo nodo de Colector -- se
+    // fuerza el DN del primer segmento de m1 a 32 mm (transición real
+    // contra el Colector, 20 mm); m2 queda en su DN auto (sin transición).
+    // Cada Local necesita su propio feed hidráulico YA conectado (mismo
+    // patrón `rama()`) antes de que el reconciliador pueda engancharlo a
+    // un Montante.
+    const ramaM1 = rama('m1')
+    const ramaM2 = rama('m2')
+    const base = proyectoBase([])
+    const redConFeeds: RedHidraulica = {
+      nodos: [...base.redHidraulica!.nodos, ...ramaM1.nodos, ...ramaM2.nodos],
+      tramos: [...base.redHidraulica!.tramos, ...ramaM1.tramos, ...ramaM2.tramos],
+    }
+    const uf: UnidadFuncional = {
+      id: 'uf-1',
+      nombre: 'UF 1',
+      niveles: [
+        {
+          id: 'uf-1-nivel-1',
+          nombre: 'Nivel 1',
+          nivel: 0,
+          locales: [local('m1', 0), local('m2', 0)],
+        },
+      ],
+    }
+    let proyecto: Proyecto = { ...base, unidadesFuncionales: [uf], redHidraulica: redConFeeds }
+    const creadoM1 = conMontanteNuevo(proyecto, 'AF')
+    proyecto = creadoM1.proyecto
+    const creadoM2 = conMontanteNuevo(proyecto, 'AF')
+    proyecto = creadoM2.proyecto
+
+    const r1 = agregarLocalAMontante(proyecto, creadoM1.montanteId, 'uf-1', 'm1')
+    if (r1.tipo !== 'reconciliado') throw new Error(r1.tipo)
+    proyecto = r1.proyecto
+    const r2 = agregarLocalAMontante(proyecto, creadoM2.montanteId, 'uf-1', 'm2')
+    if (r2.tipo !== 'reconciliado') throw new Error(r2.tipo)
+    proyecto = r2.proyecto
+
+    const primerSegmentoM1 = reconstruirCadena(proyecto.redHidraulica!, creadoM1.montanteId)!.segmentos[0]!.id
+    proyecto = conDnComercialAdoptadoDeTramo(proyecto, primerSegmentoM1, '32 mm')
+
+    const { items, pendientes } = resolverAccesoriosFisicosEstimadosDeRed(proyecto, catalogoArtefactos)
+    expect(pendientes).toEqual([])
+    const reducciones = items.filter((i) => i.tipo === 'reduccion')
+    expect(reducciones).toHaveLength(1)
+    expect(reducciones[0]!.montanteId).toBe(creadoM1.montanteId)
+    expect(reducciones[0]!.ubicacion).toEqual({ tipo: 'tramo', tramoId: primerSegmentoM1 })
+    expect(reducciones[0]!.dnComercial).toBe('32 mm')
+    expect(reducciones[0]!.dnAguasArriba).toBe('20 mm')
+  })
+
+  it('extremo de la topología (sin Tramo aguas arriba): nunca una reducción fantasma', () => {
+    // t-gen es el Tramo raíz absoluto (sin ningún tramo entrante) -- forzar
+    // su propio DN no debe generar ninguna reducción de "extremo".
+    const { proyecto: base, montanteId } = montanteAfConLocales([0, 3, 7, 11])
+    const proyecto = conDnComercialAdoptadoDeTramo(base, 't-gen', '32 mm')
+    const { items } = resolverAccesoriosFisicosEstimadosDeRed(proyecto, catalogoArtefactos)
+    // La reducción SÍ debe aparecer en el primer segmento del Montante
+    // (20 vs 32, transición real y conectada) -- pero ninguna reducción
+    // "huérfana" debería anclarse en t-gen mismo (no tiene Tramo aguas
+    // arriba: no es parte de este sector ni de ningún otro).
+    const cadena = reconstruirCadena(proyecto.redHidraulica!, montanteId)!
+    const primerSegmentoId = cadena.segmentos[0]!.id
+    const reducciones = items.filter((i) => i.tipo === 'reduccion')
+    expect(reducciones.every((r) => r.ubicacion.tipo === 'tramo' && r.ubicacion.tramoId !== 't-gen')).toBe(true)
+    expect(reducciones.some((r) => r.ubicacion.tipo === 'tramo' && r.ubicacion.tramoId === primerSegmentoId)).toBe(true)
   })
 })

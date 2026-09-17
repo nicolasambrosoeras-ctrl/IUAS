@@ -7,8 +7,9 @@ import type { Local, Proyecto, UnidadFuncional } from '../../../modelo/proyecto'
 import type { Nodo, RedHidraulica, Tramo } from '../../../modelo/redHidraulica'
 import { catalogoArtefactos } from '../../../normativa/eras-2023/catalogo-artefactos'
 import { catalogoSistemasDeTuberia } from '../sistemaDeTuberia'
-import { agregarLocalAMontante } from '../../../interfaz/paginas/reconciliarMontante'
+import { agregarLocalAMontante, reconstruirCadena } from '../../../interfaz/paginas/reconciliarMontante'
 import { conMontanteNuevo } from '../../../interfaz/paginas/montantesDelProyecto'
+import { conDnComercialAdoptadoDeTramo } from '../../../interfaz/paginas/actualizarRedHidraulica'
 import { obtenerCaminoHaciaOrigen } from '../topologia/obtenerCaminoHaciaOrigen'
 import { resolverAccesoriosFisicosEstimadosDeRed } from '../topologia/resolverAccesoriosFisicosEstimadosDeRed'
 import { acumularPerdidaLocalizadaEstimadaDeMontanteYColector } from './acumularPerdidaLocalizadaEstimadaDeMontanteYColector'
@@ -136,6 +137,44 @@ describe('acumularPerdidaLocalizadaEstimadaDeMontanteYColector', () => {
     expect(teesEnL1).toHaveLength(1)
     const teesEnL4 = resultadoL4.detalle.filter((d) => d.tipo === 'teeDerivacion')
     expect(teesEnL4).toHaveLength(3)
+  })
+
+  it('reducción por cambio real de DN: Ks=0,85 (salto mediata, catálogo oficial) sólo en el camino que atraviesa el Tramo de la transición', () => {
+    const { proyecto: base, montanteId } = montanteAfConLocales([0, 3, 7, 11], 'acquaSystemMagnumPn20')
+    const cadena = reconstruirCadena(base.redHidraulica!, montanteId)!
+    const ultimoSegmentoId = cadena.segmentos[cadena.segmentos.length - 1]!.id
+    const proyecto = conDnComercialAdoptadoDeTramo(base, ultimoSegmentoId, '32 mm')
+    const { items } = resolverAccesoriosFisicosEstimadosDeRed(proyecto, catalogoArtefactos)
+    expect(items.filter((i) => i.tipo === 'reduccion')).toHaveLength(1)
+
+    const resultadoL1 = acumularPerdidaLocalizadaEstimadaDeMontanteYColector(
+      proyecto,
+      camino(proyecto, 'n-l-1-t'),
+      items,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+    )
+    const resultadoL4 = acumularPerdidaLocalizadaEstimadaDeMontanteYColector(
+      proyecto,
+      camino(proyecto, 'n-l-4-t'),
+      items,
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+    )
+    expect(resultadoL1.tipo).toBe('acumulada')
+    expect(resultadoL4.tipo).toBe('acumulada')
+    if (resultadoL1.tipo !== 'acumulada' || resultadoL4.tipo !== 'acumulada') return
+
+    // l-1 (el más bajo) no atraviesa el último segmento -> nunca ve la
+    // reducción.
+    expect(resultadoL1.detalle.some((d) => d.tipo === 'reduccion')).toBe(false)
+
+    // l-4 (servido por el último segmento) sí la ve, con Ks=0,85 (salto
+    // "mediata" -- 20 mm a 32 mm, 2 escalones en la serie nominal).
+    const reduccionEnL4 = resultadoL4.detalle.find((d) => d.tipo === 'reduccion')
+    expect(reduccionEnL4).toBeDefined()
+    expect(reduccionEnL4!.ks).toBeCloseTo(0.85, 6)
+    expect(reduccionEnL4!.hf_m).toBeGreaterThan(0)
   })
 
   it('llave general del Montante aparece en TODOS los caminos servidos por ese Montante', () => {

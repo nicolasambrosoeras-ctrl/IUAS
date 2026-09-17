@@ -752,6 +752,37 @@ describe('resolverDatosDeListadoDeMateriales — estimación constructiva DREZA 
     expect(items.find((a) => a.etiqueta === 'Codo de última salida (Colector)')?.cantidadComputada).toBe(1)
   })
 
+  // HYD-EST-NETWORK-01: transición real de DN entre el Colector (32 mm,
+  // proyectoColectorBase) y el primer segmento del Montante (25 mm,
+  // dnComercialAdoptado explícito de la fixture) -- misma topología del
+  // Caso D-bis, reusada porque ya trae una diferencia real de DN.
+  it('Reducción por cambio de DN entre Colector y Montante: 1 pieza, DN de entrada/salida identificables, sin duplicar contra otros accesorios', () => {
+    const { nodos, tramos } = proyectoColectorBase()
+    nodos.push({ id: 'nM1Art', referencia: { tipo: 'artefacto', unidadFuncionalId: 'ufM1', localId: 'localM1', artefactoId: 'artM1' } })
+    tramos.push({ id: 't-m1-feed', nodoOrigenId: 'n1', nodoDestinoId: 'nM1Art', red: 'AF', longitud_m: 3, dnComercialAdoptado: '25 mm', montanteId: 'm1' })
+    const ufM1: UnidadFuncional = {
+      id: 'ufM1',
+      nombre: 'ufM1',
+      niveles: [{ id: 'ufM1-nivel-1', nombre: 'Nivel 1', locales: [{ id: 'localM1', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'artM1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] }] }],
+    }
+    const proyecto: Proyecto = {
+      ...proyectoBase({
+        ufs: [ufM1],
+        red: { nodos, tramos },
+        configuracionHidraulica: { granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado' },
+      }),
+      montantes: [{ id: 'm1', red: 'AF' }],
+    }
+
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+    const reducciones = datos.accesorios.filter((a) => a.origen === 'estimadoDreza' && a.etiqueta === 'Reducción')
+
+    expect(reducciones).toHaveLength(1)
+    expect(reducciones[0]!.sector).toBe('montante')
+    expect(reducciones[0]!.cantidadComputada).toBe(1)
+    expect(reducciones[0]!.dnComercial).toBe('32 mm → 25 mm')
+  })
+
   // Caso E (brief §13): sin Montantes, 4 Locales alimentados directamente.
   it('Caso E — sin Montantes, 4 Locales directos: 3 tees de distribución + 1 codo de última salida', () => {
     const { nodos, tramos } = proyectoColectorBase()

@@ -43,6 +43,7 @@ import type { CaminoHaciaOrigen } from '../topologia/obtenerCaminoHaciaOrigen'
 import type { AccesorioFisicoEstimado, IdAccesorioFisicoEstimado } from '../topologia/resolverAccesoriosFisicosEstimadosDeRed'
 import { resolverDiametroComercialDeTramo } from '../resolverDiametroComercialDeTramo'
 import { resolverKsDeAccesorioDeTramo, SISTEMA_DE_TUBERIA_ACQUA_SYSTEM_ID } from '../perdidaCarga/resolverKsDeAccesorioDeTramo'
+import { resolverKsDeReduccion } from '../perdidaCarga/resolverKsDeReduccion'
 import { resolverKsEstimadoTee } from './resolverPerdidaLocalizadaEstimadaDeLocal'
 import { calcularPerdidaCargaLocalizada } from '../perdidaCarga/calcularPerdidaCargaLocalizada'
 import type { IdAccesorioDeTramo } from '../../../modelo/redHidraulica'
@@ -170,15 +171,29 @@ export function acumularPerdidaLocalizadaEstimadaDeMontanteYColector(
     }
     const velocidad_mps = resultadoComercial.velocidadReal_mps
 
-    const ks = TIPOS_TEE.has(accesorio.tipo)
-      ? resolverKsEstimadoTee(sistemaDeTuberiaId)
-      : MAPEO_A_ID_ACCESORIO_DE_TRAMO[accesorio.tipo] !== undefined
-        ? resolverKsDeAccesorioDeTramo(MAPEO_A_ID_ACCESORIO_DE_TRAMO[accesorio.tipo]!, sistemaDeTuberiaId).ks
-        : // `unionTanque`: sin coeficiente propio ni equivalencia documentada
-          // (HYD-ACQUA-K-CATALOG-01, "unión doble con unión normal: ninguna
-          // de estas piezas está modelada... no hay nada que reasignar") --
-          // 0 explícito, nunca inventado. Queda como limitación conocida.
-          0
+    const ks =
+      accesorio.tipo === 'reduccion'
+        ? // Reducción: Ks por CONTEXTO topológico (salto de DN real),
+          // nunca por identidad fija -- mismo resolutor central que ya usa
+          // Detallado y la reducción estimada de Local (CRIT-A30). Un
+          // salto 'noClasificable' (DN no perteneciente a la serie o no
+          // resoluble) nunca se alcanza en la práctica acá -- la fuente
+          // física (`resolverAccesoriosFisicosEstimadosDeRed.ts`) ya
+          // filtró por clasificación al detectar la pieza -- pero se
+          // trata igual como "sin Ks" (0), nunca un valor inventado.
+          (() => {
+            const resultado = resolverKsDeReduccion(sistemaDeTuberiaId, accesorio.dnComercial, accesorio.dnAguasArriba)
+            return resultado.resultado === 'calculado' ? resultado.ks : 0
+          })()
+        : TIPOS_TEE.has(accesorio.tipo)
+          ? resolverKsEstimadoTee(sistemaDeTuberiaId)
+          : MAPEO_A_ID_ACCESORIO_DE_TRAMO[accesorio.tipo] !== undefined
+            ? resolverKsDeAccesorioDeTramo(MAPEO_A_ID_ACCESORIO_DE_TRAMO[accesorio.tipo]!, sistemaDeTuberiaId).ks
+            : // `unionTanque`: sin coeficiente propio ni equivalencia documentada
+              // (HYD-ACQUA-K-CATALOG-01, "unión doble con unión normal: ninguna
+              // de estas piezas está modelada... no hay nada que reasignar") --
+              // 0 explícito, nunca inventado. Queda como limitación conocida.
+              0
     if (ks <= 0) {
       // Sin Ks (unionTanque, ver arriba): pieza registrada en materiales
       // pero sin incidencia hidráulica -- nunca se llama a

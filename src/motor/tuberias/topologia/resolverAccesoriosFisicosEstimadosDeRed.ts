@@ -41,6 +41,7 @@ import type { ArtefactoNormativo } from '../../../normativa/eras-2023/catalogo-a
 import { catalogoSistemasDeTuberia } from '../sistemaDeTuberia'
 import type { ContextoDeCalculoM2 } from '../contextoDeCalculoM2'
 import { resolverDiametroComercialDeTramo } from '../resolverDiametroComercialDeTramo'
+import { clasificarSaltoDeReduccion } from '../perdidaCarga/clasificarSaltoDeReduccion'
 import { derivarLocalesServidos, reconstruirCadena } from '../../../interfaz/paginas/reconciliarMontante'
 import { derivacionesDeMontante } from '../../../interfaz/paginas/montantesDelProyecto'
 import {
@@ -59,6 +60,7 @@ export type IdAccesorioFisicoEstimado =
   | 'teeAcs'
   | 'teeRuptor'
   | 'unionTanque'
+  | 'reduccion'
 
 export type SectorAccesorioFisico = 'montante' | 'colectorPrincipal'
 
@@ -78,7 +80,14 @@ export type AccesorioFisicoEstimado = {
   readonly red: RedDeTramo
   readonly montanteId?: string
   readonly ubicacion: UbicacionFisicaAccesorio
+  // DN "propio" del accesorio -- para `tipo: 'reduccion'`, el DN del lado
+  // AGUAS ABAJO (CRIT-A30: la reducción se declara sobre el lado menor,
+  // el Tramo donde efectivamente vive la pieza); `dnAguasArriba` completa
+  // el par para poder resolver su Ks (`resolverKsDeReduccion` necesita
+  // ambos DN, nunca uno solo -- CRIT-A26). Para cualquier otro tipo,
+  // `dnAguasArriba` queda ausente (no aplica).
   readonly dnComercial: string
+  readonly dnAguasArriba?: string
 }
 
 export type ResultadoAccesoriosFisicosEstimadosDeRed = {
@@ -113,6 +122,52 @@ export function distribuirAccesorioPeriodico(
       indice += 1
     }
     resultado.push(segmentos[indice]!.tramoId)
+  }
+  return resultado
+}
+
+function resolverDnDeTramo(
+  proyecto: Proyecto,
+  tramoId: string,
+  catalogoArtefactos: readonly ArtefactoNormativo[],
+  contexto: ContextoDeCalculoM2 | undefined,
+): string | undefined {
+  const resultado = resolverDiametroComercialDeTramo(proyecto, tramoId, catalogoArtefactos, catalogoSistemasDeTuberia, contexto)
+  return resultado.tipo === 'conCandidato' ? resultado.candidato.denominacionComercial : undefined
+}
+
+// Reducciones físicas estimadas por cambio real de DN entre tramos
+// FÍSICAMENTE CONSECUTIVOS (CRIT-A30: la reducción se declara sobre el
+// lado aguas abajo/menor, nunca inferida comparando tramos no conectados).
+// `paresConsecutivos` ya viene resuelto por el llamador -- cada par es
+// [tramoAguasAbajo, tramoAguasArriba] realmente unidos por un Nodo común
+// (`tramoAguasAbajo.nodoOrigenId === tramoAguasArriba.nodoDestinoId`).
+// Sólo genera una pieza cuando el salto CLASIFICA (`inmediata`/`mediata`,
+// misma serie nominal que ya usa `resolverKsDeReduccion`) -- mismo DN no
+// genera reducción (no es una pieza faltante, es una clasificación válida
+// sin pieza física) y un DN no perteneciente a la serie/no resoluble
+// nunca fabrica una reducción "fantasma" sin evidencia clasificable.
+function detectarReduccionesEntrePares(
+  proyecto: Proyecto,
+  pares: readonly { readonly tramoAguasAbajo: Tramo; readonly tramoAguasArriba: Tramo }[],
+  catalogoArtefactos: readonly ArtefactoNormativo[],
+  contexto: ContextoDeCalculoM2 | undefined,
+): readonly { readonly tramoId: string; readonly dnPropio: string; readonly dnAguasArriba: string }[] {
+  const resultado: { tramoId: string; dnPropio: string; dnAguasArriba: string }[] = []
+  for (const { tramoAguasAbajo, tramoAguasArriba } of pares) {
+    const dnPropio = resolverDnDeTramo(proyecto, tramoAguasAbajo.id, catalogoArtefactos, contexto)
+    const dnAguasArriba = resolverDnDeTramo(proyecto, tramoAguasArriba.id, catalogoArtefactos, contexto)
+    if (dnPropio === undefined || dnAguasArriba === undefined) {
+      continue
+    }
+    const clasificacion = clasificarSaltoDeReduccion(dnPropio, dnAguasArriba)
+    if (clasificacion !== 'inmediata' && clasificacion !== 'mediata') {
+      // 'mismoDn': no hay pieza física (no es un pendiente). 'pendiente':
+      // salto no clasificable en la serie nominal -- no se fabrica una
+      // reducción sin evidencia clasificable (nunca un K inventado).
+      continue
+    }
+    resultado.push({ tramoId: tramoAguasAbajo.id, dnPropio, dnAguasArriba })
   }
   return resultado
 }
@@ -191,6 +246,35 @@ function resolverAccesoriosFisicosDeMontante(
   })
   distribuirAccesorioPeriodico(segmentosParaDistancia, 4).forEach((tramoId, i) => {
     items.push({ ...base, idFisico: `montante:${montante.id}:union:${i}`, tipo: 'unionRecta', ubicacion: { tipo: 'tramo', tramoId } })
+  })
+
+  // Reducciones: cada segmento contra su predecesor FÍSICO real -- para
+  // el primero de la cadena, el Tramo que efectivamente lo alimenta
+  // (puede ser el tronco de Colector, otro Montante, o nada si el
+  // Montante arranca en la raíz absoluta de la topología, caso en el que
+  // no hay ningún Tramo aguas arriba y no se fabrica una reducción de
+  // "extremo"). Para el resto, el segmento inmediatamente anterior de la
+  // MISMA cadena (siempre lineal, `reconstruirCadena`/CRIT).
+  const paresParaReduccion: { tramoAguasAbajo: Tramo; tramoAguasArriba: Tramo }[] = []
+  segmentos.forEach((segmento, i) => {
+    if (i === 0) {
+      const tramoAguasArriba = redHidraulica.tramos.find((t) => t.nodoDestinoId === segmento.nodoOrigenId)
+      if (tramoAguasArriba !== undefined) {
+        paresParaReduccion.push({ tramoAguasAbajo: segmento, tramoAguasArriba })
+      }
+      return
+    }
+    paresParaReduccion.push({ tramoAguasAbajo: segmento, tramoAguasArriba: segmentos[i - 1]! })
+  })
+  detectarReduccionesEntrePares(proyecto, paresParaReduccion, catalogoArtefactos, contexto).forEach((reduccion, i) => {
+    items.push({
+      ...base,
+      idFisico: `montante:${montante.id}:reduccion:${i}`,
+      tipo: 'reduccion',
+      ubicacion: { tipo: 'tramo', tramoId: reduccion.tramoId },
+      dnComercial: reduccion.dnPropio,
+      dnAguasArriba: reduccion.dnAguasArriba,
+    })
   })
 
   return items
@@ -365,6 +449,30 @@ function resolverAccesoriosFisicosDeColectorRed(
   const segmentosParaDistancia = tramosColector.map((t) => ({ tramoId: t.id, longitud_m: t.longitud_m ?? 0 }))
   distribuirAccesorioPeriodico(segmentosParaDistancia, 4).forEach((tramoId, i) => {
     items.push({ ...base, idFisico: `colector:${red}:union:${i}`, tipo: 'unionRecta', ubicacion: { tipo: 'tramo', tramoId } })
+  })
+
+  // Reducciones: cada tramo "de reparto" del Colector (salvo la raíz, que
+  // por definición no tiene ningún Tramo entrante -- CRIT, no se fabrica
+  // una reducción de "extremo") contra su predecesor físico REAL,
+  // encontrado por topología (nunca por posición en el array -- un nodo
+  // de bifurcación puede tener varios tramos "de reparto" hijos, cada uno
+  // comparado independientemente contra el MISMO padre: así un fan-out
+  // con ramas de DN distinto genera una reducción por cada rama que
+  // efectivamente cambia, nunca una sola "promedio" ni ninguna para las
+  // ramas que no cambian).
+  const paresColectorParaReduccion = tramosColector.slice(1).map((tramo) => {
+    const tramoAguasArriba = redHidraulica.tramos.find((t) => t.nodoDestinoId === tramo.nodoOrigenId)
+    return tramoAguasArriba === undefined ? undefined : { tramoAguasAbajo: tramo, tramoAguasArriba }
+  }).filter((par): par is { tramoAguasAbajo: Tramo; tramoAguasArriba: Tramo } => par !== undefined)
+  detectarReduccionesEntrePares(proyecto, paresColectorParaReduccion, catalogoArtefactos, contexto).forEach((reduccion, i) => {
+    items.push({
+      ...base,
+      idFisico: `colector:${red}:reduccion:${i}`,
+      tipo: 'reduccion',
+      ubicacion: { tipo: 'tramo', tramoId: reduccion.tramoId },
+      dnComercial: reduccion.dnPropio,
+      dnAguasArriba: reduccion.dnAguasArriba,
+    })
   })
 
   if (red === 'AF') {
