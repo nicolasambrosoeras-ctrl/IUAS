@@ -3764,6 +3764,44 @@ salvo bug inequívoco o decisión roja explícita.
   `docs/HYD-OVERPASS-01.md`.
   - **Estado:** `HYD-OVERPASS-01: CERRADO — pendiente validación manual`.
 
+- **D-δ.144 — HYD-ACQUA-K-CATALOG-01: completar el catálogo hidráulico
+  Acqua System (CERRADO — pendiente validación manual).** Transcribe la
+  tabla oficial completa de 16 coeficientes de resistencia del Manual
+  Técnico Acqua System (pág. 34), cerrando las decisiones diferidas de
+  HYD-OVERPASS-01. Catálogo tipado con procedencia explícita
+  (`oficialFabricante`/`oficialFabricanteSimplificado`/
+  `equivalenciaDocumentada`/`fallbackNormativoERAS`) -- `catalogoKAccesoriosAcquaSystem.ts`.
+  Tee estimada de HYD-EST pasa de 3,00 (Tabla N°7) a 1,80 (fila oficial
+  N°5, configuración distributiva) cuando el sistema adoptado es Acqua
+  System; cualquier otro sistema conserva 3,00 sin cambios (D-δ.40, no
+  reabierto). Reducciones bajo Acqua System se clasifican por salto real
+  de diámetro en la serie nominal comercial
+  (`clasificarSaltoDeReduccion.ts`: inmediata=0,55, mediata=0,85, mismo
+  DN=0 sin reducción, fuera de serie=pendiente trazable) tanto en modo
+  Detallado (declarada sobre `Tramo.accesorios`) como en una nueva
+  detección automática del modo Estimado (Tee + reducción, componentes
+  separados y trazables, nunca un coeficiente compuesto opaco). Las 8
+  configuraciones oficiales de Tee (N°5-8a) quedan modeladas en el
+  dominio (`configuracionesTeeDetalladaAcquaSystem.ts`) sin selector de
+  UI ni consumidor de cálculo todavía -- Tee real (`Nodo.tee`) sigue
+  resolviendo con Tabla N°7 siempre, decisión explícita para no migrar
+  silenciosamente una tee genérica a una configuración inventada.
+  `llaveDePaso`/`valvulaEsclusa`/`tuboSaliente` confirmados sin
+  coeficiente propio del fabricante, catalogados con procedencia
+  `fallbackNormativoERAS`. Bug corregido: `generarDocumentoPdf.ts` tenía
+  un texto público hardcodeado ("...con Ks=3,00...") que no reflejaba el
+  valor real cuando el sistema era Acqua System -- ahora cita
+  dinámicamente el K efectivo del caso. Resultado verificado en el
+  proyecto de referencia: ΣK del caso representativo baja de 20,73 a
+  17,68 pese a seguir sumando el Sobrepaso (la tee oficial Acqua System
+  es menor que la aproximación conservadora ERAS); margen del terminal
+  crítico pasa de −20,047 a −19,640 m.c.a. (sigue NO CUMPLE); cantidades
+  de materiales sin cambios (88 u / 104 u, 11 sobrepasos). QA: `tsc -b`/
+  `build` limpios, Vitest 2141/2141 (59 tests nuevos), ESLint 11/0
+  idéntico a la base, E2E dirigido 13/13 contra build local. Detalle
+  completo en `docs/HYD-ACQUA-K-CATALOG-01.md`.
+  - **Estado:** `HYD-ACQUA-K-CATALOG-01: CERRADO — pendiente validación manual`.
+
 **INTERFAZ WEB CAUDAL BY DREZA: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /

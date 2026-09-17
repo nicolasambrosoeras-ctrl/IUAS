@@ -238,17 +238,29 @@ de ausente.
 
 ## Decisiones rojas pendientes / diferidas
 
-- **`reducciones` bajo Acqua System**: se adoptó "diámetros inmediatos"
-  (0,55) sin distinguir el salto de diámetro real de la reducción
-  declarada. Documentado como limitación conocida, no como decisión
-  cerrada — revisar si un incremento futuro necesita esa distinción.
-- **Tee (3 variantes) bajo Acqua System**: no se transcribió ningún
-  coeficiente propio del fabricante (datos del manual dependen de un
-  gráfico no disponible como texto) — Tee real (`Nodo.tee`) y HYD-EST
-  siguen usando exclusivamente Tabla N°7, sin cambios.
-- **`llaveDePaso`/`valvulaEsclusa` bajo Acqua System**: sin coeficiente
-  propio publicado, conservan Tabla N°7. Si Acqua System publica un
-  ensayo específico en el futuro, requiere revisar este catálogo.
+Todas las decisiones diferidas de esta sección quedaron **resueltas** por
+`HYD-ACQUA-K-CATALOG-01` (D-δ.144, `docs/HYD-ACQUA-K-CATALOG-01.md`), a
+partir de la extracción del texto real de la tabla oficial completa del
+manual (pág. 34), que en el momento de cerrar este slice todavía no se
+había transcrito íntegra:
+
+- ~~`reducciones` bajo Acqua System: se adoptó "diámmetros inmediatos"
+  (0,55) sin distinguir el salto de diámetro real~~ → cerrado:
+  clasificación real por serie nominal comercial
+  (`clasificarSaltoDeReduccion.ts`/`resolverKsDeReduccion.ts`).
+- ~~Tee (3 variantes) bajo Acqua System: sin coeficiente propio
+  transcrito~~ → la tabla oficial completa (8 configuraciones N°5-8a) ya
+  está transcrita (`configuracionesTeeDetalladaAcquaSystem.ts`), aunque
+  Tee real (`Nodo.tee`) sigue usando Tabla N°7 sin cambios (decisión
+  explícita de HYD-ACQUA-K-CATALOG-01, no reabierta: falta relevar
+  orientación de flujo real para poder seleccionar entre configuraciones).
+  La Tee **estimada** de HYD-EST sí pasó a usar el valor oficial Acqua
+  System (1,80, fila N°5) en vez de Tabla N°7 (3,00).
+- ~~`llaveDePaso`/`valvulaEsclusa` bajo Acqua System: sin coeficiente
+  propio publicado~~ → confirmado con la tabla completa: el fabricante
+  efectivamente no publica coeficiente para estas piezas. Siguen
+  conservando Tabla N°7, ahora catalogadas explícitamente con
+  procedencia `fallbackNormativoERAS` en vez de resolverse por ausencia.
 
 ## QA
 
