@@ -3803,17 +3803,18 @@ salvo bug inequívoco o decisión roja explícita.
   - **Estado:** `HYD-ACQUA-K-CATALOG-01: CERRADO — pendiente validación manual`.
 
 - **D-δ.145 — HYD-EST-NETWORK-01: incorporar los accesorios estimados de
-  Montante y Colector al camino hidráulico (EN CURSO — commits
-  funcionales verdes, documentación/PDF/E2E/deploy pendientes).** Cierra
-  la brecha documentada en HYD-ACQUA-K-CATALOG-01: Montante y Colector
-  aportaban accesorios estimados DREZA sólo al listado de materiales,
-  nunca a la pérdida localizada estimada -- una pieza podía figurar en
-  materiales sin aportar ΣK/hf. Nueva fuente única de verdad
+  Montante y Colector al camino hidráulico (CERRADO — pendiente deploy y
+  smoke de producción).** Cierra la brecha documentada en
+  HYD-ACQUA-K-CATALOG-01: Montante y Colector aportaban accesorios
+  estimados DREZA sólo al listado de materiales, nunca a la pérdida
+  localizada estimada -- una pieza podía figurar en materiales sin
+  aportar ΣK/hf. Nueva fuente única de verdad
   (`resolverAccesoriosFisicosEstimadosDeRed.ts`): cada accesorio físico
-  estimado de Montante/Colector queda anclado a un Tramo o Nodo real de
-  `RedHidraulica`, consumida tanto por el balance hidráulico
-  (`acumularPerdidaLocalizadaEstimadaDeMontanteYColector.ts`, sumado a
-  `resolverPresionResidualDeCamino.ts` en modo Estimadas +
+  estimado de Montante/Colector (incluidas ahora las reducciones por
+  cambio real de DN, reusando `resolverKsDeReduccion`) queda anclado a un
+  Tramo o Nodo real de `RedHidraulica`, consumida tanto por el balance
+  hidráulico (`acumularPerdidaLocalizadaEstimadaDeMontanteYColector.ts`,
+  sumado a `resolverPresionResidualDeCamino.ts` en modo Estimadas +
   `granularidadHidraulica: 'simplificada'`) como por Materials
   (`resolverAccesoriosConstructivosDreza.ts` deja de recalcular Montante/
   Colector con una implementación paralela, ahora PROYECTA la misma
@@ -3828,18 +3829,29 @@ salvo bug inequívoco o decisión roja explícita.
   el total de materiales del proyecto de referencia NO cambia (88 u base /
   104 u compra, el resumen consolidado ya agrupaba por accesorio+DN, no
   por ubicación). Sólo cambia el balance hidráulico: margen del terminal
-  crítico pasa de −19,640 a −23,931 m.c.a. (sigue NO CUMPLE). Correcciones
-  de diseño encontradas al integrar (BFS del tronco de Colector en vez de
-  cadena lineal, Montante sin topología ya no genera Tee fantasma,
-  supresión de asimetría entre salidas que comparten un mismo nodo de
-  fan-out) documentadas en `docs/HYD-EST-NETWORK-01.md`. QA: `tsc -b`
-  limpio, Vitest 2151/2151, ESLint 11/0 idéntico a la base.
-  - **Pendiente real:** reducciones estimadas de Montante/Colector por
-    cambio de DN (no implementado), 3 proyectos de aceptación auditables
-    dedicados, PDF regenerado y verificado visualmente, E2E dirigido,
-    deploy y smoke de producción, actualización de este ADR/ROADMAP más
-    allá de esta entrada de cierre parcial.
-  - **Estado:** `HYD-EST-NETWORK-01: EN CURSO`.
+  crítico pasa de −19,640 a −23,931 m.c.a. (sigue NO CUMPLE). Tres
+  proyectos de aceptación auditables (Caso A: Montante simple con cambio
+  de DN; Caso B: Colector bifurcado con ramas de DN distinto; Caso C: red
+  combinada, aislamiento de caminos verificado), guardados como archivos
+  `.iuas` reales en `src/pruebas/fixtures/hydEstNetwork01/` y cargados con
+  el mismo parser que usa la app. Correcciones de diseño encontradas al
+  integrar (BFS del tronco de Colector en vez de cadena lineal, Montante
+  sin topología ya no genera Tee fantasma, rama ACS excluida del walk de
+  derivaciones, supresión de asimetría entre salidas de un mismo nodo de
+  fan-out restringida únicamente a `codoUltimaSalida` del Colector tras
+  detectar que también suprimía por error `codoUltimoLocal` en una cadena
+  normal de Montante, separador ASCII para el par de DN de una Reducción
+  en el PDF por un glyph roto de pdfMake) documentadas en
+  `docs/HYD-EST-NETWORK-01.md`. QA: `tsc -b` limpio, Vitest 2167/2167,
+  ESLint 11/0 idéntico a la base, E2E dirigido 2/2, regresión E2E 43/44
+  (única falla preexistente y ajena, `montantes.spec.ts:407`). PDF real
+  del Caso A (listado de materiales + memoria técnica) descargado vía
+  E2E, convertido a imagen e inspeccionado página por página.
+  - **Pendiente real:** deploy y smoke de producción (no ejecutados
+    todavía en esta sesión); `unionTanque` sigue sin Ks propio (decisión
+    ya cerrada, no reabierta); `montantes.spec.ts:407` (mobile) sigue
+    fallando por una causa preexistente ajena a este incremento.
+  - **Estado:** `HYD-EST-NETWORK-01: CERRADO — pendiente deploy`.
 
 **INTERFAZ WEB CAUDAL BY DREZA: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
