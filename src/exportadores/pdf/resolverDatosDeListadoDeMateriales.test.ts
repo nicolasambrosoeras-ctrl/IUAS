@@ -233,16 +233,26 @@ describe('resolverDatosDeListadoDeMateriales — accesorios', () => {
     return proyectoBase({ ufs: [uf], red: { nodos, tramos }, configuracionHidraulica: { metodoPerdidaLocalizada } })
   }
 
+  // Nota: `proyectoConAccesorio` arma un único Tramo de 5 m -- brief §9
+  // (uniones/cuplas rectas cada 4 m, MATERIALS-ACCESSORIES-01) agrega
+  // SIEMPRE una unión sobre ese mismo Tramo (floor(5/4)=1), sin importar
+  // el método de pérdida localizada. Estos dos tests son sobre el
+  // comportamiento de `Tramo.accesorios`/K-estimadas, así que filtran esa
+  // unión (cubierta aparte en el describe dedicado a uniones).
+  function sinUniones(accesorios: ReturnType<typeof resolverDatosDeListadoDeMateriales>['accesorios']) {
+    return accesorios.filter((a) => a.etiqueta !== 'Unión/cupla recta PPR')
+  }
+
   it('modo detallado: computa exactamente los accesorios explícitos del Tramo (brief §20/§63)', () => {
     const proyecto = proyectoConAccesorio([{ tipo: 'codo90', cantidad: 7 }], 'detallado')
     const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
-    expect(datos.accesorios).toEqual([{ clave: 'codo90|20 mm', etiqueta: 'Codo a 90º', dnComercial: '20 mm', cantidadComputada: 7, origen: 'definido' }])
+    expect(sinUniones(datos.accesorios)).toEqual([{ clave: 'codo90|20 mm', etiqueta: 'Codo a 90º', dnComercial: '20 mm', cantidadComputada: 7, origen: 'definido' }])
   })
 
   it('modo estimado: NUNCA convierte las K estimadas (tee/terminal/llave) en piezas de compra (brief §19/§62)', () => {
     const proyecto = proyectoConAccesorio([{ tipo: 'codo90', cantidad: 7 }], 'estimado')
     const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
-    expect(datos.accesorios).toEqual([])
+    expect(sinUniones(datos.accesorios)).toEqual([])
   })
 
   it('CRIT-A30: un cambio de DN entre Tramos consecutivos NUNCA genera una "Reducción" inferida (brief §25/§64)', () => {
@@ -279,13 +289,20 @@ describe('resolverDatosDeListadoDeMateriales — Tee nodal', () => {
     return { uf, red: { nodos, tramos } }
   }
 
+  // t-entrada mide 5 m -- brief §9 agrega SIEMPRE una unión sobre ese
+  // mismo Tramo (floor(5/4)=1); se filtra acá (cubierta aparte en el
+  // describe dedicado a uniones).
+  function sinUniones(accesorios: ReturnType<typeof resolverDatosDeListadoDeMateriales>['accesorios']) {
+    return accesorios.filter((a) => a.etiqueta !== 'Unión/cupla recta PPR')
+  }
+
   it('Tee 1→2 clasificada con DN inequívoco: se computa como pieza única "Tee DN A × B × C" (brief §24)', () => {
     const { uf, red } = redConTee({ tipo: 'entradaPorExtremo', tramoSalidaRectaId: 't-recta' })
     const proyecto = proyectoBase({ ufs: [uf], red })
 
     const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
 
-    expect(datos.accesorios).toEqual([{ clave: 'tee|Tee DN 25 mm × 25 mm × 20 mm', etiqueta: 'Tee DN 25 mm × 25 mm × 20 mm', dnComercial: undefined, cantidadComputada: 1, origen: 'definido' }])
+    expect(sinUniones(datos.accesorios)).toEqual([{ clave: 'tee|Tee DN 25 mm × 25 mm × 20 mm', etiqueta: 'Tee DN 25 mm × 25 mm × 20 mm', dnComercial: undefined, cantidadComputada: 1, origen: 'definido' }])
     expect(datos.pendientes).toEqual([])
   })
 
@@ -295,7 +312,7 @@ describe('resolverDatosDeListadoDeMateriales — Tee nodal', () => {
 
     const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
 
-    expect(datos.accesorios).toEqual([])
+    expect(sinUniones(datos.accesorios)).toEqual([])
     expect(datos.pendientes.some((p) => p.includes('Tee pendiente de configuración'))).toBe(true)
   })
 
@@ -311,162 +328,435 @@ describe('resolverDatosDeListadoDeMateriales — Tee nodal', () => {
   })
 })
 
-describe('resolverDatosDeListadoDeMateriales — accesorios físicos por defecto (ACCESSORIES-DEFAULTS-01)', () => {
-  // Trunk t-trunk (n0 -> nFan) + n tramos terminales hacia n artefactos de
-  // UN Local -- mismo patrón fan-out de "agrupa por Material..."/"no cuenta
-  // dos veces...", parametrizado en n para poder variar la cantidad de
-  // terminales físicos del Local sin tocar la topología general. Con n=0
-  // no se agrega ningún tramo hacia artefactos (Local sin terminales en
-  // esta red -- identificarFilasPrincipalesDeLocales no produce fila).
-  function redFanOut(ufId: string, n: number): { uf: UnidadFuncional; red: RedHidraulica } {
-    const uf = ufConArtefactos(ufId, Math.max(n, 1))
-    // n0 (raíz real, sin tramo entrante -- "Distribución general", excluida
-    // de identificarTramosRepresentativosDeLocales) -> t-raiz -> n1 -> t-trunk
-    // -> nFan -> N tramos terminales. t-trunk (n1->nFan) es el Tramo PURO de
-    // este Local más cercano a la raíz real (n0), así que es el único
-    // representativo -- si el trunk saliera directo de la raíz (sin t-raiz
-    // intermedio), el trunk MISMO sería clasificado "Distribución general" y
-    // cada tramo terminal pasaría a ser representativo por separado (bug
-    // detectado al escribir este fixture).
-    const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n1' }, { id: 'nFan' }]
-    const tramos: Tramo[] = [
-      { id: 't-raiz', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: 3, dnComercialAdoptado: '20 mm' },
-      { id: 't-trunk', nodoOrigenId: 'n1', nodoDestinoId: 'nFan', red: 'AF', longitud_m: 5, dnComercialAdoptado: '20 mm' },
-    ]
-    for (let i = 0; i < n; i++) {
-      nodos.push({ id: `nArt${i}`, referencia: { tipo: 'artefacto', unidadFuncionalId: ufId, localId: `${ufId}-local`, artefactoId: `${ufId}-art-${i}` } })
-      tramos.push({ id: `t-art${i}`, nodoOrigenId: 'nFan', nodoDestinoId: `nArt${i}`, red: 'AF', longitud_m: 1, dnComercialAdoptado: '20 mm' })
+describe('resolverDatosDeListadoDeMateriales — estimación constructiva DREZA de Locales (MATERIALS-ACCESSORIES-01)', () => {
+  // Local con artefactos de conectividad AF/AC arbitraria: por cada red
+  // presente entre los artefactos, arma raíz -> trunk -> artefactos (mismo
+  // patrón fan-out ya validado en el resto del archivo), UNA vez por red
+  // -- así el Local puede tener AF, AC o ambas con Tramos representativos
+  // independientes.
+  function construirLocalConArtefactos(opts: {
+    ufId: string
+    localId: string
+    tipo: UnidadFuncional['niveles'][number]['locales'][number]['tipo']
+    artefactos: readonly { id: string; redes: readonly ('AF' | 'AC')[] }[]
+  }): { uf: UnidadFuncional; red: RedHidraulica } {
+    const { ufId, localId, tipo, artefactos } = opts
+    const uf: UnidadFuncional = {
+      id: ufId,
+      nombre: ufId,
+      niveles: [
+        {
+          id: `${ufId}-nivel-1`,
+          nombre: 'Nivel 1',
+          locales: [
+            {
+              id: localId,
+              tipo,
+              regimen: 'domiciliario',
+              artefactos: artefactos.map((a) => ({ id: a.id, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' as const })),
+            },
+          ],
+        },
+      ],
+    }
+
+    const nodos: Nodo[] = []
+    const tramos: Tramo[] = []
+    for (const red of ['AF', 'AC'] as const) {
+      const artefactosDeRed = artefactos.filter((a) => a.redes.includes(red))
+      if (artefactosDeRed.length === 0) {
+        continue
+      }
+      const n0 = `n0-${red}`
+      const n1 = `n1-${red}`
+      const nFan = `nFan-${red}`
+      nodos.push({ id: n0 }, { id: n1 }, { id: nFan })
+      tramos.push(
+        { id: `t-raiz-${red}`, nodoOrigenId: n0, nodoDestinoId: n1, red, longitud_m: 3, dnComercialAdoptado: '20 mm' },
+        { id: `t-trunk-${red}`, nodoOrigenId: n1, nodoDestinoId: nFan, red, longitud_m: 5, dnComercialAdoptado: '20 mm' },
+      )
+      for (const artefacto of artefactosDeRed) {
+        const nodoArt = `n-${red}-${artefacto.id}`
+        nodos.push({ id: nodoArt, referencia: { tipo: 'artefacto', unidadFuncionalId: ufId, localId, artefactoId: artefacto.id } })
+        tramos.push({ id: `t-${red}-${artefacto.id}`, nodoOrigenId: nFan, nodoDestinoId: nodoArt, red, longitud_m: 1, dnComercialAdoptado: '20 mm' })
+      }
     }
     return { uf, red: { nodos, tramos } }
   }
 
-  function proyectoConN(
-    n: number,
-    overrides?: Partial<ConfiguracionHidraulica>,
-  ): Proyecto {
-    const { uf, red } = redFanOut('uf1', n)
-    return proyectoBase({ ufs: [uf], red, configuracionHidraulica: { granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado', ...overrides } })
+  function proyectoSimplificadaEstimado(uf: UnidadFuncional, red: RedHidraulica): Proyecto {
+    return proyectoBase({ ufs: [uf], red, configuracionHidraulica: { granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado' } })
   }
 
-  function accesoriosEstimados(datos: ReturnType<typeof resolverDatosDeListadoDeMateriales>) {
-    return datos.accesorios.filter((a) => a.origen === 'estimado')
+  function itemsDrezaDeLocal(datos: ReturnType<typeof resolverDatosDeListadoDeMateriales>) {
+    return datos.accesorios.filter((a) => a.origen === 'estimadoDreza' && a.sector === 'local')
+  }
+
+  // Caso A (brief §13): baño completo AF+AC.
+  it('Caso A — baño completo AF+AC: 3/1 tees+codo terminal en AF, 2/1 en AC, 6 codos de recorrido, 2 llaves, 4 sobrepasos', () => {
+    const { uf, red } = construirLocalConArtefactos({
+      ufId: 'uf1',
+      localId: 'uf1-local',
+      tipo: 'bano',
+      artefactos: [
+        { id: 'inodoro', redes: ['AF'] },
+        { id: 'bidet', redes: ['AF', 'AC'] },
+        { id: 'ducha', redes: ['AF', 'AC'] },
+        { id: 'lavatorio', redes: ['AF', 'AC'] },
+      ],
+    })
+    const datos = resolverDatosDeListadoDeMateriales(proyectoSimplificadaEstimado(uf, red), catalogoArtefactos, coeficientesMayoracion)
+    const items = itemsDrezaDeLocal(datos)
+    const af = items.filter((a) => a.red === 'AF')
+    const ac = items.filter((a) => a.red === 'AC')
+
+    expect(af.find((a) => a.etiqueta === 'Tee roscada')?.cantidadComputada).toBe(3)
+    expect(af.find((a) => a.etiqueta === 'Codo terminal roscado')?.cantidadComputada).toBe(1)
+    expect(af.find((a) => a.etiqueta === 'Codo a 90° (recorrido del local)')?.cantidadComputada).toBe(3)
+    expect(af.find((a) => a.etiqueta === 'Llave de paso esférica')?.cantidadComputada).toBe(1)
+
+    expect(ac.find((a) => a.etiqueta === 'Tee roscada')?.cantidadComputada).toBe(2)
+    expect(ac.find((a) => a.etiqueta === 'Codo terminal roscado')?.cantidadComputada).toBe(1)
+    expect(ac.find((a) => a.etiqueta === 'Codo a 90° (recorrido del local)')?.cantidadComputada).toBe(3)
+    expect(ac.find((a) => a.etiqueta === 'Llave de paso esférica')?.cantidadComputada).toBe(1)
+
+    // Los codos terminales roscados no se suman dentro de los 3 codos de
+    // recorrido de cada red (son ítems separados, brief §6.4).
+    expect(af.filter((a) => a.etiqueta.startsWith('Codo')).length).toBe(2)
+
+    const sobrepaso = items.find((a) => a.etiqueta === 'Sobrepaso')
+    expect(sobrepaso?.cantidadComputada).toBe(4)
+    expect(sobrepaso?.dnComercial).toBeUndefined()
+  })
+
+  // Caso B (brief §13): toilette sólo AF.
+  it('Caso B — toilette sólo AF: 1 tee + 1 codo terminal + 3 codos de recorrido + 1 llave + 2 sobrepasos', () => {
+    const { uf, red } = construirLocalConArtefactos({
+      ufId: 'uf1',
+      localId: 'uf1-local',
+      tipo: 'toilette',
+      artefactos: [
+        { id: 'inodoro', redes: ['AF'] },
+        { id: 'lavatorio', redes: ['AF'] },
+      ],
+    })
+    const datos = resolverDatosDeListadoDeMateriales(proyectoSimplificadaEstimado(uf, red), catalogoArtefactos, coeficientesMayoracion)
+    const items = itemsDrezaDeLocal(datos)
+
+    expect(items.find((a) => a.etiqueta === 'Tee roscada')?.cantidadComputada).toBe(1)
+    expect(items.find((a) => a.etiqueta === 'Codo terminal roscado')?.cantidadComputada).toBe(1)
+    expect(items.find((a) => a.etiqueta === 'Codo a 90° (recorrido del local)')?.cantidadComputada).toBe(3)
+    expect(items.find((a) => a.etiqueta === 'Llave de paso esférica')?.cantidadComputada).toBe(1)
+    expect(items.find((a) => a.etiqueta === 'Sobrepaso')?.cantidadComputada).toBe(2)
+  })
+
+  it('n=0 (Local sin terminales en esta red): no agrega ninguna estimación de esa red', () => {
+    const { uf, red } = construirLocalConArtefactos({ ufId: 'uf1', localId: 'uf1-local', tipo: 'bano', artefactos: [{ id: 'inodoro', redes: ['AF'] }] })
+    const datos = resolverDatosDeListadoDeMateriales(proyectoSimplificadaEstimado(uf, red), catalogoArtefactos, coeficientesMayoracion)
+    expect(itemsDrezaDeLocal(datos).some((a) => a.red === 'AC')).toBe(false)
+    expect(itemsDrezaDeLocal(datos).some((a) => a.etiqueta.toLowerCase().includes('reducci'))).toBe(false)
+  })
+
+  it('profesional + estimado: NUNCA genera estimación DREZA (gate de granularidad, mismo criterio que ACCESSORIES-DEFAULTS-01)', () => {
+    const { uf, red } = construirLocalConArtefactos({ ufId: 'uf1', localId: 'uf1-local', tipo: 'bano', artefactos: [{ id: 'inodoro', redes: ['AF'] }] })
+    const proyecto = proyectoBase({ ufs: [uf], red, configuracionHidraulica: { granularidadHidraulica: 'profesional', metodoPerdidaLocalizada: 'estimado' } })
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+    // Nota: el filtro excluye la unión/cupla recta (brief §9) -- también
+    // es `origen: 'estimadoDreza'`/`sector: 'local'` (el único Tramo del
+    // fixture mide 5 m y ES el representativo del Local), pero esa regla
+    // corre SIEMPRE, independiente de este gate; no debe confundirse con
+    // la estimación por sector que sí está gateada.
+    expect(datos.accesorios.some((a) => a.origen === 'estimadoDreza' && a.sector === 'local' && a.etiqueta !== 'Unión/cupla recta PPR')).toBe(false)
+  })
+
+  it('simplificada + detallado: NUNCA genera estimación DREZA (el usuario releva sus propios accesorios)', () => {
+    const { uf, red } = construirLocalConArtefactos({ ufId: 'uf1', localId: 'uf1-local', tipo: 'bano', artefactos: [{ id: 'inodoro', redes: ['AF'] }] })
+    const proyecto = proyectoBase({ ufs: [uf], red, configuracionHidraulica: { granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'detallado' } })
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+    expect(datos.accesorios.some((a) => a.origen === 'estimadoDreza' && a.sector === 'local' && a.etiqueta !== 'Unión/cupla recta PPR')).toBe(false)
+  })
+
+  // Caso I (brief §13): artefacto con cantidad > 1.
+  it('Caso I — artefacto con cantidad=3 conectado AF+AC: bocas/terminales/sobrepasos ponderan cantidad, sin duplicar por AF+AC', () => {
+    const uf: UnidadFuncional = {
+      id: 'uf1',
+      nombre: 'uf1',
+      niveles: [
+        {
+          id: 'uf1-nivel-1',
+          nombre: 'Nivel 1',
+          locales: [{ id: 'uf1-local', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'lav-1', artefactoId: 'lavatorio', cantidad: 3, origen: 'normativo' }] }],
+        },
+      ],
+    }
+    const nodos: Nodo[] = [
+      { id: 'n0-AF' }, { id: 'n1-AF' }, { id: 'nAF', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf1', localId: 'uf1-local', artefactoId: 'lav-1' } },
+      { id: 'n0-AC' }, { id: 'n1-AC' }, { id: 'nAC', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf1', localId: 'uf1-local', artefactoId: 'lav-1' } },
+    ]
+    const tramos: Tramo[] = [
+      { id: 't-raiz-AF', nodoOrigenId: 'n0-AF', nodoDestinoId: 'n1-AF', red: 'AF', longitud_m: 3, dnComercialAdoptado: '20 mm' },
+      { id: 't-af', nodoOrigenId: 'n1-AF', nodoDestinoId: 'nAF', red: 'AF', longitud_m: 2, dnComercialAdoptado: '20 mm' },
+      { id: 't-raiz-AC', nodoOrigenId: 'n0-AC', nodoDestinoId: 'n1-AC', red: 'AC', longitud_m: 3, dnComercialAdoptado: '20 mm' },
+      { id: 't-ac', nodoOrigenId: 'n1-AC', nodoDestinoId: 'nAC', red: 'AC', longitud_m: 2, dnComercialAdoptado: '20 mm' },
+    ]
+    const proyecto = proyectoSimplificadaEstimado(uf, { nodos, tramos })
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+    const items = itemsDrezaDeLocal(datos)
+
+    // n=3 bocas en cada red (cantidad=3, un solo Artefacto) => 2 tees + 1
+    // codo terminal por red -- nunca 6 (no se duplica por participar en
+    // AF y AC a la vez).
+    expect(items.find((a) => a.red === 'AF' && a.etiqueta === 'Tee roscada')?.cantidadComputada).toBe(2)
+    expect(items.find((a) => a.red === 'AC' && a.etiqueta === 'Tee roscada')?.cantidadComputada).toBe(2)
+    // 1 sobrepaso por Artefacto conectado (no por boca ni por red): con
+    // cantidad=3 son 3 sobrepasos, no 6.
+    expect(items.find((a) => a.etiqueta === 'Sobrepaso')?.cantidadComputada).toBe(3)
+  })
+})
+
+describe('resolverDatosDeListadoDeMateriales — estimación constructiva DREZA de Montantes (MATERIALS-ACCESSORIES-01)', () => {
+  // Caso C (brief §13): Montante de 11 m que abastece 4 Locales.
+  it('Caso C — Montante L=11m, 4 Locales: 1 llave, 3 tees, 1 codo de último Local, 5 codos de recorrido, sin reducción', () => {
+    const ufs: UnidadFuncional[] = Array.from({ length: 4 }, (_, i) => ({
+      id: `uf-l${i + 1}`,
+      nombre: `uf-l${i + 1}`,
+      niveles: [{ id: `uf-l${i + 1}-nivel-1`, nombre: 'Nivel 1', locales: [{ id: `local${i + 1}`, tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: `art${i + 1}`, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] }] }],
+    }))
+    const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n1' }, { id: 'n2' }, { id: 'n3' }]
+    const tramos: Tramo[] = [
+      { id: 'm-seg0', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: 3, dnComercialAdoptado: '25 mm', montanteId: 'm1' },
+      { id: 'm-seg1', nodoOrigenId: 'n1', nodoDestinoId: 'n2', red: 'AF', longitud_m: 3, dnComercialAdoptado: '25 mm', montanteId: 'm1' },
+      { id: 'm-seg2', nodoOrigenId: 'n2', nodoDestinoId: 'n3', red: 'AF', longitud_m: 5, dnComercialAdoptado: '25 mm', montanteId: 'm1' },
+    ]
+    // Locales servidos: `derivarLocalesServidos` sólo cuenta lo que cuelga
+    // AGUAS ABAJO de un segmento del Montante -- nunca lo que cuelga de
+    // n0 (su raíz, aguas arriba del primer segmento). Los 4 Locales
+    // cuelgan de n1/n2/n3/n3 (la punta con 2 salidas propias), así los 3
+    // segmentos (n=4 locales, n-1=3 derivaciones) coinciden con el Caso C.
+    const nodosDeLocal: [string, string][] = [['n1', 'local1'], ['n2', 'local2'], ['n3', 'local3'], ['n3', 'local4']]
+    nodosDeLocal.forEach(([nodoId, localId], i) => {
+      const artNodo = `nArt-${localId}`
+      nodos.push({ id: artNodo, referencia: { tipo: 'artefacto', unidadFuncionalId: `uf-l${i + 1}`, localId, artefactoId: `art${i + 1}` } })
+      tramos.push({ id: `t-feed-${localId}`, nodoOrigenId: nodoId, nodoDestinoId: artNodo, red: 'AF', longitud_m: 1, dnComercialAdoptado: '20 mm' })
+    })
+    const proyecto: Proyecto = {
+      ...proyectoBase({ ufs, red: { nodos, tramos }, configuracionHidraulica: { granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado' } }),
+      montantes: [{ id: 'm1', red: 'AF' }],
+    }
+
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+    const items = datos.accesorios.filter((a) => a.origen === 'estimadoDreza' && a.sector === 'montante')
+
+    expect(items.find((a) => a.etiqueta === 'Llave de paso esférica')?.cantidadComputada).toBe(1)
+    expect(items.find((a) => a.etiqueta === 'Tee de derivación (Montante)')?.cantidadComputada).toBe(3)
+    expect(items.find((a) => a.etiqueta === 'Codo de último local (Montante)')?.cantidadComputada).toBe(1)
+    expect(items.find((a) => a.etiqueta === 'Codo a 90° (recorrido de Montante)')?.cantidadComputada).toBe(5)
+    expect(items.some((a) => a.etiqueta.toLowerCase().includes('reducci'))).toBe(false)
+
+    // Uniones cada 4 m sobre los 11 m del Montante: floor(11/4) = 2.
+    const union = datos.accesorios.find((a) => a.sector === 'montante' && a.etiqueta === 'Unión/cupla recta PPR')
+    expect(union?.cantidadComputada).toBe(2)
+  })
+})
+
+describe('resolverDatosDeListadoDeMateriales — estimación constructiva DREZA de Colector principal (MATERIALS-ACCESSORIES-01)', () => {
+  function proyectoColectorBase(): { nodos: Nodo[]; tramos: Tramo[] } {
+    return {
+      nodos: [{ id: 'n0' }, { id: 'n1' }, { id: 'nAcs', referencia: { tipo: 'produccionACS' } }],
+      tramos: [
+        { id: 't-general', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: 5, dnComercialAdoptado: '32 mm' },
+        { id: 't-acs', nodoOrigenId: 'n1', nodoDestinoId: 'nAcs', red: 'AF', longitud_m: 2, dnComercialAdoptado: '20 mm' },
+      ],
+    }
+  }
+
+  // Caso D (brief §13): colector con 3 Montantes, ACS y tanque elevado.
+  it('Caso D — 3 Montantes + ACS + tanque: 1 llave, 2 tees de distribución, 1 codo, 1 tee ACS, 1 tee ruptor, 1 unión al tanque, 2 codos propios', () => {
+    const { nodos, tramos } = proyectoColectorBase()
+    // El Colector necesita demanda real aguas abajo para que su propio DN
+    // resuelva (resolverDiametroComercialDeTramo ignora dnComercialAdoptado
+    // sin Qc>0, CRIT de "nunca inventar") -- se la da conectando m1 a un
+    // Artefacto real; m2/m3 quedan como identidades sin topología propia
+    // todavía (estado válido, M2-TOPO-C), y aun así cuentan como salidas
+    // del Colector (brief §8: Nsalidas = cantidad de Montantes, no de
+    // Locales servidos por cada uno).
+    nodos.push({ id: 'nM1Art', referencia: { tipo: 'artefacto', unidadFuncionalId: 'ufM1', localId: 'localM1', artefactoId: 'artM1' } })
+    tramos.push({ id: 't-m1-feed', nodoOrigenId: 'n1', nodoDestinoId: 'nM1Art', red: 'AF', longitud_m: 3, dnComercialAdoptado: '25 mm', montanteId: 'm1' })
+    const ufM1: UnidadFuncional = {
+      id: 'ufM1',
+      nombre: 'ufM1',
+      niveles: [{ id: 'ufM1-nivel-1', nombre: 'Nivel 1', locales: [{ id: 'localM1', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'artM1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] }] }],
+    }
+    const proyecto: Proyecto = {
+      ...proyectoBase({
+        ufs: [ufM1],
+        red: { nodos, tramos },
+        configuracionHidraulica: { granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado' },
+        configuracionAbastecimiento: { esquema: 'tanqueElevado', volumenTanqueElevadoAdoptado_m3: 1 },
+      }),
+      montantes: [{ id: 'm1', red: 'AF' }, { id: 'm2', red: 'AF' }, { id: 'm3', red: 'AF' }],
+    }
+
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+    const items = datos.accesorios.filter((a) => a.origen === 'estimadoDreza' && a.sector === 'colectorPrincipal')
+
+    expect(items.find((a) => a.etiqueta === 'Llave de paso esférica (general)')?.cantidadComputada).toBe(1)
+    expect(items.find((a) => a.etiqueta === 'Tee de distribución (Colector)')?.cantidadComputada).toBe(2)
+    expect(items.find((a) => a.etiqueta === 'Codo de última salida (Colector)')?.cantidadComputada).toBe(1)
+    expect(items.find((a) => a.etiqueta === 'Tee de alimentación ACS')?.cantidadComputada).toBe(1)
+    expect(items.find((a) => a.etiqueta === 'Tee de conexión de caño ruptor')?.cantidadComputada).toBe(1)
+    expect(items.find((a) => a.etiqueta === 'Unión doble PPR (al tanque)')?.cantidadComputada).toBe(1)
+    expect(items.find((a) => a.etiqueta === 'Codo a 90° (Colector)')?.cantidadComputada).toBe(2)
+  })
+
+  // Caso E (brief §13): sin Montantes, 4 Locales alimentados directamente.
+  it('Caso E — sin Montantes, 4 Locales directos: 3 tees de distribución + 1 codo de última salida', () => {
+    const { nodos, tramos } = proyectoColectorBase()
+    nodos.push({ id: 'nSplit' })
+    tramos.push({ id: 't-split', nodoOrigenId: 'n1', nodoDestinoId: 'nSplit', red: 'AF', longitud_m: 1, dnComercialAdoptado: '32 mm' })
+
+    const ufs: UnidadFuncional[] = []
+    for (let i = 1; i <= 4; i++) {
+      const localId = `local${i}`
+      const artId = `art${i}`
+      const nodoLocal = `nLocal${i}`
+      const nodoArt = `nArt${i}`
+      nodos.push({ id: nodoLocal }, { id: nodoArt, referencia: { tipo: 'artefacto', unidadFuncionalId: `uf${i}`, localId, artefactoId: artId } })
+      tramos.push(
+        { id: `t-feed-${localId}`, nodoOrigenId: 'nSplit', nodoDestinoId: nodoLocal, red: 'AF', longitud_m: 2, dnComercialAdoptado: '20 mm' },
+        { id: `t-trunk-${localId}`, nodoOrigenId: nodoLocal, nodoDestinoId: nodoArt, red: 'AF', longitud_m: 1, dnComercialAdoptado: '20 mm' },
+      )
+      ufs.push({ id: `uf${i}`, nombre: `uf${i}`, niveles: [{ id: `uf${i}-nivel-1`, nombre: 'Nivel 1', locales: [{ id: localId, tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: artId, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] }] }] })
+    }
+
+    const proyecto = proyectoBase({ ufs, red: { nodos, tramos }, configuracionHidraulica: { granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado' } })
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+    const items = datos.accesorios.filter((a) => a.origen === 'estimadoDreza' && a.sector === 'colectorPrincipal')
+
+    expect(items.find((a) => a.etiqueta === 'Tee de distribución (Colector)')?.cantidadComputada).toBe(3)
+    expect(items.find((a) => a.etiqueta === 'Codo de última salida (Colector)')?.cantidadComputada).toBe(1)
+    // Sin tanque: nunca Tee de ruptor ni unión al tanque.
+    expect(items.some((a) => a.etiqueta.includes('ruptor') || a.etiqueta.includes('tanque'))).toBe(false)
+  })
+})
+
+describe('resolverDatosDeListadoDeMateriales — uniones/cuplas rectas cada 4 m (MATERIALS-ACCESSORIES-01, brief §9)', () => {
+  function proyectoConLongitud(longitud_m: number): Proyecto {
+    const uf = ufConArtefactos('uf1', 1)
+    const nodos: Nodo[] = [{ id: 'n0' }, { id: 'nArt0', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf1', localId: 'uf1-local', artefactoId: 'uf1-art-0' } }]
+    const tramos: Tramo[] = [{ id: 't-a', nodoOrigenId: 'n0', nodoDestinoId: 'nArt0', red: 'AF', longitud_m: longitud_m, dnComercialAdoptado: '20 mm' }]
+    return proyectoBase({ ufs: [uf], red: { nodos, tramos } })
   }
 
   it.each([
-    [1, 0, 1, 1],
-    [2, 1, 1, 1],
-    [3, 2, 1, 1],
-    [4, 3, 1, 1],
-  ])('simplificada + estimado, n=%i => Tee=%i, Codo90=%i, Llave=%i', (n, tee, codo, llave) => {
-    const proyecto = proyectoConN(n)
-    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
-    const estimados = accesoriosEstimados(datos)
-
-    const teeItem = estimados.find((a) => a.etiqueta.startsWith('Tee'))
-    const codoItem = estimados.find((a) => a.etiqueta === 'Codo a 90º')
-    const llaveItem = estimados.find((a) => a.etiqueta === 'Llave de paso')
-
-    expect(teeItem?.cantidadComputada ?? 0).toBe(tee)
-    expect(codoItem?.cantidadComputada ?? 0).toBe(codo)
-    expect(llaveItem?.cantidadComputada ?? 0).toBe(llave)
-    expect(codoItem?.dnComercial).toBe('20 mm')
-    expect(llaveItem?.dnComercial).toBe('20 mm')
-    if (tee > 0) {
-      expect(teeItem?.dnComercial).toBe('20 mm')
-    }
-    // CRIT-A30: ningún default estimado infiere una "Reducción".
-    expect(estimados.some((a) => a.etiqueta.toLowerCase().includes('reducci'))).toBe(false)
+    [3.9, 0],
+    [4.0, 1],
+    [7.9, 1],
+    [8.0, 2],
+    [9.0, 2],
+  ])('%s m de PPR => %i unión/es recta/s', (longitud, esperado) => {
+    const datos = resolverDatosDeListadoDeMateriales(proyectoConLongitud(longitud), catalogoArtefactos, coeficientesMayoracion)
+    const union = datos.accesorios.find((a) => a.etiqueta === 'Unión/cupla recta PPR')
+    expect(union?.cantidadComputada ?? 0).toBe(esperado)
   })
 
-  it('simplificada + estimado, n=0 (Local sin terminales en esta red): no agrega ningún default', () => {
-    const proyecto = proyectoConN(0)
-    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
-    expect(accesoriosEstimados(datos)).toEqual([])
+  it('corre incluso en modo detallado/profesional (regla de empaquetado, no de estimación de pérdidas)', () => {
+    // proyectoConLongitud usa la configuración por defecto de proyectoBase
+    // ('detallado' + 'profesional') -- las uniones deben seguir apareciendo.
+    const datos = resolverDatosDeListadoDeMateriales(proyectoConLongitud(8), catalogoArtefactos, coeficientesMayoracion)
+    expect(datos.accesorios.find((a) => a.etiqueta === 'Unión/cupla recta PPR')?.cantidadComputada).toBe(2)
   })
 
-  it('profesional + estimado, n=4: NUNCA genera defaults (decisión de dominio -- granularidad manda)', () => {
-    const proyecto = proyectoConN(4, { granularidadHidraulica: 'profesional' })
-    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
-    expect(accesoriosEstimados(datos)).toEqual([])
-  })
-
-  it('simplificada + detallado: no genera defaults (los dos métodos son excluyentes)', () => {
-    const proyecto = proyectoConN(4, { metodoPerdidaLocalizada: 'detallado' })
-    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
-    expect(accesoriosEstimados(datos)).toEqual([])
-  })
-
-  it('profesional + estimado + Tee real relevada: sólo la Tee real (origen "definido"), nunca un default encima', () => {
-    const uf = ufConArtefactos('uf1', 3)
+  it('no une AF con AC ni DN20 con DN25 (grupos independientes)', () => {
+    const uf = ufConArtefactos('uf1', 2)
     const nodos: Nodo[] = [
-      { id: 'n0' },
-      { id: 'nTee', tee: { tipo: 'entradaPorExtremo', tramoSalidaRectaId: 't-recta' } },
+      { id: 'n0AF' },
+      { id: 'n0AC' },
       { id: 'nArt0', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf1', localId: 'uf1-local', artefactoId: 'uf1-art-0' } },
       { id: 'nArt1', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf1', localId: 'uf1-local', artefactoId: 'uf1-art-1' } },
     ]
     const tramos: Tramo[] = [
-      { id: 't-entrada', nodoOrigenId: 'n0', nodoDestinoId: 'nTee', red: 'AF', longitud_m: 5, dnComercialAdoptado: '25 mm' },
-      { id: 't-recta', nodoOrigenId: 'nTee', nodoDestinoId: 'nArt0', red: 'AF', longitud_m: 2, dnComercialAdoptado: '25 mm' },
-      { id: 't-lateral', nodoOrigenId: 'nTee', nodoDestinoId: 'nArt1', red: 'AF', longitud_m: 2, dnComercialAdoptado: '20 mm' },
+      { id: 't-af-dn20', nodoOrigenId: 'n0AF', nodoDestinoId: 'nArt0', red: 'AF', longitud_m: 8, dnComercialAdoptado: '20 mm' },
+      { id: 't-ac-dn20', nodoOrigenId: 'n0AC', nodoDestinoId: 'nArt1', red: 'AC', longitud_m: 8, dnComercialAdoptado: '20 mm' },
     ]
-    const proyecto = proyectoBase({
-      ufs: [uf],
-      red: { nodos, tramos },
-      configuracionHidraulica: { granularidadHidraulica: 'profesional', metodoPerdidaLocalizada: 'estimado' },
-    })
-
+    const proyecto = proyectoBase({ ufs: [uf], red: { nodos, tramos } })
     const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+    const uniones = datos.accesorios.filter((a) => a.etiqueta === 'Unión/cupla recta PPR')
 
-    expect(datos.accesorios).toEqual([{ clave: 'tee|Tee DN 25 mm × 25 mm × 20 mm', etiqueta: 'Tee DN 25 mm × 25 mm × 20 mm', dnComercial: undefined, cantidadComputada: 1, origen: 'definido' }])
+    expect(uniones).toHaveLength(2)
+    expect(uniones.find((u) => u.red === 'AF')?.cantidadComputada).toBe(2)
+    expect(uniones.find((u) => u.red === 'AC')?.cantidadComputada).toBe(2)
+  })
+})
+
+describe('resolverDatosDeListadoDeMateriales — CRIT-A30 y no duplicación frente a Detailed (MATERIALS-ACCESSORIES-01)', () => {
+  // Caso H (brief §13): cambio de DN sin/ con reducción explícita.
+  it('Caso H — cambio de DN sin reducción explícita: 0 cuplas; con reducción explícita: 1 cupla', () => {
+    const uf = ufConArtefactos('uf1', 1)
+    const nodos: Nodo[] = [{ id: 'n0' }, { id: 'nMed' }, { id: 'nArt0', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf1', localId: 'uf1-local', artefactoId: 'uf1-art-0' } }]
+    const tramoMenorSinReduccion: Tramo = { id: 't-20', nodoOrigenId: 'nMed', nodoDestinoId: 'nArt0', red: 'AF', longitud_m: 3, dnComercialAdoptado: '20 mm' }
+    const tramos: Tramo[] = [
+      { id: 't-25', nodoOrigenId: 'n0', nodoDestinoId: 'nMed', red: 'AF', longitud_m: 5, dnComercialAdoptado: '25 mm' },
+      tramoMenorSinReduccion,
+    ]
+    const proyectoSinReduccion = proyectoBase({ ufs: [uf], red: { nodos, tramos }, configuracionHidraulica: { metodoPerdidaLocalizada: 'detallado' } })
+    const datosSinReduccion = resolverDatosDeListadoDeMateriales(proyectoSinReduccion, catalogoArtefactos, coeficientesMayoracion)
+    expect(datosSinReduccion.accesorios.filter((a) => a.etiqueta.toLowerCase().includes('reducci'))).toHaveLength(0)
+
+    const tramoMenorConReduccion: Tramo = { ...tramoMenorSinReduccion, accesorios: [{ tipo: 'reducciones', cantidad: 1 }] }
+    const proyectoConReduccion = proyectoBase({
+      ufs: [uf],
+      red: { nodos, tramos: [tramos[0]!, tramoMenorConReduccion] },
+      configuracionHidraulica: { metodoPerdidaLocalizada: 'detallado' },
+    })
+    const datosConReduccion = resolverDatosDeListadoDeMateriales(proyectoConReduccion, catalogoArtefactos, coeficientesMayoracion)
+    const reducciones = datosConReduccion.accesorios.filter((a) => a.etiqueta.toLowerCase().includes('reducci'))
+    expect(reducciones).toHaveLength(1)
+    expect(reducciones[0]?.cantidadComputada).toBe(1)
   })
 
-  // Nota de cobertura: "DN no resoluble en el Tramo representativo ⇒
-  // pendiente, nunca inventado" reutiliza EXACTAMENTE el mismo
-  // `resolverDiametroComercialDeTramo` ya cubierto extensivamente en el
-  // describe "tuberías" de este archivo (caso 'sinDemanda' con tramo
-  // huérfano) -- no se duplica ese fixture acá porque, a diferencia de un
-  // Tramo de tubería cualquiera, el Tramo representativo de un Local+red
-  // con n>=1 SIEMPRE tiene demanda real aguas abajo (contarTerminalesFisicosDeLocal
-  // exige un Nodo.referencia de artefacto real y válido, y el motor lanza
-  // si esa referencia no corresponde a un Artefacto declarado del Local),
-  // así que 'sinDemanda' es estructuralmente inalcanzable en este punto; la
-  // rama sigue el mismo camino de código que ya está probado.
+  // Caso G (brief §13): no duplicación frente a Detailed.
+  it('Caso G — accesorio explícito en modo Detailed: Materials no agrega una segunda pieza estimada DREZA para el mismo Local', () => {
+    const uf = ufConArtefactos('uf1', 1)
+    const nodos: Nodo[] = [{ id: 'n0' }, { id: 'nArt0', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf1', localId: 'uf1-local', artefactoId: 'uf1-art-0' } }]
+    const tramos: Tramo[] = [{ id: 't-a', nodoOrigenId: 'n0', nodoDestinoId: 'nArt0', red: 'AF', longitud_m: 5, dnComercialAdoptado: '20 mm', accesorios: [{ tipo: 'llaveDePaso', cantidad: 1 }] }]
+    const proyecto = proyectoBase({ ufs: [uf], red: { nodos, tramos }, configuracionHidraulica: { metodoPerdidaLocalizada: 'detallado' } })
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
 
-  it('margen de compra: se aplica a los defaults igual que a cualquier accesorio (10 % redondea hacia arriba)', () => {
-    const proyecto = proyectoConN(3)
-    const computo = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
-    const conMargen = aplicarMargenDeCompra(computo, 10)
-    const teeConMargen = conMargen.accesorios.find((a) => a.origen === 'estimado' && a.etiqueta.startsWith('Tee'))
-    // n=3 => 2 Tees computadas; +10% => ceil(2.2) = 3.
-    expect(teeConMargen?.cantidadComputada).toBe(2)
-    expect(teeConMargen?.cantidadCompra).toBe(3)
+    expect(datos.accesorios.filter((a) => a.origen === 'definido' && a.etiqueta === 'Llave de paso')).toHaveLength(1)
+    // El gate simplificada+estimado ni siquiera corre acá (proyecto
+    // 'profesional'+'detallado'), así que ninguna estimación DREZA por
+    // sector debe aparecer -- la única fila 'estimadoDreza' tolerable es
+    // la unión/cupla recta (brief §9, siempre activa), que no es del
+    // sector Local.
+    expect(datos.accesorios.some((a) => a.origen === 'estimadoDreza' && a.sector === 'local')).toBe(false)
   })
 
   it('invariancia hidráulica: hf de HYD-EST es idéntica antes y después de computar Materials (no se toca ni se importa la fórmula)', () => {
-    const proyecto = proyectoConN(3)
-    const hfAntes = resolverPerdidaLocalizadaEstimadaDeLocal(
-      proyecto,
-      'uf1',
-      'uf1-local',
-      'AF',
-      catalogoArtefactos,
-      catalogoSistemasDeTuberia,
-    )
+    const { uf, red } = (() => {
+      const ufBase = ufConArtefactos('uf1', 3)
+      const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n1' }, { id: 'nFan' }]
+      const tramos: Tramo[] = [
+        { id: 't-raiz', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: 3, dnComercialAdoptado: '20 mm' },
+        { id: 't-trunk', nodoOrigenId: 'n1', nodoDestinoId: 'nFan', red: 'AF', longitud_m: 5, dnComercialAdoptado: '20 mm' },
+      ]
+      for (let i = 0; i < 3; i++) {
+        nodos.push({ id: `nArt${i}`, referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf1', localId: 'uf1-local', artefactoId: `uf1-art-${i}` } })
+        tramos.push({ id: `t-art${i}`, nodoOrigenId: 'nFan', nodoDestinoId: `nArt${i}`, red: 'AF', longitud_m: 1, dnComercialAdoptado: '20 mm' })
+      }
+      return { uf: ufBase, red: { nodos, tramos } }
+    })()
+    const proyecto = proyectoBase({ ufs: [uf], red, configuracionHidraulica: { granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado' } })
 
-    // Computar el listado de materiales (que ahora SÍ agrega defaults
-    // físicos para este mismo Local+red) no debe mutar `proyecto` ni
-    // afectar en absoluto el resultado de HYD-EST -- son capas
-    // completamente independientes (BOM de compra vs. hf de cálculo).
+    const hfAntes = resolverPerdidaLocalizadaEstimadaDeLocal(proyecto, 'uf1', 'uf1-local', 'AF', catalogoArtefactos, catalogoSistemasDeTuberia)
+
+    // Computar el listado de materiales (que agrega la estimación
+    // constructiva DREZA para este mismo Local+red) no debe mutar
+    // `proyecto` ni afectar en absoluto el resultado de HYD-EST -- son
+    // capas completamente independientes (BOM de compra vs. hf de cálculo).
     resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
 
-    const hfDespues = resolverPerdidaLocalizadaEstimadaDeLocal(
-      proyecto,
-      'uf1',
-      'uf1-local',
-      'AF',
-      catalogoArtefactos,
-      catalogoSistemasDeTuberia,
-    )
+    const hfDespues = resolverPerdidaLocalizadaEstimadaDeLocal(proyecto, 'uf1', 'uf1-local', 'AF', catalogoArtefactos, catalogoSistemasDeTuberia)
 
     expect(hfDespues).toEqual(hfAntes)
   })

@@ -43,9 +43,14 @@ import {
 import { etiquetaHumanaDeLocal } from '../../interfaz/paginas/montantesDelProyecto'
 import { nombreDeMontante } from '../../interfaz/paginas/nombreDeMontante'
 import { resolverEstadoModulo3 } from '../../motor/modulo3/resolverEstadoModulo3'
-import { contarTerminalesFisicosDeLocal } from '../../motor/tuberias/topologia/contarTerminalesFisicosDeLocal'
 import { localUnicoDeTramo } from '../../motor/tuberias/topologia/identificarTramoRepresentativoDeLocal'
-import { tabla07PerdidasLocalizadas } from '../../normativa/eras-2023/tabla-07-perdidas-localizadas'
+import {
+  resolverAccesoriosDeLocalesDreza,
+  resolverAccesoriosDeMontantesDreza,
+  resolverAccesoriosDeColectorDreza,
+  resolverUnionesRectasDreza,
+  type SectorMaterial,
+} from './resolverAccesoriosConstructivosDreza'
 
 export type ItemTuberiaComputado = {
   readonly material: string
@@ -56,23 +61,37 @@ export type ItemTuberiaComputado = {
 
 // Accesorios físicos explícitamente modelados (Tramo.accesorios en modo
 // 'detallado') MÁS Tees nodales inequívocamente especificables (brief §24)
-// -- origen `'definido'` -- MÁS, desde ACCESSORIES-DEFAULTS-01 (D-δ.139),
-// la composición física APROXIMADA de un Local+red en granularidad
-// 'simplificada' + modo 'estimado' -- origen `'estimado'` (ver
-// resolverAccesoriosFisicosPorDefecto). Todos son piezas discretas
+// -- origen `'definido'` -- MÁS, desde MATERIALS-ACCESSORIES-01 (D-δ.141),
+// la estimación constructiva DREZA por sector (Colector principal /
+// Montantes / Redes de los locales) -- origen `'estimadoDreza'` (ver
+// resolverAccesoriosConstructivosDreza.ts). Todos son piezas discretas
 // comprables, agrupadas bajo el mismo tipo de ítem para el margen de
 // compra (brief §22/§46).
+//
+// MATERIALS-ACCESSORIES-01 reemplazó por completo la composición física
+// de ACCESSORIES-DEFAULTS-01 (D-δ.139, origen `'estimado'` histórico,
+// eliminada): decisión de dominio explícita del usuario al cerrar este
+// slice.
 export type ItemAccesorioComputado = {
   readonly clave: string
   readonly etiqueta: string
   readonly dnComercial: string | undefined
   readonly cantidadComputada: number
   // 'definido' = accesorio/Tee explícitamente modelado por el usuario
-  // (Tramo.accesorios o Nodo.tee real). 'estimado' = composición física
-  // aproximada de ACCESSORIES-DEFAULTS-01 -- Materials/PDF lo muestran
-  // como columna "Origen", nunca se persiste (100% derivado en cada
-  // resolución).
-  readonly origen: 'definido' | 'estimado'
+  // (Tramo.accesorios o Nodo.tee real). 'estimadoDreza' = estimación
+  // constructiva DREZA (MATERIALS-ACCESSORIES-01) -- Materials/PDF lo
+  // muestran como columna "Origen", nunca se persiste (100% derivado en
+  // cada resolución).
+  readonly origen: 'definido' | 'estimadoDreza'
+  // Sector físico constructivo (brief §4/§12): sólo lo completan los
+  // ítems que produce resolverAccesoriosConstructivosDreza.ts -- los
+  // accesorios/Tee 'definido' de este archivo no se re-sectorizan
+  // retroactivamente. `undefined` es un valor legítimo, no un pendiente.
+  readonly sector?: SectorMaterial
+  // Red física de la pieza, cuando es unívoca (todos los ítems DREZA la
+  // completan; un Sobrepaso de Local no, porque puede cruzar AF y AC del
+  // mismo Local -- brief §6.3).
+  readonly red?: RedDeTramo
 }
 
 // Ítems SIN margen de compra (brief §27/§28/§31/§38): medidores, equipos de
@@ -394,93 +413,29 @@ function resolverTees(
   }
 }
 
-// ACCESSORIES-DEFAULTS-01 (D-δ.139, decisión de dominio del usuario):
-// composición física APROXIMADA de accesorios por (Local, red), reusando
-// EXACTAMENTE la misma cardinalidad ya cerrada de HYD-EST (D-δ.40/D-δ.45)
-// como aproximación de COMPRA -- nunca reabre ni recalibra esa fórmula
-// hidráulica (los `KS_ESTIMADO_*`/la resolución de `hf` de
-// resolverPerdidaLocalizadaEstimadaDeLocal.ts no se tocan ni se importan
-// acá; esta función no calcula pérdida de carga, sólo cuenta piezas):
-//   nTeesEstimadas        = max(0, n-1)           (Tee entrada central,
-//                                                   salidas laterales)
-//   nSingularidadTerminal = n>=1 ? 1 : 0           (Codo a 90º)
-//   nLlaveDePaso          = n>=1 ? 1 : 0           (Llave de paso)
-//
-// Corre EXCLUSIVAMENTE cuando `granularidadHidraulica==='simplificada'` Y
-// `metodoPerdidaLocalizada==='estimado'` -- decisión de producto explícita
-// del usuario: en 'profesional' el listado exige piezas explícitamente
-// modeladas (Tramo.accesorios/Nodo.tee real), nunca completa el BOM con
-// una convención automática, aunque el método de pérdida siga siendo
-// 'estimado'. Esto también deja sin ningún riesgo de doble conteo contra
-// Tees topológicas reales: en 'profesional' los defaults están
-// directamente deshabilitados; en 'simplificada' un Local nunca tiene
-// `Nodo.tee` propio (las Tees reales sólo existen en derivaciones de
-// Montante -- M2-TOPO-D/TeeDeNodoEditor.tsx -- fuera de este Local).
-function resolverAccesoriosFisicosPorDefecto(
-  proyecto: Proyecto,
-  catalogoArtefactos: readonly ArtefactoNormativo[],
-  contexto: ContextoDeCalculoM2,
-  indiceDeHumanizacion: IndiceDeHumanizacion,
-  acumuladorAccesorios: Map<string, ItemAccesorioComputado>,
-  pendientes: string[],
-): void {
-  const { configuracionHidraulica, redHidraulica } = proyecto
-  if (
-    redHidraulica === undefined ||
-    configuracionHidraulica.granularidadHidraulica !== 'simplificada' ||
-    configuracionHidraulica.metodoPerdidaLocalizada !== 'estimado'
-  ) {
-    return
+// MATERIALS-ACCESSORIES-01 (D-δ.141): sector físico constructivo de un
+// Tramo, para la regla global de uniones/cuplas rectas cada 4 m (brief
+// §9) -- necesita saber si un metro de cañería es del Colector principal,
+// de un Montante o de la red de un Local para no unir recorridos
+// independientes. Reusa exactamente las mismas señales estructurales que
+// ya usa `etiquetaHumanaDeTramoParaPendiente` (mismo índice de
+// humanización), en vez de reimplementar la clasificación.
+function resolverSectorDeTramo(proyecto: Proyecto, tramoId: string, indice: IndiceDeHumanizacion): SectorMaterial {
+  if (indice.etiquetaDistribucionGeneralPorTramoId.has(tramoId)) {
+    return 'colectorPrincipal'
   }
-
-  const filaTeeEstimada = tabla07PerdidasLocalizadas.find((fila) => fila.id === 'teeEntradaCentralSalidasLaterales')
-  if (filaTeeEstimada === undefined) {
-    // Precondicion imposible: mismo criterio que obtenerKsDeAccesorio.
-    throw new Error(
-      'resolverAccesoriosFisicosPorDefecto: no existe "teeEntradaCentralSalidasLaterales" en Tabla N°7',
-    )
+  const tramo = proyecto.redHidraulica?.tramos.find((candidato) => candidato.id === tramoId)
+  if (tramo?.montanteId !== undefined) {
+    return 'montante'
   }
-  const nombreTeeEstimada = filaTeeEstimada.nombre
-
-  // Prefijo `estimado|` en la clave: nunca puede colisionar con las claves
-  // `${tipo}|${dn}` de 'detallado' ni `tee|${etiqueta}` de la Tee real --
-  // ambas ramas son además mutuamente excluyentes por
-  // `metodoPerdidaLocalizada` (nunca corren en la misma resolución).
-  const agregar = (etiqueta: string, tipo: string, dnComercial: string, cantidad: number): void => {
-    const clave = `estimado|${tipo}|${dnComercial}`
-    const existente = acumuladorAccesorios.get(clave)
-    acumuladorAccesorios.set(clave, {
-      clave,
-      etiqueta,
-      dnComercial,
-      cantidadComputada: (existente?.cantidadComputada ?? 0) + cantidad,
-      origen: 'estimado',
-    })
+  if (indice.identidadPorTramoId.has(tramoId)) {
+    return 'local'
   }
-
-  for (const fila of identificarFilasPrincipalesDeLocales(proyecto)) {
-    const n = contarTerminalesFisicosDeLocal(redHidraulica, fila.unidadFuncionalId, fila.localId, fila.red)
-    if (n === 0) {
-      continue
-    }
-
-    const resultadoDn = resolverDiametroComercialDeTramo(proyecto, fila.tramoId, catalogoArtefactos, catalogoSistemasDeTuberia, contexto)
-    const dnComercial = resultadoDn.tipo === 'conCandidato' ? resultadoDn.candidato.denominacionComercial : undefined
-    // DN no resoluble: nunca se inventa (mismo criterio que tuberías) --
-    // se declara pendiente y no se agrega ninguna pieza para este Local+red.
-    if (dnComercial === undefined) {
-      const etiqueta = etiquetaHumanaDeTramoParaPendiente(proyecto, fila.tramoId, fila.red, indiceDeHumanizacion)
-      pendientes.push(`${etiqueta} — accesorios estimados con DN pendiente de definición`)
-      continue
-    }
-
-    const nTeesEstimadas = Math.max(0, n - 1)
-    if (nTeesEstimadas > 0) {
-      agregar(nombreTeeEstimada, 'teeEstimada', dnComercial, nTeesEstimadas)
-    }
-    agregar(nombreDeAccesorio('codo90'), 'codo90', dnComercial, 1)
-    agregar(nombreDeAccesorio('llaveDePaso'), 'llaveDePaso', dnComercial, 1)
-  }
+  // Distribución compartida genérica sin Montante explícito (M2-TOPO-B):
+  // por definición del Colector (brief §8, "distribuye hacia Montantes si
+  // existen, o hacia Locales directamente si no"), un tramo de reparto que
+  // no es feed final de un Local se trata como Colector principal.
+  return 'colectorPrincipal'
 }
 
 function resolverMedidores(
@@ -603,7 +558,51 @@ export function resolverDatosDeListadoDeMateriales(
 
   const { tuberias, accesorios } = resolverTuberiasYAccesorios(proyecto, catalogoArtefactos, contexto, indiceDeHumanizacion, pendientes)
   resolverTees(proyecto, catalogoArtefactos, contexto, indiceDeHumanizacion, accesorios, pendientes)
-  resolverAccesoriosFisicosPorDefecto(proyecto, catalogoArtefactos, contexto, indiceDeHumanizacion, accesorios, pendientes)
+
+  // MATERIALS-ACCESSORIES-01 (D-δ.141): estimación constructiva DREZA por
+  // sector -- gateada a 'simplificada'+'estimado' (mismo criterio que
+  // ACCESSORIES-DEFAULTS-01, extendido a Montantes y Colector; ver
+  // resolverAccesoriosConstructivosDreza.ts para la justificación
+  // completa del gate y de la precedencia frente a `resolverTees`).
+  if (
+    proyecto.configuracionHidraulica.granularidadHidraulica === 'simplificada' &&
+    proyecto.configuracionHidraulica.metodoPerdidaLocalizada === 'estimado'
+  ) {
+    for (const item of resolverAccesoriosDeLocalesDreza(
+      proyecto,
+      catalogoArtefactos,
+      contexto,
+      (tramoId, red) => etiquetaHumanaDeTramoParaPendiente(proyecto, tramoId, red, indiceDeHumanizacion),
+      pendientes,
+    )) {
+      accesorios.set(item.clave, item)
+    }
+    for (const item of resolverAccesoriosDeMontantesDreza(
+      proyecto,
+      catalogoArtefactos,
+      contexto,
+      (montanteId) => nombreDeMontante(proyecto, montanteId),
+      pendientes,
+    )) {
+      accesorios.set(item.clave, item)
+    }
+    for (const item of resolverAccesoriosDeColectorDreza(proyecto, catalogoArtefactos, contexto, pendientes)) {
+      accesorios.set(item.clave, item)
+    }
+  }
+
+  // Uniones/cuplas rectas cada 4 m (brief §9): regla de empaquetado de
+  // cañería, independiente del gate anterior -- corre siempre que el
+  // sistema adoptado sea PPR (ver resolverUnionesRectasDreza).
+  for (const item of resolverUnionesRectasDreza(
+    proyecto,
+    catalogoArtefactos,
+    contexto,
+    (tramoId) => resolverSectorDeTramo(proyecto, tramoId, indiceDeHumanizacion),
+    (tramoId) => esTramoRamalEnSimplificada(proyecto, tramoId, contexto, indiceDeHumanizacion),
+  )) {
+    accesorios.set(item.clave, item)
+  }
 
   return {
     proyecto,
