@@ -8,19 +8,24 @@ function accesorio(tipo: AccesorioDeTramo['tipo'], cantidad: number): AccesorioD
   return { tipo, cantidad }
 }
 
+// HYD-OVERPASS-01: sistema deliberadamente NO Acqua System -- este archivo
+// testea la composición genérica de Tabla N°7 (la primitiva), no la
+// selección de catálogo por sistema (eso lo cubre resolverKsDeAccesorioDeTramo.test.ts).
+const SISTEMA_NO_ACQUA = 'sistema-generico-no-acqua'
+
 describe('resolverPerdidaLocalizadaDeTramo', () => {
   it('accesorios undefined -> sinRelevar (no relevado, nunca hf_m=0)', () => {
-    const resultado = resolverPerdidaLocalizadaDeTramo(undefined, 1.5)
+    const resultado = resolverPerdidaLocalizadaDeTramo(undefined, 1.5, SISTEMA_NO_ACQUA)
     expect(resultado).toEqual({ tipo: 'sinRelevar' })
   })
 
   it('accesorios=[] -> calculada con ksTotal=0 y hf_m=0 (cero real, relevado sin accesorios)', () => {
-    const resultado = resolverPerdidaLocalizadaDeTramo([], 1.5)
+    const resultado = resolverPerdidaLocalizadaDeTramo([], 1.5, SISTEMA_NO_ACQUA)
     expect(resultado).toEqual({ tipo: 'calculada', ksTotal: 0, hf_m: 0 })
   })
 
   it('un accesorio con Ks conocido: reutiliza CRIT-A26/Tabla N°7 sin reimplementar la fórmula', () => {
-    const resultado = resolverPerdidaLocalizadaDeTramo([accesorio('codo90', 1)], 2)
+    const resultado = resolverPerdidaLocalizadaDeTramo([accesorio('codo90', 1)], 2, SISTEMA_NO_ACQUA)
 
     const ksEsperado = obtenerKsDeAccesorio('codo90')
     expect(resultado).toEqual({
@@ -34,6 +39,7 @@ describe('resolverPerdidaLocalizadaDeTramo', () => {
     const resultado = resolverPerdidaLocalizadaDeTramo(
       [accesorio('codo90', 1), accesorio('llaveDePaso', 1), accesorio('uniones', 1)],
       1.8,
+      SISTEMA_NO_ACQUA,
     )
 
     const ksEsperado =
@@ -46,10 +52,11 @@ describe('resolverPerdidaLocalizadaDeTramo', () => {
   })
 
   it('cantidad multiplicativa: cantidad>1 equivale a repetir el mismo tipo cantidad veces', () => {
-    const conCantidad = resolverPerdidaLocalizadaDeTramo([accesorio('codo90', 3)], 1.2)
+    const conCantidad = resolverPerdidaLocalizadaDeTramo([accesorio('codo90', 3)], 1.2, SISTEMA_NO_ACQUA)
     const repetido = resolverPerdidaLocalizadaDeTramo(
       [accesorio('codo90', 1), accesorio('codo90', 1), accesorio('codo90', 1)],
       1.2,
+      SISTEMA_NO_ACQUA,
     )
 
     expect(conCantidad).toEqual(repetido)
@@ -58,8 +65,8 @@ describe('resolverPerdidaLocalizadaDeTramo', () => {
   })
 
   it('mismo Ks con distintas velocidades produce pérdida acorde a V² (composición de CRIT-A26)', () => {
-    const bajaVelocidad = resolverPerdidaLocalizadaDeTramo([accesorio('curva90', 2)], 1)
-    const altaVelocidad = resolverPerdidaLocalizadaDeTramo([accesorio('curva90', 2)], 2)
+    const bajaVelocidad = resolverPerdidaLocalizadaDeTramo([accesorio('curva90', 2)], 1, SISTEMA_NO_ACQUA)
+    const altaVelocidad = resolverPerdidaLocalizadaDeTramo([accesorio('curva90', 2)], 2, SISTEMA_NO_ACQUA)
 
     if (bajaVelocidad.tipo !== 'calculada' || altaVelocidad.tipo !== 'calculada') {
       throw new Error('se esperaba calculada')
@@ -69,7 +76,7 @@ describe('resolverPerdidaLocalizadaDeTramo', () => {
   })
 
   it('reducciones (CRIT-A30): usa la velocidad de ESTE Tramo (el lado menor/aguas abajo de la transición), igual que cualquier otro accesorio del subconjunto -- ninguna lógica especial de dos velocidades', () => {
-    const resultado = resolverPerdidaLocalizadaDeTramo([accesorio('reducciones', 1)], 2.3)
+    const resultado = resolverPerdidaLocalizadaDeTramo([accesorio('reducciones', 1)], 2.3, SISTEMA_NO_ACQUA)
 
     const ksEsperado = obtenerKsDeAccesorio('reducciones')
     expect(resultado).toEqual({
@@ -83,6 +90,7 @@ describe('resolverPerdidaLocalizadaDeTramo', () => {
     const resultado = resolverPerdidaLocalizadaDeTramo(
       [accesorio('codo90', 2), accesorio('curva45', 3), accesorio('tuboSaliente', 1)],
       1.5,
+      SISTEMA_NO_ACQUA,
     )
 
     const ksEsperado =

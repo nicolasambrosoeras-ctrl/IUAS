@@ -84,7 +84,9 @@ export function AccesoriosDeTramoEditor({
 
   const disponibles = idsAccesorioDeTramo.filter((id) => !accesoriosRelevados.some((accesorio) => accesorio.tipo === id))
   const resultadoLocalizada =
-    velocidadReal_mps !== undefined ? resolverPerdidaLocalizadaDeTramo(accesoriosRelevados, velocidadReal_mps) : undefined
+    velocidadReal_mps !== undefined
+      ? resolverPerdidaLocalizadaDeTramo(accesoriosRelevados, velocidadReal_mps, proyecto.configuracionHidraulica.sistemaDeTuberiaId)
+      : undefined
 
   function conCantidad(indice: number, cantidad: number): readonly AccesorioDeTramo[] {
     return accesoriosRelevados.map((accesorio, i) => (i === indice ? { ...accesorio, cantidad } : accesorio))

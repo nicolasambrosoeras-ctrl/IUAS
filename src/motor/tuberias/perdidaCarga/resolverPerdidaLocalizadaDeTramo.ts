@@ -15,16 +15,21 @@
 // nunca hf_m=0. accesorios===[] significa "relevado, efectivamente sin
 // accesorios de este subconjunto" -- hf_m=0 es un cero real.
 import type { AccesorioDeTramo } from '../../../modelo/redHidraulica'
-import { obtenerKsDeAccesorio } from '../../../normativa/eras-2023/tabla-07-perdidas-localizadas'
+import { resolverKsDeAccesorioDeTramo } from './resolverKsDeAccesorioDeTramo'
 import { calcularPerdidaCargaLocalizada } from './calcularPerdidaCargaLocalizada'
 
 export type ResultadoPerdidaLocalizadaDeTramo =
   | { readonly tipo: 'sinRelevar' }
   | { readonly tipo: 'calculada'; readonly ksTotal: number; readonly hf_m: number }
 
+// `sistemaDeTuberiaId` (HYD-OVERPASS-01): selecciona el catálogo de Ks
+// aplicable a cada accesorio declarado (Tabla N°7 ERAS-2023, o el
+// catálogo propio del fabricante cuando el sistema adoptado es Acqua
+// System) -- ver resolverKsDeAccesorioDeTramo.ts.
 export function resolverPerdidaLocalizadaDeTramo(
   accesorios: readonly AccesorioDeTramo[] | undefined,
   velocidadReal_mps: number,
+  sistemaDeTuberiaId: string,
 ): ResultadoPerdidaLocalizadaDeTramo {
   if (accesorios === undefined) {
     return { tipo: 'sinRelevar' }
@@ -35,7 +40,7 @@ export function resolverPerdidaLocalizadaDeTramo(
   }
 
   const ksTotal = accesorios.reduce(
-    (suma, accesorio) => suma + accesorio.cantidad * obtenerKsDeAccesorio(accesorio.tipo),
+    (suma, accesorio) => suma + accesorio.cantidad * resolverKsDeAccesorioDeTramo(accesorio.tipo, sistemaDeTuberiaId).ks,
     0,
   )
 

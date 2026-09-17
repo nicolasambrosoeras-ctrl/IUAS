@@ -179,7 +179,11 @@ export function acumularPerdidaLocalizadaDeCamino(
     }
     const { hfTee_m, velocidadReal_mps } = resolucion
 
-    const resultadoLocalizada = resolverPerdidaLocalizadaDeTramo(tramo.accesorios, velocidadReal_mps)
+    const resultadoLocalizada = resolverPerdidaLocalizadaDeTramo(
+      tramo.accesorios,
+      velocidadReal_mps,
+      proyecto.configuracionHidraulica.sistemaDeTuberiaId,
+    )
 
     if (resultadoLocalizada.tipo === 'sinRelevar') {
       tramosNoResueltos.push({ tramoId: tramo.id, motivo: 'sinRelevar' })
