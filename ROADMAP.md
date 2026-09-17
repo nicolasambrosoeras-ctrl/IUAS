@@ -3586,6 +3586,43 @@ salvo bug inequívoco o decisión roja explícita.
   propio). Detalle completo en `docs/REBRAND-DREZA-01.md`.
   - **Estado:** `REBRAND-DREZA-01: CERRADO — pendiente validación manual`.
 
+- **D-δ.139 — ACCESSORIES-DEFAULTS-01: accesorios físicos por defecto en
+  Listado de materiales (CERRADO — pendiente validación manual).**
+  Decisión de dominio del usuario: los accesorios físicos cargados por
+  aproximación en Modo Rápido (`granularidadHidraulica: 'simplificada'` +
+  `metodoPerdidaLocalizada: 'estimado'`) ahora entran al Listado de
+  materiales, reusando EXACTAMENTE la cardinalidad ya cerrada de HYD-EST
+  (D-δ.40/D-δ.45: `nTeesEstimadas=max(0,n-1)` Ks=3,00, 1 singularidad
+  terminal/codo90 Ks=1,35, 1 llave de paso Ks=9,18 por Local+red con
+  n≥1) como aproximación de COMPRA, sin tocar ni reabrir esa fórmula
+  hidráulica. Condición cerrada por el usuario: los defaults existen
+  EXCLUSIVAMENTE en `'simplificada'` -- en `'profesional'` el listado
+  nunca completa el BOM con una convención automática, sin importar el
+  método de pérdida localizada, eliminando cualquier riesgo de doble
+  conteo contra Tees topológicas reales (que siguen computándose siempre,
+  sin cambios, vía `resolverTees()`). `ItemAccesorioComputado` gana
+  `origen: 'definido' | 'estimado'` (100% derivado, nunca persistido);
+  nueva función `resolverAccesoriosFisicosPorDefecto` en
+  `resolverDatosDeListadoDeMateriales.ts`, DN tomado siempre del Tramo
+  representativo ya existente (`identificarFilasPrincipalesDeLocales`),
+  nunca inventado (DN no resoluble → pendiente). PDF de Materials: sección
+  "Accesorios explícitamente modelados" → "Accesorios" con columna
+  "Origen" (Estimado/Definido), aclaración final reescrita, y numeración
+  de secciones corregida (antes saltaba 1,2,3,4,5,7; ahora consecutiva
+  1..6). Tests: nuevo describe en
+  `resolverDatosDeListadoDeMateriales.test.ts` (n=0..4, exclusividad por
+  granularidad, exclusión mutua con 'detallado', Tee real sin duplicarse,
+  margen de compra, invariancia bit-a-bit de `hf` de HYD-EST) +
+  `generarDocumentoPdfMateriales.test.ts` nuevo (numeración consecutiva,
+  título, columna Origen). QA: `tsc -b` limpio, `build` limpio,
+  `e2e:typecheck` limpio, Vitest 2029/2031 (únicos 2 fallos: el mismo
+  timeout preexistente de `PERF-SCALE-01C`), ESLint 11/0 idéntico a la
+  base. Sin cambios de schema, persistencia, versión de la app ni UI de
+  edición (sin editor nuevo). Detalle completo, arqueología y alternativas
+  descartadas en `docs/ACCESSORIES-DEFAULTS-01.md` /
+  `docs/ACCESSORIES-DEFAULTS-01-ARQUEOLOGIA.md`.
+  - **Estado:** `ACCESSORIES-DEFAULTS-01: CERRADO — pendiente validación manual`.
+
 **INTERFAZ WEB CAUDAL BY DREZA: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
