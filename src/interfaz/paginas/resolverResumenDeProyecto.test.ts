@@ -77,11 +77,13 @@ describe('resolverResumenDeProyecto (UI-01C)', () => {
     // FIX-HYD-EST-SIMPLIFIED-01: Vref de la plantilla estimada pasa a ser
     // la del Tramo representativo del Local+red (la fila que el usuario
     // ve/edita), no el máximo entre los tramos que alimentan cada
-    // terminal. El margen pasa a −20,047 m.c.a. con HYD-OVERPASS-01 y luego a
+    // terminal. El margen pasa a −20,047 m.c.a. con HYD-OVERPASS-01, luego a
     // −19,640 m.c.a. con HYD-ACQUA-K-CATALOG-01 (tee estimada Acqua System =
-    // 1,80, valor oficial simplificado, en vez de 3,00 de Tabla N°7). Sigue
-    // NO CUMPLE.
-    if (r.margenCritico.tipo === 'valor') expect(r.margenCritico.texto).toBe('-19,640 m.c.a.')
+    // 1,80, valor oficial simplificado, en vez de 3,00 de Tabla N°7), y
+    // finalmente a −24,352 m.c.a. con HYD-EST-NETWORK-01 (accesorios
+    // físicos estimados de Montante/Colector del camino crítico, con ΣK
+    // real por primera vez). Sigue NO CUMPLE.
+    if (r.margenCritico.tipo === 'valor') expect(r.margenCritico.texto).toBe('-24,352 m.c.a.')
     expect(r.margenCumple).toBe(false)
   })
 

@@ -272,14 +272,18 @@ describe('D-δ.70 · Baseline funcional transversal M1–M4', () => {
     // en vez del máximo entre los tramos que alimentan cada terminal
     // individual. En el canónico eso cambia la Vref de la fila "Baño 1 ·
     // AF" y el margen pasa a −20,047 m.c.a. con HYD-OVERPASS-01 (suma la
-    // incidencia hidráulica del Sobrepaso fusión estimado, Acqua System) y
+    // incidencia hidráulica del Sobrepaso fusión estimado, Acqua System),
     // luego a −19,640 m.c.a. con HYD-ACQUA-K-CATALOG-01 (la tee estimada
     // Acqua System usa su valor oficial simplificado 1,80 en vez del 3,00
-    // de Tabla N°7 -- ΣK baja pese a seguir sumando el Sobrepaso). Sigue NO
-    // CUMPLE en los tres casos. M1/M3/M4/
-    // Tabla N°1 intactos.
+    // de Tabla N°7 -- ΣK baja pese a seguir sumando el Sobrepaso), y
+    // finalmente a −24,352 m.c.a. con HYD-EST-NETWORK-01 (los accesorios
+    // físicos estimados de Montante/Colector principal del camino crítico
+    // -- llave general, tees de derivación, codos y uniones -- ahora
+    // aportan ΣK real; antes de este incremento existían sólo para el
+    // listado de materiales, con incidencia hidráulica 0). Sigue NO
+    // CUMPLE en los cuatro casos. M1/M3/M4/Tabla N°1 intactos.
     if (m2.estado.estado === 'completo') {
-      expect(m2.estado.terminalMasDesfavorable.margen_mca).toBeCloseTo(-19.64, 3)
+      expect(m2.estado.terminalMasDesfavorable.margen_mca).toBeCloseTo(-24.352, 3)
       expect(m2.estado.terminalMasDesfavorable.cumpleMinimo).toBe(false)
     }
   })

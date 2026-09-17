@@ -153,15 +153,27 @@ function resolverAccesoriosFisicosDeMontante(
 
   items.push({ ...base, idFisico: `montante:${montante.id}:llave`, tipo: 'llaveDePaso', ubicacion: { tipo: 'tramo', tramoId: primerSegmento.id } })
 
-  // Tee de derivación: una por cada bifurcación 1→2 real del montante que
-  // TODAVÍA no tiene `Nodo.tee` configurado (opción A, MATERIALS-ACCESSORIES-01
-  // -- una Tee real ya resuelta por `resolverTees()` no se vuelve a contar
-  // acá). Cada una vive en su propio Nodo: sólo los caminos que atraviesan
-  // ESE nodo la ven (un camino a un Local servido por una derivación
-  // anterior nunca llega a este nodo).
+  // Tee de derivación: una por cada Local servido menos uno
+  // (`derivacionesEsperadas = max(0, n-1)`, cardinalidad histórica DREZA
+  // preservada), descontando las bifurcaciones que YA tienen `Nodo.tee`
+  // configurado (opción A, MATERIALS-ACCESSORIES-01). Cada una vive en su
+  // propio Nodo: sólo los caminos que atraviesan ESE nodo la ven. Se
+  // limita a los primeros `derivacionesEsperadas` nodos de bifurcación de
+  // la cadena (nunca TODOS los que reporte `derivacionesDeMontante`): un
+  // nodo de bifurcación puede existir por una razón ajena al reparto entre
+  // Locales de ESTE Montante (p. ej. el segmento del Montante termina en
+  // un nodo que además alimenta la producción ACS) -- ese caso no debe
+  // sumar una Tee de más.
+  const derivacionesEsperadas = Math.max(0, n - 1)
+  const bifurcaciones = derivacionesDeMontante(proyecto, montante.id).filter((d) => d.tipo === 'bifurcacion')
+  const derivacionesYaResueltas = bifurcaciones.filter((d) => d.teeConfigurada).length
+  const teesAGenerar = Math.max(0, derivacionesEsperadas - derivacionesYaResueltas)
   let indiceTee = 0
-  for (const derivacion of derivacionesDeMontante(proyecto, montante.id)) {
-    if (derivacion.tipo === 'bifurcacion' && !derivacion.teeConfigurada) {
+  for (const derivacion of bifurcaciones) {
+    if (indiceTee >= teesAGenerar) {
+      break
+    }
+    if (!derivacion.teeConfigurada) {
       items.push({ ...base, idFisico: `montante:${montante.id}:tee:${indiceTee}`, tipo: 'teeDerivacion', ubicacion: { tipo: 'nodo', nodoId: derivacion.nodoId } })
       indiceTee += 1
     }
@@ -203,6 +215,15 @@ function tramosDeColectorEnOrden(proyecto: Proyecto, red: RedDeTramo): readonly 
   }
   const tramoRaiz = redHidraulica.tramos.find((t) => t.id === filaRaiz.tramoId)
   if (tramoRaiz === undefined) {
+    return []
+  }
+  if (tramoRaiz.montanteId !== undefined) {
+    // Caso degenerado: el propio Tramo raíz de toda la topología ya
+    // pertenece a un Montante (`identificarFilasDistribucionGeneral`
+    // clasifica por ausencia de tramo entrante, sin mirar `montanteId`) --
+    // no hay ningún segmento de Colector distinto aguas arriba de ese
+    // Montante; tratarlo como Colector además de Montante duplicaría la
+    // llave/codos/uniones de ESE MISMO Tramo bajo los dos sectores.
     return []
   }
   const tramosRepresentativosLocales = new Set(
@@ -277,13 +298,13 @@ function resolverDerivacionesDelColector(
       // No queda tronco después de esta bifurcación: la última salida
       // encontrada acá se resuelve como codo, el resto como Tee.
       const [ultima, ...resto] = salidasAca
-      for (const _salida of resto) {
+      for (let i = 0; i < resto.length; i += 1) {
         nodosConTee.push({ nodoId: nodoActual, teeConfigurada })
       }
       tramoUltimaSalida = ultima?.id
       break
     }
-    for (const _salida of salidasAca) {
+    for (let i = 0; i < salidasAca.length; i += 1) {
       nodosConTee.push({ nodoId: nodoActual, teeConfigurada })
     }
     nodoActual = continuaTronco.nodoDestinoId
@@ -393,4 +414,35 @@ export function resolverAccesoriosFisicosEstimadosDeRed(
   }
 
   return { items, pendientes }
+}
+
+// PERF-SCALE-01B (mismo patrón que `ContextoDeCalculoM2`): el resultado de
+// `resolverAccesoriosFisicosEstimadosDeRed` es el MISMO para todos los
+// terminales de una resolución (no depende del terminal consultado, sólo
+// de `proyecto`) -- sin memoizar, `resolverPresionResidualDeCamino` lo
+// recalcularía desde cero por cada terminal (recorriendo TODOS los
+// Montantes/Colector cada vez), reintroduciendo la complejidad
+// O(terminales·montantes) que el resto del árbol de presión ya evita. Se
+// memoiza por `contexto` (WeakMap, vive y muere con él -- nunca un cache
+// global) en vez de agregar un campo a `ContextoDeCalculoM2` para no crear
+// una dependencia circular de tipos entre ese módulo y este. Ausente ⇒
+// comportamiento previo byte a byte (recalcula siempre), igual que el
+// resto del contexto opcional.
+const cachePorContexto = new WeakMap<ContextoDeCalculoM2, ResultadoAccesoriosFisicosEstimadosDeRed>()
+
+export function obtenerAccesoriosFisicosEstimadosDeRedDeContexto(
+  proyecto: Proyecto,
+  catalogoArtefactos: readonly ArtefactoNormativo[],
+  contexto?: ContextoDeCalculoM2,
+): ResultadoAccesoriosFisicosEstimadosDeRed {
+  if (contexto === undefined) {
+    return resolverAccesoriosFisicosEstimadosDeRed(proyecto, catalogoArtefactos)
+  }
+  const cacheado = cachePorContexto.get(contexto)
+  if (cacheado !== undefined) {
+    return cacheado
+  }
+  const resultado = resolverAccesoriosFisicosEstimadosDeRed(proyecto, catalogoArtefactos, contexto)
+  cachePorContexto.set(contexto, resultado)
+  return resultado
 }

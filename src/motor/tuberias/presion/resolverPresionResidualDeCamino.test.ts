@@ -719,6 +719,8 @@ describe('resolverPresionResidualDeCamino — metodoPerdidaLocalizada=estimado (
       nTerminalesLocal: 0,
       nTeesEstimadas: 0,
       velocidadReferencia_mps: 0,
+      hfMontanteYColector_mca: 0,
+      detalleMontanteYColector: [],
     })
   })
 

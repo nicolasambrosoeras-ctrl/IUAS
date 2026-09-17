@@ -120,6 +120,11 @@ import {
   resolverPerdidaLocalizadaEstimadaDeLocal,
   type MotivoTramoSinPerdidaLocalizadaEstimada,
 } from './resolverPerdidaLocalizadaEstimadaDeLocal'
+import { obtenerAccesoriosFisicosEstimadosDeRedDeContexto } from '../topologia/resolverAccesoriosFisicosEstimadosDeRed'
+import {
+  acumularPerdidaLocalizadaEstimadaDeMontanteYColector,
+  type DetalleAccesorioFisicoEnCamino,
+} from './acumularPerdidaLocalizadaEstimadaDeMontanteYColector'
 import { resolverBalanceDePresion } from './resolverBalanceDePresion'
 import type { ContextoDeCalculoM2 } from '../contextoDeCalculoM2'
 import {
@@ -146,6 +151,15 @@ export type TrazaHfLocalizada =
       readonly nTerminalesLocal: number
       readonly nTeesEstimadas: number
       readonly velocidadReferencia_mps: number
+      // HYD-EST-NETWORK-01: aporte de los accesorios físicos estimados de
+      // Montante/Colector principal que este camino específico atraviesa
+      // (0 si no hay Montante/Colector en el camino, o el sistema adoptado
+      // no es Acqua System) -- YA INCLUIDO en `hf_mca` (suma con el
+      // agregado histórico del Local+red, nunca un componente aparte del
+      // balance). Expuesto para trazabilidad/informe, ver
+      // acumularPerdidaLocalizadaEstimadaDeMontanteYColector.ts.
+      readonly hfMontanteYColector_mca: number
+      readonly detalleMontanteYColector: readonly DetalleAccesorioFisicoEnCamino[]
     }
 
 type TrazaDeCamino = {
@@ -449,7 +463,15 @@ export function resolverPresionResidualDeCamino(
     // caso (ver acumularPerdidaLocalizadaDeCamino), sin necesitar
     // resolver a que red (AF/AC) pertenece este terminal.
     if (camino.tramos.length === 0) {
-      hfLocalizada = { metodologia: 'estimado', hf_mca: 0, nTerminalesLocal: 0, nTeesEstimadas: 0, velocidadReferencia_mps: 0 }
+      hfLocalizada = {
+        metodologia: 'estimado',
+        hf_mca: 0,
+        nTerminalesLocal: 0,
+        nTeesEstimadas: 0,
+        velocidadReferencia_mps: 0,
+        hfMontanteYColector_mca: 0,
+        detalleMontanteYColector: [],
+      }
       coberturaHfLocalizada = { tipo: 'estimada', hf_mca: 0 }
     } else {
       // La red (AF/AC) de ESTE terminal es la del ultimo tramo del
@@ -474,14 +496,55 @@ export function resolverPresionResidualDeCamino(
         return { tipo: 'perdidaLocalizadaEstimadaIncompleta', tramosNoResueltos: perdidaEstimada.tramosNoResueltos }
       }
 
+      // HYD-EST-NETWORK-01: aporte de los accesorios físicos estimados de
+      // Montante/Colector principal que ESTE camino atraviesa -- gateado a
+      // granularidad 'simplificada' (mismo alcance que ya regía DREZA,
+      // MATERIALS-ACCESSORIES-01). El agregado histórico por Local+red
+      // (perdidaEstimada, arriba) sigue exactamente igual, sin cambios: la
+      // pieza nueva se SUMA aparte, nunca se recalcula la plantilla D-δ.40/
+      // D-δ.45.
+      let hfMontanteYColector_mca = 0
+      let detalleMontanteYColector: readonly DetalleAccesorioFisicoEnCamino[] = []
+      if (proyecto.configuracionHidraulica.granularidadHidraulica === 'simplificada') {
+        const { items: accesoriosFisicos, pendientes: pendientesAccesoriosFisicos } = obtenerAccesoriosFisicosEstimadosDeRedDeContexto(
+          proyecto,
+          catalogoArtefactos,
+          contexto,
+        )
+        // Un pendiente de DN en el Montante/Colector (nunca en este Local)
+        // no bloquea el balance de ESTE terminal -- ya se reporta aparte
+        // (Materials lo lista como pendiente propio); acá sólo se ignoran
+        // los accesorios sin DN resoluble, sin inventar su incidencia.
+        void pendientesAccesoriosFisicos
+        const resultadoMontanteYColector = acumularPerdidaLocalizadaEstimadaDeMontanteYColector(
+          proyecto,
+          camino,
+          accesoriosFisicos,
+          catalogoArtefactos,
+          catalogoSistemasDeTuberia,
+          contexto,
+        )
+        if (resultadoMontanteYColector.tipo === 'acumulada') {
+          hfMontanteYColector_mca = resultadoMontanteYColector.hf_m
+          detalleMontanteYColector = resultadoMontanteYColector.detalle
+        }
+        // 'incompleta' (un Tramo de Montante/Colector sin DN resoluble):
+        // no bloquea el modo estimado de este terminal -- mismo criterio
+        // que ya rige la Reducción/Sobrepaso estimados (detección
+        // opcional, nunca un pendiente que tumbe el cálculo agregado del
+        // propio Local+red).
+      }
+
       hfLocalizada = {
         metodologia: 'estimado',
-        hf_mca: perdidaEstimada.hf_m,
+        hf_mca: perdidaEstimada.hf_m + hfMontanteYColector_mca,
         nTerminalesLocal: perdidaEstimada.nTerminalesLocal,
         nTeesEstimadas: perdidaEstimada.nTeesEstimadas,
         velocidadReferencia_mps: perdidaEstimada.velocidadReferencia_mps,
+        hfMontanteYColector_mca,
+        detalleMontanteYColector,
       }
-      coberturaHfLocalizada = { tipo: 'estimada', hf_mca: perdidaEstimada.hf_m }
+      coberturaHfLocalizada = { tipo: 'estimada', hf_mca: perdidaEstimada.hf_m + hfMontanteYColector_mca }
     }
   }
 

@@ -263,7 +263,7 @@ describe('supresión del ascenso implícito por montante explícito (M2-TOPO-C)'
     }
   })
 
-  it('§41/§69: la supresión quita SOLO la fricción vertical; Δz y Presidual coinciden con "geometría sola"', () => {
+  it('§41/§69: la supresión quita SOLO la fricción vertical; Δz y Presidual coinciden con "geometría sola" + el aporte HYD-EST-NETWORK-01 del propio Montante', () => {
     const base = proyecto([uf('uf-p1', 1)])
     const sinMontante = balanceAF(base, 'uf-p1')
     const conMontante = balanceAF(conMontanteEnAlimentacionGeneral(base), 'uf-p1')
@@ -281,9 +281,31 @@ describe('supresión del ascenso implícito por montante explícito (M2-TOPO-C)'
     expect(friccionVertical).toBeGreaterThan(0)
     expect(friccionVertical).toBeCloseTo(incVerticalSinMontante, 12)
 
-    // Presidual: con montante es MAYOR, exactamente por esa fricción que ya
-    // no se descuenta (no hay doble conteo).
-    expect(conMontante.presionResidual_mca - sinMontante.presionResidual_mca).toBeCloseTo(friccionVertical, 12)
+    // HYD-EST-NETWORK-01: `t-general` aporta accesorios físicos estimados
+    // en AMBOS escenarios -- como tronco de Colector principal cuando NO
+    // pertenece a ningún Montante (sinMontante), o como segmento propio del
+    // Montante cuando sí (conMontante; un Tramo con `montanteId` deja de
+    // clasificarse como Colector, ver `tramosDeColectorEnOrden`). Es una
+    // incidencia hidráulica nueva de este incremento (antes, ninguno de los
+    // dos sectores aportaba a hf) -- se hace explícita acá, comparando
+    // AMBOS términos, en vez de ensanchar la tolerancia del assert.
+    if (conMontante.hfLocalizada.metodologia !== 'estimado' || sinMontante.hfLocalizada.metodologia !== 'estimado') {
+      throw new Error('se esperaba metodologia estimado')
+    }
+    const hfConMontante = conMontante.hfLocalizada.hfMontanteYColector_mca
+    const hfSinMontante = sinMontante.hfLocalizada.hfMontanteYColector_mca
+    expect(hfConMontante).toBeGreaterThan(0)
+    expect(hfSinMontante).toBeGreaterThan(0)
+
+    // Presidual: con montante es MAYOR por la fricción vertical que ya no
+    // se descuenta, y se ajusta por la diferencia entre el aporte de
+    // Colector (sinMontante) y el aporte de Montante (conMontante) sobre
+    // ESE MISMO Tramo -- la diferencia neta es exactamente esa resta, sin
+    // doble conteo ni término residual sin explicar.
+    expect(conMontante.presionResidual_mca - sinMontante.presionResidual_mca).toBeCloseTo(
+      friccionVertical - (hfConMontante - hfSinMontante),
+      12,
+    )
   })
 
   it('§37: en AC el ascenso también se suprime (el camino AC comparte t-general)', () => {

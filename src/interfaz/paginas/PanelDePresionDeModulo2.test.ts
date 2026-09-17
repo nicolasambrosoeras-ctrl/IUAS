@@ -122,7 +122,15 @@ function candidatoCompleto(nodoId: string, presidual: number, pmin: number): Can
       desnivel_m: 0,
       hfDistribuida_mca: 0,
       hfDistribuidaPorTramo: [],
-      hfLocalizada: { metodologia: 'estimado', hf_mca: 0, nTerminalesLocal: 1, nTeesEstimadas: 0, velocidadReferencia_mps: 0 },
+      hfLocalizada: {
+        metodologia: 'estimado',
+        hf_mca: 0,
+        nTerminalesLocal: 1,
+        nTeesEstimadas: 0,
+        velocidadReferencia_mps: 0,
+        hfMontanteYColector_mca: 0,
+        detalleMontanteYColector: [],
+      },
       incrementoVerticalPorNivel: {
         aplica: false,
         nivel: undefined,
