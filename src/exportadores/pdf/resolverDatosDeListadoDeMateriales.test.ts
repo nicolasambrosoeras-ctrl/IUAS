@@ -13,7 +13,20 @@ import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefacto
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
 import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia'
 import { resolverPerdidaLocalizadaEstimadaDeLocal } from '../../motor/tuberias/presion/resolverPerdidaLocalizadaEstimadaDeLocal'
+import { resolverDiametroComercialDeTramo } from '../../motor/tuberias/resolverDiametroComercialDeTramo'
+import { proyectoInicial } from '../../interfaz/paginas/proyectoDeEjemplo'
+import { backfillLongitudesDePredimensionamiento } from '../../interfaz/paginas/backfillLongitudesDePredimensionamiento'
+import { localesDeUnidadFuncional } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import { aplicarMargenDeCompra, resolverDatosDeListadoDeMateriales } from './resolverDatosDeListadoDeMateriales'
+
+// Helper de sólo-lectura para el test de reconciliación de tuberías: mismo
+// resolver que usa Materials internamente, sin contexto compartido (no
+// hace falta para un proyecto de este tamaño) -- así el test no depende de
+// ningún tipo interno de resolverDatosDeListadoDeMateriales.ts.
+function tieneDnResoluble(proyecto: Proyecto, tramoId: string): boolean {
+  const resultado = resolverDiametroComercialDeTramo(proyecto, tramoId, catalogoArtefactos, catalogoSistemasDeTuberia)
+  return resultado.tipo === 'conCandidato'
+}
 
 function metadatos(): MetadatosProyecto {
   return { nombre: 'Proyecto de prueba', obra: 'O', comitente: 'C', fecha: '2026-01-01', schemaVersion: '1.0.0', versionNormativa: 'eras-2023' }
@@ -204,7 +217,10 @@ describe('resolverDatosDeListadoDeMateriales — tuberías', () => {
 
     const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
 
-    expect(datos.pendientes.some((p) => p.includes('t-trunk') && p.includes('DN pendiente'))).toBe(true)
+    // MATERIALS-POLISH-01: el pendiente ya no expone el id interno del
+    // Tramo (`t-trunk`) -- humanizado, con fallback neutro por red cuando
+    // no hay identidad de Local/Montante resoluble (brief §12).
+    expect(datos.pendientes.some((p) => p.includes('DN pendiente') && !p.includes('t-trunk'))).toBe(true)
     expect(datos.tuberias).toEqual([])
   })
 })
@@ -280,7 +296,7 @@ describe('resolverDatosDeListadoDeMateriales — Tee nodal', () => {
     const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
 
     expect(datos.accesorios).toEqual([])
-    expect(datos.pendientes.some((p) => p.includes('Tee sin configurar'))).toBe(true)
+    expect(datos.pendientes.some((p) => p.includes('Tee pendiente de configuración'))).toBe(true)
   })
 
   it('Fan-out 1→N (N≥3): pendiente "requiere especificación", nunca una pieza comercial ficticia (brief §26)', () => {
@@ -291,7 +307,7 @@ describe('resolverDatosDeListadoDeMateriales — Tee nodal', () => {
     const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
 
     expect(datos.accesorios.some((a) => a.etiqueta.startsWith('Tee'))).toBe(false)
-    expect(datos.pendientes.some((p) => p.includes('Derivación múltiple no modelada'))).toBe(true)
+    expect(datos.pendientes.some((p) => p.includes('derivación múltiple no modelada'))).toBe(true)
   })
 })
 
@@ -540,14 +556,14 @@ describe('resolverDatosDeListadoDeMateriales — medidores, almacenamiento y art
 
 describe('aplicarMargenDeCompra', () => {
   it('tuberías: aplica el porcentaje sobre la longitud computada (brief §16/§59)', () => {
-    const base = { proyecto: {} as Proyecto, tuberias: [{ material: 'PPR', red: 'AF' as const, dnComercial: '20 mm', longitudComputada_m: 35 }], accesorios: [], medidores: [], almacenamiento: [], artefactos: [], pendientes: [] }
+    const base = { proyecto: {} as Proyecto, tuberias: [{ material: 'PPR', red: 'AF' as const, dnComercial: '20 mm', longitudComputada_m: 35 }], accesorios: [], medidores: [], almacenamiento: [], artefactos: [], pendientes: [], estado: 'completo' as const }
     expect(aplicarMargenDeCompra(base, 10).tuberias[0]?.longitudCompra_m).toBeCloseTo(38.5)
     expect(aplicarMargenDeCompra(base, 0).tuberias[0]?.longitudCompra_m).toBe(35)
   })
 
   it('accesorios: redondea la cantidad de compra hacia arriba (brief §22/§45/§60)', () => {
     const item = (cantidadComputada: number) => ({ clave: 'x', etiqueta: 'x', dnComercial: '20 mm', cantidadComputada, origen: 'definido' as const })
-    const base = { proyecto: {} as Proyecto, tuberias: [], accesorios: [item(7)], medidores: [], almacenamiento: [], artefactos: [], pendientes: [] }
+    const base = { proyecto: {} as Proyecto, tuberias: [], accesorios: [item(7)], medidores: [], almacenamiento: [], artefactos: [], pendientes: [], estado: 'completo' as const }
     expect(aplicarMargenDeCompra(base, 10).accesorios[0]?.cantidadCompra).toBe(8)
     expect(aplicarMargenDeCompra({ ...base, accesorios: [item(2)] }, 20).accesorios[0]?.cantidadCompra).toBe(3)
     expect(aplicarMargenDeCompra({ ...base, accesorios: [item(1)] }, 0).accesorios[0]?.cantidadCompra).toBe(1)
@@ -562,6 +578,7 @@ describe('aplicarMargenDeCompra', () => {
       almacenamiento: [{ nombre: 'Tanque elevado', especificacion: '1.000 L', cantidad: 1 }],
       artefactos: [{ nombre: 'Lavatorio', especificacion: '', cantidad: 3 }],
       pendientes: [],
+      estado: 'completo' as const,
     }
     const conMargen = aplicarMargenDeCompra(base, 20)
     expect(conMargen.medidores).toEqual(base.medidores)
@@ -578,6 +595,7 @@ describe('aplicarMargenDeCompra', () => {
       almacenamiento: [],
       artefactos: [],
       pendientes: [],
+      estado: 'completo' as const,
     }
     const conMargen = aplicarMargenDeCompra(base, 0)
     expect(conMargen.tuberias[0]?.longitudCompra_m).toBe(base.tuberias[0]?.longitudComputada_m)
@@ -585,7 +603,7 @@ describe('aplicarMargenDeCompra', () => {
   })
 
   it('rechaza porcentajes inválidos (NaN, negativos, Infinity, >100) sin excepción silenciosa', () => {
-    const base = { proyecto: {} as Proyecto, tuberias: [], accesorios: [], medidores: [], almacenamiento: [], artefactos: [], pendientes: [] }
+    const base = { proyecto: {} as Proyecto, tuberias: [], accesorios: [], medidores: [], almacenamiento: [], artefactos: [], pendientes: [], estado: 'completo' as const }
     expect(() => aplicarMargenDeCompra(base, NaN)).toThrow()
     expect(() => aplicarMargenDeCompra(base, -1)).toThrow()
     expect(() => aplicarMargenDeCompra(base, Infinity)).toThrow()
@@ -625,5 +643,141 @@ describe('determinismo y no mutación', () => {
     aplicarMargenDeCompra(datos, 20)
 
     expect(proyecto).toEqual(snapshotAntes)
+  })
+})
+
+describe('resolverDatosDeListadoDeMateriales — coherencia con el proyecto fuente (MATERIALS-POLISH-01)', () => {
+  // Proyecto de referencia con longitudes reales precargadas -- mismo
+  // helper que ya usa generarDocumentoPdf.test.ts (`canonico()`). Sin esto,
+  // proyectoInicial "crudo" no tiene ningún `longitud_m` (se precarga en
+  // runtime al montar la app) y el listado sale trivialmente PARCIAL.
+  const proyectoDeEjemploCompleto = backfillLongitudesDePredimensionamiento(proyectoInicial)
+
+  it('artefactos: la suma de Materials coincide EXACTAMENTE con el inventario físico de M1 (brief §5/§35)', () => {
+    // Inventario físico de referencia: recorrido DIRECTO de
+    // Proyecto.unidadesFuncionales -> Local.artefactos (origen 'normativo'),
+    // exactamente como lo define M1 -- no cuenta terminales de
+    // RedHidraulica (evita el doble conteo AF+AC de un mismo artefacto) ni
+    // depende de ningún dato ya derivado por Materials.
+    let totalFisico = 0
+    for (const uf of proyectoDeEjemploCompleto.unidadesFuncionales) {
+      for (const local of localesDeUnidadFuncional(uf)) {
+        for (const artefacto of local.artefactos) {
+          if (artefacto.origen === 'normativo') {
+            totalFisico += artefacto.cantidad
+          }
+        }
+      }
+    }
+
+    const datos = resolverDatosDeListadoDeMateriales(proyectoDeEjemploCompleto, catalogoArtefactos, coeficientesMayoracion)
+    const totalMateriales = datos.artefactos.reduce((acc, item) => acc + item.cantidad, 0)
+
+    expect(totalFisico).toBeGreaterThan(0)
+    expect(totalMateriales).toBe(totalFisico)
+  })
+
+  it('tuberías: la suma de longitudes de Materials coincide con el inventario de Tramos físicos computables (brief §6/§36)', () => {
+    // Criterio de "computable" EXPLÍCITO (mismo que usa el resolver): un
+    // Tramo cuenta si y sólo si tiene longitud_m > 0 Y un DN comercial
+    // resoluble ('conCandidato'). No caminos, no pérdidas, no longitud
+    // efectiva -- sólo el inventario plano de RedHidraulica.tramos. En
+    // 'simplificada' los Tramos "ramal" nunca reciben longitud_m del
+    // backfill (ver backfillLongitudesDePredimensionamiento.ts), así que
+    // ya quedan naturalmente fuera de esta suma sin lógica adicional.
+    const { redHidraulica } = proyectoDeEjemploCompleto
+    if (redHidraulica === undefined) {
+      throw new Error('proyectoDeEjemploCompleto debe tener redHidraulica definida')
+    }
+    let totalTramosComputables = 0
+    for (const tramo of redHidraulica.tramos) {
+      const longitudValida = tramo.longitud_m !== undefined && tramo.longitud_m > 0
+      const dnResoluble = tieneDnResoluble(proyectoDeEjemploCompleto, tramo.id)
+      if (longitudValida && dnResoluble) {
+        totalTramosComputables += tramo.longitud_m as number
+      }
+    }
+
+    const datos = resolverDatosDeListadoDeMateriales(proyectoDeEjemploCompleto, catalogoArtefactos, coeficientesMayoracion)
+    const totalMateriales = datos.tuberias.reduce((acc, item) => acc + item.longitudComputada_m, 0)
+
+    expect(totalTramosComputables).toBeGreaterThan(0)
+    expect(totalMateriales).toBeCloseTo(totalTramosComputables, 6)
+  })
+})
+
+describe('resolverDatosDeListadoDeMateriales — Estado del listado (MATERIALS-POLISH-01)', () => {
+  it('simplificada bien formada con defaults resolubles: estado "completo" (brief §33/§38, no exige Detailed)', () => {
+    const uf = ufConArtefactos('uf1', 1)
+    const nodos: Nodo[] = [{ id: 'n0' }, { id: 'nArt0', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf1', localId: 'uf1-local', artefactoId: 'uf1-art-0' } }]
+    const tramos: Tramo[] = [{ id: 't-a', nodoOrigenId: 'n0', nodoDestinoId: 'nArt0', red: 'AF', longitud_m: 5, dnComercialAdoptado: '20 mm' }]
+    const proyecto = proyectoBase({
+      ufs: [uf],
+      red: { nodos, tramos },
+      configuracionHidraulica: { granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado' },
+    })
+
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+
+    expect(datos.pendientes).toEqual([])
+    expect(datos.estado).toBe('completo')
+  })
+
+  it('un Tramo físico computable sin DN resoluble: estado "parcial", con pendiente humanizado', () => {
+    // Mismo patrón "huérfano" ya usado en el describe de tuberías (§49):
+    // t-trunk no llega a ningún Artefacto -> resolverDiametroComercialDeTramo
+    // resuelve 'sinDemanda', DN no resoluble, sin inventar nada.
+    const uf = ufConArtefactos('uf1', 1)
+    const nodos: Nodo[] = [{ id: 'n0' }, { id: 'nDead' }]
+    const tramos: Tramo[] = [{ id: 't-trunk', nodoOrigenId: 'n0', nodoDestinoId: 'nDead', red: 'AF', longitud_m: 5 }]
+    const proyecto = proyectoBase({ ufs: [uf], red: { nodos, tramos } })
+
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+
+    expect(datos.estado).toBe('parcial')
+    expect(datos.pendientes.length).toBeGreaterThan(0)
+    expect(datos.pendientes.some((p) => /\bt-trunk\b/.test(p) || /"n0"|"nDead"/.test(p))).toBe(false)
+  })
+
+  it('proyectoInicial con longitudes precargadas (Modo Rápido, bien formado): estado "completo"', () => {
+    const proyecto = backfillLongitudesDePredimensionamiento(proyectoInicial)
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+    expect(datos.pendientes).toEqual([])
+    expect(datos.estado).toBe('completo')
+  })
+})
+
+describe('resolverDatosDeListadoDeMateriales — humanización de pendientes, sin IDs internos (brief §11/§12/§40)', () => {
+  it('ningún pendiente expone Tramo.id/Nodo.id crudos (patrones t-/n- conocidos)', () => {
+    // Fuerza TODOS los tipos de pendiente en una sola resolución: Tramo sin
+    // longitud, Tramo sin DN, Tee sin configurar, fan-out no modelado.
+    const uf = ufConArtefactos('uf1', 3)
+    const nodos: Nodo[] = [
+      { id: 'n0' },
+      { id: 'nSinLongitud' },
+      { id: 'nTee' },
+      { id: 'nArt0', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf1', localId: 'uf1-local', artefactoId: 'uf1-art-0' } },
+      { id: 'nArt1', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf1', localId: 'uf1-local', artefactoId: 'uf1-art-1' } },
+      { id: 'nArt2', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf1', localId: 'uf1-local', artefactoId: 'uf1-art-2' } },
+    ]
+    const tramos: Tramo[] = [
+      // Tramo raíz sin longitud (pendiente de longitud).
+      { id: 't-af-sinlongitud', nodoOrigenId: 'n0', nodoDestinoId: 'nSinLongitud', red: 'AF', dnComercialAdoptado: '20 mm' },
+      // Bifurcación real sin Tee configurada.
+      { id: 't-af-tee', nodoOrigenId: 'nSinLongitud', nodoDestinoId: 'nTee', red: 'AF', longitud_m: 2, dnComercialAdoptado: '20 mm' },
+      { id: 't-af-lavatorio', nodoOrigenId: 'nTee', nodoDestinoId: 'nArt0', red: 'AF', longitud_m: 1, dnComercialAdoptado: '20 mm' },
+      { id: 't-af-ducha', nodoOrigenId: 'nTee', nodoDestinoId: 'nArt1', red: 'AF', longitud_m: 1, dnComercialAdoptado: '20 mm' },
+      // Fan-out 1->3 en otro nodo, no modelado.
+      { id: 't-af-fan', nodoOrigenId: 'n0', nodoDestinoId: 'nArt2', red: 'AF', longitud_m: 1 },
+    ]
+    const proyecto = proyectoBase({ ufs: [uf], red: { nodos, tramos } })
+
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+
+    expect(datos.pendientes.length).toBeGreaterThan(0)
+    const patronesDeIdInterno = /\bt-af-\w+\b|\bn-af-\w+\b|\bn-ac-\w+\b|"n0"|"nTee"|"nArt\d"/
+    for (const pendiente of datos.pendientes) {
+      expect(pendiente).not.toMatch(patronesDeIdInterno)
+    }
   })
 })
