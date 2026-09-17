@@ -38,11 +38,39 @@ function formatearPorcentaje(valor: number): string {
   return `${valor.toLocaleString(LOCALE, { minimumFractionDigits: 0, maximumFractionDigits: 2 })} %`
 }
 
+// MATERIALS-POLISH-01 (brief §25): `Proyecto.metadatos.fecha` se persiste
+// como string ISO ("2026-08-07", dato del proyecto -- nunca se toca acá).
+// El DISPLAY público pasa a formato es-AR ("7 de agosto de 2026"), mismo
+// criterio que `formatearFechaDeGeneracion`. Construye la fecha con
+// componentes explícitos (año/mes/día) en vez de `new Date(iso)` para
+// evitar el corrimiento de un día que introduce el parseo UTC de un string
+// "YYYY-MM-DD" en zonas horarias negativas. Si el string no matchea el
+// formato esperado (dato legado o vacío), se muestra tal cual -- nunca se
+// inventa una fecha ni se rompe la generación del PDF.
+export function formatearFechaDeProyecto(fechaIso: string): string {
+  const coincidencia = /^(\d{4})-(\d{2})-(\d{2})$/.exec(fechaIso.trim())
+  if (coincidencia === null) {
+    return fechaIso
+  }
+  const [, anioTexto, mesTexto, diaTexto] = coincidencia
+  const fecha = new Date(Number(anioTexto), Number(mesTexto) - 1, Number(diaTexto))
+  return new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'long', year: 'numeric' }).format(fecha)
+}
+
 export function resolverNombreDeArchivoMateriales(proyecto: Proyecto): string {
   return `Caudal_Listado_de_materiales_${sanitizarParaNombreDeArchivo(proyecto.metadatos.nombre)}.pdf`
 }
 
-function renderizarEncabezado(proyecto: Proyecto, porcentaje: number, fechaGeneracion: Date): Content[] {
+// MATERIALS-POLISH-01 (brief §7/§9): "Estado del listado" -- discreto,
+// nunca el lenguaje hidráulico CUMPLE/NO CUMPLE (son conceptos distintos:
+// éste responde "¿Materials pudo computar todo de forma inequívoca?", no
+// "¿la instalación verifica presión?").
+function etiquetaEstadoDeListado(estado: 'completo' | 'parcial'): string {
+  return estado === 'completo' ? 'Listado completo' : 'Listado parcial'
+}
+
+function renderizarEncabezado(datos: DatosListadoDeMateriales, fechaGeneracion: Date): Content[] {
+  const { proyecto, porcentajeExtraCompra: porcentaje, estado } = datos
   return [
     {
       columns: [
@@ -62,8 +90,9 @@ function renderizarEncabezado(proyecto: Proyecto, porcentaje: number, fechaGener
         widths: ['auto', '*'],
         body: [
           [{ text: 'Proyecto', bold: true }, { text: proyecto.metadatos.nombre }],
-          [{ text: 'Fecha del proyecto', bold: true }, { text: proyecto.metadatos.fecha }],
+          [{ text: 'Fecha del proyecto', bold: true }, { text: formatearFechaDeProyecto(proyecto.metadatos.fecha) }],
           [{ text: 'Margen adicional de compra', bold: true }, { text: formatearPorcentaje(porcentaje) }],
+          [{ text: 'Estado', bold: true }, { text: etiquetaEstadoDeListado(estado), style: estado === 'parcial' ? 'estadoParcial' : undefined }],
         ],
       },
       layout: layoutTablaIuas,
@@ -73,6 +102,63 @@ function renderizarEncabezado(proyecto: Proyecto, porcentaje: number, fechaGener
       text:
         'El margen adicional de compra se aplica exclusivamente a tuberías y accesorios físicos computados. ' +
         'No modifica el cálculo hidráulico.',
+      style: 'aclaracion',
+    },
+    ...(estado === 'parcial'
+      ? [
+          {
+            text:
+              'Existen elementos pendientes de definición. Las cantidades indicadas corresponden únicamente a ' +
+              'los elementos actualmente computables.',
+            style: 'aclaracionParcial',
+          } as Content,
+        ]
+      : []),
+  ]
+}
+
+// MATERIALS-POLISH-01 (brief §27/§28): resumen operativo compacto debajo
+// del encabezado -- NO es un dashboard, sólo los totales que ya se pueden
+// leer más abajo desglosados, adelantados para orientar al usuario. Se
+// omite cualquier fila cuyo valor no sea computable (brief: "mostrar sólo
+// si los valores son computables") -- p.ej. sin tuberías computadas, no
+// se muestra "Tuberías computadas: 0 m" como si fuera un resultado real.
+function renderizarResumenOperativo(datos: DatosListadoDeMateriales): Content[] {
+  const totalTuberiasComputada_m = datos.tuberias.reduce((acc, item) => acc + item.longitudComputada_m, 0)
+  const totalTuberiasCompra_m = datos.tuberias.reduce((acc, item) => acc + item.longitudCompra_m, 0)
+  const totalAccesoriosComputada = datos.accesorios.reduce((acc, item) => acc + item.cantidadComputada, 0)
+  // Compra sugerida total: suma de la compra YA consolidada por tipo+DN
+  // (resolverConsolidadoDeAccesorios), nunca de las filas del detalle
+  // partidas por origen -- mismo criterio anti-doble-ceil que la sección
+  // de Accesorios (brief §17).
+  const totalAccesoriosCompra = resolverConsolidadoDeAccesorios(datos).reduce((acc, fila) => acc + fila.compra, 0)
+
+  const filas: [string, string][] = []
+  if (datos.tuberias.length > 0) {
+    filas.push(['Tuberías computadas', formatearMetros(totalTuberiasComputada_m)])
+    filas.push(['Tuberías con margen', formatearMetros(totalTuberiasCompra_m)])
+  }
+  if (datos.accesorios.length > 0) {
+    filas.push(['Accesorios computados', `${totalAccesoriosComputada} u`])
+    filas.push(['Accesorios sugeridos de compra', `${totalAccesoriosCompra} u`])
+  }
+
+  if (filas.length === 0) {
+    return []
+  }
+
+  return [
+    { text: 'Resumen operativo', style: 'subseccion' },
+    {
+      table: {
+        widths: ['*', 'auto'],
+        body: filas.map(([etiqueta, valor]) => [{ text: etiqueta }, { text: valor, alignment: 'right' as const }]),
+      },
+      layout: layoutTablaIuas,
+      margin: [0, 4, 0, 4],
+    },
+    {
+      text: 'Longitud total computada: suma informativa entre materiales/DN distintos; no sustituye el desglose de compra.',
       style: 'aclaracion',
     },
   ]
@@ -112,36 +198,21 @@ function renderizarSeccionTuberias(datos: DatosListadoDeMateriales, numero: numb
     { text: item.red },
     { text: item.dnComercial },
     { text: formatearMetros(item.longitudComputada_m), alignment: 'right' as const },
-    { text: formatearPorcentaje(datos.porcentajeExtraCompra), alignment: 'right' as const },
     { text: formatearMetros(item.longitudCompra_m), alignment: 'right' as const },
   ])
 
   const consolidado = resolverConsolidadoPorDn(datos.tuberias)
 
+  // MATERIALS-POLISH-01 (brief §13): "Resumen de compra" PRIMERO (Material
+  // + DN, AF+AC consolidados -- lo que alguien necesita para ir a comprar),
+  // "Detalle por red" DESPUÉS (mismo desglose de siempre, para trazabilidad
+  // AF/AC). El margen ya figura en el encabezado del documento -- ninguna
+  // de las dos tablas repite la columna "Extra [%]" (brief §14).
   return [
-    { text: `${numero}. Resumen y detalle de tuberías`, style: 'seccion' },
-    {
-      table: {
-        headerRows: 1,
-        widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto'],
-        body: [
-          [
-            { text: 'Material', bold: true },
-            { text: 'Red', bold: true },
-            { text: 'DN [mm]', bold: true },
-            { text: 'Cantidad computada [m]', bold: true },
-            { text: 'Extra [%]', bold: true },
-            { text: 'Cantidad para compra [m]', bold: true },
-          ],
-          ...filas,
-        ],
-      },
-      layout: layoutTablaIuas,
-      margin: [0, 4, 0, 8],
-    },
+    { text: `${numero}. Tuberías`, style: 'seccion' },
     ...(consolidado.length > 0
-      ? [
-          { text: 'Resumen consolidado de tuberías (Material + DN, AF+AC)', style: 'subseccion' } as Content,
+      ? ([
+          { text: 'Resumen de compra de tuberías', style: 'subseccion' },
           {
             table: {
               headerRows: 1,
@@ -151,7 +222,7 @@ function renderizarSeccionTuberias(datos: DatosListadoDeMateriales, numero: numb
                   { text: 'Material', bold: true },
                   { text: 'DN [mm]', bold: true },
                   { text: 'Cantidad computada [m]', bold: true },
-                  { text: 'Cantidad para compra [m]', bold: true },
+                  { text: 'Cantidad sugerida de compra [m]', bold: true },
                 ],
                 ...consolidado.map((fila) => [
                   { text: fila.material },
@@ -163,9 +234,28 @@ function renderizarSeccionTuberias(datos: DatosListadoDeMateriales, numero: numb
             },
             layout: layoutTablaIuas,
             margin: [0, 4, 0, 8],
-          } as Content,
-        ]
+          },
+        ] as Content[])
       : []),
+    { text: 'Detalle por red', style: 'subseccion' },
+    {
+      table: {
+        headerRows: 1,
+        widths: ['*', 'auto', 'auto', 'auto', 'auto'],
+        body: [
+          [
+            { text: 'Material', bold: true },
+            { text: 'Red', bold: true },
+            { text: 'DN [mm]', bold: true },
+            { text: 'Cantidad computada [m]', bold: true },
+            { text: 'Cantidad sugerida de compra [m]', bold: true },
+          ],
+          ...filas,
+        ],
+      },
+      layout: layoutTablaIuas,
+      margin: [0, 4, 0, 8],
+    },
   ]
 }
 
@@ -174,6 +264,39 @@ function renderizarSeccionTuberias(datos: DatosListadoDeMateriales, numero: numb
 // física aproximada que Caudal propone en modo simplificado ('estimado').
 function etiquetaOrigen(origen: 'definido' | 'estimado'): string {
   return origen === 'estimado' ? 'Estimado' : 'Definido'
+}
+
+// MATERIALS-POLISH-01 (brief §15/§16/§17): resumen de compra de accesorios
+// agrupado por (Accesorio + DN/configuración) IGNORANDO el origen -- un
+// mismo tipo+DN puede llegar con piezas 'estimadas' y 'definidas' a la vez
+// (p.ej. una Tee real de Montante + Tees estimadas de Local, mismo DN por
+// coincidencia) y el resumen los trata como una sola cantidad comprable.
+// CRÍTICO: la cantidad sugerida de compra del resumen se deriva de
+// `Math.ceil(totalComputadoConsolidado × factor)` -- UNA sola vez sobre el
+// total ya sumado, NUNCA sumando los `cantidadCompra` (ya redondeados hacia
+// arriba, uno por origen) de las filas del detalle. Sumar ceils
+// independientes sobreestima la compra (ver brief §17: 1 estimado + 1
+// definido + 10% → ceil(2×1.10)=3, nunca ceil(1.1)+ceil(1.1)=4).
+export function resolverConsolidadoDeAccesorios(datos: DatosListadoDeMateriales) {
+  const factor = 1 + datos.porcentajeExtraCompra / 100
+  const acumulador = new Map<string, { etiqueta: string; dnComercial: string | undefined; computada: number }>()
+  for (const item of datos.accesorios) {
+    const clave = `${item.etiqueta}|${item.dnComercial ?? ''}`
+    const existente = acumulador.get(clave)
+    acumulador.set(clave, {
+      etiqueta: item.etiqueta,
+      dnComercial: item.dnComercial,
+      computada: (existente?.computada ?? 0) + item.cantidadComputada,
+    })
+  }
+  return [...acumulador.values()]
+    .map((fila) => ({ ...fila, compra: Math.ceil(fila.computada * factor) }))
+    .sort((a, b) => {
+      if (a.etiqueta !== b.etiqueta) return a.etiqueta.localeCompare(b.etiqueta, 'es')
+      const dnA = a.dnComercial !== undefined ? parseFloat(a.dnComercial) : Number.POSITIVE_INFINITY
+      const dnB = b.dnComercial !== undefined ? parseFloat(b.dnComercial) : Number.POSITIVE_INFINITY
+      return dnA - dnB
+    })
 }
 
 function renderizarSeccionAccesorios(datos: DatosListadoDeMateriales, numero: number): Content[] {
@@ -190,27 +313,55 @@ function renderizarSeccionAccesorios(datos: DatosListadoDeMateriales, numero: nu
     ]
   }
 
+  const consolidado = resolverConsolidadoDeAccesorios(datos)
+
   return [
     { text: `${numero}. Accesorios`, style: 'seccion' },
+    { text: 'Resumen de compra de accesorios', style: 'subseccion' },
     {
       table: {
         headerRows: 1,
-        widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto'],
+        widths: ['*', 'auto', 'auto', 'auto'],
+        body: [
+          [
+            { text: 'Accesorio', bold: true },
+            { text: 'DN / configuración', bold: true },
+            { text: 'Cantidad computada [u]', bold: true },
+            { text: 'Cantidad sugerida de compra [u]', bold: true },
+          ],
+          ...consolidado.map((fila) => [
+            { text: fila.etiqueta },
+            { text: fila.dnComercial ?? '—' },
+            { text: String(fila.computada), alignment: 'right' as const },
+            { text: String(fila.compra), alignment: 'right' as const },
+          ]),
+        ],
+      },
+      layout: layoutTablaIuas,
+      margin: [0, 4, 0, 8],
+    },
+    { text: 'Detalle de accesorios', style: 'subseccion' },
+    {
+      table: {
+        headerRows: 1,
+        widths: ['*', 'auto', 'auto', 'auto', 'auto'],
         body: [
           [
             { text: 'Accesorio', bold: true },
             { text: 'DN / configuración', bold: true },
             { text: 'Cantidad computada [u]', bold: true },
             { text: 'Origen', bold: true },
-            { text: 'Extra [%]', bold: true },
-            { text: 'Cantidad para compra [u]', bold: true },
+            { text: 'Cantidad sugerida de compra [u]', bold: true },
           ],
+          // Nota (brief §17): esta columna de compra es INFORMATIVA por
+          // fila (redondeo independiente de ESA fila) -- el resumen de
+          // arriba NUNCA se deriva sumando estos valores, sino de la
+          // cantidad computada consolidada (ver resolverConsolidadoDeAccesorios).
           ...datos.accesorios.map((item) => [
             { text: item.etiqueta },
             { text: item.dnComercial ?? '—' },
             { text: String(item.cantidadComputada), alignment: 'right' as const },
             { text: etiquetaOrigen(item.origen) },
-            { text: formatearPorcentaje(datos.porcentajeExtraCompra), alignment: 'right' as const },
             { text: String(item.cantidadCompra), alignment: 'right' as const },
           ]),
         ],
@@ -221,11 +372,32 @@ function renderizarSeccionAccesorios(datos: DatosListadoDeMateriales, numero: nu
   ]
 }
 
+// MATERIALS-POLISH-01 (brief §22): si NI Medidores NI Equipos y
+// almacenamiento tienen contenido todavía (M3/M4 sin iniciar), no dedicar
+// una sección numerada completa a cada uno -- se agrupan en un único
+// bloque compacto, UNA sola sección numerada (el llamador decide si pedir
+// uno o dos números según corresponda -- ver construirDocDefinitionListadoMateriales,
+// nunca se saltea un número por esto).
+function renderizarMedidoresYAlmacenamientoVacios(numero: number): Content[] {
+  return [
+    { text: `${numero}. Elementos todavía no definidos`, style: 'seccion' },
+    {
+      ul: ['Medición (Módulo 3 no está evaluado todavía).', 'Equipos y almacenamiento (no hay componentes adoptados todavía).'],
+      style: 'notaVacio',
+      margin: [0, 2, 0, 8],
+    },
+  ]
+}
+
 function renderizarSeccionSinMargen(
   numero: number,
   titulo: string,
   items: readonly { nombre: string; especificacion: string; cantidad: number }[],
   notaVacio: string,
+  // Brief §29: nota discreta opcional al pie de la sección (usada por
+  // "Artefactos previstos" -- nunca se les aplica margen ni se los llama
+  // "materiales para compra").
+  notaFinal?: string,
 ): Content[] {
   if (items.length === 0) {
     return [
@@ -253,20 +425,41 @@ function renderizarSeccionSinMargen(
         ],
       },
       layout: layoutTablaIuas,
-      margin: [0, 4, 0, 8],
+      margin: [0, 4, 0, notaFinal !== undefined ? 2 : 8],
     },
+    ...(notaFinal !== undefined ? [{ text: notaFinal, style: 'aclaracion' } as Content] : []),
   ]
 }
 
 function renderizarObservaciones(datos: DatosListadoDeMateriales, numero: number): Content[] {
-  const contenido: Content[] = [{ text: `${numero}. Observaciones y alcance`, style: 'seccion' }]
+  const contenido: Content[] = []
+  const hayPendientes = datos.pendientes.length > 0
 
-  if (datos.pendientes.length > 0) {
-    contenido.push({ text: 'Elementos pendientes de definición', style: 'subseccion' })
+  if (hayPendientes) {
+    // MATERIALS-POLISH-01 (brief §24): el título nunca queda huérfano al
+    // final de una página -- viaja en el mismo bloque `unbreakable` que la
+    // PRIMERA nota pendiente. El resto de la lista (si es larga) sigue
+    // fluyendo normalmente en un `ul` aparte, sin volver toda la sección
+    // unbreakable.
     contenido.push({
-      ul: datos.pendientes.map((motivo) => ({ text: motivo, style: 'pendiente' })),
-      margin: [0, 0, 0, 8],
+      stack: [
+        { text: `${numero}. Observaciones y alcance`, style: 'seccion' },
+        { text: 'Elementos pendientes de definición', style: 'subseccion' },
+        { text: datos.pendientes[0]!, style: 'pendiente' },
+      ],
+      unbreakable: true,
     })
+    if (datos.pendientes.length > 1) {
+      contenido.push({
+        ul: datos.pendientes.slice(1).map((motivo) => ({ text: motivo, style: 'pendiente' })),
+        margin: [0, 0, 0, 8],
+      })
+    }
+  } else {
+    // Brief §31: proyecto COMPLETO -- ni el subtítulo "Elementos
+    // pendientes de definición" ni un texto equivalente ("no hay
+    // pendientes") se renderizan.
+    contenido.push({ text: `${numero}. Observaciones y alcance`, style: 'seccion' })
   }
 
   contenido.push({
@@ -275,7 +468,7 @@ function renderizarObservaciones(datos: DatosListadoDeMateriales, numero: number
       'proyecto. En el modo simplificado, Caudal utiliza una composición aproximada de accesorios físicos para ' +
       'el cómputo de materiales (columna "Origen": Estimado); en el modo profesional, el listado utiliza ' +
       'únicamente los accesorios y derivaciones explícitamente modelados (Origen: Definido). Las cantidades ' +
-      'para compra incorporan el margen adicional indicado por el usuario.',
+      'sugeridas de compra incorporan el margen adicional indicado por el usuario.',
     style: 'aclaracion',
   })
 
@@ -292,30 +485,41 @@ export function construirDocDefinitionListadoMateriales(
 
   return {
     pageMargins: [40, 50, 40, 50],
-    // Numeración de secciones CONSECUTIVA (D-δ.139: antes saltaba 1,2,3,4,5,7
-    // -- "Observaciones" tenía el número 7 hardcodeado). Todas las secciones
-    // se renderizan siempre (con nota de "vacío" cuando no hay datos, nunca
-    // se omiten), así que una secuencia simple 1..6 alcanza; si en el futuro
-    // alguna sección pasara a omitirse condicionalmente, este contador
-    // seguiría siendo correcto sin tocar cada título a mano.
+    // Numeración de secciones CONSECUTIVA (D-δ.139/MATERIALS-POLISH-01):
+    // ninguna sección se omite salvo Medidores+Almacenamiento cuando AMBOS
+    // están vacíos (se combinan en un único número, brief §22) -- por eso
+    // `siguienteNumero()` se pide una sola vez para ese caso y dos veces
+    // en el caso normal, nunca se "saltea" un número a mano.
     content: (() => {
       let numeroDeSeccion = 0
       const siguienteNumero = (): number => {
         numeroDeSeccion += 1
         return numeroDeSeccion
       }
+      const medidoresYAlmacenamientoVacios = datos.medidores.length === 0 && datos.almacenamiento.length === 0
       return [
-        ...renderizarEncabezado(proyecto, datos.porcentajeExtraCompra, fechaGeneracion),
+        ...renderizarEncabezado(datos, fechaGeneracion),
+        ...renderizarResumenOperativo(datos),
         ...renderizarSeccionTuberias(datos, siguienteNumero()),
         ...renderizarSeccionAccesorios(datos, siguienteNumero()),
-        ...renderizarSeccionSinMargen(siguienteNumero(), 'Medidores', datos.medidores, 'Módulo 3 (Medidores) no está evaluado todavía.'),
+        ...(medidoresYAlmacenamientoVacios
+          ? renderizarMedidoresYAlmacenamientoVacios(siguienteNumero())
+          : [
+              ...renderizarSeccionSinMargen(siguienteNumero(), 'Medidores', datos.medidores, 'Módulo 3 (Medidores) no está evaluado todavía.'),
+              ...renderizarSeccionSinMargen(
+                siguienteNumero(),
+                'Equipos y almacenamiento',
+                datos.almacenamiento,
+                'No hay componentes de almacenamiento/abastecimiento adoptados todavía.',
+              ),
+            ]),
         ...renderizarSeccionSinMargen(
           siguienteNumero(),
-          'Equipos y almacenamiento',
-          datos.almacenamiento,
-          'No hay componentes de almacenamiento/abastecimiento adoptados todavía.',
+          'Artefactos previstos',
+          datos.artefactos,
+          'No hay artefactos sanitarios declarados todavía.',
+          datos.artefactos.length > 0 ? 'Cantidad prevista en el proyecto; sin margen adicional.' : undefined,
         ),
-        ...renderizarSeccionSinMargen(siguienteNumero(), 'Artefactos previstos', datos.artefactos, 'No hay artefactos sanitarios declarados todavía.'),
         ...renderizarObservaciones(datos, siguienteNumero()),
       ]
     })(),
@@ -352,6 +556,8 @@ export function construirDocDefinitionListadoMateriales(
       aclaracion: { fontSize: 8, color: COLOR_TEXTO_2, italics: true, margin: [0, 4, 0, 4] },
       notaVacio: { fontSize: 9, color: COLOR_TEXTO_2, italics: true, margin: [0, 2, 0, 8] },
       pendiente: { fontSize: 9, color: '#8a6d00' },
+      estadoParcial: { color: '#8a6d00', bold: true },
+      aclaracionParcial: { fontSize: 8, color: '#8a6d00', margin: [0, 2, 0, 4] },
       headerPie: { fontSize: 8, color: COLOR_TEXTO_2 },
     },
     defaultStyle: { fontSize: 10 },

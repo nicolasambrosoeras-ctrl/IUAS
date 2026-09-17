@@ -38,7 +38,15 @@ export type IdentidadDeLocal = {
   readonly localId: string
 }
 
-function localUnicoDeTramo(
+// MATERIALS-POLISH-01: exportada para que resolverDatosDeListadoDeMateriales
+// pueda distinguir, en granularidad 'simplificada', un Tramo "ramal" (puro
+// de un Local pero NO su representativo -- por construcción, siempre
+// aguas abajo de él, contribuye 0 a hf por definición del modelo y NUNCA
+// exige su propia longitud/DN) de un Tramo que sí requiere datos propios
+// (Distribución General, Montante compartido, o el representativo mismo).
+// Mismo criterio ya usado por seleccionarTramosDeAcumulacion, sin duplicar
+// el algoritmo.
+export function localUnicoDeTramo(
   proyecto: Proyecto,
   tramoId: string,
   contexto: ContextoDeCalculoM2 | undefined,

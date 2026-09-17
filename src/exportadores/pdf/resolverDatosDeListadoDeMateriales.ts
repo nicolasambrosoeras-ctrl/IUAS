@@ -36,9 +36,15 @@ import { resolverDiametroComercialDeTramo } from '../../motor/tuberias/resolverD
 import { crearContextoDeCalculoM2, type ContextoDeCalculoM2 } from '../../motor/tuberias/contextoDeCalculoM2'
 import { localesDeUnidadFuncional } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import { nombreDeAccesorio } from '../../interfaz/paginas/AccesoriosDeTramoEditor'
-import { identificarFilasPrincipalesDeLocales } from '../../interfaz/paginas/identificarFilasDeModulo2'
+import {
+  identificarFilasDistribucionGeneral,
+  identificarFilasPrincipalesDeLocales,
+} from '../../interfaz/paginas/identificarFilasDeModulo2'
+import { etiquetaHumanaDeLocal } from '../../interfaz/paginas/montantesDelProyecto'
+import { nombreDeMontante } from '../../interfaz/paginas/nombreDeMontante'
 import { resolverEstadoModulo3 } from '../../motor/modulo3/resolverEstadoModulo3'
 import { contarTerminalesFisicosDeLocal } from '../../motor/tuberias/topologia/contarTerminalesFisicosDeLocal'
+import { localUnicoDeTramo } from '../../motor/tuberias/topologia/identificarTramoRepresentativoDeLocal'
 import { tabla07PerdidasLocalizadas } from '../../normativa/eras-2023/tabla-07-perdidas-localizadas'
 
 export type ItemTuberiaComputado = {
@@ -90,6 +96,11 @@ export type DatosComputoDeMateriales = {
   // Tee sin configurar...) -- nunca se inventa un valor para completarlos
   // (brief §48/§49/§50/§51/§81).
   readonly pendientes: readonly string[]
+  // MATERIALS-POLISH-01: "Estado del listado" -- distinto del estado
+  // hidráulico (CUMPLE/NO CUMPLE de Verificación). 'completo' = ningún
+  // elemento que Materials pretende computar quedó pendiente de
+  // definición. 'parcial' = existe al menos uno (`pendientes.length > 0`).
+  readonly estado: 'completo' | 'parcial'
 }
 
 function ordenarTuberias(items: readonly ItemTuberiaComputado[]): ItemTuberiaComputado[] {
@@ -112,10 +123,98 @@ function ordenarAccesorios(items: readonly ItemAccesorioComputado[]): ItemAcceso
   })
 }
 
+// MATERIALS-POLISH-01: humanización de pendientes (brief §11/§12/§40) --
+// ningún ID interno (`Tramo.id`, `Nodo.id`) llega al texto público. Índice
+// construido UNA vez por resolución: mapa tramoId -> etiqueta de
+// Distribución general ("Alimentación general"/"Alimentación ACS", ya
+// derivada por identificarFilasDistribucionGeneral) y tramoId -> identidad
+// de (UF, Local) del Tramo representativo (identificarFilasPrincipalesDeLocales,
+// la MISMA fuente de verdad que ya usa la fila de M2 y HYD-EST).
+type IndiceDeHumanizacion = {
+  readonly etiquetaDistribucionGeneralPorTramoId: ReadonlyMap<string, string>
+  readonly identidadPorTramoId: ReadonlyMap<string, { unidadFuncionalId: string; localId: string }>
+}
+
+function construirIndiceDeHumanizacion(proyecto: Proyecto): IndiceDeHumanizacion {
+  const etiquetaDistribucionGeneralPorTramoId = new Map<string, string>()
+  for (const fila of identificarFilasDistribucionGeneral(proyecto)) {
+    etiquetaDistribucionGeneralPorTramoId.set(fila.tramoId, fila.etiqueta)
+  }
+  const identidadPorTramoId = new Map<string, { unidadFuncionalId: string; localId: string }>()
+  for (const fila of identificarFilasPrincipalesDeLocales(proyecto)) {
+    identidadPorTramoId.set(fila.tramoId, { unidadFuncionalId: fila.unidadFuncionalId, localId: fila.localId })
+  }
+  return { etiquetaDistribucionGeneralPorTramoId, identidadPorTramoId }
+}
+
+function nombreDeRed(red: RedDeTramo): string {
+  return red === 'AF' ? 'Agua fría' : 'Agua caliente'
+}
+
+// MATERIALS-POLISH-01 (brief §10/§33): en granularidad 'simplificada', un
+// Tramo "ramal" -- puro de un (UF, Local) pero NO su representativo -- es,
+// por construcción del modelo (mismo criterio que
+// seleccionarTramosDeAcumulacion.ts, D-δ.44), un ramal interno hacia un
+// Artefacto puntual que NUNCA requiere su propia longitud/DN/accesorios:
+// el usuario sólo relevó UN dato por (Local, red), el del Tramo
+// representativo. Marcarlo como "pendiente de definición" sería mostrar
+// deuda topológica interna que Materials nunca pretendió computar (brief
+// §10) -- y, para un fan-out/Tee dentro de esa misma zona ramal, la capa
+// de ACCESSORIES-DEFAULTS-01 ya provee la aproximación física
+// correspondiente, así que además duplicaría/contradiría ese default. En
+// 'profesional' esta función siempre devuelve `false`: cada Tramo físico
+// sigue exigiendo sus propios datos, sin cambios (comportamiento previo).
+function esTramoRamalEnSimplificada(
+  proyecto: Proyecto,
+  tramoId: string,
+  contexto: ContextoDeCalculoM2,
+  indiceDeHumanizacion: IndiceDeHumanizacion,
+): boolean {
+  if (proyecto.configuracionHidraulica.granularidadHidraulica !== 'simplificada') {
+    return false
+  }
+  if (indiceDeHumanizacion.identidadPorTramoId.has(tramoId)) {
+    // Es el Tramo representativo de su (Local, red): SIEMPRE relevante.
+    return false
+  }
+  return localUnicoDeTramo(proyecto, tramoId, contexto) !== undefined
+}
+
+// Etiqueta humana de un Tramo para un mensaje de pendiente -- nunca
+// `Tramo.id` ni `Nodo.id`. Orden de resolución: (1) Distribución general
+// ("Alimentación general"/"Alimentación ACS"); (2) Tramo representativo de
+// un (UF, Local) -- misma etiqueta que ya usa la Memoria técnica
+// (`etiquetaHumanaDeLocal`); (3) Montante, si el Tramo pertenece a uno;
+// (4) fallback neutro por red (brief §12: nunca un ID técnico como texto
+// público, ni siquiera como fallback).
+function etiquetaHumanaDeTramoParaPendiente(proyecto: Proyecto, tramoId: string, red: RedDeTramo, indice: IndiceDeHumanizacion): string {
+  const etiquetaGeneral = indice.etiquetaDistribucionGeneralPorTramoId.get(tramoId)
+  if (etiquetaGeneral !== undefined) {
+    return etiquetaGeneral
+  }
+
+  const identidad = indice.identidadPorTramoId.get(tramoId)
+  if (identidad !== undefined) {
+    const uf = proyecto.unidadesFuncionales.find((candidata) => candidata.id === identidad.unidadFuncionalId)
+    const local = uf !== undefined ? localesDeUnidadFuncional(uf).find((candidato) => candidato.id === identidad.localId) : undefined
+    if (uf !== undefined && local !== undefined) {
+      return `${etiquetaHumanaDeLocal(uf, local)} · ${nombreDeRed(red)}`
+    }
+  }
+
+  const tramo = proyecto.redHidraulica?.tramos.find((candidato) => candidato.id === tramoId)
+  if (tramo?.montanteId !== undefined) {
+    return `${nombreDeMontante(proyecto, tramo.montanteId)} · ${nombreDeRed(red)}`
+  }
+
+  return `Tramo de ${nombreDeRed(red).toLowerCase()}`
+}
+
 function resolverTuberiasYAccesorios(
   proyecto: Proyecto,
   catalogoArtefactos: readonly ArtefactoNormativo[],
   contexto: ContextoDeCalculoM2,
+  indiceDeHumanizacion: IndiceDeHumanizacion,
   pendientes: string[],
 ): { tuberias: ItemTuberiaComputado[]; accesorios: Map<string, ItemAccesorioComputado> } {
   const acumuladorTuberias = new Map<string, ItemTuberiaComputado>()
@@ -132,7 +231,15 @@ function resolverTuberiasYAccesorios(
     resolverDiametroComercialDeTramo(proyecto, tramoId, catalogoArtefactos, catalogoSistemasDeTuberia, contexto)
 
   for (const tramo of redHidraulica.tramos) {
-    const etiquetaTramo = `Tramo ${tramo.id} (${tramo.red})`
+    // MATERIALS-POLISH-01 (brief §10/§33): un Tramo "ramal" en
+    // 'simplificada' nunca requiere longitud/DN/accesorios propios -- se
+    // excluye por completo (ni tubería, ni pendiente, ni accesorio
+    // detallado), no sólo se le perdona la longitud.
+    if (esTramoRamalEnSimplificada(proyecto, tramo.id, contexto, indiceDeHumanizacion)) {
+      continue
+    }
+
+    const etiquetaTramo = etiquetaHumanaDeTramoParaPendiente(proyecto, tramo.id, tramo.red, indiceDeHumanizacion)
 
     // Fuente de longitud: exclusivamente longitud_m (CRIT-A20: 0/ausente
     // es inválido, nunca se suma como tramo válido, brief §50).
@@ -192,6 +299,7 @@ function resolverTees(
   proyecto: Proyecto,
   catalogoArtefactos: readonly ArtefactoNormativo[],
   contexto: ContextoDeCalculoM2,
+  indiceDeHumanizacion: IndiceDeHumanizacion,
   acumuladorAccesorios: Map<string, ItemAccesorioComputado>,
   pendientes: string[],
 ): void {
@@ -213,10 +321,34 @@ function resolverTees(
       continue
     }
 
+    // MATERIALS-POLISH-01 (brief §10/§17/§33): en 'simplificada', CUALQUIER
+    // bifurcación sin `montanteId` es la forma NORMAL en que esa
+    // granularidad representa la distribución -- desde "Alimentación
+    // general" abriéndose hacia cada Local (fan-out 1→N sin Tee: así es
+    // como se ve SIEMPRE un proyecto simplificado bien formado, brief §33
+    // "no marcar PARCIAL simplemente porque no existe topología
+    // profesional") hasta el propio fan-out interno de un Local con
+    // varios artefactos (1→2 incluido). Ninguna de las dos exige una Tee
+    // real: la aproximación física de ACCESSORIES-DEFAULTS-01 (Tee
+    // estimada por Local+red) ya cubre el caso interno, y la distribución
+    // general no es una pieza comprable. Sólo una bifurcación real de
+    // MONTANTE (`Tramo.montanteId` presente en el entrante o en algún
+    // saliente -- M2-TOPO-D/TeeDeNodoEditor.tsx) sigue exigiendo su Tee
+    // configurada, en cualquier granularidad.
+    const esBifurcacionDeMontante = entrantes[0]!.montanteId !== undefined || salientes.some((tramo) => tramo.montanteId !== undefined)
+    if (proyecto.configuracionHidraulica.granularidadHidraulica === 'simplificada' && !esBifurcacionDeMontante) {
+      continue
+    }
+
+    // Identidad humana del nodo para cualquier pendiente de esta Tee: la
+    // MISMA etiqueta que su Tramo entrante (brief §11/§12 -- nunca
+    // `Nodo.id`).
+    const etiquetaNodo = etiquetaHumanaDeTramoParaPendiente(proyecto, entrantes[0]!.id, entrantes[0]!.red, indiceDeHumanizacion)
+
     if (salientes.length > 2) {
       // Fan-out 1→N (N≥3): sin representación física en el modelo actual
       // (brief §26) -- nunca se inventa una pieza comercial.
-      pendientes.push(`Derivación múltiple no modelada en nodo "${nodo.id}" — requiere especificación`)
+      pendientes.push(`${etiquetaNodo} — derivación múltiple no modelada, requiere especificación`)
       continue
     }
 
@@ -225,7 +357,7 @@ function resolverTees(
     }
 
     if (nodo.tee === undefined) {
-      pendientes.push(`Tee sin configurar en nodo "${nodo.id}" — requiere especificación`)
+      pendientes.push(`${etiquetaNodo} — Tee pendiente de configuración`)
       continue
     }
 
@@ -245,7 +377,7 @@ function resolverTees(
     }
 
     if (dnEntrada === undefined || dnRecta === undefined || dnLateral === undefined) {
-      pendientes.push(`Tee en nodo "${nodo.id}" — DN pendiente de definición, requiere especificación`)
+      pendientes.push(`${etiquetaNodo} — Tee con DN pendiente de definición`)
       continue
     }
 
@@ -288,6 +420,7 @@ function resolverAccesoriosFisicosPorDefecto(
   proyecto: Proyecto,
   catalogoArtefactos: readonly ArtefactoNormativo[],
   contexto: ContextoDeCalculoM2,
+  indiceDeHumanizacion: IndiceDeHumanizacion,
   acumuladorAccesorios: Map<string, ItemAccesorioComputado>,
   pendientes: string[],
 ): void {
@@ -336,7 +469,8 @@ function resolverAccesoriosFisicosPorDefecto(
     // DN no resoluble: nunca se inventa (mismo criterio que tuberías) --
     // se declara pendiente y no se agrega ninguna pieza para este Local+red.
     if (dnComercial === undefined) {
-      pendientes.push(`Accesorios físicos estimados de Tramo ${fila.tramoId} (${fila.red}) — DN pendiente de definición`)
+      const etiqueta = etiquetaHumanaDeTramoParaPendiente(proyecto, fila.tramoId, fila.red, indiceDeHumanizacion)
+      pendientes.push(`${etiqueta} — accesorios estimados con DN pendiente de definición`)
       continue
     }
 
@@ -465,10 +599,11 @@ export function resolverDatosDeListadoDeMateriales(
 ): DatosComputoDeMateriales {
   const contexto = crearContextoDeCalculoM2()
   const pendientes: string[] = []
+  const indiceDeHumanizacion = construirIndiceDeHumanizacion(proyecto)
 
-  const { tuberias, accesorios } = resolverTuberiasYAccesorios(proyecto, catalogoArtefactos, contexto, pendientes)
-  resolverTees(proyecto, catalogoArtefactos, contexto, accesorios, pendientes)
-  resolverAccesoriosFisicosPorDefecto(proyecto, catalogoArtefactos, contexto, accesorios, pendientes)
+  const { tuberias, accesorios } = resolverTuberiasYAccesorios(proyecto, catalogoArtefactos, contexto, indiceDeHumanizacion, pendientes)
+  resolverTees(proyecto, catalogoArtefactos, contexto, indiceDeHumanizacion, accesorios, pendientes)
+  resolverAccesoriosFisicosPorDefecto(proyecto, catalogoArtefactos, contexto, indiceDeHumanizacion, accesorios, pendientes)
 
   return {
     proyecto,
@@ -478,6 +613,16 @@ export function resolverDatosDeListadoDeMateriales(
     almacenamiento: resolverAlmacenamiento(proyecto, pendientes),
     artefactos: resolverArtefactos(proyecto, catalogoArtefactos),
     pendientes,
+    // MATERIALS-POLISH-01 (brief §7/§31/§32): "COMPLETO" no es un estado
+    // hidráulico (CUMPLE/NO CUMPLE) -- es exclusivamente "¿Materials pudo
+    // computar de forma inequívoca todo lo que pretende computar?". Se
+    // deriva de `pendientes`: cada pendiente ya representa, por
+    // construcción, un elemento que Materials no pudo determinar (brief
+    // §10 -- no se agrega ningún pendiente que no sea relevante para el
+    // BOM). Simplificada bien formada con defaults resolubles → sin
+    // pendientes → COMPLETO (brief §33): no exige granularidad profesional
+    // ni modo detallado.
+    estado: pendientes.length === 0 ? 'completo' : 'parcial',
   }
 }
 
