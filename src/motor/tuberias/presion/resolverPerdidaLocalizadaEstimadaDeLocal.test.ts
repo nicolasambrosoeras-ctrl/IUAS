@@ -15,6 +15,14 @@ import {
   KS_ESTIMADO_SINGULARIDAD_TERMINAL,
   KS_ESTIMADO_LLAVE_DE_PASO,
 } from './resolverPerdidaLocalizadaEstimadaDeLocal'
+import { obtenerKsAcquaSystem } from '../perdidaCarga/catalogoKAccesoriosAcquaSystem'
+
+// HYD-OVERPASS-01: el fixture por defecto de este archivo (proyectoCon)
+// adopta 'acquaSystemMagnumPn20', así que todo Local con >=1 terminal
+// físico ahora también estima 1 Sobrepaso fusión por terminal (cada
+// artefacto de estos fixtures está conectado a una única red -- ver
+// proyectoConTerminalesEnEstrella).
+const KS_ESTIMADO_SOBREPASO = obtenerKsAcquaSystem('sobrepaso').ks
 
 function metadatos(): MetadatosProyecto {
   return {
@@ -110,8 +118,8 @@ function velocidadRealDe(proyecto: Proyecto, tramoId: string): number {
 // Ks equivalente estimado (D-delta.45): tees (n-1) + 1 singularidad
 // terminal fija + 1 llave de paso por Local+red, esta ultima solo
 // cuando hay al menos 1 terminal fisico.
-function ksEquivalenteEstimado(nTees: number): number {
-  return nTees * KS_ESTIMADO_TEE + KS_ESTIMADO_SINGULARIDAD_TERMINAL + KS_ESTIMADO_LLAVE_DE_PASO
+function ksEquivalenteEstimado(nTees: number, nSobrepaso: number): number {
+  return nTees * KS_ESTIMADO_TEE + KS_ESTIMADO_SINGULARIDAD_TERMINAL + KS_ESTIMADO_LLAVE_DE_PASO + nSobrepaso * KS_ESTIMADO_SOBREPASO
 }
 
 describe('resolverPerdidaLocalizadaEstimadaDeLocal', () => {
@@ -128,7 +136,7 @@ describe('resolverPerdidaLocalizadaEstimadaDeLocal', () => {
     )
 
     const vRef = velocidadRealDe(proyecto, tramoRepresentativoId)
-    const hfEsperado = calcularPerdidaCargaLocalizada(ksEquivalenteEstimado(0), vRef)
+    const hfEsperado = calcularPerdidaCargaLocalizada(ksEquivalenteEstimado(0, 1), vRef)
 
     expect(resultado).toEqual({
       tipo: 'estimada',
@@ -137,6 +145,7 @@ describe('resolverPerdidaLocalizadaEstimadaDeLocal', () => {
       nTeesEstimadas: 0,
       nSingularidadTerminal: 1,
       nLlaveDePaso: 1,
+      nSobrepaso: 1,
       velocidadReferencia_mps: vRef,
     })
   })
@@ -167,6 +176,7 @@ describe('resolverPerdidaLocalizadaEstimadaDeLocal', () => {
       nTeesEstimadas: 0,
       nSingularidadTerminal: 0,
       nLlaveDePaso: 0,
+      nSobrepaso: 0,
       velocidadReferencia_mps: 0,
     })
   })
@@ -184,13 +194,14 @@ describe('resolverPerdidaLocalizadaEstimadaDeLocal', () => {
     )
 
     const vRef = velocidadRealDe(proyecto, tramoRepresentativoId)
-    const hfEsperado = calcularPerdidaCargaLocalizada(ksEquivalenteEstimado(1), vRef)
+    const hfEsperado = calcularPerdidaCargaLocalizada(ksEquivalenteEstimado(1, 2), vRef)
 
     if (resultado.tipo !== 'estimada') throw new Error('se esperaba estimada')
     expect(resultado.nTerminalesLocal).toBe(2)
     expect(resultado.nTeesEstimadas).toBe(1)
     expect(resultado.nSingularidadTerminal).toBe(1)
     expect(resultado.nLlaveDePaso).toBe(1)
+    expect(resultado.nSobrepaso).toBe(2)
     expect(resultado.velocidadReferencia_mps).toBeCloseTo(vRef, 12)
     expect(resultado.hf_m).toBeCloseTo(hfEsperado, 12)
   })
@@ -213,13 +224,14 @@ describe('resolverPerdidaLocalizadaEstimadaDeLocal', () => {
     )
 
     const vRef = velocidadRealDe(proyecto, tramoRepresentativoId)
-    const hfEsperado = calcularPerdidaCargaLocalizada(ksEquivalenteEstimado(3), vRef)
+    const hfEsperado = calcularPerdidaCargaLocalizada(ksEquivalenteEstimado(3, 4), vRef)
 
     if (resultado.tipo !== 'estimada') throw new Error('se esperaba estimada')
     expect(resultado.nTerminalesLocal).toBe(4)
     expect(resultado.nTeesEstimadas).toBe(3)
     expect(resultado.nSingularidadTerminal).toBe(1)
     expect(resultado.nLlaveDePaso).toBe(1)
+    expect(resultado.nSobrepaso).toBe(4)
     expect(resultado.hf_m).toBeCloseTo(hfEsperado, 12)
   })
 
@@ -325,6 +337,10 @@ describe('resolverPerdidaLocalizadaEstimadaDeLocal', () => {
     expect(resultadoAC.nSingularidadTerminal).toBe(1)
     expect(resultadoAC.nLlaveDePaso).toBe(1)
     expect(resultadoAC.hf_m).toBeGreaterThan(0)
+    // HYD-OVERPASS-01: receptaculoDucha (AF+AC) se asigna entero a AC (1
+    // sobrepaso, nunca 2); lavatorio (sólo AF) se asigna a AF.
+    expect(resultadoAF.nSobrepaso).toBe(1)
+    expect(resultadoAC.nSobrepaso).toBe(1)
   })
 
   const SISTEMA_INSUFICIENTE: readonly SistemaDeTuberiaCatalogado[] = [

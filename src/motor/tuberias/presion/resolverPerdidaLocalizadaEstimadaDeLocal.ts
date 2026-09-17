@@ -63,6 +63,10 @@ import { resolverDiametroComercialDeTramo } from '../resolverDiametroComercialDe
 import type { ContextoDeCalculoM2 } from '../contextoDeCalculoM2'
 import { calcularPerdidaCargaLocalizada } from '../perdidaCarga/calcularPerdidaCargaLocalizada'
 import { contarTerminalesFisicosDeLocal } from '../topologia/contarTerminalesFisicosDeLocal'
+import { contarSobrepasosDeLocalPorRed } from '../topologia/contarSobrepasosDeLocalPorRed'
+import { localesDeUnidadFuncional } from '../geometria/resolverCotaHidraulicaDeArtefacto'
+import { obtenerKsAcquaSystem } from '../perdidaCarga/catalogoKAccesoriosAcquaSystem'
+import { SISTEMA_DE_TUBERIA_ACQUA_SYSTEM_ID } from '../perdidaCarga/resolverKsDeAccesorioDeTramo'
 import {
   identificarTramosRepresentativosDeLocales,
   obtenerTramosRepresentativosDeLocalesDeContexto,
@@ -82,6 +86,11 @@ export type ResultadoPerdidaLocalizadaEstimadaDeLocal =
       readonly nTeesEstimadas: number
       readonly nSingularidadTerminal: number
       readonly nLlaveDePaso: number
+      // HYD-OVERPASS-01: cantidad de "Sobrepaso fusión" (Acqua System)
+      // asignados a este (Local, red) -- ver contarSobrepasosDeLocalPorRed.
+      // Siempre 0 cuando el sistema adoptado no es Acqua System (el
+      // producto no existe en ningún otro catálogo de este dominio).
+      readonly nSobrepaso: number
       // 0 cuando nTerminalesLocal=0: Js=0 no depende de V, nunca se
       // resolvio ningun candidato comercial para llegar a este resultado.
       readonly velocidadReferencia_mps: number
@@ -115,6 +124,16 @@ export function resolverPerdidaLocalizadaEstimadaDeLocal(
 
   const nTerminalesLocal = contarTerminalesFisicosDeLocal(redHidraulica, unidadFuncionalId, localId, red)
 
+  // Sobrepaso (HYD-OVERPASS-01): se cuenta ANTES del corte por
+  // nTerminalesLocal===0 porque, aunque infrecuente, no depende de la
+  // misma cardinalidad (contarSobrepasosDeLocalPorRed recorre los
+  // Artefactos del Local directamente) -- en la práctica ambos son 0 o
+  // ambos son >0 para el mismo (Local, red), pero no se asume esa
+  // correspondencia sin verificarla.
+  const uf = proyecto.unidadesFuncionales.find((candidata) => candidata.id === unidadFuncionalId)
+  const local = uf !== undefined ? localesDeUnidadFuncional(uf).find((candidato) => candidato.id === localId) : undefined
+  const nSobrepaso = local !== undefined ? contarSobrepasosDeLocalPorRed(redHidraulica, local, unidadFuncionalId, localId, red) : 0
+
   if (nTerminalesLocal === 0) {
     return {
       tipo: 'estimada',
@@ -123,6 +142,7 @@ export function resolverPerdidaLocalizadaEstimadaDeLocal(
       nTeesEstimadas: 0,
       nSingularidadTerminal: 0,
       nLlaveDePaso: 0,
+      nSobrepaso: 0,
       velocidadReferencia_mps: 0,
     }
   }
@@ -176,10 +196,22 @@ export function resolverPerdidaLocalizadaEstimadaDeLocal(
     return { tipo: 'incompleta', tramosNoResueltos }
   }
 
+  // Sobrepaso (HYD-OVERPASS-01): sólo tiene incidencia hidráulica cuando
+  // el sistema comercial adoptado es Acqua System -- es un producto de
+  // ese catálogo específico, no una pieza genérica de Tabla N°7. Para
+  // cualquier otro sistema, nSobrepaso puede ser >0 (el Artefacto sigue
+  // conectado físicamente) pero no aporta Ks: no hay un valor publicado
+  // ni adoptado para ningún otro fabricante todavía (nunca se inventa).
+  const ksSobrepaso =
+    proyecto.configuracionHidraulica.sistemaDeTuberiaId === SISTEMA_DE_TUBERIA_ACQUA_SYSTEM_ID
+      ? obtenerKsAcquaSystem('sobrepaso').ks
+      : 0
+
   const ksEquivalenteEstimado =
     nTeesEstimadas * KS_ESTIMADO_TEE +
     nSingularidadTerminal * KS_ESTIMADO_SINGULARIDAD_TERMINAL +
-    nLlaveDePaso * KS_ESTIMADO_LLAVE_DE_PASO
+    nLlaveDePaso * KS_ESTIMADO_LLAVE_DE_PASO +
+    nSobrepaso * ksSobrepaso
   const hf_m = calcularPerdidaCargaLocalizada(ksEquivalenteEstimado, velocidadReferencia_mps)
 
   return {
@@ -189,6 +221,7 @@ export function resolverPerdidaLocalizadaEstimadaDeLocal(
     nTeesEstimadas,
     nSingularidadTerminal,
     nLlaveDePaso,
+    nSobrepaso,
     velocidadReferencia_mps,
   }
 }

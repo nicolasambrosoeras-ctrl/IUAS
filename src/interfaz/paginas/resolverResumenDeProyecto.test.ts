@@ -77,8 +77,9 @@ describe('resolverResumenDeProyecto (UI-01C)', () => {
     // FIX-HYD-EST-SIMPLIFIED-01: Vref de la plantilla estimada pasa a ser
     // la del Tramo representativo del Local+red (la fila que el usuario
     // ve/edita), no el máximo entre los tramos que alimentan cada
-    // terminal. El margen pasa a −19,437 m.c.a. (sigue NO CUMPLE).
-    if (r.margenCritico.tipo === 'valor') expect(r.margenCritico.texto).toBe('-19,437 m.c.a.')
+    // terminal. El margen pasa a −20,047 m.c.a. (sigue NO CUMPLE; HYD-OVERPASS-01
+    // suma la incidencia hidráulica del Sobrepaso fusión estimado, Acqua System).
+    if (r.margenCritico.tipo === 'valor') expect(r.margenCritico.texto).toBe('-20,047 m.c.a.')
     expect(r.margenCumple).toBe(false)
   })
 

@@ -271,10 +271,12 @@ describe('D-δ.70 · Baseline funcional transversal M1–M4', () => {
     // Local+red -- la misma fila que el usuario ve/edita en Módulo 2 --
     // en vez del máximo entre los tramos que alimentan cada terminal
     // individual. En el canónico eso cambia la Vref de la fila "Baño 1 ·
-    // AF" y el margen pasa a −19,437 m.c.a. (sigue NO CUMPLE). M1/M3/M4/
+    // AF" y el margen pasa a −20,047 m.c.a. (sigue NO CUMPLE; HYD-OVERPASS-01
+    // suma la incidencia hidráulica del Sobrepaso fusión estimado, Acqua
+    // System). M1/M3/M4/
     // Tabla N°1 intactos.
     if (m2.estado.estado === 'completo') {
-      expect(m2.estado.terminalMasDesfavorable.margen_mca).toBeCloseTo(-19.437, 3)
+      expect(m2.estado.terminalMasDesfavorable.margen_mca).toBeCloseTo(-20.047, 3)
       expect(m2.estado.terminalMasDesfavorable.cumpleMinimo).toBe(false)
     }
   })

@@ -23,6 +23,8 @@ import {
   KS_ESTIMADO_SINGULARIDAD_TERMINAL,
   KS_ESTIMADO_LLAVE_DE_PASO,
 } from '../../motor/tuberias/presion/resolverPerdidaLocalizadaEstimadaDeLocal'
+import { obtenerKsAcquaSystem } from '../../motor/tuberias/perdidaCarga/catalogoKAccesoriosAcquaSystem'
+import { SISTEMA_DE_TUBERIA_ACQUA_SYSTEM_ID } from '../../motor/tuberias/perdidaCarga/resolverKsDeAccesorioDeTramo'
 import { resolverCotaHidraulicaEfectivaDeArtefacto, resolverNivelDeLocal } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import { resolverEstadoModulo4, type EstadoModulo4, type ResultadoModulo4 } from '../../motor/modulo4/resolverEstadoModulo4'
 import type { PeloDeAguaMinimoEfectivo } from '../../motor/modulo4/resolverPeloDeAguaMinimoDeTanque'
@@ -155,9 +157,15 @@ export type CasoPerdidaLocalizadaEstimada = {
   readonly nTeesEstimadas: number
   readonly nSingularidadTerminal: number
   readonly nLlaveDePaso: number
+  // HYD-OVERPASS-01: cantidad de "Sobrepaso fusión" (Acqua System)
+  // estimados para este (Local, red) -- 0 cuando el sistema adoptado no
+  // es Acqua System (ver resolverPerdidaLocalizadaEstimadaDeLocal.ts).
+  readonly nSobrepaso: number
   readonly ksTee: number
   readonly ksSingularidadTerminal: number
   readonly ksLlaveDePaso: number
+  // 0 cuando el sistema adoptado no es Acqua System (mismo criterio que nSobrepaso).
+  readonly ksSobrepaso: number
   readonly kTotal: number
   readonly velocidadReferencia_mps: number
   readonly hf_m: number
@@ -284,6 +292,10 @@ function resolverCasoPerdidaLocalizadaEstimada(
     if (resultado.tipo !== 'estimada' || resultado.nTerminalesLocal === 0) {
       continue
     }
+    const ksSobrepaso =
+      proyecto.configuracionHidraulica.sistemaDeTuberiaId === SISTEMA_DE_TUBERIA_ACQUA_SYSTEM_ID
+        ? obtenerKsAcquaSystem('sobrepaso').ks
+        : 0
     return {
       localEtiqueta: candidato.etiqueta,
       red: candidato.red,
@@ -291,13 +303,16 @@ function resolverCasoPerdidaLocalizadaEstimada(
       nTeesEstimadas: resultado.nTeesEstimadas,
       nSingularidadTerminal: resultado.nSingularidadTerminal,
       nLlaveDePaso: resultado.nLlaveDePaso,
+      nSobrepaso: resultado.nSobrepaso,
       ksTee: KS_ESTIMADO_TEE,
       ksSingularidadTerminal: KS_ESTIMADO_SINGULARIDAD_TERMINAL,
       ksLlaveDePaso: KS_ESTIMADO_LLAVE_DE_PASO,
+      ksSobrepaso,
       kTotal:
         resultado.nTeesEstimadas * KS_ESTIMADO_TEE +
         resultado.nSingularidadTerminal * KS_ESTIMADO_SINGULARIDAD_TERMINAL +
-        resultado.nLlaveDePaso * KS_ESTIMADO_LLAVE_DE_PASO,
+        resultado.nLlaveDePaso * KS_ESTIMADO_LLAVE_DE_PASO +
+        resultado.nSobrepaso * ksSobrepaso,
       velocidadReferencia_mps: resultado.velocidadReferencia_mps,
       hf_m: resultado.hf_m,
     }

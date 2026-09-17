@@ -174,8 +174,9 @@ describe('resolverDatosDeInforme -- Verificación hidráulica (§31/§16)', () =
     expect(critico).toBeDefined()
     expect(critico!.esCritico).toBe(true)
     expect(critico!.cumple).toBe(false)
-    // Mismo baseline que resolverResumenDeProyecto.test.ts.
-    expect(critico!.margenTexto).toBe('-19,437 m.c.a.')
+    // Mismo baseline que resolverResumenDeProyecto.test.ts (HYD-OVERPASS-01
+    // suma la incidencia hidráulica del Sobrepaso fusión estimado, Acqua System).
+    expect(critico!.margenTexto).toBe('-20,047 m.c.a.')
   })
 
   it('exactamente un terminal está marcado como crítico', () => {
@@ -220,7 +221,11 @@ describe('resolverDatosDeInforme -- REPORT-01B: desarrollo de cálculo M2 (§8/�
     expect(caso!.ksTee).toBeCloseTo(3.0, 2)
     expect(caso!.ksSingularidadTerminal).toBeCloseTo(1.35, 2)
     expect(caso!.ksLlaveDePaso).toBeCloseTo(9.18, 2)
-    const kEsperado = caso!.nTeesEstimadas * caso!.ksTee + caso!.nSingularidadTerminal * caso!.ksSingularidadTerminal + caso!.nLlaveDePaso * caso!.ksLlaveDePaso
+    const kEsperado =
+      caso!.nTeesEstimadas * caso!.ksTee +
+      caso!.nSingularidadTerminal * caso!.ksSingularidadTerminal +
+      caso!.nLlaveDePaso * caso!.ksLlaveDePaso +
+      caso!.nSobrepaso * caso!.ksSobrepaso
     expect(caso!.kTotal).toBeCloseTo(kEsperado, 6)
     const hfEsperada = (caso!.kTotal * caso!.velocidadReferencia_mps ** 2) / (2 * 9.81)
     expect(caso!.hf_m).toBeCloseTo(hfEsperada, 6)

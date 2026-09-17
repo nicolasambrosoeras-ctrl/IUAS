@@ -423,19 +423,23 @@ function renderizarCasoVelocidadYPerdidaDistribuida(caso: CasoVelocidadYPerdidaD
 }
 
 function renderizarCasoPerdidaLocalizadaEstimada(caso: CasoPerdidaLocalizadaEstimada): Content[] {
+  // HYD-OVERPASS-01: el término de Sobrepaso sólo se agrega al texto
+  // cuando aplica (sistema Acqua System con >=1 sobrepaso estimado para
+  // este Local+red) -- en cualquier otro caso (nSobrepaso=0) el texto es
+  // idéntico al de antes de este slice.
+  const terminalesTexto =
+    `Terminales: ${formatearNumero(caso.nTerminalesLocal, 'conteo')} · Tees estimadas: ${formatearNumero(caso.nTeesEstimadas, 'conteo')} ` +
+    `· Singularidad terminal: ${formatearNumero(caso.nSingularidadTerminal, 'conteo')} · Llave de paso: ${formatearNumero(caso.nLlaveDePaso, 'conteo')}` +
+    (caso.nSobrepaso > 0 ? ` · Sobrepaso fusión: ${formatearNumero(caso.nSobrepaso, 'conteo')}` : '')
+  const kTotalTexto =
+    `K total = ${caso.nTeesEstimadas}×${formatearNumero(caso.ksTee, 'adimensional')} + ${caso.nSingularidadTerminal}×${formatearNumero(caso.ksSingularidadTerminal, 'adimensional')} + ${caso.nLlaveDePaso}×${formatearNumero(caso.ksLlaveDePaso, 'adimensional')}` +
+    (caso.nSobrepaso > 0 ? ` + ${caso.nSobrepaso}×${formatearNumero(caso.ksSobrepaso, 'adimensional')}` : '') +
+    ` = ${formatearNumero(caso.kTotal, 'adimensional')}`
+
   return [
     { text: `Caso representativo: ${caso.localEtiqueta} (${caso.red === 'AF' ? 'Agua fría' : 'Agua caliente'})`, style: 'subseccionNivel' },
-    {
-      text:
-        `Terminales: ${formatearNumero(caso.nTerminalesLocal, 'conteo')} · Tees estimadas: ${formatearNumero(caso.nTeesEstimadas, 'conteo')} ` +
-        `· Singularidad terminal: ${formatearNumero(caso.nSingularidadTerminal, 'conteo')} · Llave de paso: ${formatearNumero(caso.nLlaveDePaso, 'conteo')}`,
-      style: 'metadatos',
-    },
-    {
-      text:
-        `K total = ${caso.nTeesEstimadas}×${formatearNumero(caso.ksTee, 'adimensional')} + ${caso.nSingularidadTerminal}×${formatearNumero(caso.ksSingularidadTerminal, 'adimensional')} + ${caso.nLlaveDePaso}×${formatearNumero(caso.ksLlaveDePaso, 'adimensional')} = ${formatearNumero(caso.kTotal, 'adimensional')}`,
-      style: 'formula',
-    },
+    { text: terminalesTexto, style: 'metadatos' },
+    { text: kTotalTexto, style: 'formula' },
     {
       text:
         `hf localizada = K · Vref² / (2·g) = ${formatearNumero(caso.kTotal, 'adimensional')} × ${formatearNumero(caso.velocidadReferencia_mps, 'm/s')}² / 19,62 = ${formatearNumero(caso.hf_m, 'm')} m.c.a.`,
