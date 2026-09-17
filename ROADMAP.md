@@ -3802,6 +3802,45 @@ salvo bug inequívoco o decisión roja explícita.
   completo en `docs/HYD-ACQUA-K-CATALOG-01.md`.
   - **Estado:** `HYD-ACQUA-K-CATALOG-01: CERRADO — pendiente validación manual`.
 
+- **D-δ.145 — HYD-EST-NETWORK-01: incorporar los accesorios estimados de
+  Montante y Colector al camino hidráulico (EN CURSO — commits
+  funcionales verdes, documentación/PDF/E2E/deploy pendientes).** Cierra
+  la brecha documentada en HYD-ACQUA-K-CATALOG-01: Montante y Colector
+  aportaban accesorios estimados DREZA sólo al listado de materiales,
+  nunca a la pérdida localizada estimada -- una pieza podía figurar en
+  materiales sin aportar ΣK/hf. Nueva fuente única de verdad
+  (`resolverAccesoriosFisicosEstimadosDeRed.ts`): cada accesorio físico
+  estimado de Montante/Colector queda anclado a un Tramo o Nodo real de
+  `RedHidraulica`, consumida tanto por el balance hidráulico
+  (`acumularPerdidaLocalizadaEstimadaDeMontanteYColector.ts`, sumado a
+  `resolverPresionResidualDeCamino.ts` en modo Estimadas +
+  `granularidadHidraulica: 'simplificada'`) como por Materials
+  (`resolverAccesoriosConstructivosDreza.ts` deja de recalcular Montante/
+  Colector con una implementación paralela, ahora PROYECTA la misma
+  fuente). Alcance confirmado con el usuario: el interior de un Local NO
+  se toca (sigue el agregado `(Local, red)` de D-δ.40/D-δ.45/
+  FIX-HYD-EST-SIMPLIFIED-01 -- reabrir ese modelo fue rechazado en
+  D-δ.112/D-δ.113). Decisión del usuario sobre uniones: se agrupan por
+  ubicación específica (cada Montante/tronco de Colector calcula
+  `floor(longitudPropia/4)` sobre su propia longitud), corrigiendo la
+  agrupación por sector amplio que `MATERIALS-PDF-POLISH-02` había
+  preservado deliberadamente a falta de esta unificación -- verificado que
+  el total de materiales del proyecto de referencia NO cambia (88 u base /
+  104 u compra, el resumen consolidado ya agrupaba por accesorio+DN, no
+  por ubicación). Sólo cambia el balance hidráulico: margen del terminal
+  crítico pasa de −19,640 a −23,931 m.c.a. (sigue NO CUMPLE). Correcciones
+  de diseño encontradas al integrar (BFS del tronco de Colector en vez de
+  cadena lineal, Montante sin topología ya no genera Tee fantasma,
+  supresión de asimetría entre salidas que comparten un mismo nodo de
+  fan-out) documentadas en `docs/HYD-EST-NETWORK-01.md`. QA: `tsc -b`
+  limpio, Vitest 2151/2151, ESLint 11/0 idéntico a la base.
+  - **Pendiente real:** reducciones estimadas de Montante/Colector por
+    cambio de DN (no implementado), 3 proyectos de aceptación auditables
+    dedicados, PDF regenerado y verificado visualmente, E2E dirigido,
+    deploy y smoke de producción, actualización de este ADR/ROADMAP más
+    allá de esta entrada de cierre parcial.
+  - **Estado:** `HYD-EST-NETWORK-01: EN CURSO`.
+
 **INTERFAZ WEB CAUDAL BY DREZA: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
