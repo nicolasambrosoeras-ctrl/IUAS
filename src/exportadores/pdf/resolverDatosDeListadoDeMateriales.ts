@@ -19,6 +19,13 @@
 // un segmento de Montante compartido por varios Locales) se computa
 // exactamente una vez, nunca una vez por camino/terminal (brief §11,
 // CRIT de doble conteo).
+//
+// ACCESSORIES-DEFAULTS-01 (D-δ.139): además de accesorios/Tees explícitos
+// (`origen: 'definido'`), en granularidad 'simplificada' + método
+// 'estimado' este resolver agrega una composición física APROXIMADA por
+// (Local, red) -- `origen: 'estimado'`, ver resolverAccesoriosFisicosPorDefecto
+// más abajo. Decisión de dominio del usuario, documentada en
+// docs/ACCESSORIES-DEFAULTS-01.md.
 import type { Proyecto, UnidadFuncional } from '../../modelo/proyecto'
 import type { RedDeTramo } from '../../modelo/redHidraulica'
 import type { ArtefactoNormativo } from '../../normativa/eras-2023/catalogo-artefactos'
@@ -29,7 +36,10 @@ import { resolverDiametroComercialDeTramo } from '../../motor/tuberias/resolverD
 import { crearContextoDeCalculoM2, type ContextoDeCalculoM2 } from '../../motor/tuberias/contextoDeCalculoM2'
 import { localesDeUnidadFuncional } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import { nombreDeAccesorio } from '../../interfaz/paginas/AccesoriosDeTramoEditor'
+import { identificarFilasPrincipalesDeLocales } from '../../interfaz/paginas/identificarFilasDeModulo2'
 import { resolverEstadoModulo3 } from '../../motor/modulo3/resolverEstadoModulo3'
+import { contarTerminalesFisicosDeLocal } from '../../motor/tuberias/topologia/contarTerminalesFisicosDeLocal'
+import { tabla07PerdidasLocalizadas } from '../../normativa/eras-2023/tabla-07-perdidas-localizadas'
 
 export type ItemTuberiaComputado = {
   readonly material: string
@@ -39,15 +49,24 @@ export type ItemTuberiaComputado = {
 }
 
 // Accesorios físicos explícitamente modelados (Tramo.accesorios en modo
-// 'detallado') MÁS Tees nodales inequívocamente especificables (brief §24):
-// ambos son piezas discretas comprables, agrupadas bajo el mismo tipo de
-// ítem para el margen de compra (brief §22/§46) -- nunca a partir de los K
-// estimados de HYD-EST (brief §19, jamás convertidos en pieza).
+// 'detallado') MÁS Tees nodales inequívocamente especificables (brief §24)
+// -- origen `'definido'` -- MÁS, desde ACCESSORIES-DEFAULTS-01 (D-δ.139),
+// la composición física APROXIMADA de un Local+red en granularidad
+// 'simplificada' + modo 'estimado' -- origen `'estimado'` (ver
+// resolverAccesoriosFisicosPorDefecto). Todos son piezas discretas
+// comprables, agrupadas bajo el mismo tipo de ítem para el margen de
+// compra (brief §22/§46).
 export type ItemAccesorioComputado = {
   readonly clave: string
   readonly etiqueta: string
   readonly dnComercial: string | undefined
   readonly cantidadComputada: number
+  // 'definido' = accesorio/Tee explícitamente modelado por el usuario
+  // (Tramo.accesorios o Nodo.tee real). 'estimado' = composición física
+  // aproximada de ACCESSORIES-DEFAULTS-01 -- Materials/PDF lo muestran
+  // como columna "Origen", nunca se persiste (100% derivado en cada
+  // resolución).
+  readonly origen: 'definido' | 'estimado'
 }
 
 // Ítems SIN margen de compra (brief §27/§28/§31/§38): medidores, equipos de
@@ -153,6 +172,7 @@ function resolverTuberiasYAccesorios(
           etiqueta,
           dnComercial,
           cantidadComputada: (existente?.cantidadComputada ?? 0) + accesorio.cantidad,
+          origen: 'definido',
         })
       }
     }
@@ -237,7 +257,95 @@ function resolverTees(
       etiqueta,
       dnComercial: undefined,
       cantidadComputada: (existente?.cantidadComputada ?? 0) + 1,
+      origen: 'definido',
     })
+  }
+}
+
+// ACCESSORIES-DEFAULTS-01 (D-δ.139, decisión de dominio del usuario):
+// composición física APROXIMADA de accesorios por (Local, red), reusando
+// EXACTAMENTE la misma cardinalidad ya cerrada de HYD-EST (D-δ.40/D-δ.45)
+// como aproximación de COMPRA -- nunca reabre ni recalibra esa fórmula
+// hidráulica (los `KS_ESTIMADO_*`/la resolución de `hf` de
+// resolverPerdidaLocalizadaEstimadaDeLocal.ts no se tocan ni se importan
+// acá; esta función no calcula pérdida de carga, sólo cuenta piezas):
+//   nTeesEstimadas        = max(0, n-1)           (Tee entrada central,
+//                                                   salidas laterales)
+//   nSingularidadTerminal = n>=1 ? 1 : 0           (Codo a 90º)
+//   nLlaveDePaso          = n>=1 ? 1 : 0           (Llave de paso)
+//
+// Corre EXCLUSIVAMENTE cuando `granularidadHidraulica==='simplificada'` Y
+// `metodoPerdidaLocalizada==='estimado'` -- decisión de producto explícita
+// del usuario: en 'profesional' el listado exige piezas explícitamente
+// modeladas (Tramo.accesorios/Nodo.tee real), nunca completa el BOM con
+// una convención automática, aunque el método de pérdida siga siendo
+// 'estimado'. Esto también deja sin ningún riesgo de doble conteo contra
+// Tees topológicas reales: en 'profesional' los defaults están
+// directamente deshabilitados; en 'simplificada' un Local nunca tiene
+// `Nodo.tee` propio (las Tees reales sólo existen en derivaciones de
+// Montante -- M2-TOPO-D/TeeDeNodoEditor.tsx -- fuera de este Local).
+function resolverAccesoriosFisicosPorDefecto(
+  proyecto: Proyecto,
+  catalogoArtefactos: readonly ArtefactoNormativo[],
+  contexto: ContextoDeCalculoM2,
+  acumuladorAccesorios: Map<string, ItemAccesorioComputado>,
+  pendientes: string[],
+): void {
+  const { configuracionHidraulica, redHidraulica } = proyecto
+  if (
+    redHidraulica === undefined ||
+    configuracionHidraulica.granularidadHidraulica !== 'simplificada' ||
+    configuracionHidraulica.metodoPerdidaLocalizada !== 'estimado'
+  ) {
+    return
+  }
+
+  const filaTeeEstimada = tabla07PerdidasLocalizadas.find((fila) => fila.id === 'teeEntradaCentralSalidasLaterales')
+  if (filaTeeEstimada === undefined) {
+    // Precondicion imposible: mismo criterio que obtenerKsDeAccesorio.
+    throw new Error(
+      'resolverAccesoriosFisicosPorDefecto: no existe "teeEntradaCentralSalidasLaterales" en Tabla N°7',
+    )
+  }
+  const nombreTeeEstimada = filaTeeEstimada.nombre
+
+  // Prefijo `estimado|` en la clave: nunca puede colisionar con las claves
+  // `${tipo}|${dn}` de 'detallado' ni `tee|${etiqueta}` de la Tee real --
+  // ambas ramas son además mutuamente excluyentes por
+  // `metodoPerdidaLocalizada` (nunca corren en la misma resolución).
+  const agregar = (etiqueta: string, tipo: string, dnComercial: string, cantidad: number): void => {
+    const clave = `estimado|${tipo}|${dnComercial}`
+    const existente = acumuladorAccesorios.get(clave)
+    acumuladorAccesorios.set(clave, {
+      clave,
+      etiqueta,
+      dnComercial,
+      cantidadComputada: (existente?.cantidadComputada ?? 0) + cantidad,
+      origen: 'estimado',
+    })
+  }
+
+  for (const fila of identificarFilasPrincipalesDeLocales(proyecto)) {
+    const n = contarTerminalesFisicosDeLocal(redHidraulica, fila.unidadFuncionalId, fila.localId, fila.red)
+    if (n === 0) {
+      continue
+    }
+
+    const resultadoDn = resolverDiametroComercialDeTramo(proyecto, fila.tramoId, catalogoArtefactos, catalogoSistemasDeTuberia, contexto)
+    const dnComercial = resultadoDn.tipo === 'conCandidato' ? resultadoDn.candidato.denominacionComercial : undefined
+    // DN no resoluble: nunca se inventa (mismo criterio que tuberías) --
+    // se declara pendiente y no se agrega ninguna pieza para este Local+red.
+    if (dnComercial === undefined) {
+      pendientes.push(`Accesorios físicos estimados de Tramo ${fila.tramoId} (${fila.red}) — DN pendiente de definición`)
+      continue
+    }
+
+    const nTeesEstimadas = Math.max(0, n - 1)
+    if (nTeesEstimadas > 0) {
+      agregar(nombreTeeEstimada, 'teeEstimada', dnComercial, nTeesEstimadas)
+    }
+    agregar(nombreDeAccesorio('codo90'), 'codo90', dnComercial, 1)
+    agregar(nombreDeAccesorio('llaveDePaso'), 'llaveDePaso', dnComercial, 1)
   }
 }
 
@@ -360,6 +468,7 @@ export function resolverDatosDeListadoDeMateriales(
 
   const { tuberias, accesorios } = resolverTuberiasYAccesorios(proyecto, catalogoArtefactos, contexto, pendientes)
   resolverTees(proyecto, catalogoArtefactos, contexto, accesorios, pendientes)
+  resolverAccesoriosFisicosPorDefecto(proyecto, catalogoArtefactos, contexto, accesorios, pendientes)
 
   return {
     proyecto,

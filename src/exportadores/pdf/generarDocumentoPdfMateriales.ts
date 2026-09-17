@@ -99,10 +99,10 @@ function resolverConsolidadoPorDn(tuberias: readonly ItemTuberiaConMargen[]) {
   })
 }
 
-function renderizarSeccionTuberias(datos: DatosListadoDeMateriales): Content[] {
+function renderizarSeccionTuberias(datos: DatosListadoDeMateriales, numero: number): Content[] {
   if (datos.tuberias.length === 0) {
     return [
-      { text: '1. Tuberías', style: 'seccion' },
+      { text: `${numero}. Tuberías`, style: 'seccion' },
       { text: 'No hay tramos de tubería computables en este proyecto todavía.', style: 'notaVacio' },
     ]
   }
@@ -119,7 +119,7 @@ function renderizarSeccionTuberias(datos: DatosListadoDeMateriales): Content[] {
   const consolidado = resolverConsolidadoPorDn(datos.tuberias)
 
   return [
-    { text: '1. Resumen y detalle de tuberías', style: 'seccion' },
+    { text: `${numero}. Resumen y detalle de tuberías`, style: 'seccion' },
     {
       table: {
         headerRows: 1,
@@ -169,30 +169,39 @@ function renderizarSeccionTuberias(datos: DatosListadoDeMateriales): Content[] {
   ]
 }
 
-function renderizarSeccionAccesorios(datos: DatosListadoDeMateriales): Content[] {
+// ACCESSORIES-DEFAULTS-01 (D-δ.139): "Origen" distingue accesorios/Tees
+// explícitamente modelados por el usuario ('definido') de la composición
+// física aproximada que Caudal propone en modo simplificado ('estimado').
+function etiquetaOrigen(origen: 'definido' | 'estimado'): string {
+  return origen === 'estimado' ? 'Estimado' : 'Definido'
+}
+
+function renderizarSeccionAccesorios(datos: DatosListadoDeMateriales, numero: number): Content[] {
   if (datos.accesorios.length === 0) {
     return [
-      { text: '2. Accesorios explícitamente modelados', style: 'seccion' },
+      { text: `${numero}. Accesorios`, style: 'seccion' },
       {
         text:
-          'No hay accesorios físicos explícitamente modelados en este proyecto. Las pérdidas localizadas ' +
-          'estimadas (HYD-EST) no se convierten en piezas de compra.',
+          'No hay accesorios físicos para este proyecto todavía. En el modo simplificado, Caudal utiliza una ' +
+          'composición aproximada de accesorios físicos para el cómputo de materiales; en el modo profesional, ' +
+          'el listado utiliza únicamente los accesorios y derivaciones explícitamente modelados.',
         style: 'notaVacio',
       },
     ]
   }
 
   return [
-    { text: '2. Accesorios explícitamente modelados', style: 'seccion' },
+    { text: `${numero}. Accesorios`, style: 'seccion' },
     {
       table: {
         headerRows: 1,
-        widths: ['*', 'auto', 'auto', 'auto', 'auto'],
+        widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto'],
         body: [
           [
             { text: 'Accesorio', bold: true },
             { text: 'DN / configuración', bold: true },
             { text: 'Cantidad computada [u]', bold: true },
+            { text: 'Origen', bold: true },
             { text: 'Extra [%]', bold: true },
             { text: 'Cantidad para compra [u]', bold: true },
           ],
@@ -200,6 +209,7 @@ function renderizarSeccionAccesorios(datos: DatosListadoDeMateriales): Content[]
             { text: item.etiqueta },
             { text: item.dnComercial ?? '—' },
             { text: String(item.cantidadComputada), alignment: 'right' as const },
+            { text: etiquetaOrigen(item.origen) },
             { text: formatearPorcentaje(datos.porcentajeExtraCompra), alignment: 'right' as const },
             { text: String(item.cantidadCompra), alignment: 'right' as const },
           ]),
@@ -248,8 +258,8 @@ function renderizarSeccionSinMargen(
   ]
 }
 
-function renderizarObservaciones(datos: DatosListadoDeMateriales): Content[] {
-  const contenido: Content[] = [{ text: '7. Observaciones y alcance', style: 'seccion' }]
+function renderizarObservaciones(datos: DatosListadoDeMateriales, numero: number): Content[] {
+  const contenido: Content[] = [{ text: `${numero}. Observaciones y alcance`, style: 'seccion' }]
 
   if (datos.pendientes.length > 0) {
     contenido.push({ text: 'Elementos pendientes de definición', style: 'subseccion' })
@@ -262,7 +272,9 @@ function renderizarObservaciones(datos: DatosListadoDeMateriales): Content[] {
   contenido.push({
     text:
       'Este listado incluye únicamente elementos y longitudes explícitamente respaldados por el modelo del ' +
-      'proyecto. Las pérdidas localizadas estimadas no se convierten en accesorios físicos. Las cantidades ' +
+      'proyecto. En el modo simplificado, Caudal utiliza una composición aproximada de accesorios físicos para ' +
+      'el cómputo de materiales (columna "Origen": Estimado); en el modo profesional, el listado utiliza ' +
+      'únicamente los accesorios y derivaciones explícitamente modelados (Origen: Definido). Las cantidades ' +
       'para compra incorporan el margen adicional indicado por el usuario.',
     style: 'aclaracion',
   })
@@ -280,20 +292,33 @@ export function construirDocDefinitionListadoMateriales(
 
   return {
     pageMargins: [40, 50, 40, 50],
-    content: [
-      ...renderizarEncabezado(proyecto, datos.porcentajeExtraCompra, fechaGeneracion),
-      ...renderizarSeccionTuberias(datos),
-      ...renderizarSeccionAccesorios(datos),
-      ...renderizarSeccionSinMargen(3, 'Medidores', datos.medidores, 'Módulo 3 (Medidores) no está evaluado todavía.'),
-      ...renderizarSeccionSinMargen(
-        4,
-        'Equipos y almacenamiento',
-        datos.almacenamiento,
-        'No hay componentes de almacenamiento/abastecimiento adoptados todavía.',
-      ),
-      ...renderizarSeccionSinMargen(5, 'Artefactos previstos', datos.artefactos, 'No hay artefactos sanitarios declarados todavía.'),
-      ...renderizarObservaciones(datos),
-    ],
+    // Numeración de secciones CONSECUTIVA (D-δ.139: antes saltaba 1,2,3,4,5,7
+    // -- "Observaciones" tenía el número 7 hardcodeado). Todas las secciones
+    // se renderizan siempre (con nota de "vacío" cuando no hay datos, nunca
+    // se omiten), así que una secuencia simple 1..6 alcanza; si en el futuro
+    // alguna sección pasara a omitirse condicionalmente, este contador
+    // seguiría siendo correcto sin tocar cada título a mano.
+    content: (() => {
+      let numeroDeSeccion = 0
+      const siguienteNumero = (): number => {
+        numeroDeSeccion += 1
+        return numeroDeSeccion
+      }
+      return [
+        ...renderizarEncabezado(proyecto, datos.porcentajeExtraCompra, fechaGeneracion),
+        ...renderizarSeccionTuberias(datos, siguienteNumero()),
+        ...renderizarSeccionAccesorios(datos, siguienteNumero()),
+        ...renderizarSeccionSinMargen(siguienteNumero(), 'Medidores', datos.medidores, 'Módulo 3 (Medidores) no está evaluado todavía.'),
+        ...renderizarSeccionSinMargen(
+          siguienteNumero(),
+          'Equipos y almacenamiento',
+          datos.almacenamiento,
+          'No hay componentes de almacenamiento/abastecimiento adoptados todavía.',
+        ),
+        ...renderizarSeccionSinMargen(siguienteNumero(), 'Artefactos previstos', datos.artefactos, 'No hay artefactos sanitarios declarados todavía.'),
+        ...renderizarObservaciones(datos, siguienteNumero()),
+      ]
+    })(),
     header: (currentPage) =>
       currentPage === 1
         ? undefined
