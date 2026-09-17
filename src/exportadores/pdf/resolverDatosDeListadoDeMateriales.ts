@@ -102,6 +102,11 @@ export type ItemAccesorioComputado = {
   // ocurrir con datos bien formados -- el clasificador siempre resuelve
   // a un valor, con Colector principal como fallback neutro).
   readonly ubicacion?: UbicacionMaterial
+  // HYD-OVERPASS-01: código comercial de fábrica (catálogo Acqua System),
+  // sólo cuando la pieza lo tiene resuelto (hoy, exclusivamente el
+  // Sobrepaso fusión). No es obligatorio mostrarlo en el PDF -- existe
+  // para trazabilidad del snapshot/catálogo.
+  readonly codigoComercial?: string
 }
 
 // Ítems SIN margen de compra (brief §27/§28/§31/§38): medidores, equipos de

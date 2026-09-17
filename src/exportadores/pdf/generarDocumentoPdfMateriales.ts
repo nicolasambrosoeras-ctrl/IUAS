@@ -278,17 +278,23 @@ function etiquetaOrigenCorta(origen: 'definido' | 'estimadoDreza'): string {
 //   - Tee/Codo roscados: el DN de tubería SÍ se conoce, pero la rosca del
 //     terminal no -- "20 mm — rosca a definir" en vez de una
 //     configuración falsamente completa.
-//   - Sobrepaso: no tiene un DN unívoco (puede cruzar AF y AC de distinto
-//     diámetro) -- "DN a definir" en vez de un guion sin explicación.
 //   - Cualquier otro ítem sin DN (p.ej. una Tee nodal, cuyo DN ya está
 //     descripto en la propia etiqueta "Tee DN A × B × C"): "—", sin
 //     inventar una aclaración que no aporta nada nuevo.
+//
+// HYD-OVERPASS-01: "Sobrepaso" (sin DN unívoco, "DN a definir") ya no
+// existe -- fue reemplazado por "Sobrepaso fusión" (resolverAccesoriosConstructivosDreza.ts),
+// que queda vinculado al Tramo terminal de una red concreta y siempre
+// lleva un `dnComercial` real cuando se genera el ítem (un DN Acqua System
+// no disponible para este producto se reporta como pendiente en vez de
+// generar la fila, ver `resolverProductoSobrepasoAcquaSystem`) -- nunca
+// llega acá sin DN.
 const ETIQUETAS_ROSCADAS = new Set(['Tee roscada PPR', 'Codo terminal roscado PPR'])
 function descripcionDeConfiguracion(etiqueta: string, dnComercial: string | undefined): string {
   if (dnComercial !== undefined) {
     return ETIQUETAS_ROSCADAS.has(etiqueta) ? `${dnComercial} — rosca a definir` : dnComercial
   }
-  return etiqueta === 'Sobrepaso' ? 'DN a definir' : '—'
+  return '—'
 }
 
 // MATERIALS-POLISH-01 (brief §15/§16/§17): resumen de compra de accesorios

@@ -446,9 +446,17 @@ describe('resolverDatosDeListadoDeMateriales — estimación constructiva DREZA 
     // recorrido de cada red (son ítems separados, brief §6.4).
     expect(af.filter((a) => a.etiqueta.startsWith('Codo')).length).toBe(2)
 
-    const sobrepaso = items.find((a) => a.etiqueta === 'Sobrepaso')
-    expect(sobrepaso?.cantidadComputada).toBe(4)
-    expect(sobrepaso?.dnComercial).toBeUndefined()
+    // HYD-OVERPASS-01: inodoro (sólo AF) -> 1 sobrepaso en AF; bidet+ducha+
+    // lavatorio (AF+AC) -> 1 sobrepaso cada uno, asignado siempre a AC (3).
+    // Ya no se lumpea en un único ítem sin red/DN -- cada uno lleva su red
+    // y el DN real del Tramo (Acqua System, código 08-084020000 @ 20 mm).
+    const sobrepasoAF = af.find((a) => a.etiqueta === 'Sobrepaso fusión')
+    const sobrepasoAC = ac.find((a) => a.etiqueta === 'Sobrepaso fusión')
+    expect(sobrepasoAF?.cantidadComputada).toBe(1)
+    expect(sobrepasoAF?.dnComercial).toBe('20 mm')
+    expect(sobrepasoAF?.codigoComercial).toBe('08-084020000')
+    expect(sobrepasoAC?.cantidadComputada).toBe(3)
+    expect(sobrepasoAC?.dnComercial).toBe('20 mm')
   })
 
   // Caso B (brief §13): toilette sólo AF.
@@ -469,7 +477,65 @@ describe('resolverDatosDeListadoDeMateriales — estimación constructiva DREZA 
     expect(items.find((a) => a.etiqueta === 'Codo terminal roscado PPR')?.cantidadComputada).toBe(1)
     expect(items.find((a) => a.etiqueta === 'Codo a 90° (recorrido del local)')?.cantidadComputada).toBe(3)
     expect(items.find((a) => a.etiqueta === 'Llave de paso esférica')?.cantidadComputada).toBe(1)
-    expect(items.find((a) => a.etiqueta === 'Sobrepaso')?.cantidadComputada).toBe(2)
+    const sobrepaso = items.find((a) => a.etiqueta === 'Sobrepaso fusión')
+    expect(sobrepaso?.red).toBe('AF')
+    expect(sobrepaso?.cantidadComputada).toBe(2)
+    expect(sobrepaso?.dnComercial).toBe('20 mm')
+  })
+
+  // HYD-OVERPASS-01 §"Catálogo y validación de DN": Acqua System sólo
+  // comercializa el Sobrepaso fusión en DN 20/25/32.
+  it('DN adoptado fuera de 20/25/32 mm: emite un pendiente trazable, nunca un código inventado ni "DN a definir" -- el resto de la red (llave/codos/tee) sigue generándose normalmente', () => {
+    const { uf, red } = construirLocalConArtefactos({
+      ufId: 'uf1',
+      localId: 'uf1-local',
+      tipo: 'toilette',
+      artefactos: [
+        { id: 'inodoro', redes: ['AF'] },
+        { id: 'lavatorio', redes: ['AF'] },
+      ],
+    })
+    const redCon40mm: RedHidraulica = {
+      ...red,
+      tramos: red.tramos.map((t) => ({ ...t, dnComercialAdoptado: '40 mm' })),
+    }
+    const datos = resolverDatosDeListadoDeMateriales(proyectoSimplificadaEstimado(uf, redCon40mm), catalogoArtefactos, coeficientesMayoracion)
+    const items = itemsDrezaDeLocal(datos)
+
+    expect(items.find((a) => a.etiqueta === 'Sobrepaso fusión')).toBeUndefined()
+    expect(items.some((a) => a.dnComercial === 'DN a definir')).toBe(false)
+    expect(datos.pendientes.some((p) => p.includes('Sobrepaso fusión') && p.includes('40 mm'))).toBe(true)
+    // El resto de la red (no depende del catálogo Acqua System de este
+    // producto puntual) se sigue computando con normalidad.
+    expect(items.find((a) => a.etiqueta === 'Llave de paso esférica')?.cantidadComputada).toBe(1)
+    expect(items.find((a) => a.etiqueta === 'Codo terminal roscado PPR')?.cantidadComputada).toBe(1)
+  })
+
+  // HYD-OVERPASS-01: única fuente de verdad -- la cantidad de Sobrepaso
+  // fusión de Materials debe coincidir EXACTAMENTE con nSobrepaso del
+  // modelo hidráulico (resolverPerdidaLocalizadaEstimadaDeLocal) para el
+  // mismo (Local, red), porque ambos consumen contarSobrepasosDeLocalPorRed.
+  it('la cantidad de Sobrepaso fusión en Materials coincide con nSobrepaso del balance hidráulico (misma fuente de verdad)', () => {
+    const { uf, red } = construirLocalConArtefactos({
+      ufId: 'uf1',
+      localId: 'uf1-local',
+      tipo: 'bano',
+      artefactos: [
+        { id: 'inodoro', redes: ['AF'] },
+        { id: 'bidet', redes: ['AF', 'AC'] },
+        { id: 'ducha', redes: ['AF', 'AC'] },
+      ],
+    })
+    const proyecto = proyectoSimplificadaEstimado(uf, red)
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+    const items = itemsDrezaDeLocal(datos)
+
+    for (const redActual of ['AF', 'AC'] as const) {
+      const hidraulico = resolverPerdidaLocalizadaEstimadaDeLocal(proyecto, 'uf1', 'uf1-local', redActual, catalogoArtefactos, catalogoSistemasDeTuberia)
+      if (hidraulico.tipo !== 'estimada') throw new Error('se esperaba estimada')
+      const materiales = items.find((a) => a.red === redActual && a.etiqueta === 'Sobrepaso fusión')
+      expect(materiales?.cantidadComputada ?? 0).toBe(hidraulico.nSobrepaso)
+    }
   })
 
   it('n=0 (Local sin terminales en esta red): no agrega ninguna estimación de esa red', () => {
@@ -531,8 +597,10 @@ describe('resolverDatosDeListadoDeMateriales — estimación constructiva DREZA 
     expect(items.find((a) => a.red === 'AF' && a.etiqueta === 'Tee roscada PPR')?.cantidadComputada).toBe(2)
     expect(items.find((a) => a.red === 'AC' && a.etiqueta === 'Tee roscada PPR')?.cantidadComputada).toBe(2)
     // 1 sobrepaso por Artefacto conectado (no por boca ni por red): con
-    // cantidad=3 son 3 sobrepasos, no 6.
-    expect(items.find((a) => a.etiqueta === 'Sobrepaso')?.cantidadComputada).toBe(3)
+    // cantidad=3 son 3 sobrepasos, no 6 -- y como el Artefacto es AF+AC,
+    // los 3 se asignan enteros a AC (HYD-OVERPASS-01), nunca a AF.
+    expect(items.find((a) => a.red === 'AF' && a.etiqueta === 'Sobrepaso fusión')).toBeUndefined()
+    expect(items.find((a) => a.red === 'AC' && a.etiqueta === 'Sobrepaso fusión')?.cantidadComputada).toBe(3)
   })
 })
 

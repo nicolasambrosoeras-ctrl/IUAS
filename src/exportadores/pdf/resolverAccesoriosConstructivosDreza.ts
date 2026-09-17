@@ -54,6 +54,9 @@ import {
 import { derivarLocalesServidos, reconstruirCadena } from '../../interfaz/paginas/reconciliarMontante'
 import { derivacionesDeMontante, etiquetaSoloLocal } from '../../interfaz/paginas/montantesDelProyecto'
 import { nombreDeMontante } from '../../interfaz/paginas/nombreDeMontante'
+import { contarSobrepasosDeLocalPorRed } from '../../motor/tuberias/topologia/contarSobrepasosDeLocalPorRed'
+import { resolverProductoSobrepasoAcquaSystem } from '../../motor/tuberias/materialTuberia/catalogoSobrepasoAcquaSystem'
+import { SISTEMA_DE_TUBERIA_ACQUA_SYSTEM_ID } from '../../motor/tuberias/perdidaCarga/resolverKsDeAccesorioDeTramo'
 import type { ItemAccesorioComputado } from './resolverDatosDeListadoDeMateriales'
 
 // Ubicación física de un accesorio (MATERIALS-PDF-POLISH-02, brief §5):
@@ -112,24 +115,28 @@ export function etiquetaSector(sector: SectorMaterial): string {
 }
 
 // Cuenta, para UN Local, cuántas bocas hidráulicas físicas (ponderadas por
-// `Artefacto.cantidad`, brief §6.4/Caso I) tiene cada red y cuántos
-// sobrepasos corresponden (1 por Artefacto conectado a CUALQUIER red,
-// nunca 2 por un Artefacto AF+AC -- brief §6.3). Inspección estructural
-// directa (mismo patrón que contarTerminalesFisicosDeLocal/
+// `Artefacto.cantidad`, brief §6.4/Caso I) tiene cada red. Inspección
+// estructural directa (mismo patrón que contarTerminalesFisicosDeLocal/
 // determinarConectividadFisica), pero a diferencia de esas dos, agrega
 // `cantidad` en vez de contar nodos/referencias 1 a 1: un Artefacto con
 // `cantidad=3` es UN solo Nodo.referencia en RedHidraulica (representa el
 // grupo, no cada unidad física), así que las funciones existentes lo
 // contarían como 1 -- acá se pondera explícitamente.
+//
+// HYD-OVERPASS-01: el conteo de Sobrepaso ya NO se calcula acá -- se
+// delegó por completo a `contarSobrepasosDeLocalPorRed` (motor/tuberias/
+// topologia), la MISMA fuente que consume el balance hidráulico
+// (resolverPerdidaLocalizadaEstimadaDeLocal), para que ambos nunca puedan
+// divergir. Antes de este slice, el Sobrepaso se generaba acá con "1 por
+// Local" sin red/DN asignados (bug corregido: ver docs/HYD-OVERPASS-01.md).
 function medirTerminalesFisicosDeLocal(
   redHidraulica: RedHidraulica,
   local: Local,
   unidadFuncionalId: string,
   localId: string,
-): { readonly bocasPorRed: Readonly<Record<RedDeTramo, number>>; readonly sobrepasos: number } {
+): { readonly bocasPorRed: Readonly<Record<RedDeTramo, number>> } {
   let af = 0
   let ac = 0
-  let sobrepasos = 0
   for (const artefacto of local.artefactos) {
     const tieneTerminal = redHidraulica.nodos.some(
       (nodo) =>
@@ -153,12 +160,8 @@ function medirTerminalesFisicosDeLocal(
     if (conectividad === 'soloAC' || conectividad === 'ambas') {
       ac += artefacto.cantidad
     }
-    // Un solo sobrepaso por Artefacto conectado, sin importar a cuántas
-    // redes llega (brief §6.3: "Un artefacto conectado a AF y AC sigue
-    // generando un solo sobrepaso").
-    sobrepasos += artefacto.cantidad
   }
-  return { bocasPorRed: { AF: af, AC: ac }, sobrepasos }
+  return { bocasPorRed: { AF: af, AC: ac } }
 }
 
 // Sector "Redes de los locales" (brief §6). Reemplaza por completo la
@@ -179,8 +182,9 @@ export function resolverAccesoriosDeLocalesDreza(
 
   // Agrupa las filas principales por (UF, Local): cada fila ya trae, por
   // separado, el Tramo representativo de esa red -- se necesita el par
-  // completo (AF y AC, cuando existan) para calcular sobrepasos una sola
-  // vez por Local, no una vez por red.
+  // completo (AF y AC, cuando existan) porque un Artefacto con AF+AC
+  // requiere conocer ambas redes para decidir a cuál se asigna su
+  // Sobrepaso (HYD-OVERPASS-01: siempre a AC, ver contarSobrepasosDeLocalPorRed).
   const porLocal = new Map<
     string,
     { unidadFuncionalId: string; localId: string; tramoIdPorRed: Map<RedDeTramo, string> }
@@ -204,7 +208,7 @@ export function resolverAccesoriosDeLocalesDreza(
       continue
     }
 
-    const { bocasPorRed, sobrepasos } = medirTerminalesFisicosDeLocal(redHidraulica, local, unidadFuncionalId, localId)
+    const { bocasPorRed } = medirTerminalesFisicosDeLocal(redHidraulica, local, unidadFuncionalId, localId)
     const ubicacion: UbicacionMaterial = {
       tipo: 'local',
       unidadFuncionalId,
@@ -212,25 +216,16 @@ export function resolverAccesoriosDeLocalesDreza(
       unidadFuncionalNombre: uf.nombre,
       localNombre: etiquetaSoloLocal(uf, local),
     }
-
-    if (sobrepasos > 0) {
-      // Sin DN: un sobrepaso no tiene una red/DN única (puede cruzar AF y
-      // AC de distinto diámetro) -- brief §12: "no inventar una medida...
-      // usar una denominación genérica trazable" en vez de forzar un DN.
-      items.push({
-        clave: `estimadoDreza|local|${unidadFuncionalId}|${localId}|sobrepaso`,
-        etiqueta: 'Sobrepaso',
-        dnComercial: undefined,
-        cantidadComputada: sobrepasos,
-        origen: 'estimadoDreza',
-        sector: 'local',
-        ubicacion,
-      })
-    }
+    // HYD-OVERPASS-01: el sobrepaso Acqua System sólo existe como producto
+    // comercial cuando el sistema adoptado del proyecto es Acqua System --
+    // para cualquier otro sistema no se genera (ni ítem ni pendiente): no
+    // hay evidencia de que ese fabricante venda una pieza equivalente.
+    const esSistemaAcqua = proyecto.configuracionHidraulica.sistemaDeTuberiaId === SISTEMA_DE_TUBERIA_ACQUA_SYSTEM_ID
 
     for (const red of ['AF', 'AC'] as const) {
       const n = bocasPorRed[red]
-      if (n === 0) {
+      const nSobrepaso = esSistemaAcqua ? contarSobrepasosDeLocalPorRed(redHidraulica, local, unidadFuncionalId, localId, red) : 0
+      if (n === 0 && nSobrepaso === 0) {
         continue
       }
       const tramoId = tramoIdPorRed.get(red)
@@ -245,6 +240,36 @@ export function resolverAccesoriosDeLocalesDreza(
       }
 
       const clave = (sufijo: string) => `estimadoDreza|local|${unidadFuncionalId}|${localId}|${red}|${sufijo}`
+
+      // Sobrepaso fusión (HYD-OVERPASS-01): vinculado al mismo Tramo
+      // terminal (y por lo tanto al mismo DN adoptado) que el resto de la
+      // red de este Local -- nunca "DN a definir" ni red "—". Sólo tres DN
+      // comerciales existen para este producto (20/25/32 mm); fuera de esos
+      // tres, se emite un pendiente trazable en vez de un código inventado.
+      if (nSobrepaso > 0) {
+        const producto = resolverProductoSobrepasoAcquaSystem(dnComercial)
+        if (producto.tipo === 'resuelto') {
+          items.push({
+            clave: clave('sobrepaso'),
+            etiqueta: 'Sobrepaso fusión',
+            dnComercial,
+            cantidadComputada: nSobrepaso,
+            origen: 'estimadoDreza',
+            sector: 'local',
+            red,
+            ubicacion,
+            codigoComercial: producto.producto.codigo,
+          })
+        } else {
+          pendientes.push(
+            `${etiquetaDePendiente(tramoId, red)} — Sobrepaso fusión: Acqua System no comercializa DN ${dnComercial} para este producto (sólo 20/25/32 mm)`,
+          )
+        }
+      }
+
+      if (n === 0) {
+        continue
+      }
       items.push({ clave: clave('llave'), etiqueta: 'Llave de paso esférica', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'local', red, ubicacion })
       items.push({ clave: clave('codoRecorrido'), etiqueta: 'Codo a 90° (recorrido del local)', dnComercial, cantidadComputada: 3, origen: 'estimadoDreza', sector: 'local', red, ubicacion })
 
