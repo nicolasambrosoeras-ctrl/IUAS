@@ -3,7 +3,7 @@
 // al DN vigente de la fila. Dos casos, ambos sobre el proyecto de ejemplo
 // (demo):
 //
-// 1. DN -> V -> hf: en "Alimentación general" (AF, tramo troncal), subir
+// 1. DN -> V -> hf: en "Colector principal" (AF, tramo troncal), subir
 //    el DN comercial baja la velocidad y la pérdida distribuida; bajar el
 //    DN las sube de nuevo (reversibilidad).
 // 2. Baño 1 · AF (fan-out 1->4, plantilla estimada agregada): la fila es
@@ -62,7 +62,7 @@ test.describe('FIX-HYD-EST-SIMPLIFIED-01 · E2E dirigido', () => {
     await cargarAppLimpia(page, baseURLEfectiva)
     await irATuberias(page)
 
-    const fila = filaDeTramo(page, 'Alimentación general')
+    const fila = filaDeTramo(page, 'Colector principal')
     await expect(fila).toBeVisible()
 
     const dn0 = await leerDn(fila)

@@ -25,6 +25,7 @@ import {
   type DatosListadoDeMateriales,
   type ItemTuberiaConMargen,
 } from './resolverDatosDeListadoDeMateriales'
+import { etiquetaSector } from './resolverAccesoriosConstructivosDreza'
 
 pdfMake.addVirtualFileSystem(pdfFonts)
 
@@ -259,11 +260,11 @@ function renderizarSeccionTuberias(datos: DatosListadoDeMateriales, numero: numb
   ]
 }
 
-// ACCESSORIES-DEFAULTS-01 (D-δ.139): "Origen" distingue accesorios/Tees
-// explícitamente modelados por el usuario ('definido') de la composición
-// física aproximada que Caudal propone en modo simplificado ('estimado').
-function etiquetaOrigen(origen: 'definido' | 'estimado'): string {
-  return origen === 'estimado' ? 'Estimado' : 'Definido'
+// MATERIALS-ACCESSORIES-01 (D-δ.141): "Origen" distingue accesorios/Tees
+// explícitamente modelados por el usuario ('definido') de la estimación
+// constructiva DREZA por sector ('estimadoDreza').
+function etiquetaOrigen(origen: 'definido' | 'estimadoDreza'): string {
+  return origen === 'estimadoDreza' ? 'Estimado DREZA' : 'Definido'
 }
 
 // MATERIALS-POLISH-01 (brief §15/§16/§17): resumen de compra de accesorios
@@ -306,8 +307,8 @@ function renderizarSeccionAccesorios(datos: DatosListadoDeMateriales, numero: nu
       {
         text:
           'No hay accesorios físicos para este proyecto todavía. En el modo simplificado, Caudal utiliza una ' +
-          'composición aproximada de accesorios físicos para el cómputo de materiales; en el modo profesional, ' +
-          'el listado utiliza únicamente los accesorios y derivaciones explícitamente modelados.',
+          'estimación constructiva DREZA de accesorios PPR para el cómputo de materiales; en el modo ' +
+          'profesional, el listado utiliza únicamente los accesorios y derivaciones explícitamente modelados.',
         style: 'notaVacio',
       },
     ]
@@ -344,10 +345,12 @@ function renderizarSeccionAccesorios(datos: DatosListadoDeMateriales, numero: nu
     {
       table: {
         headerRows: 1,
-        widths: ['*', 'auto', 'auto', 'auto', 'auto'],
+        widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
         body: [
           [
             { text: 'Accesorio', bold: true },
+            { text: 'Sector', bold: true },
+            { text: 'Red', bold: true },
             { text: 'DN / configuración', bold: true },
             { text: 'Cantidad computada [u]', bold: true },
             { text: 'Origen', bold: true },
@@ -357,8 +360,16 @@ function renderizarSeccionAccesorios(datos: DatosListadoDeMateriales, numero: nu
           // fila (redondeo independiente de ESA fila) -- el resumen de
           // arriba NUNCA se deriva sumando estos valores, sino de la
           // cantidad computada consolidada (ver resolverConsolidadoDeAccesorios).
+          // MATERIALS-ACCESSORIES-01 (D-δ.141): "Sector" distingue Colector
+          // principal / Montante / Red del local, y "Red" distingue AF/AC --
+          // sólo los completan los ítems de la estimación constructiva
+          // DREZA; los accesorios/Tee 'definido' de
+          // MATERIALS-01/ACCESSORIES-DEFAULTS-01 no los tienen asignados
+          // todavía y muestran "—".
           ...datos.accesorios.map((item) => [
             { text: item.etiqueta },
+            { text: item.sector !== undefined ? etiquetaSector(item.sector) : '—' },
+            { text: item.red ?? '—' },
             { text: item.dnComercial ?? '—' },
             { text: String(item.cantidadComputada), alignment: 'right' as const },
             { text: etiquetaOrigen(item.origen) },
@@ -465,10 +476,18 @@ function renderizarObservaciones(datos: DatosListadoDeMateriales, numero: number
   contenido.push({
     text:
       'Este listado incluye únicamente elementos y longitudes explícitamente respaldados por el modelo del ' +
-      'proyecto. En el modo simplificado, Caudal utiliza una composición aproximada de accesorios físicos para ' +
-      'el cómputo de materiales (columna "Origen": Estimado); en el modo profesional, el listado utiliza ' +
-      'únicamente los accesorios y derivaciones explícitamente modelados (Origen: Definido). Las cantidades ' +
-      'sugeridas de compra incorporan el margen adicional indicado por el usuario.',
+      'proyecto. En el modo simplificado, Caudal utiliza una estimación constructiva DREZA de accesorios PPR ' +
+      'para el cómputo de materiales (columna "Origen": Estimado DREZA); en el modo profesional, el listado ' +
+      'utiliza únicamente los accesorios y derivaciones explícitamente modelados (Origen: Definido). Las ' +
+      'cantidades sugeridas de compra incorporan el margen adicional indicado por el usuario.',
+    style: 'aclaracion',
+  })
+  contenido.push({
+    text:
+      'La estimación constructiva DREZA es una aproximación razonablemente conservadora para armar una lista de ' +
+      'compra -- no reemplaza el cómputo y replanteo de obra ni constituye una exigencia reglamentaria. ' +
+      '"Colector principal" es la distribución general desde el tanque o alimentación hacia los Montantes o, si ' +
+      'no existen, directamente hacia los Locales.',
     style: 'aclaracion',
   })
 

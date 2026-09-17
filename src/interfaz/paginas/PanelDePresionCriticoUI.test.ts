@@ -149,9 +149,9 @@ describe('CalculoDelCriticoDetalle (D-δ.50 seccion 29)', () => {
     )
 
     expect(html).toContain('Recorrido')
-    expect(html).toContain('Alimentación general')
+    expect(html).toContain('Colector principal')
     expect(html).toContain('Alimentación ACS')
-    // Long. base 5 + vertical +3 -> efectiva 8 para la Alimentación general.
+    // Long. base 5 + vertical +3 -> efectiva 8 para el Colector principal.
     expect(html).toContain('Long. efectiva')
     expect(html).toContain('Longitud vertical automática por nivel')
     expect(html).toContain('Presión residual')

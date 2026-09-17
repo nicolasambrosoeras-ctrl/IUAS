@@ -102,9 +102,9 @@ const proyecto: Proyecto = {
 }
 
 describe('identificarFilasDistribucionGeneral', () => {
-  it('identifica t-general como Alimentación general (raíz estructural, sin heurística de id)', () => {
+  it('identifica t-general como Colector principal (raíz estructural, sin heurística de id)', () => {
     const filas = identificarFilasDistribucionGeneral(proyecto)
-    expect(filas).toContainEqual({ etiqueta: 'Alimentación general', red: 'AF', tramoId: 't-general' })
+    expect(filas).toContainEqual({ etiqueta: 'Colector principal', red: 'AF', tramoId: 't-general' })
   })
 
   it('identifica t-af-acs como Alimentación ACS (nodo destino produccionACS, sin heurística de id)', () => {
@@ -321,10 +321,10 @@ const proyectoDemo: Proyecto = {
 }
 
 describe('topología demo real (MotorDemandaPantalla.proyectoInicial): validación end-to-end del algoritmo', () => {
-  it('Distribución general: t-general (Alimentación general) y t-af-acs (Alimentación ACS), nada más', () => {
+  it('Distribución general: t-general (Colector principal) y t-af-acs (Alimentación ACS), nada más', () => {
     const filas = identificarFilasDistribucionGeneral(proyectoDemo)
     expect(filas).toEqual([
-      { etiqueta: 'Alimentación general', red: 'AF', tramoId: 't-general' },
+      { etiqueta: 'Colector principal', red: 'AF', tramoId: 't-general' },
       { etiqueta: 'Alimentación ACS', red: 'AF', tramoId: 't-af-acs' },
     ])
   })

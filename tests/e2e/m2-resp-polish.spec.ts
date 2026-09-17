@@ -49,7 +49,7 @@ test.describe('UI-M2-RESP-POLISH-01 · jerarquía Local → Red sin nombre redun
 
     // No regresión: Distribución general no es una fila agrupada -- sigue
     // mostrando su propio texto normal, sin la clase m2-fila-agrupada.
-    const distribucionGeneral = page.locator('#tuberias').getByText('Alimentación general', { exact: false }).first()
+    const distribucionGeneral = page.locator('#tuberias').getByText('Colector principal', { exact: false }).first()
     await expect(distribucionGeneral).toBeVisible()
 
     const violaciones = await verificarInvariantes(page, errores, { exigirDemandaViva: true })

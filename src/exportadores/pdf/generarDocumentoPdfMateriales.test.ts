@@ -71,16 +71,15 @@ describe('construirDocDefinitionListadoMateriales — secciones y numeración', 
 })
 
 describe('construirDocDefinitionListadoMateriales — accesorios: Origen y resumen consolidado', () => {
-  it('la tabla de accesorios tiene columna "Origen" con "Estimado" para los defaults del modo simplificado', () => {
+  it('la tabla de accesorios tiene columna "Origen" con "Estimado DREZA" para la estimación constructiva del modo simplificado', () => {
     const doc = docDelProyectoDeEjemplo()
     const textos = textosDe(doc.content as Content[])
     expect(textos).toContain('Origen')
     // proyectoInicial (Modo Rápido) tiene Locales con n>=1 en AF/AC: debe
-    // haber al menos un accesorio con origen "Estimado" (Codo a 90º y
-    // Llave de paso son constantes 1 por Local+red con n>=1).
-    expect(textos).toContain('Codo a 90º')
-    expect(textos).toContain('Llave de paso')
-    expect(textos.filter((t) => t === 'Estimado').length).toBeGreaterThan(0)
+    // haber al menos un accesorio DREZA (Llave de paso esférica es
+    // constante 1 por Local+red con n>=1).
+    expect(textos).toContain('Llave de paso esférica')
+    expect(textos.filter((t) => t === 'Estimado DREZA').length).toBeGreaterThan(0)
   })
 
   it('el documento tiene "Resumen de compra de accesorios" ANTES que "Detalle de accesorios"', () => {
@@ -97,7 +96,7 @@ describe('construirDocDefinitionListadoMateriales — accesorios: Origen y resum
       proyecto: proyectoInicial,
       tuberias: [],
       accesorios: [
-        { clave: 'estimado|teeEstimada|20 mm', etiqueta: 'Tee entrada central, salidas laterales', dnComercial: '20 mm', cantidadComputada: 4, origen: 'estimado', cantidadCompra: 5 },
+        { clave: 'estimadoDreza|teeEstimada|20 mm', etiqueta: 'Tee entrada central, salidas laterales', dnComercial: '20 mm', cantidadComputada: 4, origen: 'estimadoDreza', cantidadCompra: 5 },
         { clave: 'tee|Tee DN 20 mm', etiqueta: 'Tee entrada central, salidas laterales', dnComercial: '20 mm', cantidadComputada: 2, origen: 'definido', cantidadCompra: 3 },
       ],
       medidores: [],
@@ -201,6 +200,6 @@ describe('construirDocDefinitionListadoMateriales — texto de cierre', () => {
   it('la aclaración final ya no afirma que ninguna pérdida estimada se convierte en pieza (ahora depende del modo)', () => {
     const doc = docDelProyectoDeEjemplo()
     const textos = textosDe(doc.content as Content[])
-    expect(textos.some((t) => t.includes('modo simplificado, Caudal utiliza una composición aproximada'))).toBe(true)
+    expect(textos.some((t) => t.includes('modo simplificado, Caudal utiliza una estimación constructiva DREZA'))).toBe(true)
   })
 })

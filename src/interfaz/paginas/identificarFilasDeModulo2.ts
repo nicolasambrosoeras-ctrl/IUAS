@@ -18,6 +18,15 @@ export type FilaDistribucionGeneral = {
   readonly tramoId: string
 }
 
+// MATERIALS-ACCESSORIES-01 (D-δ.141, brief §5): denominación PÚBLICA del
+// Tramo raíz de toda la topología -- antes "Alimentación general". Cambio
+// de LENGUAJE, no de identidad: sigue siendo exactamente el mismo criterio
+// estructural (el único Tramo cuyo nodoOrigenId nunca es nodoDestinoId de
+// otro Tramo). Exportada para que cualquier consumidor (Materials,
+// futuros sectores constructivos) filtre por esta etiqueta en vez de
+// repetir el literal.
+export const ETIQUETA_COLECTOR_PRINCIPAL = 'Colector principal'
+
 export type FilaPrincipalDeLocal = {
   readonly unidadFuncionalId: string
   readonly localId: string
@@ -60,8 +69,9 @@ function clasificarTramoDeDistribucionGeneral(
 
 // Distribución general: dos señales puramente estructurales.
 //
-// - "Alimentación general": el Tramo raíz de toda la topología -- el único
-//   cuyo nodoOrigenId nunca aparece como nodoDestinoId de otro Tramo.
+// - "Colector principal" (antes "Alimentación general", D-δ.141): el
+//   Tramo raíz de toda la topología -- el único cuyo nodoOrigenId nunca
+//   aparece como nodoDestinoId de otro Tramo.
 // - "Alimentación ACS": el Tramo cuyo nodo de destino referencia
 //   produccionACS (misma señal estructural que ya usaba derivarCaneria en
 //   este archivo antes de este incremento).
@@ -79,7 +89,7 @@ export function identificarFilasDistribucionGeneral(proyecto: Proyecto): readonl
   for (const tramo of redHidraulica.tramos) {
     const clasificacion = clasificarTramoDeDistribucionGeneral(idsConTramoEntrante, nodosPorId, tramo)
     if (clasificacion === 'general') {
-      filas.push({ etiqueta: 'Alimentación general', red: tramo.red, tramoId: tramo.id })
+      filas.push({ etiqueta: ETIQUETA_COLECTOR_PRINCIPAL, red: tramo.red, tramoId: tramo.id })
     } else if (clasificacion === 'acs') {
       filas.push({ etiqueta: 'Alimentación ACS', red: tramo.red, tramoId: tramo.id })
     }

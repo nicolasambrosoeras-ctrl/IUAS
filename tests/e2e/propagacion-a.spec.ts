@@ -23,7 +23,7 @@ function qcDeDemanda(page: Page) {
 }
 
 function filaAlimentacionGeneral(page: Page) {
-  return page.locator('tr', { hasText: 'Alimentación general' })
+  return page.locator('tr', { hasText: 'Colector principal' })
 }
 
 function celdaVelocidad(fila: ReturnType<typeof filaAlimentacionGeneral>) {
@@ -37,7 +37,7 @@ async function leerDnV(fila: ReturnType<typeof filaAlimentacionGeneral>): Promis
 }
 
 test.describe('FIX-M2-A-PROP-01 · propagación de `a` (Tipología de proyecto) a M2', () => {
-  test('cambiar `a` actualiza Qc y V/DN de la Alimentación general; volver a a=1 restaura el estado', async ({
+  test('cambiar `a` actualiza Qc y V/DN del Colector principal; volver a a=1 restaura el estado', async ({
     page,
     errores,
     baseURLEfectiva,
