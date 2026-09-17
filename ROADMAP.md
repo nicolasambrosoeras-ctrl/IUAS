@@ -3685,6 +3685,44 @@ salvo bug inequívoco o decisión roja explícita.
   `docs/MATERIALS-ACCESSORIES-01.md`.
   - **Estado:** `MATERIALS-ACCESSORIES-01: CERRADO — pendiente validación manual`.
 
+- **D-δ.142 — MATERIALS-PDF-POLISH-02: pulido final del Listado de
+  materiales (CERRADO — pendiente validación manual).** Corrige
+  problemas semánticos, de trazabilidad y de paginación del PDF, sin
+  tocar reglas DREZA, cantidades resueltas, margen ni M1–M4. El detalle
+  de accesorios elimina la columna de compra (contradecía al resumen ya
+  agrupado: filas "1 → 2" insinuaban sumar 18 donde el resumen decía 10
+  correctamente) y muestra sólo "Cantidad base [u]" -- el resumen agrupado
+  queda como única fuente de verdad para la compra. Terminología:
+  "Cantidad computada" → "Cantidad base" en Accesorios (Tuberías conserva
+  "computada", su longitud sí viene directo del modelo); "Accesorios
+  computados" → "Accesorios considerados". Trazabilidad: nuevo
+  `UbicacionMaterial` (Colector principal / Montante con nombre / Local
+  con UF+nombre, vía la nueva `etiquetaSoloLocal`), completado para TODOS
+  los accesorios (definidos y estimados DREZA); el detalle se reorganiza
+  en bloques por ubicación en orden constructivo estable (Colector →
+  Montantes → UF → Locales, AF antes de AC). Paginación: el título de
+  cada bloque es la primera fila de su propia tabla (`colSpan` + 2
+  `headerRows`), con `dontBreakRows` -- ningún título/encabezado queda
+  huérfano ni una fila se parte entre páginas. Estado del listado: "Con
+  elementos pendientes" en vez de "Listado parcial" (misma condición,
+  lenguaje coherente con "Elementos todavía no definidos"). Copy interno
+  retirado ("Módulo 3" → lenguaje público) y branding "Caudal by DREZA" →
+  "Caudal · DREZA" (local a Materials, sin afectar la Memoria técnica).
+  Accesorios renombrados: "Unión/cupla recta PPR" → "Cupla recta PPR";
+  roscados sin rosca determinada muestran "DN — rosca a definir" en vez
+  de una configuración falsa; Sobrepaso muestra "DN a definir". Hallazgo
+  documentado (no introducido por este slice): el total "sugerido de
+  compra" de accesorios del proyecto de referencia es 104 u, no 105 u
+  como cita el brief -- ya así en `HEAD` `16fb767`, verificado sin cambiar
+  la fórmula de margen. QA: `tsc -b`/`build` limpios, Vitest 2062/2062
+  (mismo timeout preexistente de PERF-SCALE-01C), ESLint 11/0 idéntico a
+  la base, E2E dirigido (materiales/hydEst/m2-resp-polish/propagación-a/
+  montantes) 22/22 contra build local, validación visual manual de las 4
+  páginas del PDF de referencia (visor de Edge, Chromium de Playwright no
+  incluye PDFium). Detalle completo en
+  `docs/MATERIALS-PDF-POLISH-02.md`.
+  - **Estado:** `MATERIALS-PDF-POLISH-02: CERRADO — pendiente validación manual`.
+
 **INTERFAZ WEB CAUDAL BY DREZA: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /
