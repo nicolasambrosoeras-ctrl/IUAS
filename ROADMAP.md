@@ -3658,6 +3658,33 @@ salvo bug inequívoco o decisión roja explícita.
   28/28. Detalle completo en `docs/MATERIALS-POLISH-01.md`.
   - **Estado:** `MATERIALS-POLISH-01: CERRADO — pendiente validación manual`.
 
+- **D-δ.141 — MATERIALS-ACCESSORIES-01: estimación constructiva DREZA de
+  accesorios PPR (CERRADO — pendiente validación manual).** Extiende el
+  Listado de materiales con una estimación por sector (Colector principal
+  / Montantes / Redes de los locales) más uniones/cuplas rectas cada 4 m.
+  Decisión de dominio del usuario: reemplaza por completo la composición
+  física de `ACCESSORIES-DEFAULTS-01` (D-δ.139) para Locales; para
+  Montantes, la Tee real de `resolverTees()` sigue firme y la estimación
+  DREZA descuenta las derivaciones ya resueltas explícitamente (opción A)
+  para no duplicar piezas. Gate de activación por sector: exactamente
+  `granularidadHidraulica==='simplificada'` + `metodoPerdidaLocalizada==='estimado'`
+  (mismo criterio que la regla que reemplaza, ahora también para Montantes
+  y Colector); las uniones cada 4 m corren siempre que el sistema sea PPR,
+  sin ese gate. CRIT-A30 preservado: ninguna reducción se infiere de un
+  cambio de DN, ni en Locales ni en Montantes. Cambio de nombre público
+  "Alimentación general" → "Colector principal"
+  (`identificarFilasDeModulo2.ts`, `ETIQUETA_COLECTOR_PRINCIPAL`) — sólo
+  lenguaje, mismo criterio estructural, sin tocar `t-general` ni ningún
+  id interno. Nuevo `resolverAccesoriosConstructivosDreza.ts` con las 4
+  funciones puras por sector; `ItemAccesorioComputado` gana `sector`/`red`
+  opcionales y `origen` pasa a `'definido' | 'estimadoDreza'`. PDF: nueva
+  columna "Sector" en el detalle de Accesorios, wording actualizado. QA:
+  `tsc -b`/`build` limpios, Vitest 2057/2057, ESLint 11/0 idéntico a la
+  base, E2E dirigido (hydEst/m2-resp-polish/propagación-a/materiales)
+  26/26 contra build local. Detalle completo, fórmulas y alcance en
+  `docs/MATERIALS-ACCESSORIES-01.md`.
+  - **Estado:** `MATERIALS-ACCESSORIES-01: CERRADO — pendiente validación manual`.
+
 **INTERFAZ WEB CAUDAL BY DREZA: VISUALMENTE CERRADA PARA EL ALCANCE ACTUAL.** UI-01A
 + UI-01B (núcleo) + UI-01C cerrados; core M1–M4 congelado / intacto
 (baseline transversal: único cambio numérico documentado en D-δ.79 /

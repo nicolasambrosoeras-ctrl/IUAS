@@ -1,5 +1,12 @@
 # ACCESSORIES-DEFAULTS-01 (D-δ.139)
 
+> **Superseded por `MATERIALS-ACCESSORIES-01` (D-δ.141):** la composición
+> física por defecto descripta en este documento fue reemplazada por
+> completo por la estimación constructiva DREZA de Locales (decisión de
+> dominio del usuario). Este documento queda como registro histórico de
+> la V1; ver `docs/MATERIALS-ACCESSORIES-01.md` para el comportamiento
+> vigente.
+
 ## Objetivo
 
 Completar un pendiente funcional de Caudal: los accesorios físicos
