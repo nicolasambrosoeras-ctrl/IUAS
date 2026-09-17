@@ -11,6 +11,8 @@ import type {
 import type { AccesorioDeTramo, ConfiguracionDeTee, Nodo, RedHidraulica, Tramo } from '../../modelo/redHidraulica'
 import { catalogoArtefactos } from '../../normativa/eras-2023/catalogo-artefactos'
 import { coeficientesMayoracion } from '../../normativa/eras-2023/coeficientes-mayoracion'
+import { catalogoSistemasDeTuberia } from '../../motor/tuberias/sistemaDeTuberia'
+import { resolverPerdidaLocalizadaEstimadaDeLocal } from '../../motor/tuberias/presion/resolverPerdidaLocalizadaEstimadaDeLocal'
 import { aplicarMargenDeCompra, resolverDatosDeListadoDeMateriales } from './resolverDatosDeListadoDeMateriales'
 
 function metadatos(): MetadatosProyecto {
@@ -218,7 +220,7 @@ describe('resolverDatosDeListadoDeMateriales — accesorios', () => {
   it('modo detallado: computa exactamente los accesorios explícitos del Tramo (brief §20/§63)', () => {
     const proyecto = proyectoConAccesorio([{ tipo: 'codo90', cantidad: 7 }], 'detallado')
     const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
-    expect(datos.accesorios).toEqual([{ clave: 'codo90|20 mm', etiqueta: 'Codo a 90º', dnComercial: '20 mm', cantidadComputada: 7 }])
+    expect(datos.accesorios).toEqual([{ clave: 'codo90|20 mm', etiqueta: 'Codo a 90º', dnComercial: '20 mm', cantidadComputada: 7, origen: 'definido' }])
   })
 
   it('modo estimado: NUNCA convierte las K estimadas (tee/terminal/llave) en piezas de compra (brief §19/§62)', () => {
@@ -267,7 +269,7 @@ describe('resolverDatosDeListadoDeMateriales — Tee nodal', () => {
 
     const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
 
-    expect(datos.accesorios).toEqual([{ clave: 'tee|Tee DN 25 mm × 25 mm × 20 mm', etiqueta: 'Tee DN 25 mm × 25 mm × 20 mm', dnComercial: undefined, cantidadComputada: 1 }])
+    expect(datos.accesorios).toEqual([{ clave: 'tee|Tee DN 25 mm × 25 mm × 20 mm', etiqueta: 'Tee DN 25 mm × 25 mm × 20 mm', dnComercial: undefined, cantidadComputada: 1, origen: 'definido' }])
     expect(datos.pendientes).toEqual([])
   })
 
@@ -290,6 +292,167 @@ describe('resolverDatosDeListadoDeMateriales — Tee nodal', () => {
 
     expect(datos.accesorios.some((a) => a.etiqueta.startsWith('Tee'))).toBe(false)
     expect(datos.pendientes.some((p) => p.includes('Derivación múltiple no modelada'))).toBe(true)
+  })
+})
+
+describe('resolverDatosDeListadoDeMateriales — accesorios físicos por defecto (ACCESSORIES-DEFAULTS-01)', () => {
+  // Trunk t-trunk (n0 -> nFan) + n tramos terminales hacia n artefactos de
+  // UN Local -- mismo patrón fan-out de "agrupa por Material..."/"no cuenta
+  // dos veces...", parametrizado en n para poder variar la cantidad de
+  // terminales físicos del Local sin tocar la topología general. Con n=0
+  // no se agrega ningún tramo hacia artefactos (Local sin terminales en
+  // esta red -- identificarFilasPrincipalesDeLocales no produce fila).
+  function redFanOut(ufId: string, n: number): { uf: UnidadFuncional; red: RedHidraulica } {
+    const uf = ufConArtefactos(ufId, Math.max(n, 1))
+    // n0 (raíz real, sin tramo entrante -- "Distribución general", excluida
+    // de identificarTramosRepresentativosDeLocales) -> t-raiz -> n1 -> t-trunk
+    // -> nFan -> N tramos terminales. t-trunk (n1->nFan) es el Tramo PURO de
+    // este Local más cercano a la raíz real (n0), así que es el único
+    // representativo -- si el trunk saliera directo de la raíz (sin t-raiz
+    // intermedio), el trunk MISMO sería clasificado "Distribución general" y
+    // cada tramo terminal pasaría a ser representativo por separado (bug
+    // detectado al escribir este fixture).
+    const nodos: Nodo[] = [{ id: 'n0' }, { id: 'n1' }, { id: 'nFan' }]
+    const tramos: Tramo[] = [
+      { id: 't-raiz', nodoOrigenId: 'n0', nodoDestinoId: 'n1', red: 'AF', longitud_m: 3, dnComercialAdoptado: '20 mm' },
+      { id: 't-trunk', nodoOrigenId: 'n1', nodoDestinoId: 'nFan', red: 'AF', longitud_m: 5, dnComercialAdoptado: '20 mm' },
+    ]
+    for (let i = 0; i < n; i++) {
+      nodos.push({ id: `nArt${i}`, referencia: { tipo: 'artefacto', unidadFuncionalId: ufId, localId: `${ufId}-local`, artefactoId: `${ufId}-art-${i}` } })
+      tramos.push({ id: `t-art${i}`, nodoOrigenId: 'nFan', nodoDestinoId: `nArt${i}`, red: 'AF', longitud_m: 1, dnComercialAdoptado: '20 mm' })
+    }
+    return { uf, red: { nodos, tramos } }
+  }
+
+  function proyectoConN(
+    n: number,
+    overrides?: Partial<ConfiguracionHidraulica>,
+  ): Proyecto {
+    const { uf, red } = redFanOut('uf1', n)
+    return proyectoBase({ ufs: [uf], red, configuracionHidraulica: { granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado', ...overrides } })
+  }
+
+  function accesoriosEstimados(datos: ReturnType<typeof resolverDatosDeListadoDeMateriales>) {
+    return datos.accesorios.filter((a) => a.origen === 'estimado')
+  }
+
+  it.each([
+    [1, 0, 1, 1],
+    [2, 1, 1, 1],
+    [3, 2, 1, 1],
+    [4, 3, 1, 1],
+  ])('simplificada + estimado, n=%i => Tee=%i, Codo90=%i, Llave=%i', (n, tee, codo, llave) => {
+    const proyecto = proyectoConN(n)
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+    const estimados = accesoriosEstimados(datos)
+
+    const teeItem = estimados.find((a) => a.etiqueta.startsWith('Tee'))
+    const codoItem = estimados.find((a) => a.etiqueta === 'Codo a 90º')
+    const llaveItem = estimados.find((a) => a.etiqueta === 'Llave de paso')
+
+    expect(teeItem?.cantidadComputada ?? 0).toBe(tee)
+    expect(codoItem?.cantidadComputada ?? 0).toBe(codo)
+    expect(llaveItem?.cantidadComputada ?? 0).toBe(llave)
+    expect(codoItem?.dnComercial).toBe('20 mm')
+    expect(llaveItem?.dnComercial).toBe('20 mm')
+    if (tee > 0) {
+      expect(teeItem?.dnComercial).toBe('20 mm')
+    }
+    // CRIT-A30: ningún default estimado infiere una "Reducción".
+    expect(estimados.some((a) => a.etiqueta.toLowerCase().includes('reducci'))).toBe(false)
+  })
+
+  it('simplificada + estimado, n=0 (Local sin terminales en esta red): no agrega ningún default', () => {
+    const proyecto = proyectoConN(0)
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+    expect(accesoriosEstimados(datos)).toEqual([])
+  })
+
+  it('profesional + estimado, n=4: NUNCA genera defaults (decisión de dominio -- granularidad manda)', () => {
+    const proyecto = proyectoConN(4, { granularidadHidraulica: 'profesional' })
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+    expect(accesoriosEstimados(datos)).toEqual([])
+  })
+
+  it('simplificada + detallado: no genera defaults (los dos métodos son excluyentes)', () => {
+    const proyecto = proyectoConN(4, { metodoPerdidaLocalizada: 'detallado' })
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+    expect(accesoriosEstimados(datos)).toEqual([])
+  })
+
+  it('profesional + estimado + Tee real relevada: sólo la Tee real (origen "definido"), nunca un default encima', () => {
+    const uf = ufConArtefactos('uf1', 3)
+    const nodos: Nodo[] = [
+      { id: 'n0' },
+      { id: 'nTee', tee: { tipo: 'entradaPorExtremo', tramoSalidaRectaId: 't-recta' } },
+      { id: 'nArt0', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf1', localId: 'uf1-local', artefactoId: 'uf1-art-0' } },
+      { id: 'nArt1', referencia: { tipo: 'artefacto', unidadFuncionalId: 'uf1', localId: 'uf1-local', artefactoId: 'uf1-art-1' } },
+    ]
+    const tramos: Tramo[] = [
+      { id: 't-entrada', nodoOrigenId: 'n0', nodoDestinoId: 'nTee', red: 'AF', longitud_m: 5, dnComercialAdoptado: '25 mm' },
+      { id: 't-recta', nodoOrigenId: 'nTee', nodoDestinoId: 'nArt0', red: 'AF', longitud_m: 2, dnComercialAdoptado: '25 mm' },
+      { id: 't-lateral', nodoOrigenId: 'nTee', nodoDestinoId: 'nArt1', red: 'AF', longitud_m: 2, dnComercialAdoptado: '20 mm' },
+    ]
+    const proyecto = proyectoBase({
+      ufs: [uf],
+      red: { nodos, tramos },
+      configuracionHidraulica: { granularidadHidraulica: 'profesional', metodoPerdidaLocalizada: 'estimado' },
+    })
+
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+
+    expect(datos.accesorios).toEqual([{ clave: 'tee|Tee DN 25 mm × 25 mm × 20 mm', etiqueta: 'Tee DN 25 mm × 25 mm × 20 mm', dnComercial: undefined, cantidadComputada: 1, origen: 'definido' }])
+  })
+
+  // Nota de cobertura: "DN no resoluble en el Tramo representativo ⇒
+  // pendiente, nunca inventado" reutiliza EXACTAMENTE el mismo
+  // `resolverDiametroComercialDeTramo` ya cubierto extensivamente en el
+  // describe "tuberías" de este archivo (caso 'sinDemanda' con tramo
+  // huérfano) -- no se duplica ese fixture acá porque, a diferencia de un
+  // Tramo de tubería cualquiera, el Tramo representativo de un Local+red
+  // con n>=1 SIEMPRE tiene demanda real aguas abajo (contarTerminalesFisicosDeLocal
+  // exige un Nodo.referencia de artefacto real y válido, y el motor lanza
+  // si esa referencia no corresponde a un Artefacto declarado del Local),
+  // así que 'sinDemanda' es estructuralmente inalcanzable en este punto; la
+  // rama sigue el mismo camino de código que ya está probado.
+
+  it('margen de compra: se aplica a los defaults igual que a cualquier accesorio (10 % redondea hacia arriba)', () => {
+    const proyecto = proyectoConN(3)
+    const computo = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+    const conMargen = aplicarMargenDeCompra(computo, 10)
+    const teeConMargen = conMargen.accesorios.find((a) => a.origen === 'estimado' && a.etiqueta.startsWith('Tee'))
+    // n=3 => 2 Tees computadas; +10% => ceil(2.2) = 3.
+    expect(teeConMargen?.cantidadComputada).toBe(2)
+    expect(teeConMargen?.cantidadCompra).toBe(3)
+  })
+
+  it('invariancia hidráulica: hf de HYD-EST es idéntica antes y después de computar Materials (no se toca ni se importa la fórmula)', () => {
+    const proyecto = proyectoConN(3)
+    const hfAntes = resolverPerdidaLocalizadaEstimadaDeLocal(
+      proyecto,
+      'uf1',
+      'uf1-local',
+      'AF',
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+    )
+
+    // Computar el listado de materiales (que ahora SÍ agrega defaults
+    // físicos para este mismo Local+red) no debe mutar `proyecto` ni
+    // afectar en absoluto el resultado de HYD-EST -- son capas
+    // completamente independientes (BOM de compra vs. hf de cálculo).
+    resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+
+    const hfDespues = resolverPerdidaLocalizadaEstimadaDeLocal(
+      proyecto,
+      'uf1',
+      'uf1-local',
+      'AF',
+      catalogoArtefactos,
+      catalogoSistemasDeTuberia,
+    )
+
+    expect(hfDespues).toEqual(hfAntes)
   })
 })
 
@@ -383,7 +546,7 @@ describe('aplicarMargenDeCompra', () => {
   })
 
   it('accesorios: redondea la cantidad de compra hacia arriba (brief §22/§45/§60)', () => {
-    const item = (cantidadComputada: number) => ({ clave: 'x', etiqueta: 'x', dnComercial: '20 mm', cantidadComputada })
+    const item = (cantidadComputada: number) => ({ clave: 'x', etiqueta: 'x', dnComercial: '20 mm', cantidadComputada, origen: 'definido' as const })
     const base = { proyecto: {} as Proyecto, tuberias: [], accesorios: [item(7)], medidores: [], almacenamiento: [], artefactos: [], pendientes: [] }
     expect(aplicarMargenDeCompra(base, 10).accesorios[0]?.cantidadCompra).toBe(8)
     expect(aplicarMargenDeCompra({ ...base, accesorios: [item(2)] }, 20).accesorios[0]?.cantidadCompra).toBe(3)
@@ -410,7 +573,7 @@ describe('aplicarMargenDeCompra', () => {
     const base = {
       proyecto: {} as Proyecto,
       tuberias: [{ material: 'PPR', red: 'AF' as const, dnComercial: '20 mm', longitudComputada_m: 12.34 }],
-      accesorios: [{ clave: 'x', etiqueta: 'x', dnComercial: '20 mm', cantidadComputada: 5 }],
+      accesorios: [{ clave: 'x', etiqueta: 'x', dnComercial: '20 mm', cantidadComputada: 5, origen: 'definido' as const }],
       medidores: [],
       almacenamiento: [],
       artefactos: [],
