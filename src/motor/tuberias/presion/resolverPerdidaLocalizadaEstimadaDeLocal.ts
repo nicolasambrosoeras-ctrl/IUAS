@@ -67,14 +67,31 @@ import { contarSobrepasosDeLocalPorRed } from '../topologia/contarSobrepasosDeLo
 import { localesDeUnidadFuncional } from '../geometria/resolverCotaHidraulicaDeArtefacto'
 import { obtenerKsAcquaSystem } from '../perdidaCarga/catalogoKAccesoriosAcquaSystem'
 import { SISTEMA_DE_TUBERIA_ACQUA_SYSTEM_ID } from '../perdidaCarga/resolverKsDeAccesorioDeTramo'
+import { resolverKsDeReduccion } from '../perdidaCarga/resolverKsDeReduccion'
 import {
   identificarTramosRepresentativosDeLocales,
   obtenerTramosRepresentativosDeLocalesDeContexto,
 } from '../topologia/identificarTramoRepresentativoDeLocal'
 
-export const KS_ESTIMADO_TEE = obtenerKsDeAccesorio('teeEntradaCentralSalidasLaterales')
+// HYD-ACQUA-K-CATALOG-01: el Ks de la tee estimada pasa a depender del
+// sistema comercial adoptado -- Acqua System usa su propio valor oficial
+// simplificado (1,80, configuración N°5 "distributiva", ver
+// catalogoKAccesoriosAcquaSystem.ts); cualquier otro sistema conserva
+// EXACTAMENTE el valor de antes de este slice (Tabla N°7,
+// teeEntradaCentralSalidasLaterales=3,00 -- D-δ.40, sin reabrir). La
+// singularidad terminal y la llave de paso NO cambian por sistema: son
+// decisiones de producto fijas (D-δ.45), fuera del alcance de este
+// incremento (que sólo pidió completar el catálogo Acqua System y cerrar
+// la tee/reducción estimadas).
+export const KS_ESTIMADO_TEE_ERAS = obtenerKsDeAccesorio('teeEntradaCentralSalidasLaterales')
 export const KS_ESTIMADO_SINGULARIDAD_TERMINAL = obtenerKsDeAccesorio('codo90')
 export const KS_ESTIMADO_LLAVE_DE_PASO = obtenerKsDeAccesorio('llaveDePaso')
+
+export function resolverKsEstimadoTee(sistemaDeTuberiaId: string): number {
+  return sistemaDeTuberiaId === SISTEMA_DE_TUBERIA_ACQUA_SYSTEM_ID
+    ? obtenerKsAcquaSystem('teeEstimadaDistributiva').ks
+    : KS_ESTIMADO_TEE_ERAS
+}
 
 export type MotivoTramoSinPerdidaLocalizadaEstimada = 'sinDemanda' | 'sinCandidatoAdmisible'
 
@@ -91,6 +108,18 @@ export type ResultadoPerdidaLocalizadaEstimadaDeLocal =
       // Siempre 0 cuando el sistema adoptado no es Acqua System (el
       // producto no existe en ningún otro catálogo de este dominio).
       readonly nSobrepaso: number
+      // HYD-ACQUA-K-CATALOG-01: 0 o 1 -- salto de diámetro real detectado
+      // entre el Tramo representativo y su Tramo aguas arriba, sólo bajo
+      // Acqua System (ver resolverKsDeReduccion.ts). Siempre 0 para
+      // cualquier otro sistema o cuando no hay Tramo aguas arriba/DN
+      // clasificable.
+      readonly nReduccionEstimada: number
+      // Ks efectivamente usados en esta resolución (ya resueltos por
+      // sistema comercial -- expuestos para que ningún consumidor
+      // (informe, UI) tenga que reimplementar la selección de catálogo).
+      readonly ksTee: number
+      readonly ksSobrepaso: number
+      readonly ksReduccionEstimada: number
       // 0 cuando nTerminalesLocal=0: Js=0 no depende de V, nunca se
       // resolvio ningun candidato comercial para llegar a este resultado.
       readonly velocidadReferencia_mps: number
@@ -143,6 +172,10 @@ export function resolverPerdidaLocalizadaEstimadaDeLocal(
       nSingularidadTerminal: 0,
       nLlaveDePaso: 0,
       nSobrepaso: 0,
+      nReduccionEstimada: 0,
+      ksTee: resolverKsEstimadoTee(proyecto.configuracionHidraulica.sistemaDeTuberiaId),
+      ksSobrepaso: 0,
+      ksReduccionEstimada: 0,
       velocidadReferencia_mps: 0,
     }
   }
@@ -177,6 +210,7 @@ export function resolverPerdidaLocalizadaEstimadaDeLocal(
 
   const tramosNoResueltos: { tramoId: string; motivo: MotivoTramoSinPerdidaLocalizadaEstimada }[] = []
   let velocidadReferencia_mps = 0
+  let dnRepresentativo: string | undefined
 
   const resultadoComercial = resolverDiametroComercialDeTramo(
     proyecto,
@@ -190,11 +224,15 @@ export function resolverPerdidaLocalizadaEstimadaDeLocal(
     tramosNoResueltos.push({ tramoId: tramoRepresentativo.id, motivo: resultadoComercial.tipo })
   } else {
     velocidadReferencia_mps = resultadoComercial.velocidadReal_mps
+    dnRepresentativo = resultadoComercial.candidato.denominacionComercial
   }
 
   if (tramosNoResueltos.length > 0) {
     return { tipo: 'incompleta', tramosNoResueltos }
   }
+
+  const esSistemaAcqua = proyecto.configuracionHidraulica.sistemaDeTuberiaId === SISTEMA_DE_TUBERIA_ACQUA_SYSTEM_ID
+  const ksTee = resolverKsEstimadoTee(proyecto.configuracionHidraulica.sistemaDeTuberiaId)
 
   // Sobrepaso (HYD-OVERPASS-01): sólo tiene incidencia hidráulica cuando
   // el sistema comercial adoptado es Acqua System -- es un producto de
@@ -202,16 +240,43 @@ export function resolverPerdidaLocalizadaEstimadaDeLocal(
   // cualquier otro sistema, nSobrepaso puede ser >0 (el Artefacto sigue
   // conectado físicamente) pero no aporta Ks: no hay un valor publicado
   // ni adoptado para ningún otro fabricante todavía (nunca se inventa).
-  const ksSobrepaso =
-    proyecto.configuracionHidraulica.sistemaDeTuberiaId === SISTEMA_DE_TUBERIA_ACQUA_SYSTEM_ID
-      ? obtenerKsAcquaSystem('sobrepaso').ks
-      : 0
+  const ksSobrepaso = esSistemaAcqua ? obtenerKsAcquaSystem('sobrepaso').ks : 0
+
+  // Reducción estimada (HYD-ACQUA-K-CATALOG-01): sólo bajo Acqua System.
+  // Detecta -- nunca releva -- un salto de diámetro REAL entre el Tramo
+  // representativo de este Local+red y el Tramo inmediatamente aguas
+  // arriba (su "padre" topológico, mismo criterio CRIT-A30 que el modo
+  // detallado). Sin Tramo padre (representativo = primer segmento desde
+  // la raíz) o DN no clasificable: no hay evidencia de una reducción real
+  // -- se computa como 0, nunca como un pendiente que bloquee el modo
+  // estimado (a diferencia del modo detallado, acá nadie declaró
+  // explícitamente una reducción; es una detección automática opcional).
+  let nReduccionEstimada = 0
+  let ksReduccionEstimada = 0
+  if (esSistemaAcqua && dnRepresentativo !== undefined) {
+    const tramoPadre = redHidraulica.tramos.find((candidato) => candidato.nodoDestinoId === tramoRepresentativo.nodoOrigenId)
+    if (tramoPadre !== undefined) {
+      const resultadoPadre = resolverDiametroComercialDeTramo(proyecto, tramoPadre.id, catalogoArtefactos, catalogoSistemasDeTuberia, contexto)
+      if (resultadoPadre.tipo === 'conCandidato') {
+        const resultadoReduccion = resolverKsDeReduccion(
+          proyecto.configuracionHidraulica.sistemaDeTuberiaId,
+          dnRepresentativo,
+          resultadoPadre.candidato.denominacionComercial,
+        )
+        if (resultadoReduccion.resultado === 'calculado' && resultadoReduccion.ks > 0) {
+          nReduccionEstimada = 1
+          ksReduccionEstimada = resultadoReduccion.ks
+        }
+      }
+    }
+  }
 
   const ksEquivalenteEstimado =
-    nTeesEstimadas * KS_ESTIMADO_TEE +
+    nTeesEstimadas * ksTee +
     nSingularidadTerminal * KS_ESTIMADO_SINGULARIDAD_TERMINAL +
     nLlaveDePaso * KS_ESTIMADO_LLAVE_DE_PASO +
-    nSobrepaso * ksSobrepaso
+    nSobrepaso * ksSobrepaso +
+    nReduccionEstimada * ksReduccionEstimada
   const hf_m = calcularPerdidaCargaLocalizada(ksEquivalenteEstimado, velocidadReferencia_mps)
 
   return {
@@ -222,6 +287,10 @@ export function resolverPerdidaLocalizadaEstimadaDeLocal(
     nSingularidadTerminal,
     nLlaveDePaso,
     nSobrepaso,
+    nReduccionEstimada,
+    ksTee,
+    ksSobrepaso,
+    ksReduccionEstimada,
     velocidadReferencia_mps,
   }
 }

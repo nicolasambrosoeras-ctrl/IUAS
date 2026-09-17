@@ -79,6 +79,10 @@ export type MotivoTramoSinPerdidaLocalizada =
   // tee 1→2 real que sólo falta relevar): acá no hay nada que el
   // proyectista pueda declarar todavía -- es una limitación del modelo.
   | 'derivacionMultipleNoModelada'
+  // HYD-ACQUA-K-CATALOG-01: una `reducciones` declarada bajo Acqua System
+  // no pudo clasificarse (sin Tramo aguas arriba resuelto, o DN fuera de
+  // la serie nominal comercial) -- ver resolverKsDeReduccion.ts.
+  | 'reduccionNoClasificable'
 
 export type ResultadoPerdidaLocalizadaDeCamino =
   | {
@@ -127,7 +131,7 @@ export function acumularPerdidaLocalizadaDeCamino(
 
   function resolverTeeYVelocidad(
     tramo: Tramo,
-  ): { tipo: 'noResuelto' } | { tipo: 'resuelto'; hfTee_m: number; velocidadReal_mps: number } {
+  ): { tipo: 'noResuelto' } | { tipo: 'resuelto'; hfTee_m: number; velocidadReal_mps: number; dnComercial: string } {
     const resultadoComercial = resolverDiametroComercialDeTramo(
       proyecto,
       tramo.id,
@@ -162,10 +166,18 @@ export function acumularPerdidaLocalizadaDeCamino(
         ? calcularPerdidaCargaLocalizada(obtenerKsDeAccesorio(clasificacionTee.idAccesorioTabla07), velocidadReal_mps)
         : 0
 
-    return { tipo: 'resuelto', hfTee_m, velocidadReal_mps }
+    return { tipo: 'resuelto', hfTee_m, velocidadReal_mps, dnComercial: resultadoComercial.candidato.denominacionComercial }
   }
 
   const { tramosRelevables, tramosRamal } = seleccionarTramosDeAcumulacion(proyecto, camino, contexto)
+
+  // HYD-ACQUA-K-CATALOG-01: DN del Tramo inmediatamente anterior en este
+  // MISMO recorrido (tramosRelevables ya viene en orden raíz -> terminal,
+  // ver seleccionarTramosDeAcumulacion.ts) -- es el dato "aguas arriba"
+  // que necesita clasificar una `reducciones` declarada sobre el Tramo
+  // actual (CRIT-A30: se declara en el lado menor/aguas abajo). `undefined`
+  // en la primera iteración: no hay Tramo aguas arriba dentro del camino.
+  let dnComercialAnterior: string | undefined
 
   for (const tramo of tramosRelevables) {
     // Tee (CRIT-A31): se evalúa antes que los accesorios propios del
@@ -177,16 +189,22 @@ export function acumularPerdidaLocalizadaDeCamino(
     if (resolucion.tipo !== 'resuelto') {
       continue
     }
-    const { hfTee_m, velocidadReal_mps } = resolucion
+    const { hfTee_m, velocidadReal_mps, dnComercial } = resolucion
 
     const resultadoLocalizada = resolverPerdidaLocalizadaDeTramo(
       tramo.accesorios,
       velocidadReal_mps,
       proyecto.configuracionHidraulica.sistemaDeTuberiaId,
+      { dnPropio: dnComercial, dnAguasArriba: dnComercialAnterior },
     )
+    dnComercialAnterior = dnComercial
 
     if (resultadoLocalizada.tipo === 'sinRelevar') {
       tramosNoResueltos.push({ tramoId: tramo.id, motivo: 'sinRelevar' })
+      continue
+    }
+    if (resultadoLocalizada.tipo === 'reduccionNoClasificable') {
+      tramosNoResueltos.push({ tramoId: tramo.id, motivo: 'reduccionNoClasificable' })
       continue
     }
 

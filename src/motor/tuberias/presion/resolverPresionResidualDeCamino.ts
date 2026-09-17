@@ -56,9 +56,11 @@
 //
 // 'estimado' (D-delta.40): el usuario no releva singularidades fisicas;
 // resolverPerdidaLocalizadaEstimadaDeLocal estima unicamente las tees
-// del Local+red del terminal (n-1, Ks=3,00 conservador, V_ref=maxima
-// velocidad entre los tramos que alimentan directamente cada terminal
-// de ese Local+red). Se envuelve como 'estimada' -- NUNCA 'completa' (es
+// del Local+red del terminal (n-1, Ks del sistema comercial adoptado --
+// 3,00 Tabla N7 conservador, o 1,80 Acqua System oficial simplificado
+// desde HYD-ACQUA-K-CATALOG-01, V_ref=maxima velocidad entre los tramos
+// que alimentan directamente cada terminal de ese Local+red). Se envuelve
+// como 'estimada' -- NUNCA 'completa' (es
 // una metodologia distinta, no una version del detallado) ni 'parcial'
 // (un calculo estimado completo dentro de su propio metodo no es una
 // version inferior de la escala del detallado). Si algun tramo terminal

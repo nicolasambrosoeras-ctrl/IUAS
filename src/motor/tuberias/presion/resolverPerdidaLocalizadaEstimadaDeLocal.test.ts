@@ -11,18 +11,20 @@ import { resolverDiametroComercialDeTramo } from '../resolverDiametroComercialDe
 import { calcularPerdidaCargaLocalizada } from '../perdidaCarga/calcularPerdidaCargaLocalizada'
 import {
   resolverPerdidaLocalizadaEstimadaDeLocal,
-  KS_ESTIMADO_TEE,
+  resolverKsEstimadoTee,
   KS_ESTIMADO_SINGULARIDAD_TERMINAL,
   KS_ESTIMADO_LLAVE_DE_PASO,
 } from './resolverPerdidaLocalizadaEstimadaDeLocal'
 import { obtenerKsAcquaSystem } from '../perdidaCarga/catalogoKAccesoriosAcquaSystem'
 
-// HYD-OVERPASS-01: el fixture por defecto de este archivo (proyectoCon)
-// adopta 'acquaSystemMagnumPn20', así que todo Local con >=1 terminal
-// físico ahora también estima 1 Sobrepaso fusión por terminal (cada
-// artefacto de estos fixtures está conectado a una única red -- ver
-// proyectoConTerminalesEnEstrella).
+// HYD-OVERPASS-01/HYD-ACQUA-K-CATALOG-01: el fixture por defecto de este
+// archivo (proyectoCon) adopta 'acquaSystemMagnumPn20", así que todo Local
+// con >=1 terminal físico también estima 1 Sobrepaso fusión por terminal
+// (cada artefacto de estos fixtures está conectado a una única red -- ver
+// proyectoConTerminalesEnEstrella) y la tee estimada usa el valor Acqua
+// System (1,80), no el de Tabla N°7 (3,00).
 const KS_ESTIMADO_SOBREPASO = obtenerKsAcquaSystem('sobrepaso').ks
+const KS_ESTIMADO_TEE_ACQUA = resolverKsEstimadoTee('acquaSystemMagnumPn20')
 
 function metadatos(): MetadatosProyecto {
   return {
@@ -119,7 +121,7 @@ function velocidadRealDe(proyecto: Proyecto, tramoId: string): number {
 // terminal fija + 1 llave de paso por Local+red, esta ultima solo
 // cuando hay al menos 1 terminal fisico.
 function ksEquivalenteEstimado(nTees: number, nSobrepaso: number): number {
-  return nTees * KS_ESTIMADO_TEE + KS_ESTIMADO_SINGULARIDAD_TERMINAL + KS_ESTIMADO_LLAVE_DE_PASO + nSobrepaso * KS_ESTIMADO_SOBREPASO
+  return nTees * KS_ESTIMADO_TEE_ACQUA + KS_ESTIMADO_SINGULARIDAD_TERMINAL + KS_ESTIMADO_LLAVE_DE_PASO + nSobrepaso * KS_ESTIMADO_SOBREPASO
 }
 
 describe('resolverPerdidaLocalizadaEstimadaDeLocal', () => {
@@ -146,6 +148,10 @@ describe('resolverPerdidaLocalizadaEstimadaDeLocal', () => {
       nSingularidadTerminal: 1,
       nLlaveDePaso: 1,
       nSobrepaso: 1,
+      nReduccionEstimada: 0,
+      ksTee: KS_ESTIMADO_TEE_ACQUA,
+      ksSobrepaso: KS_ESTIMADO_SOBREPASO,
+      ksReduccionEstimada: 0,
       velocidadReferencia_mps: vRef,
     })
   })
@@ -177,6 +183,10 @@ describe('resolverPerdidaLocalizadaEstimadaDeLocal', () => {
       nSingularidadTerminal: 0,
       nLlaveDePaso: 0,
       nSobrepaso: 0,
+      nReduccionEstimada: 0,
+      ksTee: KS_ESTIMADO_TEE_ACQUA,
+      ksSobrepaso: 0,
+      ksReduccionEstimada: 0,
       velocidadReferencia_mps: 0,
     })
   })

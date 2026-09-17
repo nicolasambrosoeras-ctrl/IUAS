@@ -14,7 +14,7 @@ import { validarRedHidraulica } from '../../../validacion/redHidraulica'
 import { catalogoSistemasDeTuberia, type SistemaDeTuberiaCatalogado } from '../sistemaDeTuberia'
 import { resolverDiametroComercialDeTramo } from '../resolverDiametroComercialDeTramo'
 import { resolverPerdidaLocalizadaDeTramo } from '../perdidaCarga/resolverPerdidaLocalizadaDeTramo'
-import { resolverKsDeAccesorioDeTramo } from '../perdidaCarga/resolverKsDeAccesorioDeTramo'
+import { resolverKsDeReduccion } from '../perdidaCarga/resolverKsDeReduccion'
 import { calcularPerdidaCargaLocalizada } from '../perdidaCarga/calcularPerdidaCargaLocalizada'
 import { obtenerCaminoHaciaOrigen, type CaminoHaciaOrigen } from '../topologia/obtenerCaminoHaciaOrigen'
 import { acumularPerdidaLocalizadaDeCamino } from './acumularPerdidaLocalizadaDeCamino'
@@ -358,7 +358,13 @@ describe('acumularPerdidaLocalizadaDeCamino', () => {
     const resultado = acumularPerdidaLocalizadaDeCamino(proyecto, camino, catalogoArtefactos, catalogoSistemasDeTuberia)
     if (resultado.tipo !== 'acumulada') throw new Error('se esperaba acumulada')
 
-    const ks = resolverKsDeAccesorioDeTramo('reducciones', proyecto.configuracionHidraulica.sistemaDeTuberiaId).ks
+    const resultadoKsReduccion = resolverKsDeReduccion(
+      proyecto.configuracionHidraulica.sistemaDeTuberiaId,
+      comercialT1.candidato.denominacionComercial,
+      comercialT0.candidato.denominacionComercial,
+    )
+    if (resultadoKsReduccion.resultado !== 'calculado') throw new Error('fixture inválida: se esperaba reducción clasificable')
+    const ks = resultadoKsReduccion.ks
     const hfReduccionT1 = calcularPerdidaCargaLocalizada(ks, comercialT1.velocidadReal_mps)
     const hfReduccionConVDelPadreRechazado = calcularPerdidaCargaLocalizada(ks, comercialT0.velocidadReal_mps)
     // n1 (entradaCentral) aporta su Ks de tee sobre la V propia de t1.
