@@ -80,10 +80,10 @@ describe('resolverResumenDeProyecto (UI-01C)', () => {
     // terminal. El margen pasa a −20,047 m.c.a. con HYD-OVERPASS-01, luego a
     // −19,640 m.c.a. con HYD-ACQUA-K-CATALOG-01 (tee estimada Acqua System =
     // 1,80, valor oficial simplificado, en vez de 3,00 de Tabla N°7), y
-    // finalmente a −24,352 m.c.a. con HYD-EST-NETWORK-01 (accesorios
+    // finalmente a −23,931 m.c.a. con HYD-EST-NETWORK-01 (accesorios
     // físicos estimados de Montante/Colector del camino crítico, con ΣK
     // real por primera vez). Sigue NO CUMPLE.
-    if (r.margenCritico.tipo === 'valor') expect(r.margenCritico.texto).toBe('-24,352 m.c.a.')
+    if (r.margenCritico.tipo === 'valor') expect(r.margenCritico.texto).toBe('-23,931 m.c.a.')
     expect(r.margenCumple).toBe(false)
   })
 

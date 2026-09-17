@@ -46,17 +46,18 @@ import { resolverDiametroComercialDeTramo } from '../../motor/tuberias/resolverD
 import type { ContextoDeCalculoM2 } from '../../motor/tuberias/contextoDeCalculoM2'
 import { localesDeUnidadFuncional } from '../../motor/tuberias/geometria/resolverCotaHidraulicaDeArtefacto'
 import { determinarConectividadFisica } from '../../motor/tuberias/caudal/determinarConectividadFisica'
-import {
-  identificarFilasDistribucionGeneral,
-  identificarFilasPrincipalesDeLocales,
-  ETIQUETA_COLECTOR_PRINCIPAL,
-} from '../../interfaz/paginas/identificarFilasDeModulo2'
-import { derivarLocalesServidos, reconstruirCadena } from '../../interfaz/paginas/reconciliarMontante'
-import { derivacionesDeMontante, etiquetaSoloLocal } from '../../interfaz/paginas/montantesDelProyecto'
+import { identificarFilasPrincipalesDeLocales } from '../../interfaz/paginas/identificarFilasDeModulo2'
+import { etiquetaSoloLocal } from '../../interfaz/paginas/montantesDelProyecto'
 import { nombreDeMontante } from '../../interfaz/paginas/nombreDeMontante'
 import { contarSobrepasosDeLocalPorRed } from '../../motor/tuberias/topologia/contarSobrepasosDeLocalPorRed'
 import { resolverProductoSobrepasoAcquaSystem } from '../../motor/tuberias/materialTuberia/catalogoSobrepasoAcquaSystem'
 import { SISTEMA_DE_TUBERIA_ACQUA_SYSTEM_ID } from '../../motor/tuberias/perdidaCarga/resolverKsDeAccesorioDeTramo'
+import {
+  resolverAccesoriosFisicosEstimadosDeRed,
+  tramosDeMontanteYColector,
+  type AccesorioFisicoEstimado,
+  type IdAccesorioFisicoEstimado,
+} from '../../motor/tuberias/topologia/resolverAccesoriosFisicosEstimadosDeRed'
 import type { ItemAccesorioComputado } from './resolverDatosDeListadoDeMateriales'
 
 // Ubicación física de un accesorio (MATERIALS-PDF-POLISH-02, brief §5):
@@ -283,159 +284,106 @@ export function resolverAccesoriosDeLocalesDreza(
   return items
 }
 
-// Sector "Montantes" (brief §7). Por cada Montante explícito con al menos
-// 1 Local servido: llave de paso, tees de derivación (descontando las
-// bifurcaciones que YA tienen `Nodo.tee` configurado -- decisión de
-// dominio, opción A), codo del último Local (siempre, es un punto físico
-// distinto de cualquier Tee -- el nodo "punta" 1→1 nunca es una
-// derivación configurable) y codos de recorrido cada 2 m.
-export function resolverAccesoriosDeMontantesDreza(
-  proyecto: Proyecto,
-  catalogoArtefactos: readonly ArtefactoNormativo[],
-  contexto: ContextoDeCalculoM2,
-  pendientes: string[],
-): ItemAccesorioComputado[] {
-  const { redHidraulica, montantes } = proyecto
-  if (redHidraulica === undefined || montantes === undefined || montantes.length === 0) {
-    return []
+// Etiqueta pública de cada tipo de accesorio físico estimado
+// (`resolverAccesoriosFisicosEstimadosDeRed.ts`) para el listado de
+// materiales -- el nombre depende de sector para las piezas que existen en
+// ambos (llave, tee, codo de recorrido: Montante y Colector usan wording
+// distinto para la misma pieza, ver MATERIALS-ACCESSORIES-01).
+function etiquetaDeAccesorioFisico(tipo: IdAccesorioFisicoEstimado, sector: SectorAccesorioFisicoDreza): string {
+  switch (tipo) {
+    case 'llaveDePaso':
+      return sector === 'colectorPrincipal' ? 'Llave de paso esférica (general)' : 'Llave de paso esférica'
+    case 'teeDerivacion':
+      return sector === 'colectorPrincipal' ? 'Tee de distribución (Colector)' : 'Tee de derivación (Montante)'
+    case 'codoUltimoLocal':
+      return 'Codo de último local (Montante)'
+    case 'codoUltimaSalida':
+      return 'Codo de última salida (Colector)'
+    case 'codoRecorrido':
+      return sector === 'colectorPrincipal' ? 'Codo a 90° (Colector)' : 'Codo a 90° (recorrido de Montante)'
+    case 'unionRecta':
+      return 'Cupla recta PPR'
+    case 'teeAcs':
+      return 'Tee de alimentación ACS'
+    case 'teeRuptor':
+      return 'Tee de conexión de caño ruptor'
+    case 'unionTanque':
+      return 'Unión doble PPR (al tanque)'
   }
-
-  const items: ItemAccesorioComputado[] = []
-  for (const montante of montantes) {
-    const cadena = reconstruirCadena(redHidraulica, montante.id)
-    const segmentos = cadena?.segmentos ?? redHidraulica.tramos.filter((tramo) => tramo.montanteId === montante.id)
-    if (segmentos.length === 0) {
-      // Montante sin topología todavía (0 Locales, estado válido de
-      // M2-TOPO-C): nada que estimar, y no es un "pendiente" -- no hay
-      // ningún dato físico faltante, simplemente no existe nada que
-      // comprar todavía.
-      continue
-    }
-
-    const n = derivarLocalesServidos(proyecto, montante.id).length
-    if (n === 0) {
-      continue
-    }
-
-    const nombreMontante = nombreDeMontante(proyecto, montante.id)
-    const primerSegmento = segmentos[0]!
-    const resultadoDn = resolverDiametroComercialDeTramo(proyecto, primerSegmento.id, catalogoArtefactos, catalogoSistemasDeTuberia, contexto)
-    const dnComercial = resultadoDn.tipo === 'conCandidato' ? resultadoDn.candidato.denominacionComercial : undefined
-    if (dnComercial === undefined) {
-      pendientes.push(`${nombreMontante} — accesorios estimados con DN pendiente de definición`)
-      continue
-    }
-    const ubicacion: UbicacionMaterial = { tipo: 'montante', montanteId: montante.id, nombre: nombreMontante }
-
-    const longitudTotal_m = segmentos.reduce((acumulado, tramo) => acumulado + (tramo.longitud_m ?? 0), 0)
-
-    // Descuento de derivaciones ya resueltas explícitamente (opción A):
-    // una bifurcación 1→2 del Montante con `Nodo.tee` configurado ya es
-    // una Tee real 'definido' de `resolverTees` -- no debe volver a
-    // contarse como Tee genérica DREZA para esa misma derivación física.
-    const derivaciones = derivacionesDeMontante(proyecto, montante.id)
-    const derivacionesYaResueltas = derivaciones.filter((derivacion) => derivacion.tipo === 'bifurcacion' && derivacion.teeConfigurada).length
-    const derivacionesEsperadas = Math.max(0, n - 1)
-    const teesMontante = Math.max(0, derivacionesEsperadas - derivacionesYaResueltas)
-    const codosRecorrido = Math.floor(longitudTotal_m / 2)
-
-    const clave = (sufijo: string) => `estimadoDreza|montante|${montante.id}|${sufijo}`
-    items.push({ clave: clave('llave'), etiqueta: 'Llave de paso esférica', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'montante', red: montante.red, ubicacion })
-    if (teesMontante > 0) {
-      items.push({ clave: clave('tee'), etiqueta: 'Tee de derivación (Montante)', dnComercial, cantidadComputada: teesMontante, origen: 'estimadoDreza', sector: 'montante', red: montante.red, ubicacion })
-    }
-    // Codo del último Local: punto físico SIEMPRE presente cuando n>0,
-    // distinto de cualquier bifurcación/Tee (brief §7.2 -- "no generar
-    // simultáneamente cuatro tees y un codo final" ya se respeta: acá el
-    // codo reemplaza sólo a LA ÚLTIMA derivación dentro del conteo de
-    // `derivacionesEsperadas`, nunca se suma una Tee de más por esto).
-    items.push({ clave: clave('codoUltimoLocal'), etiqueta: 'Codo de último local (Montante)', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'montante', red: montante.red, ubicacion })
-    if (codosRecorrido > 0) {
-      items.push({ clave: clave('codoRecorrido'), etiqueta: 'Codo a 90° (recorrido de Montante)', dnComercial, cantidadComputada: codosRecorrido, origen: 'estimadoDreza', sector: 'montante', red: montante.red, ubicacion })
-    }
-  }
-  return items
 }
 
-// Sector "Colector principal" (brief §8). Corre por cada red (AF/AC) que
-// tenga una fila de Distribución general clasificada como
-// `ETIQUETA_COLECTOR_PRINCIPAL` (ver identificarFilasDeModulo2.ts). Las
-// salidas del colector son los Montantes de esa red si existen, o los
-// Locales alimentados directamente si no -- brief §8, generalizado a un
-// escenario mixto (algunos Locales directos + algunos Montantes) sumando
-// ambos grupos, que se reduce exactamente a los dos casos puros del
-// brief (Caso D: sólo Montantes; Caso E: sólo Locales directos).
-export function resolverAccesoriosDeColectorDreza(
+type SectorAccesorioFisicoDreza = 'montante' | 'colectorPrincipal'
+
+// Proyecta la fuente única de verdad (`AccesorioFisicoEstimado`, con
+// ubicación de Tramo/Nodo real) al modelo de materiales
+// (`ItemAccesorioComputado`, cantidad agregada por tipo): agrupa por
+// `(tipo, identidad de ubicación amplia)` sumando `cantidadFisica` (siempre
+// 1 por entrada) -- la MISMA instancia física que ya usa el balance
+// hidráulico (`acumularPerdidaLocalizadaEstimadaDeMontanteYColector.ts`),
+// nunca una segunda cuenta independiente (HYD-EST-NETWORK-01).
+function proyectarAccesoriosFisicosAMateriales(
+  accesoriosFisicos: readonly AccesorioFisicoEstimado[],
+  proyecto: Proyecto,
+): ItemAccesorioComputado[] {
+  const grupos = new Map<string, { readonly item: Omit<ItemAccesorioComputado, 'cantidadComputada'>; cantidad: number }>()
+  for (const accesorio of accesoriosFisicos) {
+    const ubicacion: UbicacionMaterial =
+      accesorio.sector === 'montante'
+        ? { tipo: 'montante', montanteId: accesorio.montanteId!, nombre: nombreDeMontante(proyecto, accesorio.montanteId!) }
+        : { tipo: 'colectorPrincipal' }
+    const identidadUbicacion = accesorio.sector === 'montante' ? accesorio.montanteId! : accesorio.red
+    const clave = `estimadoDreza|${accesorio.sector}|${identidadUbicacion}|${accesorio.tipo}`
+    const existente = grupos.get(clave)
+    if (existente !== undefined) {
+      existente.cantidad += 1
+      continue
+    }
+    grupos.set(clave, {
+      item: {
+        clave,
+        etiqueta: etiquetaDeAccesorioFisico(accesorio.tipo, accesorio.sector),
+        dnComercial: accesorio.dnComercial,
+        origen: 'estimadoDreza',
+        sector: accesorio.sector,
+        red: accesorio.red,
+        ubicacion,
+      },
+      cantidad: 1,
+    })
+  }
+  return [...grupos.values()].map(({ item, cantidad }) => ({ ...item, cantidadComputada: cantidad }))
+}
+
+// Sectores "Montantes" y "Colector principal" (brief §7/§8):
+// HYD-EST-NETWORK-01 unifica el cómputo con el balance hidráulico -- este
+// resolver ya NO calcula cantidades por su cuenta, sólo PROYECTA
+// `resolverAccesoriosFisicosEstimadosDeRed` (fuente única de verdad,
+// también consumida por `acumularPerdidaLocalizadaEstimadaDeMontanteYColector`)
+// al modelo de materiales. Ver ese módulo para las reglas constructivas
+// completas (llave, tees de derivación, codo de último Local/última
+// salida, codos y uniones periódicos por distancia acumulada, ACS/ruptor/
+// unión a tanque).
+export function resolverAccesoriosDeMontantesYColectorDreza(
   proyecto: Proyecto,
   catalogoArtefactos: readonly ArtefactoNormativo[],
   contexto: ContextoDeCalculoM2,
   pendientes: string[],
 ): ItemAccesorioComputado[] {
-  const { redHidraulica, montantes, configuracionAbastecimiento } = proyecto
-  if (redHidraulica === undefined) {
-    return []
-  }
+  const { items: accesoriosFisicos, pendientes: pendientesFisicos } = resolverAccesoriosFisicosEstimadosDeRed(proyecto, catalogoArtefactos, contexto)
+  pendientes.push(...pendientesFisicos)
+  return proyectarAccesoriosFisicosAMateriales(accesoriosFisicos, proyecto)
+}
 
-  const filasGenerales = identificarFilasDistribucionGeneral(proyecto)
-  const tieneTanqueSuperior =
-    configuracionAbastecimiento?.esquema === 'tanqueElevado' || configuracionAbastecimiento?.esquema === 'cisternaBombeoElevado'
-  const tieneAlimentacionAcs = filasGenerales.some((fila) => fila.etiqueta === 'Alimentación ACS')
-
-  const items: ItemAccesorioComputado[] = []
-  for (const red of ['AF', 'AC'] as const) {
-    const filaColector = filasGenerales.find((fila) => fila.etiqueta === ETIQUETA_COLECTOR_PRINCIPAL && fila.red === red)
-    if (filaColector === undefined) {
-      continue
-    }
-
-    const resultadoDn = resolverDiametroComercialDeTramo(proyecto, filaColector.tramoId, catalogoArtefactos, catalogoSistemasDeTuberia, contexto)
-    const dnComercial = resultadoDn.tipo === 'conCandidato' ? resultadoDn.candidato.denominacionComercial : undefined
-    if (dnComercial === undefined) {
-      pendientes.push(`${ETIQUETA_COLECTOR_PRINCIPAL} (${red}) — accesorios estimados con DN pendiente de definición`)
-      continue
-    }
-
-    const montantesDeRed = (montantes ?? []).filter((montante) => montante.red === red)
-    const localesServidosPorMontante = new Set<string>()
-    for (const montante of montantesDeRed) {
-      for (const servido of derivarLocalesServidos(proyecto, montante.id)) {
-        localesServidosPorMontante.add(`${servido.unidadFuncionalId}|${servido.localId}`)
-      }
-    }
-    const localesDirectos = identificarFilasPrincipalesDeLocales(proyecto).filter(
-      (fila) => fila.red === red && !localesServidosPorMontante.has(`${fila.unidadFuncionalId}|${fila.localId}`),
-    )
-    const nSalidas = montantesDeRed.length + localesDirectos.length
-
-    const ubicacion: UbicacionMaterial = { tipo: 'colectorPrincipal' }
-    const clave = (sufijo: string) => `estimadoDreza|colector|${red}|${sufijo}`
-    items.push({ clave: clave('llave'), etiqueta: 'Llave de paso esférica (general)', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'colectorPrincipal', red, ubicacion })
-
-    if (nSalidas > 0) {
-      const teesDistribucion = Math.max(0, nSalidas - 1)
-      if (teesDistribucion > 0) {
-        items.push({ clave: clave('teeDistribucion'), etiqueta: 'Tee de distribución (Colector)', dnComercial, cantidadComputada: teesDistribucion, origen: 'estimadoDreza', sector: 'colectorPrincipal', red, ubicacion })
-      }
-      items.push({ clave: clave('codoUltimaSalida'), etiqueta: 'Codo de última salida (Colector)', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'colectorPrincipal', red, ubicacion })
-    }
-
-    // Codos propios del colector (brief §8.6): estimación fija, no la
-    // regla de "1 cada 2 m" (exclusiva de Montantes).
-    items.push({ clave: clave('codoRecorrido'), etiqueta: 'Codo a 90° (Colector)', dnComercial, cantidadComputada: 2, origen: 'estimadoDreza', sector: 'colectorPrincipal', red, ubicacion })
-
-    // ACS, caño ruptor y unión al tanque son piezas del lado AF del
-    // colector (brief §8.3/§8.4/§8.5): la Tee de ACS deriva agua FRÍA
-    // hacia la producción de ACS; el ruptor y la unión desmontable cuelgan
-    // de la alimentación de entrada al tanque, siempre AF.
-    if (red === 'AF' && tieneAlimentacionAcs) {
-      items.push({ clave: clave('teeAcs'), etiqueta: 'Tee de alimentación ACS', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'colectorPrincipal', red, ubicacion })
-    }
-    if (red === 'AF' && tieneTanqueSuperior) {
-      items.push({ clave: clave('teeRuptor'), etiqueta: 'Tee de conexión de caño ruptor', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'colectorPrincipal', red, ubicacion })
-      items.push({ clave: clave('unionTanque'), etiqueta: 'Unión doble PPR (al tanque)', dnComercial, cantidadComputada: 1, origen: 'estimadoDreza', sector: 'colectorPrincipal', red, ubicacion })
-    }
-  }
-  return items
+// Tramos que `resolverAccesoriosFisicosEstimadosDeRed` ya cubre para
+// uniones/cuplas rectas (Montante/Colector, por distancia acumulada sobre
+// su PROPIA longitud) -- deben excluirse de `resolverUnionesRectasDreza`
+// (que agrupa por sector amplio) para no contar la misma unión física dos
+// veces bajo dos reglas distintas. Locales no están cubiertos por el nuevo
+// resolver (alcance confirmado por el usuario, HYD-EST-NETWORK-01: el
+// interior de un Local sigue sin tocarse) -- sus tramos nunca se excluyen
+// acá.
+export function tramoCubiertoPorAccesoriosFisicosDeRed(proyecto: Proyecto, tramoId: string): boolean {
+  return tramosDeMontanteYColector(proyecto).has(tramoId)
 }
 
 // Regla pura de uniones/cuplas rectas cada 4 m (brief §9): expuesta por

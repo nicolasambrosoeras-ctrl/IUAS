@@ -105,6 +105,24 @@ export function acumularPerdidaLocalizadaEstimadaDeMontanteYColector(
   const tramosDelCamino = new Set(camino.tramos.map((t) => t.id))
   const nodosDelCamino = new Set(camino.nodos.map((n) => n.id))
   const indicePorNodoId = new Map(camino.nodos.map((n, i) => [n.id, i]))
+  const tramosPorId = new Map((proyecto.redHidraulica?.tramos ?? []).map((t) => [t.id, t]))
+
+  // Nodos que YA tienen una Tee de derivación (nodo-based, afecta a
+  // cualquier camino que atraviese el nodo -- ver más abajo). Cuando la
+  // "última salida" (codo, tipo tramo) arranca justo desde ESE MISMO nodo
+  // -- un fan-out simultáneo de varias salidas desde un único punto, no una
+  // cadena secuencial -- el nodo físico sólo tiene UNA pieza real instalada
+  // (nunca se suman Tee y codo por la MISMA derivación, brief "nunca se
+  // asignan ambas"); sin este chequeo, el camino de esa última salida vería
+  // DOS piezas (la Tee, porque su camino atraviesa el nodo igual que
+  // cualquier otro; y su propio codo) mientras las demás salidas del mismo
+  // nodo sólo ven la Tee -- una asimetría espuria entre salidas físicamente
+  // equivalentes (detectado por verificacionLongitudVerticalPorNivel.test.ts,
+  // T12/T33: dos UF simétricas colgadas del mismo nodo no deberían diferir
+  // hidráulicamente más que por geometría/fricción).
+  const nodosConTeeDeDerivacion = new Set(
+    accesoriosFisicos.filter((a) => a.tipo === 'teeDerivacion' && a.ubicacion.tipo === 'nodo').map((a) => (a.ubicacion as { nodoId: string }).nodoId),
+  )
 
   const tramosNoResueltos: { tramoId: string; motivo: MotivoTramoSinPerdidaLocalizadaEstimadaDeRed }[] = []
   const detalle: DetalleAccesorioFisicoEnCamino[] = []
@@ -114,6 +132,12 @@ export function acumularPerdidaLocalizadaEstimadaDeMontanteYColector(
     let tramoIdParaVelocidad: string | undefined
     if (accesorio.ubicacion.tipo === 'tramo') {
       if (!tramosDelCamino.has(accesorio.ubicacion.tramoId)) {
+        continue
+      }
+      if (
+        (accesorio.tipo === 'codoUltimaSalida' || accesorio.tipo === 'codoUltimoLocal') &&
+        nodosConTeeDeDerivacion.has(tramosPorId.get(accesorio.ubicacion.tramoId)?.nodoOrigenId ?? '')
+      ) {
         continue
       }
       tramoIdParaVelocidad = accesorio.ubicacion.tramoId

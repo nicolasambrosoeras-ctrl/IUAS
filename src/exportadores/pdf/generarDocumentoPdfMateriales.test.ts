@@ -393,15 +393,23 @@ describe('construirDocDefinitionListadoMateriales — MATERIALS-PDF-POLISH-02: t
     expect(textos).toContain('71,50 m')
     expect(textos).toContain('88 u')
 
-    // Nota de trazabilidad: al cerrar este slice, el total "sugerido de
-    // compra" de accesorios consolidado (Math.ceil por accesorio+DN, sin
-    // sumar ceils independientes) da 104 u para este proyecto -- NO 105 u
-    // como muestra el PDF de referencia citado en el brief. Se verificó
-    // que la discrepancia (base 88 u coincide exactamente; sólo la compra
-    // difiere en 1 u) YA EXISTÍA antes de este slice (mismo resultado en
-    // HEAD 16fb767, previo a cualquier cambio de este paquete) -- no es
-    // una regresión introducida acá, y no se fuerza el número ajustando
-    // la fórmula (brief §3: "no cambiar la fórmula ni los totales").
+    // Nota de trazabilidad: el total "sugerido de compra" de accesorios
+    // consolidado (Math.ceil por accesorio+DN -- `resolverConsolidadoDeAccesorios`,
+    // que reagrupa por etiqueta+DN independientemente de la ubicación
+    // detallada) da 104 u para este proyecto -- NO 105 u como muestra el
+    // PDF de referencia citado en el brief original. Se verificó que la
+    // discrepancia (base 88 u coincide exactamente; sólo la compra difiere
+    // en 1 u) YA EXISTÍA antes de MATERIALS-PDF-POLISH-02 -- no es una
+    // regresión, y no se fuerza el número ajustando la fórmula.
+    //
+    // HYD-EST-NETWORK-01: ambos totales (88 u base / 104 u compra) se
+    // verificaron invariantes pese a que la composición interna del
+    // detalle sí cambió (el tronco de Colector y la Alimentación ACS,
+    // antes fusionados bajo el mismo `sector: 'colectorPrincipal'` amplio,
+    // ahora aparecen como filas de detalle separadas) -- el resumen de
+    // compra sigue agrupando por accesorio+DN (brief MATERIALS-PDF-POLISH-02
+    // §10: "sigue siendo la única fuente de compra, sin ubicación"), así
+    // que esa separación no cambia el total consolidado.
     expect(textos).toContain('104 u')
   })
 })

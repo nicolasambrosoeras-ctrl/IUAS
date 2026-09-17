@@ -661,25 +661,48 @@ describe('resolverDatosDeListadoDeMateriales — estimación constructiva DREZA 
   }
 
   // Caso D (brief §13): colector con 3 Montantes, ACS y tanque elevado.
-  it('Caso D — 3 Montantes + ACS + tanque: 1 llave, 2 tees de distribución, 1 codo, 1 tee ACS, 1 tee ruptor, 1 unión al tanque, 2 codos propios', () => {
+  // HYD-EST-NETWORK-01: Nsalidas ahora se deriva de la topología REAL
+  // (nodos de bifurcación efectivamente atravesados por el tronco de
+  // Colector), no de la mera existencia de una identidad `Montante` sin
+  // segmentos -- un Montante sin ningún Tramo no tiene ningún camino
+  // hidráulico al que pertenecer, así que ya no genera una Tee "fantasma"
+  // (corrección legítima de este incremento, ver docs/HYD-EST-NETWORK-01.md:
+  // antes, `Nsalidas = cantidad de identidades Montante`, sin verificar que
+  // existiera topología). Los 3 Montantes de este caso reciben, por lo
+  // tanto, topología real (cada uno con su propio segmento y Artefacto) en
+  // una cadena de bifurcaciones -- m1 y m2 se derivan en nodos sucesivos, m3
+  // es la salida final (codo, no Tee).
+  it('Caso D — 3 Montantes (con topología real) + ACS + tanque: 1 llave, 2 tees de distribución, 1 codo, 1 tee ACS, 1 tee ruptor, 1 unión al tanque, 2 codos propios', () => {
     const { nodos, tramos } = proyectoColectorBase()
     // El Colector necesita demanda real aguas abajo para que su propio DN
     // resuelva (resolverDiametroComercialDeTramo ignora dnComercialAdoptado
-    // sin Qc>0, CRIT de "nunca inventar") -- se la da conectando m1 a un
-    // Artefacto real; m2/m3 quedan como identidades sin topología propia
-    // todavía (estado válido, M2-TOPO-C), y aun así cuentan como salidas
-    // del Colector (brief §8: Nsalidas = cantidad de Montantes, no de
-    // Locales servidos por cada uno).
-    nodos.push({ id: 'nM1Art', referencia: { tipo: 'artefacto', unidadFuncionalId: 'ufM1', localId: 'localM1', artefactoId: 'artM1' } })
-    tramos.push({ id: 't-m1-feed', nodoOrigenId: 'n1', nodoDestinoId: 'nM1Art', red: 'AF', longitud_m: 3, dnComercialAdoptado: '25 mm', montanteId: 'm1' })
-    const ufM1: UnidadFuncional = {
-      id: 'ufM1',
-      nombre: 'ufM1',
-      niveles: [{ id: 'ufM1-nivel-1', nombre: 'Nivel 1', locales: [{ id: 'localM1', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'artM1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] }] }],
-    }
+    // sin Qc>0, CRIT de "nunca inventar").
+    // Tronco de reparto EXPLÍCITO (t-tronco-1/2, sin `montanteId`) distinto
+    // del segmento propio de cada Montante (t-mN-feed, arranca EN el nodo
+    // de bifurcación, nunca aguas abajo del segmento de otro Montante) --
+    // así ningún Montante "atraviesa" la pieza física de otro.
+    nodos.push(
+      { id: 'nBif1' },
+      { id: 'nBif2' },
+      { id: 'nM1Art', referencia: { tipo: 'artefacto', unidadFuncionalId: 'ufM1', localId: 'localM1', artefactoId: 'artM1' } },
+      { id: 'nM2Art', referencia: { tipo: 'artefacto', unidadFuncionalId: 'ufM2', localId: 'localM2', artefactoId: 'artM2' } },
+      { id: 'nM3Art', referencia: { tipo: 'artefacto', unidadFuncionalId: 'ufM3', localId: 'localM3', artefactoId: 'artM3' } },
+    )
+    tramos.push(
+      { id: 't-tronco-1', nodoOrigenId: 'n1', nodoDestinoId: 'nBif1', red: 'AF', longitud_m: 1, dnComercialAdoptado: '25 mm' },
+      { id: 't-m1-feed', nodoOrigenId: 'nBif1', nodoDestinoId: 'nM1Art', red: 'AF', longitud_m: 2, dnComercialAdoptado: '25 mm', montanteId: 'm1' },
+      { id: 't-tronco-2', nodoOrigenId: 'nBif1', nodoDestinoId: 'nBif2', red: 'AF', longitud_m: 1, dnComercialAdoptado: '25 mm' },
+      { id: 't-m2-feed', nodoOrigenId: 'nBif2', nodoDestinoId: 'nM2Art', red: 'AF', longitud_m: 3, dnComercialAdoptado: '20 mm', montanteId: 'm2' },
+      { id: 't-m3-feed', nodoOrigenId: 'nBif2', nodoDestinoId: 'nM3Art', red: 'AF', longitud_m: 3, dnComercialAdoptado: '20 mm', montanteId: 'm3' },
+    )
+    const ufDeMontante = (id: string, localId: string, artefactoId: string): UnidadFuncional => ({
+      id,
+      nombre: id,
+      niveles: [{ id: `${id}-nivel-1`, nombre: 'Nivel 1', locales: [{ id: localId, tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: artefactoId, artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] }] }],
+    })
     const proyecto: Proyecto = {
       ...proyectoBase({
-        ufs: [ufM1],
+        ufs: [ufDeMontante('ufM1', 'localM1', 'artM1'), ufDeMontante('ufM2', 'localM2', 'artM2'), ufDeMontante('ufM3', 'localM3', 'artM3')],
         red: { nodos, tramos },
         configuracionHidraulica: { granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado' },
         configuracionAbastecimiento: { esquema: 'tanqueElevado', volumenTanqueElevadoAdoptado_m3: 1 },
@@ -697,6 +720,36 @@ describe('resolverDatosDeListadoDeMateriales — estimación constructiva DREZA 
     expect(items.find((a) => a.etiqueta === 'Tee de conexión de caño ruptor')?.cantidadComputada).toBe(1)
     expect(items.find((a) => a.etiqueta === 'Unión doble PPR (al tanque)')?.cantidadComputada).toBe(1)
     expect(items.find((a) => a.etiqueta === 'Codo a 90° (Colector)')?.cantidadComputada).toBe(2)
+  })
+
+  it('Caso D-bis — Montante sin topología propia (0 segmentos): no genera Tee "fantasma" en el Colector', () => {
+    const { nodos, tramos } = proyectoColectorBase()
+    nodos.push({ id: 'nM1Art', referencia: { tipo: 'artefacto', unidadFuncionalId: 'ufM1', localId: 'localM1', artefactoId: 'artM1' } })
+    tramos.push({ id: 't-m1-feed', nodoOrigenId: 'n1', nodoDestinoId: 'nM1Art', red: 'AF', longitud_m: 3, dnComercialAdoptado: '25 mm', montanteId: 'm1' })
+    const ufM1: UnidadFuncional = {
+      id: 'ufM1',
+      nombre: 'ufM1',
+      niveles: [{ id: 'ufM1-nivel-1', nombre: 'Nivel 1', locales: [{ id: 'localM1', tipo: 'bano', regimen: 'domiciliario', artefactos: [{ id: 'artM1', artefactoId: 'lavatorio', cantidad: 1, origen: 'normativo' }] }] }],
+    }
+    const proyecto: Proyecto = {
+      ...proyectoBase({
+        ufs: [ufM1],
+        red: { nodos, tramos },
+        configuracionHidraulica: { granularidadHidraulica: 'simplificada', metodoPerdidaLocalizada: 'estimado' },
+      }),
+      // m2/m3: identidades SIN ningún Tramo propio (M2-TOPO-C, estado
+      // válido) -- no tienen ningún camino hidráulico al que pertenecer,
+      // así que no cuentan como salida del Colector.
+      montantes: [{ id: 'm1', red: 'AF' }, { id: 'm2', red: 'AF' }, { id: 'm3', red: 'AF' }],
+    }
+
+    const datos = resolverDatosDeListadoDeMateriales(proyecto, catalogoArtefactos, coeficientesMayoracion)
+    const items = datos.accesorios.filter((a) => a.origen === 'estimadoDreza' && a.sector === 'colectorPrincipal')
+
+    // Nsalidas real = 1 (sólo m1 tiene topología) -> 0 Tees, 1 codo de
+    // última salida (para m1, la única salida real).
+    expect(items.find((a) => a.etiqueta === 'Tee de distribución (Colector)')).toBeUndefined()
+    expect(items.find((a) => a.etiqueta === 'Codo de última salida (Colector)')?.cantidadComputada).toBe(1)
   })
 
   // Caso E (brief §13): sin Montantes, 4 Locales alimentados directamente.

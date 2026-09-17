@@ -276,14 +276,14 @@ describe('D-δ.70 · Baseline funcional transversal M1–M4', () => {
     // luego a −19,640 m.c.a. con HYD-ACQUA-K-CATALOG-01 (la tee estimada
     // Acqua System usa su valor oficial simplificado 1,80 en vez del 3,00
     // de Tabla N°7 -- ΣK baja pese a seguir sumando el Sobrepaso), y
-    // finalmente a −24,352 m.c.a. con HYD-EST-NETWORK-01 (los accesorios
+    // finalmente a −23,931 m.c.a. con HYD-EST-NETWORK-01 (los accesorios
     // físicos estimados de Montante/Colector principal del camino crítico
     // -- llave general, tees de derivación, codos y uniones -- ahora
     // aportan ΣK real; antes de este incremento existían sólo para el
     // listado de materiales, con incidencia hidráulica 0). Sigue NO
     // CUMPLE en los cuatro casos. M1/M3/M4/Tabla N°1 intactos.
     if (m2.estado.estado === 'completo') {
-      expect(m2.estado.terminalMasDesfavorable.margen_mca).toBeCloseTo(-24.352, 3)
+      expect(m2.estado.terminalMasDesfavorable.margen_mca).toBeCloseTo(-23.931, 3)
       expect(m2.estado.terminalMasDesfavorable.cumpleMinimo).toBe(false)
     }
   })

@@ -177,7 +177,7 @@ describe('resolverDatosDeInforme -- Verificación hidráulica (§31/§16)', () =
     // Mismo baseline que resolverResumenDeProyecto.test.ts (HYD-EST-NETWORK-01:
     // los accesorios físicos estimados de Montante/Colector del camino
     // crítico ahora aportan ΣK real -- ver docs/HYD-EST-NETWORK-01.md).
-    expect(critico!.margenTexto).toBe('-24,352 m.c.a.')
+    expect(critico!.margenTexto).toBe('-23,931 m.c.a.')
   })
 
   it('exactamente un terminal está marcado como crítico', () => {

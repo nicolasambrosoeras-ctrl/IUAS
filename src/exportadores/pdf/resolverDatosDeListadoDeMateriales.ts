@@ -46,9 +46,9 @@ import { resolverEstadoModulo3 } from '../../motor/modulo3/resolverEstadoModulo3
 import { localUnicoDeTramo } from '../../motor/tuberias/topologia/identificarTramoRepresentativoDeLocal'
 import {
   resolverAccesoriosDeLocalesDreza,
-  resolverAccesoriosDeMontantesDreza,
-  resolverAccesoriosDeColectorDreza,
+  resolverAccesoriosDeMontantesYColectorDreza,
   resolverUnionesRectasDreza,
+  tramoCubiertoPorAccesoriosFisicosDeRed,
   type SectorMaterial,
   type UbicacionMaterial,
 } from './resolverAccesoriosConstructivosDreza'
@@ -612,23 +612,33 @@ export function resolverDatosDeListadoDeMateriales(
     )) {
       accesorios.set(item.clave, item)
     }
-    for (const item of resolverAccesoriosDeMontantesDreza(proyecto, catalogoArtefactos, contexto, pendientes)) {
-      accesorios.set(item.clave, item)
-    }
-    for (const item of resolverAccesoriosDeColectorDreza(proyecto, catalogoArtefactos, contexto, pendientes)) {
+    for (const item of resolverAccesoriosDeMontantesYColectorDreza(proyecto, catalogoArtefactos, contexto, pendientes)) {
       accesorios.set(item.clave, item)
     }
   }
 
   // Uniones/cuplas rectas cada 4 m (brief §9): regla de empaquetado de
   // cañería, independiente del gate anterior -- corre siempre que el
-  // sistema adoptado sea PPR (ver resolverUnionesRectasDreza).
+  // sistema adoptado sea PPR (ver resolverUnionesRectasDreza). Excluye los
+  // Tramos de Montante/Colector que, dentro del gate estimado+simplificada,
+  // ya recibieron sus propias uniones por distancia acumulada de
+  // `resolverAccesoriosDeMontantesYColectorDreza` (HYD-EST-NETWORK-01) --
+  // sin esto se contaría la misma unión física dos veces, bajo dos reglas
+  // de agrupación distintas. Fuera de ese gate, `tramoCubiertoPorAccesoriosFisicosDeRed`
+  // igual identifica los mismos Tramos de Montante/Colector, pero el
+  // resolver físico nunca corrió -- no hay nada que excluir de más porque
+  // el propio `resolverAccesoriosDeMontantesYColectorDreza` tampoco corrió.
+  const gateDrezaActivo =
+    proyecto.configuracionHidraulica.granularidadHidraulica === 'simplificada' &&
+    proyecto.configuracionHidraulica.metodoPerdidaLocalizada === 'estimado'
   for (const item of resolverUnionesRectasDreza(
     proyecto,
     catalogoArtefactos,
     contexto,
     (tramoId) => resolverUbicacionDeTramo(proyecto, tramoId, indiceDeHumanizacion),
-    (tramoId) => esTramoRamalEnSimplificada(proyecto, tramoId, contexto, indiceDeHumanizacion),
+    (tramoId) =>
+      esTramoRamalEnSimplificada(proyecto, tramoId, contexto, indiceDeHumanizacion) ||
+      (gateDrezaActivo && tramoCubiertoPorAccesoriosFisicosDeRed(proyecto, tramoId)),
   )) {
     accesorios.set(item.clave, item)
   }

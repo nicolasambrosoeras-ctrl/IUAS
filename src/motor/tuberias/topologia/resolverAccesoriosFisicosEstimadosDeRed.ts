@@ -202,7 +202,16 @@ function resolverAccesoriosFisicosDeMontante(
 // Tramo representativo de un Local directo -- el mismo criterio estructural
 // que ya usa `resolverUbicacionDeTramo` en Materials, reimplementado acá
 // sin depender de su índice de humanización (evita un import circular).
-function tramosDeColectorEnOrden(proyecto: Proyecto, red: RedDeTramo): readonly Tramo[] {
+//
+// A diferencia de una cadena estrictamente lineal (que se cortaría en la
+// PRIMERA bifurcación), esto recorre TODO el subárbol de tramos "de
+// reparto" alcanzables desde la raíz siguiendo únicamente ramas que NO son
+// el arranque de un Montante/Local ni la rama hacia producción ACS -- un
+// Colector puede bifurcarse varias veces antes de llegar a sus salidas
+// finales (Caso E: 4 Locales directos desde un único nodo), y todos esos
+// tramos "de reparto" son igualmente Colector, no sólo el primer tramo.
+// Orden: BFS desde la raíz (determinístico, estable).
+export function tramosDeColectorEnOrden(proyecto: Proyecto, red: RedDeTramo): readonly Tramo[] {
   const { redHidraulica } = proyecto
   if (redHidraulica === undefined) {
     return []
@@ -226,36 +235,50 @@ function tramosDeColectorEnOrden(proyecto: Proyecto, red: RedDeTramo): readonly 
     // llave/codos/uniones de ESE MISMO Tramo bajo los dos sectores.
     return []
   }
+  const esSalidaOAcs = construirClasificadorDeSalidaOAcs(proyecto, red)
+
+  const resultado: Tramo[] = [tramoRaiz]
+  const cola: string[] = [tramoRaiz.nodoDestinoId]
+  while (cola.length > 0) {
+    const nodoActual = cola.shift()!
+    const salientes = redHidraulica.tramos.filter((t) => t.nodoOrigenId === nodoActual && t.red === red)
+    for (const saliente of salientes) {
+      if (esSalidaOAcs(saliente)) {
+        continue
+      }
+      resultado.push(saliente)
+      cola.push(saliente.nodoDestinoId)
+    }
+  }
+  return resultado
+}
+
+// Clasificador compartido: un Tramo NO pertenece al tronco de reparto del
+// Colector si arranca un Montante/Local (es una salida real) o si lleva
+// hacia producción ACS (pieza aparte, `teeAcs`, ver
+// `resolverAccesoriosFisicosDeColectorRed`).
+function construirClasificadorDeSalidaOAcs(proyecto: Proyecto, red: RedDeTramo): (t: Tramo) => boolean {
+  const { redHidraulica } = proyecto
+  const nodosPorId = new Map((redHidraulica?.nodos ?? []).map((nodo) => [nodo.id, nodo]))
   const tramosRepresentativosLocales = new Set(
     identificarFilasPrincipalesDeLocales(proyecto)
       .filter((fila) => fila.red === red)
       .map((fila) => fila.tramoId),
   )
-
-  const cadena: Tramo[] = [tramoRaiz]
-  let actual = tramoRaiz
-  for (;;) {
-    const salientes = redHidraulica.tramos.filter((t) => t.nodoOrigenId === actual.nodoDestinoId && t.red === red)
-    if (salientes.length !== 1) {
-      break
-    }
-    const siguiente = salientes[0]!
-    if (siguiente.montanteId !== undefined || tramosRepresentativosLocales.has(siguiente.id)) {
-      break
-    }
-    cadena.push(siguiente)
-    actual = siguiente
-  }
-  return cadena
+  return (t: Tramo): boolean =>
+    t.montanteId !== undefined || tramosRepresentativosLocales.has(t.id) || nodosPorId.get(t.nodoDestinoId)?.referencia?.tipo === 'produccionACS'
 }
 
-// Recorre, desde el último nodo del tronco de Colector, la cadena de
-// bifurcaciones reales que reparte hacia los Montantes/Locales directos de
-// esta red -- mismo patrón que `derivacionesDeMontante`, generalizado: en
-// cada nodo de bifurcación, las salidas que arrancan un Montante o el Tramo
-// representativo de un Local se cuentan como "salidas del Colector"; la
-// rama restante (si existe) continúa el tronco. La ÚLTIMA salida alcanzada
-// (cuando ya no queda tronco) no recibe Tee -- ver `resolverAccesoriosFisicosDeColectorRed`.
+// Recorre TODOS los nodos frontera del tronco de Colector (el nodo destino
+// de la raíz + el nodo destino de cada tramo de reparto de
+// `tramosColector`) y, en cada uno, identifica las salidas reales
+// (arrancan un Montante o el Tramo representativo de un Local) -- cada una
+// suma una Tee de derivación, SALVO la última de todas (en el orden
+// determinístico del recorrido), que se resuelve como codo en vez de Tee
+// (brief §8: "una Tee por salida salvo la última; un codo para la última
+// salida"). `tramosColector` ya excluye ramas ACS y salidas (ver
+// `tramosDeColectorEnOrden`), así que alcanza con mirar, por cada nodo
+// frontera, los salientes que SÍ son salida.
 function resolverDerivacionesDelColector(
   proyecto: Proyecto,
   red: RedDeTramo,
@@ -265,6 +288,7 @@ function resolverDerivacionesDelColector(
   if (redHidraulica === undefined || tramosColector.length === 0) {
     return { nodosConTee: [], tramoUltimaSalida: undefined }
   }
+  const nodosPorId = new Map(redHidraulica.nodos.map((nodo) => [nodo.id, nodo]))
   const tramosRepresentativosLocales = new Set(
     identificarFilasPrincipalesDeLocales(proyecto)
       .filter((fila) => fila.red === red)
@@ -272,45 +296,23 @@ function resolverDerivacionesDelColector(
   )
   const esInicioDeSalida = (t: Tramo): boolean => t.montanteId !== undefined || tramosRepresentativosLocales.has(t.id)
 
-  const nodosPorId = new Map(redHidraulica.nodos.map((nodo) => [nodo.id, nodo]))
-  const nodosConTee: { nodoId: string; teeConfigurada: boolean }[] = []
-  let tramoUltimaSalida: string | undefined
-  let nodoActual = tramosColector[tramosColector.length - 1]!.nodoDestinoId
-
-  for (;;) {
-    const salientes = redHidraulica.tramos.filter((t) => t.nodoOrigenId === nodoActual && t.red === red)
-    if (salientes.length === 0) {
-      break
-    }
-    if (salientes.length === 1) {
-      const unico = salientes[0]!
-      if (esInicioDeSalida(unico)) {
-        tramoUltimaSalida = unico.id
-        break
+  const salidasPorNodo: { nodoId: string; tramoId: string }[] = []
+  for (const nodoFrontera of tramosColector.map((t) => t.nodoDestinoId)) {
+    for (const saliente of redHidraulica.tramos.filter((t) => t.nodoOrigenId === nodoFrontera && t.red === red)) {
+      if (esInicioDeSalida(saliente)) {
+        salidasPorNodo.push({ nodoId: nodoFrontera, tramoId: saliente.id })
       }
-      nodoActual = unico.nodoDestinoId
-      continue
     }
-    const continuaTronco = salientes.find((t) => !esInicioDeSalida(t))
-    const salidasAca = salientes.filter((t) => esInicioDeSalida(t))
-    const teeConfigurada = nodosPorId.get(nodoActual)?.tee !== undefined
-    if (continuaTronco === undefined) {
-      // No queda tronco después de esta bifurcación: la última salida
-      // encontrada acá se resuelve como codo, el resto como Tee.
-      const [ultima, ...resto] = salidasAca
-      for (let i = 0; i < resto.length; i += 1) {
-        nodosConTee.push({ nodoId: nodoActual, teeConfigurada })
-      }
-      tramoUltimaSalida = ultima?.id
-      break
-    }
-    for (let i = 0; i < salidasAca.length; i += 1) {
-      nodosConTee.push({ nodoId: nodoActual, teeConfigurada })
-    }
-    nodoActual = continuaTronco.nodoDestinoId
+  }
+  if (salidasPorNodo.length === 0) {
+    return { nodosConTee: [], tramoUltimaSalida: undefined }
   }
 
-  return { nodosConTee, tramoUltimaSalida }
+  const ultima = salidasPorNodo[salidasPorNodo.length - 1]!
+  const nodosConTee = salidasPorNodo
+    .slice(0, -1)
+    .map(({ nodoId }) => ({ nodoId, teeConfigurada: nodosPorId.get(nodoId)?.tee !== undefined }))
+  return { nodosConTee, tramoUltimaSalida: ultima.tramoId }
 }
 
 function resolverAccesoriosFisicosDeColectorRed(
@@ -387,6 +389,30 @@ function resolverAccesoriosFisicosDeColectorRed(
 
   void montantes
   return items
+}
+
+// Conjunto de Tramos que pertenecen físicamente a un Montante o al tronco
+// de Colector principal (todos los segmentos, no sólo los que recibieron
+// una pieza periódica) -- usado por Materials para excluir estos Tramos de
+// `resolverUnionesRectasDreza` (que agrupa por sector amplio) y no contar
+// la misma unión física dos veces bajo dos reglas distintas.
+export function tramosDeMontanteYColector(proyecto: Proyecto): ReadonlySet<string> {
+  const { redHidraulica } = proyecto
+  const cubiertos = new Set<string>()
+  if (redHidraulica === undefined) {
+    return cubiertos
+  }
+  for (const tramo of redHidraulica.tramos) {
+    if (tramo.montanteId !== undefined) {
+      cubiertos.add(tramo.id)
+    }
+  }
+  for (const red of ['AF', 'AC'] as const) {
+    for (const tramo of tramosDeColectorEnOrden(proyecto, red)) {
+      cubiertos.add(tramo.id)
+    }
+  }
+  return cubiertos
 }
 
 // Punto de entrada único: todos los accesorios físicos estimados de
